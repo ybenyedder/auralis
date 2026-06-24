@@ -134,7 +134,7 @@ export function FullscreenPlayer() {
         </button>
         <button
           onClick={toggleQueue}
-          className={cn("hidden h-9 w-9 place-items-center rounded-[11px] transition-colors lg:grid", queueOpen ? "bg-primary text-black" : "ghost-button")}
+          className={cn("hidden h-9 w-9 place-items-center rounded-[11px] transition-colors lg:grid", queueOpen ? "bg-primary/15 text-primary" : "ghost-button")}
           aria-label="File d'attente"
         >
           <ListMusic className="size-5" />
@@ -290,13 +290,13 @@ export function FullscreenPlayer() {
         </button>
         <button
           onClick={toggleLyrics}
-          className={cn("tap-press flex h-11 items-center gap-2 rounded-[11px] px-4 text-[12px] font-bold transition-colors", lyricsOpen ? "bg-primary text-black" : "text-muted-foreground")}
+          className={cn("tap-press flex h-11 items-center gap-2 rounded-[11px] px-4 text-[12px] font-bold transition-colors", lyricsOpen ? "bg-primary/15 text-primary" : "text-muted-foreground")}
         >
           <Mic2 className="size-5" /> Paroles
         </button>
         <button
           onClick={toggleQueue}
-          className={cn("tap-press flex h-11 items-center gap-2 rounded-[11px] px-4 text-[12px] font-bold transition-colors", queueOpen ? "bg-primary text-black" : "text-muted-foreground")}
+          className={cn("tap-press flex h-11 items-center gap-2 rounded-[11px] px-4 text-[12px] font-bold transition-colors", queueOpen ? "bg-primary/15 text-primary" : "text-muted-foreground")}
         >
           <ListMusic className="size-5" /> File
         </button>
@@ -306,7 +306,7 @@ export function FullscreenPlayer() {
       <div className="mx-auto hidden w-full max-w-2xl items-center justify-between px-10 pb-6 lg:flex">
         <button
           onClick={onFav}
-          className={cn("flex items-center gap-2 rounded-[11px] px-3 py-1.5 text-[12px] font-bold transition-colors", fav ? "bg-primary/20 text-primary" : "ghost-button")}
+          className={cn("flex items-center gap-2 rounded-[11px] px-3 py-1.5 text-[12px] font-bold transition-colors", fav ? "bg-primary/15 text-primary" : "ghost-button")}
         >
           <Heart className={cn("size-4", fav && "fill-primary", favPop && "heart-pop")} onAnimationEnd={() => setFavPop(false)} />
           {fav ? "Aimé" : "Aimer"}

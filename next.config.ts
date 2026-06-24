@@ -6,7 +6,9 @@ const nextConfig: NextConfig = {
   // overlay we don't want surfacing in this product.
   devIndicators: false,
   // Allow LAN hosts to load dev resources (phones/other devices hitting `npm run dev`).
-  allowedDevOrigins: ["192.168.1.46", "localhost", "127.0.0.1"],
+  // The extra origin is configurable so no developer's LAN IP is hardcoded in the
+  // committed source — set AURALIS_DEV_ORIGIN to your phone-test host if needed.
+  allowedDevOrigins: ["localhost", "127.0.0.1", ...(process.env.AURALIS_DEV_ORIGIN ? [process.env.AURALIS_DEV_ORIGIN] : [])],
   // Produce a self-contained server bundle that the Electron desktop shell spawns.
   output: "standalone",
   // Native / Node-only packages must be required at runtime, never bundled.

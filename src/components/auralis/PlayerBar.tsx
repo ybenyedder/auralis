@@ -404,7 +404,7 @@ function SleepPopover({ active, minutes, remaining, onPick, onCancel, onClose }:
             onClick={() => onPick(m)}
             className={cn(
               "rounded-[9px] py-1.5 text-[12px] font-semibold transition-colors",
-              active && minutes === m ? "bg-primary text-black" : "bg-white/[0.05] text-foreground hover:bg-white/[0.09]",
+              active && minutes === m ? "bg-primary text-primary-foreground" : "bg-white/[0.05] text-foreground hover:bg-white/[0.09]",
             )}
           >
             {m}m

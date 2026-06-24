@@ -1229,7 +1229,9 @@ function AccountSettings() {
       <div>
         <h3 className="mb-1 text-[14px] font-black text-foreground">Mot de passe admin</h3>
         <p className="mb-4 text-[12px] text-muted-foreground/70">
-          Par défaut <code className="rounded bg-white/[0.06] px-1">admin123</code>. Change-le pour sécuriser ton serveur.
+          Le mot de passe initial est généré aléatoirement au premier démarrage (écrit dans
+          {" "}<code className="rounded bg-white/[0.06] px-1">INITIAL_ADMIN_PASSWORD.txt</code> du dossier de données),
+          ou défini via <code className="rounded bg-white/[0.06] px-1">AURALIS_ADMIN_PASSWORD</code>. Change-le ici pour le personnaliser.
         </p>
         <div className="space-y-2.5 lg:max-w-sm">
           <input type="password" value={current} onChange={(e) => setCurrent(e.target.value)} placeholder="Mot de passe actuel" className={inputClass} />

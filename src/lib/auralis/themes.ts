@@ -113,12 +113,21 @@ function build(spec: ThemeSpec): Theme {
     "text-faint": spec.textFaint ?? "rgba(255,255,255,0.40)",
 
     primary: spec.primary,
+    // Theme-tuned foreground for solid-primary controls (shadcn `bg-primary
+    // text-primary-foreground`). Defaults to the theme's own `ink` so light-accent
+    // themes (Paper, Galaxy, Mars…) stop rendering dark-brown text on the accent —
+    // it now matches what `.signal-button` already uses via --ink.
+    "primary-foreground": ink,
     "primary-soft": spec.soft,
     "primary-deep": spec.deep,
     ring: spec.ring,
+    // Opaque focus ring (the translucent --ring failed contrast as a focus
+    // indicator). Tracks the theme accent so keyboard focus is always visible.
+    "focus-ring": spec.primary,
     brass: spec.eyebrow,
 
     "sidebar-primary": spec.primary,
+    "sidebar-primary-foreground": ink,
     "sidebar-ring": spec.ring,
     "sidebar-foreground": spec.foreground,
 

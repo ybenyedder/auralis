@@ -78,6 +78,9 @@
   --border: var(--line);
   --input: var(--line);
   --ring: rgba(217, 95, 69, 0.5);
+  /* Opaque keyboard-focus ring (themes override per-accent). The translucent
+     --ring is kept for soft glows; focus uses a solid colour for WCAG contrast. */
+  --focus-ring: var(--signal);
   --emerald: var(--verdigris);
   --amber: var(--brass);
 
@@ -382,26 +385,26 @@
 .drag-region { -webkit-app-region: drag; app-region: drag; }
 .no-drag { -webkit-app-region: no-drag; app-region: no-drag; }
 
-/* Selection */
+/* Selection — tracks the active theme accent instead of a pinned Oxide red. */
 ::selection {
-  background: rgba(217, 95, 69, 0.42);
+  background: color-mix(in srgb, var(--primary), transparent 58%);
   color: var(--foreground);
 }
 
-/* Focus */
+/* Focus — opaque 2px ring so the keyboard focus indicator meets WCAG 2.4.7. */
 button:focus-visible,
 [role="button"]:focus-visible,
 [tabindex]:focus-visible,
 a:focus-visible,
 input:focus-visible,
 select:focus-visible {
-  outline: 1.5px solid var(--ring);
+  outline: 2px solid var(--focus-ring);
   outline-offset: 2px;
   border-radius: 9px;
 }
 
 .focus-auralis:focus-visible {
-  outline: 1.5px solid var(--ring);
+  outline: 2px solid var(--focus-ring);
   outline-offset: 2px;
   border-radius: 9px;
 }
