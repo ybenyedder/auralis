@@ -7,7 +7,7 @@ Thanks for your interest in improving Auralis! 🎵
 ```bash
 npm ci
 cp .env.example .env.local      # set AURALIS_MUSIC_DIR to a folder of audio
-npm run dev                     # http://localhost:3000
+npm run dev                     # http://localhost:4237
 ```
 
 ## Before you open a PR

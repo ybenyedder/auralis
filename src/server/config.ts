@@ -95,7 +95,7 @@ export function setMusicDir(dir: string): string {
 function parsePort(): number {
   const raw = firstDefined(process.env.AURALIS_PORT, process.env.PORT);
   const value = raw ? Number.parseInt(raw, 10) : NaN;
-  return Number.isInteger(value) && value > 0 && value < 65536 ? value : 3000;
+  return Number.isInteger(value) && value > 0 && value < 65536 ? value : 4237;
 }
 
 function parseBool(value: string | undefined, fallback: boolean): boolean {

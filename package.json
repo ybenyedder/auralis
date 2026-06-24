@@ -22,9 +22,9 @@
     "url": "https://paypal.me/AdamMezerai"
   },
   "scripts": {
-    "dev": "next dev -p 3000",
+    "dev": "next dev -p 4237",
     "build": "next build",
-    "start": "NODE_ENV=production next start -p 3000",
+    "start": "NODE_ENV=production next start -p 4237",
     "serve": "NODE_ENV=production node .next/standalone/server.js",
     "lint": "eslint .",
     "typecheck": "tsc --noEmit",

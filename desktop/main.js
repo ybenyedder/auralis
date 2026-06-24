@@ -12,7 +12,7 @@ const http = require("http");
 const { fork } = require("child_process");
 
 const isDev = !app.isPackaged || process.env.AURALIS_DESKTOP_DEV === "1";
-const DEV_URL = process.env.AURALIS_DEV_URL || "http://localhost:3000";
+const DEV_URL = process.env.AURALIS_DEV_URL || "http://localhost:4237";
 
 let serverProcess = null;
 let mainWindow = null;

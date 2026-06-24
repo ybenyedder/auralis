@@ -97,7 +97,7 @@ Your whole library, one tap away.</em>
 git clone https://github.com/ybenyedder/auralis.git
 cd auralis
 npm ci
-npm run dev          # http://localhost:3000
+npm run dev          # http://localhost:4237
 ```
 
 Point it at your music and you're done:
@@ -152,7 +152,7 @@ Everything has a sane default — see [`.env.example`](.env.example).
 | --- | --- | --- |
 | `AURALIS_MUSIC_DIR` | `~/Music` | Library root that's scanned and streamed |
 | `AURALIS_DATA_DIR` | platform data dir | SQLite DB + art cache |
-| `PORT` | `3000` | Server port |
+| `PORT` | `4237` | Server port |
 | `AURALIS_ADMIN_PASSWORD` | random | Seed the admin password |
 | `AURALIS_TOKEN` | empty | Require this bearer token on every `/api` call |
 | `AURALIS_LYRICS_ONLINE` | `true` | Allow LRCLIB lookups |
