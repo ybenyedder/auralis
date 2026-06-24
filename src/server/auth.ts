@@ -8,6 +8,8 @@
 // No external crypto dependency — Node's crypto (scrypt + HMAC) only.
 
 import crypto from "crypto";
+import fs from "fs";
+import path from "path";
 import { getDb } from "./db";
 import { getConfig } from "./config";
 import { createLogger } from "./logger";
@@ -59,17 +61,35 @@ export function ensureAuth(): void {
   } else {
     salt = crypto.randomBytes(16).toString("hex");
     // Never ship a known default password. An operator-supplied password (env)
-    // is used verbatim; otherwise we generate a random one and print it ONCE so
-    // it can be read from the boot logs, then nudged to be changed (is_default=1).
+    // is used verbatim; otherwise we generate a random one. We must NOT log the
+    // generated password through the structured logger — stdout/JSON logs are
+    // routinely shipped to collectors (Docker/Pterodactyl/systemd) and shared, so
+    // a plaintext admin secret there is a real exposure. Instead we write it to a
+    // 0600 file in the data dir and only log WHERE to read it.
     const envPw = process.env.AURALIS_ADMIN_PASSWORD?.trim();
     const initialPw = envPw && envPw.length >= 6 ? envPw : crypto.randomBytes(9).toString("base64url");
     hash = hashPassword(initialPw, salt);
     isDefault = envPw ? 0 : 1;
     if (!envPw) {
+      let where = "(impossible d'écrire le fichier)";
+      try {
+        const file = path.join(getConfig().dataDir, "INITIAL_ADMIN_PASSWORD.txt");
+        fs.writeFileSync(
+          file,
+          `Auralis — compte admin initial\nutilisateur: ${DEFAULT_ADMIN}\nmot de passe: ${initialPw}\n\n` +
+            `Connectez-vous, changez ce mot de passe, puis supprimez ce fichier.\n`,
+          { mode: 0o600 },
+        );
+        try { fs.chmodSync(file, 0o600); } catch { /* best-effort on platforms without POSIX modes */ }
+        where = file;
+      } catch {
+        /* data dir not writable — fall through with the notice below */
+      }
       log.warn(
         "No admin account found — generated a temporary admin password. " +
-          "Log in and change it (or set AURALIS_ADMIN_PASSWORD).",
-        { username: DEFAULT_ADMIN, password: initialPw },
+          `It was written to ${where}. Log in, change it, then delete that file ` +
+          "(or set AURALIS_ADMIN_PASSWORD to avoid this).",
+        { username: DEFAULT_ADMIN },
       );
     }
   }

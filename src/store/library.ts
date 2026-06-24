@@ -145,7 +145,13 @@ export function useLibrary() {
     return () => source.close();
   }, [load, setScan, applyPayload, rescan]);
 
-  return useLibraryStore();
+  // Return ONLY the two fields page.tsx needs, via atomic selectors. Returning the
+  // whole store (useLibraryStore()) made the app-root component re-subscribe to
+  // every mutation — each SSE scan-progress frame (several per second) re-rendered
+  // the entire shell and the active view. Atomic selectors cut that to two fields.
+  const scannedAt = useLibraryStore((s) => s.scannedAt);
+  const status = useLibraryStore((s) => s.status);
+  return { scannedAt, status };
 }
 
 export function tracksForHashesFrom(tracks: Track[], hashes: string[]): Track[] {

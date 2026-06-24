@@ -26,8 +26,12 @@ function pathCrumbs(path: string) {
 }
 
 export function FoldersView() {
-  const { playList } = usePlayer();
-  const { tracks, folders, status, error, root } = useLibraryStore();
+  const playList = usePlayer((s) => s.playList);
+  const tracks = useLibraryStore((s) => s.tracks);
+  const folders = useLibraryStore((s) => s.folders);
+  const status = useLibraryStore((s) => s.status);
+  const error = useLibraryStore((s) => s.error);
+  const root = useLibraryStore((s) => s.root);
   const rootNode = folders[0];
   const rootPath = rootNode?.path ?? "/Music";
   const [currentPath, setCurrentPath] = useState(rootPath);

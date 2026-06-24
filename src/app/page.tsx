@@ -28,7 +28,6 @@ import { api } from "@/lib/auralis/api";
 import { AuthGate } from "@/components/auralis/AuthGate";
 import { MobileHeader } from "@/components/auralis/mobile/MobileHeader";
 import { MobileDock } from "@/components/auralis/mobile/MobileDock";
-import { DonateReminder } from "@/components/auralis/DonateReminder";
 import {
   mediaSupported,
   setMediaMetadata,
@@ -39,40 +38,45 @@ import {
 import { cn } from "@/lib/utils";
 
 function AuralisShell() {
-  const {
-    view,
-    fullscreenPlayer,
-    togglePlay,
-    playNext,
-    playPrev,
-    seek,
-    seekRelative,
-    setVolume,
-    toggleMute,
-    toggleShuffle,
-    cycleRepeat,
-    currentTrack,
-    toggleFullscreenPlayer,
-    setCommandOpen,
-    commandOpen,
-    setHelpOpen,
-    helpOpen,
-    toggleVisualizer,
-    visualizerOpen,
-    isPlaying,
-    volume,
-    muted,
-    sleepTimer,
-    notify,
-    hydrateLocal,
-    hydrateFromServer,
-    fetchLyrics,
-    lyricsOpen,
-  } = usePlayer();
+  // Atomic selectors instead of one whole-store subscription. Actions are stable
+  // refs (selecting them never triggers a render), and we watch only the specific
+  // values this shell actually uses — so unrelated state churn (toasts, favorites,
+  // playcounts, context-menu opens, playlist edits) no longer re-renders the entire
+  // app shell + active view on every change.
+  const view = usePlayer((s) => s.view);
+  const fullscreenPlayer = usePlayer((s) => s.fullscreenPlayer);
+  const currentTrack = usePlayer((s) => s.currentTrack);
+  const commandOpen = usePlayer((s) => s.commandOpen);
+  const helpOpen = usePlayer((s) => s.helpOpen);
+  const visualizerOpen = usePlayer((s) => s.visualizerOpen);
+  const isPlaying = usePlayer((s) => s.isPlaying);
+  const volume = usePlayer((s) => s.volume);
+  const muted = usePlayer((s) => s.muted);
+  const sleepTimer = usePlayer((s) => s.sleepTimer);
+  const lyricsOpen = usePlayer((s) => s.lyricsOpen);
+
+  const togglePlay = usePlayer((s) => s.togglePlay);
+  const playNext = usePlayer((s) => s.playNext);
+  const playPrev = usePlayer((s) => s.playPrev);
+  const seek = usePlayer((s) => s.seek);
+  const seekRelative = usePlayer((s) => s.seekRelative);
+  const setVolume = usePlayer((s) => s.setVolume);
+  const toggleMute = usePlayer((s) => s.toggleMute);
+  const toggleShuffle = usePlayer((s) => s.toggleShuffle);
+  const cycleRepeat = usePlayer((s) => s.cycleRepeat);
+  const toggleFullscreenPlayer = usePlayer((s) => s.toggleFullscreenPlayer);
+  const setCommandOpen = usePlayer((s) => s.setCommandOpen);
+  const setHelpOpen = usePlayer((s) => s.setHelpOpen);
+  const toggleVisualizer = usePlayer((s) => s.toggleVisualizer);
+  const notify = usePlayer((s) => s.notify);
+  const hydrateLocal = usePlayer((s) => s.hydrateLocal);
+  const hydrateFromServer = usePlayer((s) => s.hydrateFromServer);
+  const fetchLyrics = usePlayer((s) => s.fetchLyrics);
 
   const mainRef = useRef<HTMLDivElement>(null);
   const audioRef = useRef<HTMLAudioElement>(null);
-  const { scannedAt, status } = useLibrary();
+  // Mounts the library loader + SSE scan stream. Its return value isn't needed here.
+  useLibrary();
 
   // Apply persisted local state after mount (avoids SSR hydration mismatch), then
   // reconcile with the server's shared state.
@@ -190,16 +194,23 @@ function AuralisShell() {
     const audio = audioRef.current;
     if (!audio) return;
 
+    let lastPositionPush = 0;
     const onTimeUpdate = () => {
       usePlayhead.getState().setPosition(audio.currentTime);
       // Feed the OS media controls a position so the notification / lock screen /
       // Dynamic Island show a live progress bar (Spotify-style) and can scrub.
+      // Throttled to ~1 Hz: on Android this crosses a JS→native bridge each call,
+      // and timeupdate fires ~4×/s — the notification bar doesn't need finer.
       if (mediaSupported() && audio.duration && Number.isFinite(audio.duration)) {
-        setMediaPositionState({
-          duration: audio.duration,
-          position: Math.min(audio.currentTime, audio.duration),
-          playbackRate: audio.playbackRate || 1,
-        });
+        const now = performance.now();
+        if (now - lastPositionPush >= 1000) {
+          lastPositionPush = now;
+          setMediaPositionState({
+            duration: audio.duration,
+            position: Math.min(audio.currentTime, audio.duration),
+            playbackRate: audio.playbackRate || 1,
+          });
+        }
       }
     };
     const onDurationChange = () => {
@@ -384,7 +395,7 @@ function AuralisShell() {
           <div className="hidden md:block">
             <StickyViewHeader scrollRef={mainRef} />
           </div>
-          <div key={`${scannedAt ?? status}-${view.view}-${view.id ?? ""}`} className="relative fade-up">{renderView()}</div>
+          <div key={`${view.view}-${view.id ?? ""}`} className="relative fade-up">{renderView()}</div>
         </main>
         <NowPlayingPanel />
       </div>
@@ -400,7 +411,6 @@ function AuralisShell() {
       <ContextMenuHost />
       <ToastHost />
       <KeyboardHelp />
-      <DonateReminder />
       </div>
     </>
   );

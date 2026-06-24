@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 import {
   Play,
   ListPlus,
@@ -18,22 +18,21 @@ import { cn } from "@/lib/utils";
 import type { Track, Album, Artist, ViewId } from "@/lib/auralis/types";
 
 export function ContextMenuHost() {
-  const {
-    contextMenu,
-    closeContextMenu,
-    playTrack,
-    playList,
-    addToQueueNext,
-    addToQueueEnd,
-    toggleFavorite,
-    isFavorite,
-    navigate,
-    customPlaylists,
-    createPlaylist,
-    addToPlaylist,
-  } = usePlayer();
+  // Atomic selectors (always-mounted host). Only `contextMenu` and `customPlaylists`
+  // are reactive values; the rest are stable action refs that never cause a render.
+  const contextMenu = usePlayer((s) => s.contextMenu);
+  const customPlaylists = usePlayer((s) => s.customPlaylists);
+  const closeContextMenu = usePlayer((s) => s.closeContextMenu);
+  const playTrack = usePlayer((s) => s.playTrack);
+  const playList = usePlayer((s) => s.playList);
+  const addToQueueNext = usePlayer((s) => s.addToQueueNext);
+  const addToQueueEnd = usePlayer((s) => s.addToQueueEnd);
+  const toggleFavorite = usePlayer((s) => s.toggleFavorite);
+  const isFavorite = usePlayer((s) => s.isFavorite);
+  const navigate = usePlayer((s) => s.navigate);
+  const createPlaylist = usePlayer((s) => s.createPlaylist);
+  const addToPlaylist = usePlayer((s) => s.addToPlaylist);
 
-  const ref = useRef<HTMLDivElement>(null);
   const [submenu, setSubmenu] = useState<"playlists" | null>(null);
   const [pos, setPos] = useState({ x: 0, y: 0 });
 
@@ -57,7 +56,14 @@ export function ContextMenuHost() {
   useEffect(() => {
     if (!contextMenu.open) return;
     const onDown = (e: MouseEvent) => {
-      if (ref.current && !ref.current.contains(e.target as Node)) closeContextMenu();
+      // Close on any press outside the menu surfaces. Matching by attribute rather
+      // than a single ref covers BOTH shells — the desktop popover and the mobile
+      // bottom sheet. (The previous ref only wrapped the desktop popover, so every
+      // tap inside the mobile sheet read as "outside" and closed the menu before the
+      // tap's click could fire — which is why "Add to playlist" did nothing on touch.)
+      const el = e.target as Element | null;
+      if (el?.closest("[data-context-menu]")) return;
+      closeContextMenu();
     };
     const onKey = (e: KeyboardEvent) => {
       if (e.key === "Escape") closeContextMenu();
@@ -134,7 +140,7 @@ export function ContextMenuHost() {
       {/* Desktop (lg+): the original cursor-anchored popover, unchanged. */}
       <div className="fixed inset-0 z-[70] hidden lg:block" aria-hidden>
         <div
-          ref={ref}
+          data-context-menu
           role="menu"
           className="scale-in matte-panel fixed w-[248px] overflow-hidden rounded-[13px]"
           style={{ left: pos.x, top: pos.y }}
@@ -152,6 +158,7 @@ export function ContextMenuHost() {
           className="scrim-in absolute inset-0 bg-black/55"
         />
         <div
+          data-context-menu
           role="menu"
           className="sheet-up matte-panel safe-bottom absolute inset-x-0 bottom-0 max-h-[85vh] overflow-y-auto rounded-t-[14px] border-x-0 border-b-0"
         >

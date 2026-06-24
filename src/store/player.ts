@@ -236,8 +236,7 @@ function loadPersisted(): Partial<Persisted> {
   }
 }
 
-function persist(state: PlayerState) {
-  if (typeof window === "undefined") return;
+function writePersist(state: PlayerState) {
   try {
     const data: Persisted = {
       favorites: Array.from(state.favorites),
@@ -256,6 +255,44 @@ function persist(state: PlayerState) {
   } catch {
     // localStorage unavailable or full; playback must keep working.
   }
+}
+
+// persist() is called synchronously inside ~18 store actions (every play / next /
+// favorite / volume tick…). Serialising the whole persisted slice on each call put
+// a JSON.stringify on the main thread at every track change — a real micro-jank on
+// mobile. We coalesce: keep only the latest snapshot and flush it at most once per
+// ~400ms, plus a synchronous flush on page hide so nothing is lost on close.
+let persistTimer: ReturnType<typeof setTimeout> | undefined;
+let pendingPersist: PlayerState | null = null;
+
+function flushPersist() {
+  if (persistTimer !== undefined) {
+    clearTimeout(persistTimer);
+    persistTimer = undefined;
+  }
+  if (pendingPersist) {
+    writePersist(pendingPersist);
+    pendingPersist = null;
+  }
+}
+
+function persist(state: PlayerState) {
+  if (typeof window === "undefined") return;
+  pendingPersist = state;
+  if (persistTimer !== undefined) return;
+  persistTimer = setTimeout(() => {
+    persistTimer = undefined;
+    if (pendingPersist) {
+      writePersist(pendingPersist);
+      pendingPersist = null;
+    }
+  }, 400);
+}
+
+if (typeof window !== "undefined") {
+  // Guarantee the last coalesced write lands before the app is backgrounded/closed.
+  window.addEventListener("pagehide", flushPersist);
+  window.addEventListener("beforeunload", flushPersist);
 }
 
 const initial = loadPersisted();

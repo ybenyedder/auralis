@@ -26,30 +26,28 @@ import { ThemeBackdrop } from "./ThemeBackdrop";
 import { cn } from "@/lib/utils";
 
 export function FullscreenPlayer() {
-  const position = usePlayhead((s) => s.position);
-  const duration = usePlayhead((s) => s.duration);
-  const {
-    currentTrack,
-    isPlaying,
-    repeat,
-    shuffle,
-    togglePlay,
-    playNext,
-    playPrev,
-    seek,
-    toggleShuffle,
-    cycleRepeat,
-    toggleFavorite,
-    isFavorite,
-    closeFullscreenPlayer,
-    lyricsOpen,
-    toggleLyrics,
-    toggleQueue,
-    queueOpen,
-    openContextMenu,
-  } = usePlayer();
+  // NOTE: position/duration are intentionally NOT read here — they tick ~4×/s and
+  // would re-render this whole heavy surface (artwork, lyrics, transport) every
+  // frame. The live progress is isolated in <FullscreenScrubber> below.
+  const currentTrack = usePlayer((s) => s.currentTrack);
+  const isPlaying = usePlayer((s) => s.isPlaying);
+  const repeat = usePlayer((s) => s.repeat);
+  const shuffle = usePlayer((s) => s.shuffle);
+  const togglePlay = usePlayer((s) => s.togglePlay);
+  const playNext = usePlayer((s) => s.playNext);
+  const playPrev = usePlayer((s) => s.playPrev);
+  const seek = usePlayer((s) => s.seek);
+  const toggleShuffle = usePlayer((s) => s.toggleShuffle);
+  const cycleRepeat = usePlayer((s) => s.cycleRepeat);
+  const toggleFavorite = usePlayer((s) => s.toggleFavorite);
+  const isFavorite = usePlayer((s) => s.isFavorite);
+  const closeFullscreenPlayer = usePlayer((s) => s.closeFullscreenPlayer);
+  const lyricsOpen = usePlayer((s) => s.lyricsOpen);
+  const toggleLyrics = usePlayer((s) => s.toggleLyrics);
+  const toggleQueue = usePlayer((s) => s.toggleQueue);
+  const queueOpen = usePlayer((s) => s.queueOpen);
+  const openContextMenu = usePlayer((s) => s.openContextMenu);
 
-  const [scrubPct, setScrubPct] = useState<number | null>(null);
   const [favPop, setFavPop] = useState(false);
   // Drag-down-to-close gesture on the mobile top region.
   const [dragY, setDragY] = useState(0);
@@ -63,8 +61,6 @@ export function FullscreenPlayer() {
   if (!currentTrack) return null;
 
   const colors = currentTrack.color ?? ["#2A2821", "#D95F45", "#E5A184"];
-  const progress = duration > 0 ? Math.min(100, (position / duration) * 100) : 0;
-  const pct = scrubPct ?? progress;
   const fav = isFavorite(currentTrack.trackhash);
   const onFav = () => { if (!fav) setFavPop(true); toggleFavorite(currentTrack.trackhash); };
 
@@ -248,40 +244,8 @@ export function FullscreenPlayer() {
         </div>
       </div>
 
-      {/* Scrubber */}
-      <div className="mx-auto w-full px-5 pb-2 lg:max-w-2xl lg:px-10 lg:pb-3">
-        <div className="flex items-center gap-3">
-          <span className="w-10 text-right text-[11px] tabular-nums text-muted-foreground">{formatDuration(position)}</span>
-          <div
-            className="group relative flex-1 cursor-pointer touch-none py-3 lg:py-2"
-            onPointerDown={(e) => {
-              (e.target as HTMLElement).setPointerCapture(e.pointerId);
-              const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
-              setScrubPct(Math.max(0, Math.min(100, ((e.clientX - rect.left) / rect.width) * 100)));
-            }}
-            onPointerMove={(e) => {
-              if (scrubPct === null) return;
-              const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
-              setScrubPct(Math.max(0, Math.min(100, ((e.clientX - rect.left) / rect.width) * 100)));
-            }}
-            onPointerUp={() => {
-              if (scrubPct === null) return;
-              seek((scrubPct / 100) * (duration || 0));
-              setScrubPct(null);
-            }}
-          >
-            <div className="h-1.5 w-full overflow-hidden rounded-[2px] bg-white/15">
-              <div className="h-full rounded-[2px] bg-[var(--paper)]" style={{ width: `${pct}%` }} />
-            </div>
-            {/* Thumb: always visible on mobile, hover/scrub-only on desktop. */}
-            <div
-              className="pointer-events-none absolute top-1/2 h-4 w-2 -translate-y-1/2 rounded-[2px] bg-[var(--paper)] transition-opacity lg:opacity-0"
-              style={{ left: `calc(${pct}% - 4px)`, opacity: scrubPct !== null ? 1 : undefined }}
-            />
-          </div>
-          <span className="w-10 text-[11px] tabular-nums text-muted-foreground">{formatDuration(duration)}</span>
-        </div>
-      </div>
+      {/* Scrubber — isolated so the ~4×/s playhead tick only re-renders this row. */}
+      <FullscreenScrubber seek={seek} />
 
       {/* Transport */}
       <div className="mx-auto flex w-full items-center justify-between px-6 pb-5 lg:max-w-2xl lg:justify-center lg:gap-6 lg:px-10 lg:pb-8">
@@ -356,6 +320,54 @@ export function FullscreenPlayer() {
           <MoreHorizontal className="size-4" />
         </button>
       </div>
+      </div>
+    </div>
+  );
+}
+
+/** Live progress row, isolated from the parent. It alone subscribes to the playhead
+ *  store (position/duration tick ~4×/s), so the heavy FullscreenPlayer surface above
+ *  doesn't re-render on every frame — only this thin scrubber does. */
+function FullscreenScrubber({ seek }: { seek: (time: number) => void }) {
+  const position = usePlayhead((s) => s.position);
+  const duration = usePlayhead((s) => s.duration);
+  const [scrubPct, setScrubPct] = useState<number | null>(null);
+
+  const progress = duration > 0 ? Math.min(100, (position / duration) * 100) : 0;
+  const pct = scrubPct ?? progress;
+
+  return (
+    <div className="mx-auto w-full px-5 pb-2 lg:max-w-2xl lg:px-10 lg:pb-3">
+      <div className="flex items-center gap-3">
+        <span className="w-10 text-right text-[11px] tabular-nums text-muted-foreground">{formatDuration(position)}</span>
+        <div
+          className="group relative flex-1 cursor-pointer touch-none py-3 lg:py-2"
+          onPointerDown={(e) => {
+            (e.target as HTMLElement).setPointerCapture(e.pointerId);
+            const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
+            setScrubPct(Math.max(0, Math.min(100, ((e.clientX - rect.left) / rect.width) * 100)));
+          }}
+          onPointerMove={(e) => {
+            if (scrubPct === null) return;
+            const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
+            setScrubPct(Math.max(0, Math.min(100, ((e.clientX - rect.left) / rect.width) * 100)));
+          }}
+          onPointerUp={() => {
+            if (scrubPct === null) return;
+            seek((scrubPct / 100) * (duration || 0));
+            setScrubPct(null);
+          }}
+        >
+          <div className="h-1.5 w-full overflow-hidden rounded-[2px] bg-white/15">
+            <div className="h-full rounded-[2px] bg-[var(--paper)]" style={{ width: `${pct}%` }} />
+          </div>
+          {/* Thumb: always visible on mobile, hover/scrub-only on desktop. */}
+          <div
+            className="pointer-events-none absolute top-1/2 h-4 w-2 -translate-y-1/2 rounded-[2px] bg-[var(--paper)] transition-opacity lg:opacity-0"
+            style={{ left: `calc(${pct}% - 4px)`, opacity: scrubPct !== null ? 1 : undefined }}
+          />
+        </div>
+        <span className="w-10 text-[11px] tabular-nums text-muted-foreground">{formatDuration(duration)}</span>
       </div>
     </div>
   );

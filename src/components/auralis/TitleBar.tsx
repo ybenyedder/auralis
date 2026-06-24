@@ -8,7 +8,14 @@ import { BrandMark } from "./BrandMark";
 import { cn } from "@/lib/utils";
 
 export function TitleBar() {
-  const { searchQuery, setSearch, navigate, back, view, navHistory, toggleRightPanel, rightPanelOpen } = usePlayer();
+  const searchQuery = usePlayer((s) => s.searchQuery);
+  const setSearch = usePlayer((s) => s.setSearch);
+  const navigate = usePlayer((s) => s.navigate);
+  const back = usePlayer((s) => s.back);
+  const view = usePlayer((s) => s.view);
+  const navHistory = usePlayer((s) => s.navHistory);
+  const toggleRightPanel = usePlayer((s) => s.toggleRightPanel);
+  const rightPanelOpen = usePlayer((s) => s.rightPanelOpen);
   const [focused, setFocused] = useState(false);
   const canBack = navHistory.length > 0;
 

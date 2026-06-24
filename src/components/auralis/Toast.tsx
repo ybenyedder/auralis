@@ -5,7 +5,10 @@ import { usePlayer } from "@/store/player";
 import { CheckCircle2, X } from "lucide-react";
 
 export function ToastHost() {
-  const { toast, dismissToast } = usePlayer();
+  // Atomic selectors: this host is always mounted, so a whole-store subscription
+  // re-rendered it on every state change. It only needs the toast + its dismisser.
+  const toast = usePlayer((s) => s.toast);
+  const dismissToast = usePlayer((s) => s.dismissToast);
 
   useEffect(() => {
     if (!toast) return;

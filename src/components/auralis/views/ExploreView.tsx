@@ -9,8 +9,12 @@ import { TrackRow, TrackListHeader } from "../TrackRow";
 import { AlbumCard, ArtistCard } from "../Cards";
 
 export function ExploreView() {
-  const { searchQuery, setSearch, recentTrackhashes } = usePlayer();
-  const { tracks, albums, artists } = useLibraryStore();
+  const searchQuery = usePlayer((s) => s.searchQuery);
+  const setSearch = usePlayer((s) => s.setSearch);
+  const recentTrackhashes = usePlayer((s) => s.recentTrackhashes);
+  const tracks = useLibraryStore((s) => s.tracks);
+  const albums = useLibraryStore((s) => s.albums);
+  const artists = useLibraryStore((s) => s.artists);
   const query = searchQuery.trim().toLowerCase();
 
   const results = useMemo(() => {

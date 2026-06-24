@@ -66,7 +66,7 @@ export const TrackRow = memo(function TrackRow({
   return (
     <div
       className={cn(
-        "group relative grid cursor-pointer items-center gap-3 rounded-[9px] px-2 transition-colors",
+        "lazy-row group relative grid cursor-pointer items-center gap-3 rounded-[9px] px-2 transition-colors",
         compact ? "grid-cols-[20px_1fr_auto] py-1.5" : "grid-cols-[24px_minmax(0,1fr)_auto] py-2.5 lg:py-2",
         showAlbum && !compact && "md:grid-cols-[24px_minmax(0,1.6fr)_minmax(0,1fr)_auto]",
         isCurrent ? "bg-primary/12 text-foreground" : "active:bg-white/[0.06] lg:hover:bg-white/[0.045]",

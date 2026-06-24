@@ -9,19 +9,17 @@ import { formatDuration, trackArtist, trackTitle } from "@/lib/auralis/brand";
 import { cn } from "@/lib/utils";
 
 export function NowPlayingPanel() {
-  const {
-    currentTrack,
-    queueOpen,
-    toggleQueue,
-    lyricsOpen,
-    toggleLyrics,
-    navigate,
-    rightPanelOpen,
-    toggleRightPanel,
-    toggleFavorite,
-    isFavorite,
-    openContextMenu,
-  } = usePlayer();
+  const currentTrack = usePlayer((s) => s.currentTrack);
+  const queueOpen = usePlayer((s) => s.queueOpen);
+  const toggleQueue = usePlayer((s) => s.toggleQueue);
+  const lyricsOpen = usePlayer((s) => s.lyricsOpen);
+  const toggleLyrics = usePlayer((s) => s.toggleLyrics);
+  const navigate = usePlayer((s) => s.navigate);
+  const rightPanelOpen = usePlayer((s) => s.rightPanelOpen);
+  const toggleRightPanel = usePlayer((s) => s.toggleRightPanel);
+  const toggleFavorite = usePlayer((s) => s.toggleFavorite);
+  const isFavorite = usePlayer((s) => s.isFavorite);
+  const openContextMenu = usePlayer((s) => s.openContextMenu);
   const fav = currentTrack ? isFavorite(currentTrack.trackhash) : false;
 
   const tab: "now" | "queue" | "lyrics" = queueOpen ? "queue" : lyricsOpen ? "lyrics" : "now";

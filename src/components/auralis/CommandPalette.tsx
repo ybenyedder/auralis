@@ -33,7 +33,11 @@ interface CmdItem {
 }
 
 export function CommandPalette() {
-  const { commandOpen, setCommandOpen, navigate, playTrack, customPlaylists } = usePlayer();
+  const commandOpen = usePlayer((s) => s.commandOpen);
+  const customPlaylists = usePlayer((s) => s.customPlaylists);
+  const setCommandOpen = usePlayer((s) => s.setCommandOpen);
+  const navigate = usePlayer((s) => s.navigate);
+  const playTrack = usePlayer((s) => s.playTrack);
   const tracks = useLibraryStore((state) => state.tracks);
   const albums = useLibraryStore((state) => state.albums);
   const artists = useLibraryStore((state) => state.artists);

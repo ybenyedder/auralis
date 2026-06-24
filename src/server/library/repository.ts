@@ -40,16 +40,25 @@ export function artUrl(arthash: string | null | undefined): string | undefined {
   return arthash ? `/api/art/${arthash}` : undefined;
 }
 
-const TRACK_SELECT = `
+// favorites/playcounts are per-user (multi-account). The JOINs MUST be scoped to
+// the requesting user's id, otherwise is_favorite/playcount leak across accounts
+// (a title shows as favourited if ANY user favourited it, and the playcount is an
+// arbitrary other user's). `uid` is a trusted integer (a DB user id), coerced to a
+// safe integer here, so inlining it is injection-safe and lets search() keep its
+// positional placeholders (better-sqlite3 forbids mixing named + positional).
+function trackSelect(uid: number): string {
+  const safeUid = Math.trunc(Number(uid)) || 0;
+  return `
   SELECT t.*,
     COALESCE(pc.count, 0) AS playcount,
     CASE WHEN f.trackhash IS NOT NULL THEN 1 ELSE 0 END AS is_favorite,
     CASE WHEN l.synced IS NOT NULL OR l.plain IS NOT NULL THEN 1 ELSE 0 END AS lyrics_present
   FROM tracks t
-  LEFT JOIN playcounts pc ON pc.trackhash = t.trackhash
-  LEFT JOIN favorites  f  ON f.trackhash  = t.trackhash
+  LEFT JOIN playcounts pc ON pc.trackhash = t.trackhash AND pc.user_id = ${safeUid}
+  LEFT JOIN favorites  f  ON f.trackhash  = t.trackhash AND f.user_id  = ${safeUid}
   LEFT JOIN lyrics     l  ON l.trackhash  = t.trackhash
 `;
+}
 
 function mapTrack(row: TrackRow): Track {
   const artistRef: Artist = { artisthash: row.artisthash, name: row.albumartist };
@@ -126,13 +135,13 @@ export interface LibrarySnapshot {
   error: string | null;
 }
 
-export function getSnapshot(): LibrarySnapshot {
+export function getSnapshot(userId: number): LibrarySnapshot {
   const db = getDb();
   const { musicDir } = getConfig();
   const rootName = musicDir.split(/[\\/]+/).filter(Boolean).pop() || "Music";
 
   const trackRows = db.prepare(
-    `${TRACK_SELECT} ORDER BY t.albumhash, t.disc_no, t.track_no, t.title COLLATE NOCASE`
+    `${trackSelect(userId)} ORDER BY t.albumhash, t.disc_no, t.track_no, t.title COLLATE NOCASE`
   ).all() as TrackRow[];
   const tracks = trackRows.map(mapTrack);
 
@@ -217,7 +226,7 @@ export interface SearchResults {
   artists: Artist[];
 }
 
-export function search(query: string, limit = 50): SearchResults {
+export function search(query: string, userId: number, limit = 50): SearchResults {
   const db = getDb();
   const expr = escapeFts(query);
   if (!expr) return { tracks: [], albums: [], artists: [] };
@@ -229,7 +238,7 @@ export function search(query: string, limit = 50): SearchResults {
   if (!hashes.length) return { tracks: [], albums: [], artists: [] };
   const placeholders = hashes.map(() => "?").join(",");
   const rows = db.prepare(
-    `${TRACK_SELECT} WHERE t.trackhash IN (${placeholders})`
+    `${trackSelect(userId)} WHERE t.trackhash IN (${placeholders})`
   ).all(...hashes.map((h) => h.trackhash)) as TrackRow[];
 
   const order = new Map(hashes.map((h, i) => [h.trackhash, i]));

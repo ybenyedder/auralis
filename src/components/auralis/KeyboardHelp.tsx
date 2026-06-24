@@ -37,7 +37,8 @@ const GROUPS: ShortcutGroup[] = [
 ];
 
 export function KeyboardHelp() {
-  const { helpOpen, setHelpOpen } = usePlayer();
+  const helpOpen = usePlayer((s) => s.helpOpen);
+  const setHelpOpen = usePlayer((s) => s.setHelpOpen);
 
   useEffect(() => {
     if (!helpOpen) return;

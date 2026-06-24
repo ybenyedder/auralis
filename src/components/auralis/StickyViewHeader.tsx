@@ -21,7 +21,9 @@ const VIEW_TITLES: Record<string, string> = {
 };
 
 export function StickyViewHeader({ scrollRef }: { scrollRef: RefObject<HTMLDivElement | null> }) {
-  const { view, navHistory, back } = usePlayer();
+  const view = usePlayer((s) => s.view);
+  const navHistory = usePlayer((s) => s.navHistory);
+  const back = usePlayer((s) => s.back);
   const [scrolled, setScrolled] = useState(false);
 
   useEffect(() => {

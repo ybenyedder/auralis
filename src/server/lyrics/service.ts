@@ -14,7 +14,7 @@ const log = createLogger("lyrics");
 
 const NEGATIVE_TTL_MS = 7 * 24 * 60 * 60 * 1000; // retry "not found" weekly
 const FETCH_TIMEOUT_MS = 9000;
-const USER_AGENT = "Auralis/1.0.0 (self-hosted music server; https://github.com/ybenyedder/auralis)";
+const USER_AGENT = "Auralis/1.1.0 (self-hosted music server; https://github.com/ybenyedder/auralis)";
 
 export type LyricsStatus = "found" | "instrumental" | "notfound";
 export type LyricsSource = "sidecar" | "lrclib" | "lyricsovh" | "manual" | "cache" | null;

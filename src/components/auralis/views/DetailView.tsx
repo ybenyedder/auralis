@@ -70,7 +70,10 @@ type SettingsRow = {
 };
 
 export function AlbumDetail({ albumhash }: { albumhash: string }) {
-  const { playList, currentTrack, isPlaying, togglePlay } = usePlayer();
+  const playList = usePlayer((s) => s.playList);
+  const currentTrack = usePlayer((s) => s.currentTrack);
+  const isPlaying = usePlayer((s) => s.isPlaying);
+  const togglePlay = usePlayer((s) => s.togglePlay);
   const tracks = useLibraryStore((state) => state.tracks);
   const albums = useLibraryStore((state) => state.albums);
   const album = useMemo(
@@ -190,7 +193,7 @@ export function AlbumDetail({ albumhash }: { albumhash: string }) {
 }
 
 export function ArtistDetail({ artisthash }: { artisthash: string }) {
-  const { playList } = usePlayer();
+  const playList = usePlayer((s) => s.playList);
   const tracks = useLibraryStore((state) => state.tracks);
   const artists = useLibraryStore((state) => state.artists);
   const albums = useLibraryStore((state) => state.albums);
@@ -302,17 +305,15 @@ export function ArtistDetail({ artisthash }: { artisthash: string }) {
 }
 
 export function PlaylistDetail({ id }: { id: string }) {
-  const {
-    playList,
-    currentTrack,
-    isPlaying,
-    togglePlay,
-    customPlaylists,
-    renamePlaylist,
-    deletePlaylist,
-    navigate,
-    removeFromPlaylist,
-  } = usePlayer();
+  const playList = usePlayer((s) => s.playList);
+  const currentTrack = usePlayer((s) => s.currentTrack);
+  const isPlaying = usePlayer((s) => s.isPlaying);
+  const togglePlay = usePlayer((s) => s.togglePlay);
+  const customPlaylists = usePlayer((s) => s.customPlaylists);
+  const renamePlaylist = usePlayer((s) => s.renamePlaylist);
+  const deletePlaylist = usePlayer((s) => s.deletePlaylist);
+  const navigate = usePlayer((s) => s.navigate);
+  const removeFromPlaylist = usePlayer((s) => s.removeFromPlaylist);
   const libraryTracks = useLibraryStore((state) => state.tracks);
   const libraryPlaylists = useLibraryStore((state) => state.playlists);
   const libraryPlaylist = useMemo(
@@ -508,28 +509,26 @@ export function PlaylistDetail({ id }: { id: string }) {
 }
 
 export function SettingsView() {
-  const {
-    volume,
-    muted,
-    repeat,
-    shuffle,
-    sleepTimer,
-    setVolume,
-    toggleMute,
-    toggleShuffle,
-    cycleRepeat,
-    startSleepTimer,
-    cancelSleepTimer,
-    theme,
-    setTheme,
-    rightPanelOpen,
-    toggleRightPanel,
-    customPlaylists,
-    favorites,
-    recentTrackhashes,
-    playCounts,
-    notify,
-  } = usePlayer();
+  const volume = usePlayer((s) => s.volume);
+  const muted = usePlayer((s) => s.muted);
+  const repeat = usePlayer((s) => s.repeat);
+  const shuffle = usePlayer((s) => s.shuffle);
+  const sleepTimer = usePlayer((s) => s.sleepTimer);
+  const setVolume = usePlayer((s) => s.setVolume);
+  const toggleMute = usePlayer((s) => s.toggleMute);
+  const toggleShuffle = usePlayer((s) => s.toggleShuffle);
+  const cycleRepeat = usePlayer((s) => s.cycleRepeat);
+  const startSleepTimer = usePlayer((s) => s.startSleepTimer);
+  const cancelSleepTimer = usePlayer((s) => s.cancelSleepTimer);
+  const theme = usePlayer((s) => s.theme);
+  const setTheme = usePlayer((s) => s.setTheme);
+  const rightPanelOpen = usePlayer((s) => s.rightPanelOpen);
+  const toggleRightPanel = usePlayer((s) => s.toggleRightPanel);
+  const customPlaylists = usePlayer((s) => s.customPlaylists);
+  const favorites = usePlayer((s) => s.favorites);
+  const recentTrackhashes = usePlayer((s) => s.recentTrackhashes);
+  const playCounts = usePlayer((s) => s.playCounts);
+  const notify = usePlayer((s) => s.notify);
   const tracks = useLibraryStore((state) => state.tracks);
   const albums = useLibraryStore((state) => state.albums);
   const artists = useLibraryStore((state) => state.artists);

@@ -48,9 +48,22 @@ export function rateLimitReset(key: string): void {
   buckets.delete(key);
 }
 
-/** Best-effort client IP from common proxy headers, falling back to a constant. */
+/** Best-effort client IP from common proxy headers, falling back to a constant.
+ *  X-Forwarded-For / X-Real-IP are CLIENT-CONTROLLED and trivially spoofable, so we
+ *  only honour them when the operator explicitly declares a trusted reverse proxy
+ *  (AURALIS_TRUST_PROXY=1). Otherwise every request collapses to the "local" bucket,
+ *  so an attacker can't mint a fresh bucket per forged header to bypass the limit. */
 export function clientKey(request: Request, suffix = ""): string {
-  const xff = request.headers.get("x-forwarded-for");
-  const ip = (xff ? xff.split(",")[0] : null)?.trim() || request.headers.get("x-real-ip") || "local";
+  let ip = "local";
+  if (process.env.AURALIS_TRUST_PROXY === "1") {
+    const xff = request.headers.get("x-forwarded-for");
+    ip = (xff ? xff.split(",")[0] : null)?.trim() || request.headers.get("x-real-ip") || "local";
+  }
   return `${ip}:${suffix}`;
+}
+
+/** IP-independent key so a single account can't be brute-forced by rotating the
+ *  source IP (real or spoofed). Used alongside clientKey as a second, global cap. */
+export function usernameKey(username: string): string {
+  return `user:${username}`;
 }

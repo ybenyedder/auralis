@@ -2,14 +2,15 @@ import fs from "fs";
 import path from "path";
 import { getConfig, setMusicDir } from "@/server/config";
 import { runScan } from "@/server/library/scanner";
-import { checkAuth, json } from "@/server/http";
+import { requireAdmin, json } from "@/server/http";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 // GET → the current music source folder (and whether it exists on disk).
+// Admin-only: the absolute host path is operator-level information.
 export async function GET(request: Request) {
-  const denied = checkAuth(request);
+  const denied = requireAdmin(request);
   if (denied) return denied;
   const { musicDir } = getConfig();
   return json({ musicDir, exists: fs.existsSync(musicDir) });
@@ -17,8 +18,10 @@ export async function GET(request: Request) {
 
 // POST { dir } → repoint the library at a host-chosen folder, then rescan.
 // Lets the self-hoster move their music without editing env vars.
+// Admin-only: repointing the root neutralises every per-file path guard, so a
+// non-admin must never reach this (it would expose arbitrary host audio files).
 export async function POST(request: Request) {
-  const denied = checkAuth(request);
+  const denied = requireAdmin(request);
   if (denied) return denied;
 
   let body: { dir?: unknown };

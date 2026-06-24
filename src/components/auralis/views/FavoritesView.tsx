@@ -18,8 +18,9 @@ const SORT_LABELS: Record<SortMode, string> = {
 };
 
 export function FavoritesView() {
-  const { playList, favorites } = usePlayer();
-  const { tracks } = useLibraryStore();
+  const playList = usePlayer((s) => s.playList);
+  const favorites = usePlayer((s) => s.favorites);
+  const tracks = useLibraryStore((s) => s.tracks);
   const [sort, setSort] = useState<SortMode>("recent");
 
   // Drive the list off the live `favorites` set ONLY. The old `|| track.is_favorite`

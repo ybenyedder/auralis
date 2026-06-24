@@ -39,4 +39,17 @@
     <!-- Permissions -->
 
     <uses-permission android:name="android.permission.INTERNET" />
+
+    <!-- Media notification / lock-screen controls (now-playing).
+         POST_NOTIFICATIONS: Android 13+ (API 33) suppresses ALL notifications,
+         including the media one, until this runtime grant is given.
+         FOREGROUND_SERVICE + FOREGROUND_SERVICE_MEDIA_PLAYBACK: Android 14 (API 34)
+         throws a SecurityException when a `mediaPlayback` foreground service starts
+         without the typed permission — which silently killed the media service, so
+         no notification or lock-screen controls ever appeared.
+         WAKE_LOCK: keep the CPU alive so background playback isn't paused. -->
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MEDIA_PLAYBACK" />
+    <uses-permission android:name="android.permission.WAKE_LOCK" />
 </manifest>

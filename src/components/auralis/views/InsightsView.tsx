@@ -8,7 +8,9 @@ import { formatCount, formatLongDuration } from "@/lib/auralis/brand";
 import { SectionHeader } from "../SectionHeader";
 
 export function InsightsView() {
-  const { tracks, albums, artists } = useLibraryStore();
+  const tracks = useLibraryStore((s) => s.tracks);
+  const albums = useLibraryStore((s) => s.albums);
+  const artists = useLibraryStore((s) => s.artists);
   const playCounts = usePlayer((state) => state.playCounts);
   const tracksWithCounts = useMemo(
     () => tracks.map((track) => ({ ...track, playcount: playCounts[track.trackhash] ?? track.playcount ?? 0 })),

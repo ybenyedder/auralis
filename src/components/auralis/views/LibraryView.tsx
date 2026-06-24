@@ -20,8 +20,15 @@ export function LibraryView() {
   const [grid, setGrid] = useState(true);
   const [creating, setCreating] = useState(false);
   const [newName, setNewName] = useState("");
-  const { customPlaylists, playCounts, navigate, createPlaylist } = usePlayer();
-  const { tracks, albums, artists, playlists, status } = useLibraryStore();
+  const customPlaylists = usePlayer((s) => s.customPlaylists);
+  const playCounts = usePlayer((s) => s.playCounts);
+  const navigate = usePlayer((s) => s.navigate);
+  const createPlaylist = usePlayer((s) => s.createPlaylist);
+  const tracks = useLibraryStore((s) => s.tracks);
+  const albums = useLibraryStore((s) => s.albums);
+  const artists = useLibraryStore((s) => s.artists);
+  const playlists = useLibraryStore((s) => s.playlists);
+  const status = useLibraryStore((s) => s.status);
   const allPlaylists = useMemo(() => [...customPlaylists, ...playlists], [customPlaylists, playlists]);
 
   const sortedAlbums = useMemo(() => {
@@ -244,7 +251,7 @@ const moreLinks: { view: "recents" | "folders" | "insights" | "settings"; label:
 ];
 
 function AlbumListRow({ album, index }: { album: Album; index: number }) {
-  const { navigate } = usePlayer();
+  const navigate = usePlayer((s) => s.navigate);
   return (
     <button
       className="track-row group grid w-full cursor-pointer grid-cols-[28px_minmax(0,1fr)_auto] items-center gap-3 rounded-[9px] px-2 py-2 text-left hover:bg-white/[0.045]"
@@ -267,7 +274,7 @@ function AlbumListRow({ album, index }: { album: Album; index: number }) {
 }
 
 function ArtistListRow({ artist, index }: { artist: Artist; index: number }) {
-  const { navigate } = usePlayer();
+  const navigate = usePlayer((s) => s.navigate);
   const colors = paletteForName(artist.name);
   return (
     <button

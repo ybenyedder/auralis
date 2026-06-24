@@ -10,7 +10,13 @@ import { cn } from "@/lib/utils";
 import type { Track } from "@/lib/auralis/types";
 
 export function QueueList({ maxHeight }: { maxHeight?: string }) {
-  const { shuffledQueue, currentIndex, isPlaying, jumpToQueueIndex, removeFromQueue, reorderQueue, clearQueue } = usePlayer();
+  const shuffledQueue = usePlayer((s) => s.shuffledQueue);
+  const currentIndex = usePlayer((s) => s.currentIndex);
+  const isPlaying = usePlayer((s) => s.isPlaying);
+  const jumpToQueueIndex = usePlayer((s) => s.jumpToQueueIndex);
+  const removeFromQueue = usePlayer((s) => s.removeFromQueue);
+  const reorderQueue = usePlayer((s) => s.reorderQueue);
+  const clearQueue = usePlayer((s) => s.clearQueue);
 
   return (
     <div className="flex min-h-0 flex-1 flex-col">

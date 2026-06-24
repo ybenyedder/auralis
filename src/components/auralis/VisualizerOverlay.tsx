@@ -19,7 +19,12 @@ import { formatDuration, trackArtist, trackTitle } from "@/lib/auralis/brand";
  * requiring real audio analysis.
  */
 export function VisualizerOverlay() {
-  const { visualizerOpen, closeVisualizer, currentTrack, isPlaying, togglePlay, playNext } = usePlayer();
+  const visualizerOpen = usePlayer((s) => s.visualizerOpen);
+  const closeVisualizer = usePlayer((s) => s.closeVisualizer);
+  const currentTrack = usePlayer((s) => s.currentTrack);
+  const isPlaying = usePlayer((s) => s.isPlaying);
+  const togglePlay = usePlayer((s) => s.togglePlay);
+  const playNext = usePlayer((s) => s.playNext);
   const position = usePlayhead((s) => s.position);
   const duration = usePlayhead((s) => s.duration);
   const canvasRef = useRef<HTMLCanvasElement>(null);

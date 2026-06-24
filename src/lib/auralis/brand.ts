@@ -8,7 +8,7 @@ export const brand = {
   name: "Auralis",
   system: "Auralis Core",
   promise: "A private, label-grade listening desk for local music collections.",
-  version: "1.0.0",
+  version: "1.1.0",
   vocabulary: {
     home: "Home",
     search: "Explore",

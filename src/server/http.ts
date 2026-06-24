@@ -2,7 +2,7 @@
 // hardening, consistent JSON responses and baseline security headers.
 
 import { NextResponse } from "next/server";
-import { isAuthenticated } from "./auth";
+import { isAuthenticated, getRequestUser } from "./auth";
 
 const SECURITY_HEADERS: Record<string, string> = {
   "X-Content-Type-Options": "nosniff",
@@ -19,10 +19,21 @@ export function withCors(res: NextResponse): NextResponse {
   return res;
 }
 
-/** Returns a 401 response unless the request carries a valid admin session or token. */
+/** Returns a 401 response unless the request carries a valid (any-user) session or token. */
 export function checkAuth(request: Request): NextResponse | null {
   if (isAuthenticated(request)) return null;
   return json({ error: "Unauthorized" }, { status: 401 });
+}
+
+/** Returns a 401/403 response unless the request belongs to an ADMIN account.
+ *  Use this for destructive / host-level operations (repointing the music dir,
+ *  triggering scans) — checkAuth alone only proves *some* valid user, which would
+ *  let any non-admin account repoint the library at arbitrary host paths. */
+export function requireAdmin(request: Request): NextResponse | null {
+  const user = getRequestUser(request);
+  if (!user) return json({ error: "Unauthorized" }, { status: 401 });
+  if (user.is_admin !== 1) return json({ error: "Réservé à l'administrateur" }, { status: 403 });
+  return null;
 }
 
 export function json(body: unknown, init?: ResponseInit): NextResponse {

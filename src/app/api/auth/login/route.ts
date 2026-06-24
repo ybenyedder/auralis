@@ -1,6 +1,6 @@
 import { verifyCredentials, createSessionToken, SESSION_COOKIE, SESSION_MAX_AGE_S } from "@/server/auth";
 import { json } from "@/server/http";
-import { clientKey, rateLimitCheck, rateLimitFail, rateLimitReset } from "@/server/rateLimit";
+import { clientKey, usernameKey, rateLimitCheck, rateLimitFail, rateLimitReset } from "@/server/rateLimit";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -18,9 +18,12 @@ export async function POST(request: Request) {
     return json({ error: "Invalid body" }, { status: 400 });
   }
 
-  // Brute-force guard: keyed by IP + attempted username.
-  const key = clientKey(request, username);
-  const wait = rateLimitCheck(key);
+  // Brute-force guard: two independent buckets. `ipKey` (IP+username) blunts a
+  // single source; `userKey` (username only) caps total failures for an account
+  // regardless of source IP, so rotating/spoofing X-Forwarded-For can't bypass it.
+  const ipKey = clientKey(request, username);
+  const userKey = usernameKey(username);
+  const wait = Math.max(rateLimitCheck(ipKey), rateLimitCheck(userKey));
   if (wait > 0) {
     return json(
       { error: `Trop de tentatives. Réessayez dans ${Math.ceil(wait / 1000)} s.` },
@@ -30,10 +33,12 @@ export async function POST(request: Request) {
 
   const user = verifyCredentials(username, password);
   if (!user) {
-    rateLimitFail(key);
+    rateLimitFail(ipKey);
+    rateLimitFail(userKey);
     return json({ error: "Identifiant ou mot de passe incorrect" }, { status: 401 });
   }
-  rateLimitReset(key);
+  rateLimitReset(ipKey);
+  rateLimitReset(userKey);
 
   const token = createSessionToken(user.id);
   // Return the token so the client can persist it (localStorage) and present it

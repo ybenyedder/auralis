@@ -1,18 +1,25 @@
 "use client";
 
-import { useMemo, type ComponentType } from "react";
-import { Clock3, Disc3, Library, Play, TrendingUp, UserRound } from "lucide-react";
+import { useMemo } from "react";
+import { Play, TrendingUp } from "lucide-react";
 import { usePlayer } from "@/store/player";
 import { useLibraryStore, tracksForHashesFrom } from "@/store/library";
 import { SectionHeader } from "../SectionHeader";
 import { TrackRow } from "../TrackRow";
 import { AlbumCard, ArtistCard } from "../Cards";
 import { Artwork } from "../Artwork";
-import { coverVars, formatLongDuration, trackArtist, trackTitle } from "@/lib/auralis/brand";
+import { coverVars, trackArtist, trackTitle } from "@/lib/auralis/brand";
 
 export function HomeView() {
-  const { playList, navigate, currentTrack, playCounts, recentTrackhashes } = usePlayer();
-  const { tracks, albums, artists, error } = useLibraryStore();
+  const playList = usePlayer((s) => s.playList);
+  const navigate = usePlayer((s) => s.navigate);
+  const currentTrack = usePlayer((s) => s.currentTrack);
+  const playCounts = usePlayer((s) => s.playCounts);
+  const recentTrackhashes = usePlayer((s) => s.recentTrackhashes);
+  const tracks = useLibraryStore((s) => s.tracks);
+  const albums = useLibraryStore((s) => s.albums);
+  const artists = useLibraryStore((s) => s.artists);
+  const error = useLibraryStore((s) => s.error);
 
   const curated = useMemo(() => tracks.slice(0, 12), [tracks]);
   // Real listening history (falls back to the first tracks on a fresh library).
@@ -27,24 +34,23 @@ export function HomeView() {
     [tracks, playCounts],
   );
   const leadTrack = currentTrack ?? tracks[0];
-  const totalDuration = useMemo(() => tracks.reduce((sum, track) => sum + (track.duration || 0), 0), [tracks]);
 
   return (
     <div className="fade-up space-y-6 px-4 py-4 lg:space-y-8 lg:px-6 lg:py-6">
-      <section className="hero-cover grid gap-4 rounded-[18px] border border-[var(--line)] px-4 py-5 shadow-[0_18px_40px_-30px_rgba(0,0,0,0.9)] lg:gap-5 lg:px-6 lg:py-6 lg:grid-cols-[minmax(0,1fr)_360px]" style={coverVars(leadTrack?.color)}>
-        <div className="flex min-w-0 gap-4">
+      <section className="hero-cover grid gap-4 rounded-[18px] border border-[var(--line)] px-4 py-5 shadow-[0_18px_40px_-30px_rgba(0,0,0,0.9)] lg:gap-5 lg:px-6 lg:py-7" style={coverVars(leadTrack?.color)}>
+        <div className="flex min-w-0 items-end gap-4 lg:gap-6">
           <Artwork
             title={leadTrack?.title}
             trackhash={leadTrack?.trackhash}
             size={128}
-            rounded={11}
+            rounded={13}
             colors={leadTrack?.color}
             image={leadTrack?.image}
-            className="hidden sm:block"
+            className="hidden shadow-[0_20px_44px_-26px_rgba(0,0,0,0.95)] sm:block"
           />
-          <div className="min-w-0 self-end">
+          <div className="min-w-0 flex-1">
             <p className="text-[10px] font-black uppercase tracking-[0.2em] text-[var(--brass)]">
-              Bibliothèque locale
+              {currentTrack ? "En lecture" : "Bibliothèque locale"}
             </p>
             <h1 className="mt-2 max-w-3xl text-[26px] font-black leading-[1.02] tracking-tight text-foreground lg:text-[clamp(30px,5vw,58px)] lg:leading-[0.92]">
               {leadTrack ? trackTitle(leadTrack) : "Aucune musique indexée"}
@@ -65,12 +71,6 @@ export function HomeView() {
               </button>
             </div>
           </div>
-        </div>
-        <div className="grid grid-cols-2 gap-2 self-end">
-          <HomeMetric icon={Library} label="Titres" value={tracks.length} />
-          <HomeMetric icon={Disc3} label="Albums" value={albums.length} />
-          <HomeMetric icon={UserRound} label="Artistes" value={artists.length} />
-          <HomeMetric icon={Clock3} label="Durée" value={formatLongDuration(totalDuration)} />
         </div>
       </section>
 
@@ -121,18 +121,6 @@ export function HomeView() {
           </div>
         </section>
       )}
-    </div>
-  );
-}
-
-function HomeMetric({ icon: Icon, label, value }: { icon: ComponentType<{ className?: string }>; label: string; value: string | number }) {
-  return (
-    <div className="matte-panel min-w-0 rounded-[13px] p-3">
-      <div className="mb-2 flex items-center justify-between gap-2 text-muted-foreground/70">
-        <span className="truncate text-[10px] font-black uppercase tracking-[0.14em]">{label}</span>
-        <Icon className="size-3.5 shrink-0" />
-      </div>
-      <p className="truncate text-[18px] font-black tracking-tight text-foreground lg:text-[20px]">{value}</p>
     </div>
   );
 }

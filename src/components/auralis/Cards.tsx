@@ -1,6 +1,6 @@
 "use client";
 
-import type { MouseEvent } from "react";
+import { memo, useMemo, type MouseEvent } from "react";
 import { Play, MoreVertical } from "lucide-react";
 import type { Album, Artist, Playlist } from "@/lib/auralis/types";
 import { usePlayer } from "@/store/player";
@@ -15,16 +15,21 @@ interface AlbumCardProps {
   onOpen?: () => void;
 }
 
-export function AlbumCard({ album, onOpen }: AlbumCardProps) {
-  const { playList, currentTrack, navigate, openAlbumContextMenu } = usePlayer();
-  const tracks = useLibraryStore((state) => state.tracks);
+export const AlbumCard = memo(function AlbumCard({ album, onOpen }: AlbumCardProps) {
+  // Atomic selectors: actions are stable refs (no re-render), and we watch ONLY a
+  // derived boolean instead of the whole currentTrack — so a track change no longer
+  // re-renders every album card in the grid.
+  const playList = usePlayer((s) => s.playList);
+  const navigate = usePlayer((s) => s.navigate);
+  const openAlbumContextMenu = usePlayer((s) => s.openAlbumContextMenu);
+  const isPlaying = usePlayer((s) => s.currentTrack?.albumhash === album.albumhash);
   const onContext = useAlbumContextMenu();
   const colors = album.color ?? paletteForName(album.title);
-  const isPlaying = currentTrack?.albumhash === album.albumhash;
 
   const handlePlay = (event: MouseEvent) => {
     event.stopPropagation();
-    const list = tracksOfAlbumFrom(tracks, album.albumhash);
+    // Read tracks lazily so the card never subscribes to the (large) tracks array.
+    const list = tracksOfAlbumFrom(useLibraryStore.getState().tracks, album.albumhash);
     if (list.length) playList(list, 0);
   };
 
@@ -87,10 +92,11 @@ export function AlbumCard({ album, onOpen }: AlbumCardProps) {
       </div>
     </div>
   );
-}
+});
 
-export function ArtistCard({ artist }: { artist: Artist }) {
-  const { navigate, openArtistContextMenu } = usePlayer();
+export const ArtistCard = memo(function ArtistCard({ artist }: { artist: Artist }) {
+  const navigate = usePlayer((s) => s.navigate);
+  const openArtistContextMenu = usePlayer((s) => s.openArtistContextMenu);
   const onContext = useArtistContextMenu();
   const colors = paletteForName(artist.name);
   return (
@@ -148,13 +154,19 @@ export function ArtistCard({ artist }: { artist: Artist }) {
       </div>
     </div>
   );
-}
+});
 
-export function PlaylistTile({ playlist }: { playlist: Playlist }) {
-  const { navigate, playList } = usePlayer();
+export const PlaylistTile = memo(function PlaylistTile({ playlist }: { playlist: Playlist }) {
+  const navigate = usePlayer((s) => s.navigate);
+  const playList = usePlayer((s) => s.playList);
   const tracks = useLibraryStore((state) => state.tracks);
   const colors = playlist.color ?? paletteForName(playlist.name);
-  const coverImage = tracksForHashesFrom(tracks, playlist.trackhashes ?? []).find((t) => t.image)?.image;
+  // Memoise the cover lookup — it scans the whole library; recomputing it on every
+  // render (e.g. parent re-render) was wasted work per tile.
+  const coverImage = useMemo(
+    () => tracksForHashesFrom(tracks, playlist.trackhashes ?? []).find((t) => t.image)?.image,
+    [tracks, playlist.trackhashes],
+  );
   return (
     <div
       role="button"
@@ -211,5 +223,5 @@ export function PlaylistTile({ playlist }: { playlist: Playlist }) {
       </div>
     </div>
   );
-}
+});
 

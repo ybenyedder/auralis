@@ -24,30 +24,30 @@ import { formatDuration, trackArtist, trackTitle } from "@/lib/auralis/brand";
 import { cn } from "@/lib/utils";
 
 export function PlayerBar() {
-  const {
-    currentTrack,
-    isPlaying,
-    volume,
-    muted,
-    repeat,
-    shuffle,
-    togglePlay,
-    playNext,
-    playPrev,
-    seek,
-    setVolume,
-    toggleMute,
-    toggleShuffle,
-    cycleRepeat,
-    toggleFavorite,
-    isFavorite,
-    toggleFullscreenPlayer,
-    toggleQueue,
-    queueOpen,
-    sleepTimer,
-    startSleepTimer,
-    cancelSleepTimer,
-  } = usePlayer();
+  // Atomic selectors — this bar is always on screen, so a whole-store subscription
+  // re-rendered it on every unrelated state change. Actions are stable refs.
+  const currentTrack = usePlayer((s) => s.currentTrack);
+  const isPlaying = usePlayer((s) => s.isPlaying);
+  const volume = usePlayer((s) => s.volume);
+  const muted = usePlayer((s) => s.muted);
+  const repeat = usePlayer((s) => s.repeat);
+  const shuffle = usePlayer((s) => s.shuffle);
+  const togglePlay = usePlayer((s) => s.togglePlay);
+  const playNext = usePlayer((s) => s.playNext);
+  const playPrev = usePlayer((s) => s.playPrev);
+  const seek = usePlayer((s) => s.seek);
+  const setVolume = usePlayer((s) => s.setVolume);
+  const toggleMute = usePlayer((s) => s.toggleMute);
+  const toggleShuffle = usePlayer((s) => s.toggleShuffle);
+  const cycleRepeat = usePlayer((s) => s.cycleRepeat);
+  const toggleFavorite = usePlayer((s) => s.toggleFavorite);
+  const isFavorite = usePlayer((s) => s.isFavorite);
+  const toggleFullscreenPlayer = usePlayer((s) => s.toggleFullscreenPlayer);
+  const toggleQueue = usePlayer((s) => s.toggleQueue);
+  const queueOpen = usePlayer((s) => s.queueOpen);
+  const sleepTimer = usePlayer((s) => s.sleepTimer);
+  const startSleepTimer = usePlayer((s) => s.startSleepTimer);
+  const cancelSleepTimer = usePlayer((s) => s.cancelSleepTimer);
 
   const [sleepOpen, setSleepOpen] = useState(false);
   const [timerNow, setTimerNow] = useState(() => Date.now());

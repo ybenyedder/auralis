@@ -10,8 +10,9 @@ import { Artwork } from "../Artwork";
 import { trackArtist, trackTitle } from "@/lib/auralis/brand";
 
 export function RecentsView() {
-  const { playTrack, recentTrackhashes } = usePlayer();
-  const { tracks } = useLibraryStore();
+  const playTrack = usePlayer((s) => s.playTrack);
+  const recentTrackhashes = usePlayer((s) => s.recentTrackhashes);
+  const tracks = useLibraryStore((s) => s.tracks);
 
   const recent = useMemo(() => tracksForHashesFrom(tracks, recentTrackhashes), [recentTrackhashes, tracks]);
   const hasLive = recentTrackhashes.length > 0;

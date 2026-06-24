@@ -157,6 +157,26 @@
     });
 
     input.addEventListener("keydown", function (e) { if (e.key === "Enter") go.click(); });
+
+    // Auto-reconnect: if a server was saved AND it is reachable, skip this screen
+    // entirely and go straight to the app. Only falls back to the manual form when
+    // the known server can't be reached (moved network, server off), so the user
+    // isn't asked to reconnect on every launch.
+    if (saved) {
+      setStatus("Connecting…");
+      setLoading(true);
+      probe(saved).then(function (ok) {
+        if (ok) {
+          connect(saved); // navigates away; leave the loading state in place
+        } else {
+          setLoading(false);
+          setStatus("");
+        }
+      }).catch(function () {
+        setLoading(false);
+        setStatus("");
+      });
+    }
   </script>
 </body>
 </html>

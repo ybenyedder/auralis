@@ -16,14 +16,15 @@ export async function GET() {
     dbOk = false;
   }
   // Health is the one endpoint clients probe cross-origin (before navigating to
-  // the server), so it explicitly opts back into an open ACAO.
+  // the server), so it explicitly opts back into an open ACAO. Because it is both
+  // unauthenticated AND CORS-open, it must NOT leak host details — the absolute
+  // musicDir path (which reveals the OS username / filesystem layout) is omitted.
   return withCors(json({
     name: "Auralis",
     status: dbOk ? "ok" : "degraded",
-    version: "1.0.0",
+    version: "1.1.0",
     db: dbOk,
     tracks,
-    musicDir: config.musicDir,
     lyricsOnline: config.lyricsOnline,
     scan: getScanProgress(),
     uptime: Math.round(process.uptime()),

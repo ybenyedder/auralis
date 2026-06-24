@@ -38,7 +38,11 @@ const NAV_ITEMS: NavItem[] = [
 ];
 
 export function Sidebar() {
-  const { view, navigate, customPlaylists, createPlaylist, reorderCustomPlaylists } = usePlayer();
+  const view = usePlayer((s) => s.view);
+  const navigate = usePlayer((s) => s.navigate);
+  const customPlaylists = usePlayer((s) => s.customPlaylists);
+  const createPlaylist = usePlayer((s) => s.createPlaylist);
+  const reorderCustomPlaylists = usePlayer((s) => s.reorderCustomPlaylists);
   const libraryPlaylists = useLibraryStore((state) => state.playlists);
 
   const onNewPlaylist = () => {

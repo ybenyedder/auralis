@@ -415,6 +415,17 @@ select:focus-visible {
 
 /* Track row */
 .track-row { position: relative; }
+
+/* Off-screen rows skip layout/paint until scrolled near the viewport. On long
+   library / favorites / album lists (thousands of rows) this is the single biggest
+   scroll-fluidity win on mobile — the browser only renders what's visible.
+   contain-intrinsic-size reserves an estimated height so the scrollbar stays stable
+   and `auto` lets it remember the real height once a row has been rendered once. */
+.track-row,
+.lazy-row {
+  content-visibility: auto;
+  contain-intrinsic-size: auto 52px;
+}
 .track-row:hover .track-art { transform: scale(1.03); }
 
 /* Scrubber reset */
