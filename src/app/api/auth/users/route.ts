@@ -1,0 +1,64 @@
+// Admin-only account management. List, create and delete user accounts; each
+// account carries its own favorites / playlists / history (see userState).
+import { getRequestUser, listUsers, createUser, deleteUser, setUserPassword } from "@/server/auth";
+import { json } from "@/server/http";
+
+export const runtime = "nodejs";
+export const dynamic = "force-dynamic";
+
+export async function GET(request: Request) {
+  const user = getRequestUser(request);
+  if (!user) return json({ error: "Unauthorized" }, { status: 401 });
+  if (user.is_admin !== 1) return json({ error: "Réservé à l'administrateur" }, { status: 403 });
+  return json({
+    users: listUsers().map((u) => ({ id: u.id, username: u.username, isAdmin: u.is_admin === 1, createdAt: u.created_at })),
+    me: user.id,
+  });
+}
+
+export async function POST(request: Request) {
+  const user = getRequestUser(request);
+  if (!user) return json({ error: "Unauthorized" }, { status: 401 });
+  if (user.is_admin !== 1) return json({ error: "Réservé à l'administrateur" }, { status: 403 });
+
+  let body: { username?: string; password?: string; isAdmin?: boolean };
+  try {
+    body = (await request.json()) as { username?: string; password?: string; isAdmin?: boolean };
+  } catch {
+    return json({ error: "Invalid body" }, { status: 400 });
+  }
+  const result = createUser(body.username ?? "", body.password ?? "", Boolean(body.isAdmin));
+  if (!result.ok) return json({ error: result.error }, { status: 400 });
+  return json({ ok: true, id: result.id });
+}
+
+export async function PUT(request: Request) {
+  // Admin password reset for another account.
+  const user = getRequestUser(request);
+  if (!user) return json({ error: "Unauthorized" }, { status: 401 });
+  if (user.is_admin !== 1) return json({ error: "Réservé à l'administrateur" }, { status: 403 });
+
+  let body: { id?: number; password?: string };
+  try {
+    body = (await request.json()) as { id?: number; password?: string };
+  } catch {
+    return json({ error: "Invalid body" }, { status: 400 });
+  }
+  if (typeof body.id !== "number") return json({ error: "id required" }, { status: 400 });
+  const result = setUserPassword(body.id, body.password ?? "");
+  if (!result.ok) return json({ error: result.error }, { status: 400 });
+  return json({ ok: true });
+}
+
+export async function DELETE(request: Request) {
+  const user = getRequestUser(request);
+  if (!user) return json({ error: "Unauthorized" }, { status: 401 });
+  if (user.is_admin !== 1) return json({ error: "Réservé à l'administrateur" }, { status: 403 });
+
+  const id = Number(new URL(request.url).searchParams.get("id"));
+  if (!Number.isInteger(id)) return json({ error: "id required" }, { status: 400 });
+  if (id === user.id) return json({ error: "Vous ne pouvez pas supprimer votre propre compte" }, { status: 400 });
+  const result = deleteUser(id);
+  if (!result.ok) return json({ error: result.error }, { status: 400 });
+  return json({ ok: true });
+}

@@ -1,0 +1,896 @@
+"use client";
+
+import { create } from "zustand";
+import type { Track, Album, Artist, RepeatMode, Playlist } from "@/lib/auralis/types";
+import { api } from "@/lib/auralis/api";
+import { useLibraryStore } from "./library";
+import { usePlayhead } from "./playhead";
+import {
+  THEMES,
+  applyTheme,
+  normalizeTheme,
+  type ThemeId,
+} from "@/lib/auralis/themes";
+
+// Re-exported so existing imports of the theme engine through the store keep
+// working. The catalogue + apply logic now live in lib/auralis/themes.ts.
+export { THEMES, applyTheme, type ThemeId };
+
+// Audio element reference, bound by the app shell. Seeking writes straight to it
+// so the playhead store and the <audio> element stay in sync without React renders.
+let audioEl: HTMLAudioElement | null = null;
+export function bindAudio(el: HTMLAudioElement | null) {
+  audioEl = el;
+}
+/** The live <audio> currentTime, read straight from the element. Lets the lyrics
+ *  view interpolate playback at 60fps between the ~4×/s `timeupdate` store writes
+ *  so the karaoke wipe is smooth instead of stepping. Null when nothing is bound. */
+export function getAudioTime(): number | null {
+  return audioEl ? audioEl.currentTime : null;
+}
+
+export type ViewId =
+  | "home"
+  | "explore"
+  | "library"
+  | "favorites"
+  | "recents"
+  | "folders"
+  | "insights"
+  | "album"
+  | "artist"
+  | "playlist"
+  | "settings";
+
+interface NavTarget {
+  view: ViewId;
+  id?: string;
+}
+
+interface ContextMenuState {
+  open: boolean;
+  x: number;
+  y: number;
+  track?: Track;
+  album?: Album;
+  artist?: Artist;
+}
+
+interface SleepTimer {
+  active: boolean;
+  endsAt: number | null;
+  minutes: number;
+}
+
+interface PlayerState {
+  view: NavTarget;
+  navHistory: NavTarget[];
+  searchQuery: string;
+  searchFocus: boolean;
+  commandOpen: boolean;
+
+  queue: Track[];
+  shuffledQueue: Track[];
+  currentIndex: number;
+  currentTrack: Track | null;
+  isPlaying: boolean;
+  volume: number;
+  muted: boolean;
+  repeat: RepeatMode;
+  shuffle: boolean;
+  favorites: Set<string>;
+  recentTrackhashes: string[];
+  playCounts: Record<string, number>;
+
+  customPlaylists: Playlist[];
+  sleepTimer: SleepTimer;
+
+  rightPanelOpen: boolean;
+  fullscreenPlayer: boolean;
+  lyricsOpen: boolean;
+  queueOpen: boolean;
+  helpOpen: boolean;
+  miniPlayer: boolean;
+  karaokeMode: boolean;
+  /** Seconds added to the audio clock when timing lyrics. Positive = lyrics
+   *  anticipate (appear earlier); lets the user dial out any residual lag. */
+  lyricsOffset: number;
+  visualizerOpen: boolean;
+  theme: ThemeId;
+  contextMenu: ContextMenuState;
+  toast: { id: number; message: string } | null;
+  lyricsLoading: boolean;
+  lyricsStatus: "idle" | "loading" | "found" | "notfound" | "instrumental" | "error";
+  lyricsPlain: string | null;
+  syncReady: boolean;
+
+  navigate: (view: ViewId, id?: string) => void;
+  back: () => void;
+  setSearch: (q: string) => void;
+  setSearchFocus: (v: boolean) => void;
+  setCommandOpen: (v: boolean) => void;
+
+  playTrack: (track: Track, list?: Track[], startIndex?: number) => void;
+  playList: (list: Track[], startIndex?: number) => void;
+  togglePlay: () => void;
+  playNext: () => void;
+  playPrev: () => void;
+  seek: (seconds: number) => void;
+  seekRelative: (delta: number) => void;
+  setVolume: (v: number) => void;
+  toggleMute: () => void;
+  toggleShuffle: () => void;
+  cycleRepeat: () => void;
+  addToQueueNext: (track: Track) => void;
+  addToQueueEnd: (track: Track) => void;
+  removeFromQueue: (index: number) => void;
+  reorderQueue: (from: number, to: number) => void;
+  clearQueue: () => void;
+  jumpToQueueIndex: (index: number) => void;
+
+  toggleFavorite: (trackhash: string) => void;
+  isFavorite: (trackhash: string) => boolean;
+
+  createPlaylist: (name: string, description?: string) => string;
+  deletePlaylist: (id: string) => void;
+  renamePlaylist: (id: string, name: string) => void;
+  addToPlaylist: (id: string, track: Track) => void;
+  removeFromPlaylist: (id: string, trackhash: string) => void;
+
+  startSleepTimer: (minutes: number) => void;
+  cancelSleepTimer: () => void;
+
+  toggleRightPanel: () => void;
+  toggleFullscreenPlayer: () => void;
+  toggleLyrics: () => void;
+  toggleQueue: () => void;
+  setHelpOpen: (v: boolean) => void;
+  toggleMiniPlayer: () => void;
+  toggleKaraoke: () => void;
+  adjustLyricsOffset: (delta: number) => void;
+  resetLyricsOffset: () => void;
+  toggleVisualizer: () => void;
+  closeVisualizer: () => void;
+  setTheme: (id: ThemeId) => void;
+  reorderCustomPlaylists: (from: number, to: number) => void;
+  closeFullscreenPlayer: () => void;
+  openContextMenu: (x: number, y: number, track: Track) => void;
+  openAlbumContextMenu: (x: number, y: number, album: Album) => void;
+  openArtistContextMenu: (x: number, y: number, artist: Artist) => void;
+  closeContextMenu: () => void;
+  notify: (message: string) => void;
+  dismissToast: () => void;
+
+  hydrateLocal: () => void;
+  hydrateFromServer: () => Promise<void>;
+  fetchLyrics: (force?: boolean) => Promise<void>;
+}
+
+interface ServerState {
+  favorites: string[];
+  playCounts: Record<string, number>;
+  recents: string[];
+  playlists: { id: string; name: string; description: string | null; pinned: boolean; trackhashes: string[] }[];
+  settings: Record<string, unknown>;
+}
+
+interface LyricsResponse {
+  status: "found" | "instrumental" | "notfound";
+  lines: { time: number; text: string; words?: { time: number; text: string }[] }[];
+  plain: string | null;
+  synced: boolean;
+}
+
+function shuffleArray<T>(arr: T[]): T[] {
+  const a = [...arr];
+  for (let i = a.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [a[i], a[j]] = [a[j], a[i]];
+  }
+  return a;
+}
+
+function reorderWithFirst<T>(list: T[], firstIndex: number): T[] {
+  if (firstIndex < 0 || firstIndex >= list.length) return list;
+  const first = list[firstIndex];
+  const rest = list.filter((_, i) => i !== firstIndex);
+  return [first, ...rest];
+}
+
+const LS_KEY = "auralis.vault.v1";
+
+interface Persisted {
+  favorites: string[];
+  volume: number;
+  muted: boolean;
+  repeat: RepeatMode;
+  shuffle: boolean;
+  customPlaylists: Playlist[];
+  recentTrackhashes: string[];
+  theme: ThemeId;
+  /** @deprecated pre-0.5 key, read once for migration into `theme`. */
+  accent?: string;
+  playCounts: Record<string, number>;
+  karaokeMode: boolean;
+  lyricsOffset: number;
+}
+
+// A small default karaoke lead-in: the highlight appears a beat before the word
+// so it reads as sing-along rather than chasing the voice. NOT a latency
+// correction (source LRCs vary), so it's deliberately gentle and fully tunable
+// from the lyrics pane's −/+ control (and resettable to this value).
+const DEFAULT_LYRICS_OFFSET = 0.15;
+const LYRICS_OFFSET_MAX = 3;
+function clampOffset(n: number): number {
+  if (!Number.isFinite(n)) return 0;
+  return Math.max(-LYRICS_OFFSET_MAX, Math.min(LYRICS_OFFSET_MAX, Math.round(n * 100) / 100));
+}
+
+function loadPersisted(): Partial<Persisted> {
+  if (typeof window === "undefined") return {};
+  try {
+    const raw = window.localStorage.getItem(LS_KEY);
+    return raw ? (JSON.parse(raw) as Partial<Persisted>) : {};
+  } catch {
+    return {};
+  }
+}
+
+function persist(state: PlayerState) {
+  if (typeof window === "undefined") return;
+  try {
+    const data: Persisted = {
+      favorites: Array.from(state.favorites),
+      volume: state.volume,
+      muted: state.muted,
+      repeat: state.repeat,
+      shuffle: state.shuffle,
+      customPlaylists: state.customPlaylists,
+      recentTrackhashes: state.recentTrackhashes.slice(0, 40),
+      theme: state.theme,
+      playCounts: state.playCounts,
+      karaokeMode: state.karaokeMode,
+      lyricsOffset: state.lyricsOffset,
+    };
+    window.localStorage.setItem(LS_KEY, JSON.stringify(data));
+  } catch {
+    // localStorage unavailable or full; playback must keep working.
+  }
+}
+
+const initial = loadPersisted();
+// Migrate the pre-0.5 `accent` key into the richer `theme` registry (the four
+// classic accent ids are still valid theme ids, so existing prefs carry over).
+const initialTheme = normalizeTheme(initial.theme ?? initial.accent);
+
+if (typeof window !== "undefined") {
+  applyTheme(initialTheme);
+}
+
+export const usePlayer = create<PlayerState>((set, get) => {
+  const markPlayed = (state: PlayerState, track: Track) => {
+    const recents = [track.trackhash, ...state.recentTrackhashes.filter((h) => h !== track.trackhash)].slice(0, 100);
+    const nextCount = (state.playCounts[track.trackhash] ?? track.playcount ?? 0) + 1;
+    const playCounts = { ...state.playCounts, [track.trackhash]: nextCount };
+    // Write-through to the server so play history is shared across devices.
+    void api.put("/api/state", { action: "play", trackhash: track.trackhash }).catch(() => {});
+    return { recents, playCounts };
+  };
+
+  // Push a single playlist's current contents to the server.
+  const pushPlaylist = (id: string) => {
+    const pl = get().customPlaylists.find((p) => String(p.id) === id);
+    if (!pl) return;
+    void api.put("/api/state", {
+      action: "playlist.upsert",
+      playlist: { id: String(pl.id), name: pl.name, description: pl.description ?? null, pinned: Boolean(pl.pinned), trackhashes: pl.trackhashes ?? [] },
+    }).catch(() => {});
+  };
+
+  return {
+    view: { view: "home" },
+    navHistory: [],
+    searchQuery: "",
+    searchFocus: false,
+    commandOpen: false,
+
+    queue: [],
+    shuffledQueue: [],
+    currentIndex: 0,
+    currentTrack: null,
+    isPlaying: false,
+    // SSR-safe defaults. Persisted values are applied after mount via hydrateLocal()
+    // so the first client render matches the server-rendered HTML (no hydration mismatch).
+    volume: 0.78,
+    muted: false,
+    repeat: "off",
+    shuffle: false,
+    favorites: new Set<string>(),
+    recentTrackhashes: [],
+    playCounts: {},
+
+    customPlaylists: [],
+    sleepTimer: { active: false, endsAt: null, minutes: 0 },
+
+    rightPanelOpen: true,
+    fullscreenPlayer: false,
+    lyricsOpen: false,
+    queueOpen: false,
+    helpOpen: false,
+    miniPlayer: false,
+    // Karaoke wipe is the default surface for synced lyrics; the user can switch
+    // to a plain highlighted view via the Standard/Karaoké toggle in the lyrics pane.
+    karaokeMode: initial.karaokeMode ?? true,
+    lyricsOffset: clampOffset(initial.lyricsOffset ?? DEFAULT_LYRICS_OFFSET),
+    visualizerOpen: false,
+    theme: initialTheme,
+    contextMenu: { open: false, x: 0, y: 0 },
+    toast: null,
+    lyricsLoading: false,
+    lyricsStatus: "idle",
+    lyricsPlain: null,
+    syncReady: false,
+
+    navigate: (view, id) => {
+      const { view: current } = get();
+      set((s) => ({
+        view: { view, id },
+        navHistory: [...s.navHistory, current].slice(-24),
+        fullscreenPlayer: false,
+      }));
+    },
+    back: () => {
+      const { navHistory } = get();
+      if (navHistory.length === 0) return;
+      const prev = navHistory[navHistory.length - 1];
+      set((s) => ({ view: prev, navHistory: s.navHistory.slice(0, -1) }));
+    },
+    setSearch: (q) => set({ searchQuery: q }),
+    setSearchFocus: (v) => set({ searchFocus: v }),
+    setCommandOpen: (v) => set({ commandOpen: v }),
+
+    playTrack: (track, list, startIndex) => {
+      const source = list && list.length ? list : [track];
+      const idx = list ? (startIndex ?? list.findIndex((t) => t.trackhash === track.trackhash)) : 0;
+      const baseIndex = idx >= 0 ? idx : 0;
+      const first = source[baseIndex] ?? track;
+      const { shuffle } = get();
+      const order = shuffle
+        ? [first, ...shuffleArray(source.filter((_, i) => i !== baseIndex))]
+        : reorderWithFirst(source, baseIndex);
+
+      usePlayhead.getState().reset(first.duration || 0);
+      set((s) => {
+        const { recents, playCounts } = markPlayed(s, first);
+        const next = {
+          queue: source,
+          shuffledQueue: order,
+          currentIndex: 0,
+          currentTrack: first,
+          isPlaying: true,
+          recentTrackhashes: recents,
+          playCounts,
+        };
+        persist({ ...get(), ...next });
+        return next;
+      });
+    },
+
+    playList: (list, startIndex = 0) => {
+      if (list.length === 0) return;
+      const { shuffle } = get();
+      const safeIndex = startIndex >= 0 && startIndex < list.length ? startIndex : 0;
+      const first = list[safeIndex];
+      const order = shuffle
+        ? [first, ...shuffleArray(list.filter((_, i) => i !== safeIndex))]
+        : reorderWithFirst(list, safeIndex);
+
+      usePlayhead.getState().reset(first.duration || 0);
+      set((s) => {
+        const { recents, playCounts } = markPlayed(s, first);
+        const next = {
+          queue: list,
+          shuffledQueue: order,
+          currentIndex: 0,
+          currentTrack: first,
+          isPlaying: true,
+          recentTrackhashes: recents,
+          playCounts,
+        };
+        persist({ ...get(), ...next });
+        return next;
+      });
+    },
+
+    togglePlay: () => {
+      const { currentTrack } = get();
+      if (!currentTrack) return;
+      set((s) => ({ isPlaying: !s.isPlaying }));
+    },
+
+    playNext: () => {
+      const { shuffledQueue, currentIndex, repeat } = get();
+      if (shuffledQueue.length === 0) return;
+      let nextIndex = currentIndex + 1;
+      if (nextIndex >= shuffledQueue.length) {
+        if (repeat === "all") nextIndex = 0;
+        else {
+          set({ isPlaying: false });
+          return;
+        }
+      }
+      const next = shuffledQueue[nextIndex];
+      usePlayhead.getState().reset(next.duration || 0);
+      set((s) => {
+        const { recents, playCounts } = markPlayed(s, next);
+        const upd = {
+          currentIndex: nextIndex,
+          currentTrack: next,
+          isPlaying: true,
+          recentTrackhashes: recents,
+          playCounts,
+        };
+        persist({ ...get(), ...upd });
+        return upd;
+      });
+    },
+
+    playPrev: () => {
+      const { shuffledQueue, currentIndex, repeat } = get();
+      if (shuffledQueue.length === 0) return;
+      if (usePlayhead.getState().position > 3) {
+        usePlayhead.getState().setPosition(0);
+        if (audioEl) audioEl.currentTime = 0;
+        return;
+      }
+      let prevIndex = currentIndex - 1;
+      if (prevIndex < 0) {
+        prevIndex = repeat === "all" ? shuffledQueue.length - 1 : 0;
+      }
+      const prev = shuffledQueue[prevIndex];
+      usePlayhead.getState().reset(prev.duration || 0);
+      set((s) => {
+        const { recents, playCounts } = markPlayed(s, prev);
+        const upd = {
+          currentIndex: prevIndex,
+          currentTrack: prev,
+          isPlaying: true,
+          recentTrackhashes: recents,
+          playCounts,
+        };
+        persist({ ...get(), ...upd });
+        return upd;
+      });
+    },
+
+    seek: (seconds) => {
+      const { duration } = usePlayhead.getState();
+      const clamped = Math.max(0, Math.min(seconds, duration || seconds));
+      usePlayhead.getState().setPosition(clamped);
+      if (audioEl) audioEl.currentTime = clamped;
+    },
+    seekRelative: (delta) => {
+      const { position, duration } = usePlayhead.getState();
+      const clamped = Math.max(0, Math.min(position + delta, duration || 0));
+      usePlayhead.getState().setPosition(clamped);
+      if (audioEl) audioEl.currentTime = clamped;
+    },
+
+    setVolume: (v) => {
+      const vol = Math.max(0, Math.min(1, v));
+      set({ volume: vol, muted: vol === 0 });
+      persist({ ...get(), volume: vol, muted: vol === 0 });
+    },
+    toggleMute: () => {
+      set((s) => {
+        const muted = !s.muted;
+        persist({ ...get(), muted });
+        return { muted };
+      });
+    },
+
+    toggleShuffle: () => {
+      const { shuffle, queue, currentTrack } = get();
+      const newShuffle = !shuffle;
+      if (!currentTrack) {
+        set({ shuffle: newShuffle });
+        persist({ ...get(), shuffle: newShuffle });
+        return;
+      }
+      if (newShuffle) {
+        const rest = queue.filter((t) => t.trackhash !== currentTrack.trackhash);
+        set({ shuffle: true, shuffledQueue: [currentTrack, ...shuffleArray(rest)], currentIndex: 0 });
+      } else {
+        const idx = queue.findIndex((t) => t.trackhash === currentTrack.trackhash);
+        set({ shuffle: false, shuffledQueue: queue, currentIndex: idx >= 0 ? idx : 0 });
+      }
+      persist({ ...get(), shuffle: newShuffle });
+    },
+
+    cycleRepeat: () => {
+      const order: RepeatMode[] = ["off", "all", "one"];
+      const { repeat } = get();
+      const next = order[(order.indexOf(repeat) + 1) % order.length];
+      set({ repeat: next });
+      persist({ ...get(), repeat: next });
+    },
+
+
+    addToQueueNext: (track) => {
+      const { shuffledQueue, queue, currentTrack, currentIndex, shuffle } = get();
+      if (!currentTrack) {
+        get().playTrack(track);
+        return;
+      }
+      const insertAt = Math.min(currentIndex + 1, shuffledQueue.length);
+      const canonicalIndex = queue.findIndex((t) => t.trackhash === currentTrack.trackhash);
+      const nextQueue = shuffle || canonicalIndex < 0
+        ? [...queue, track]
+        : [...queue.slice(0, canonicalIndex + 1), track, ...queue.slice(canonicalIndex + 1)];
+      set({
+        shuffledQueue: [...shuffledQueue.slice(0, insertAt), track, ...shuffledQueue.slice(insertAt)],
+        queue: nextQueue,
+      });
+      get().notify(`« ${track.title} » jouera ensuite`);
+    },
+
+    addToQueueEnd: (track) => {
+      const { shuffledQueue, queue, currentTrack } = get();
+      if (!currentTrack) {
+        get().playTrack(track);
+        return;
+      }
+      set({ shuffledQueue: [...shuffledQueue, track], queue: [...queue, track] });
+      get().notify(`« ${track.title} » ajouté à la file`);
+    },
+
+    removeFromQueue: (index) => {
+      const { shuffledQueue, queue, currentIndex } = get();
+      if (index < 0 || index >= shuffledQueue.length) return;
+      const removed = shuffledQueue[index];
+      const nextShuffled = shuffledQueue.filter((_, i) => i !== index);
+      // Remove the SAME object from the canonical order — reference identity keeps
+      // duplicate trackhashes in sync (the old hash-findIndex always dropped the
+      // first occurrence, desyncing the two queues). Fall back to a hash match.
+      let canonicalIdx = queue.indexOf(removed);
+      if (canonicalIdx < 0) canonicalIdx = queue.findIndex((q) => q.trackhash === removed.trackhash);
+      const nextQueue = canonicalIdx >= 0 ? queue.filter((_, i) => i !== canonicalIdx) : queue;
+      if (nextShuffled.length === 0) {
+        usePlayhead.getState().reset(0);
+        set({ queue: [], shuffledQueue: [], currentIndex: 0, currentTrack: null, isPlaying: false });
+        return;
+      }
+      if (index === currentIndex) {
+        const safeIndex = Math.min(index, nextShuffled.length - 1);
+        const currentTrack = nextShuffled[safeIndex];
+        usePlayhead.getState().reset(currentTrack.duration || 0);
+        set({ queue: nextQueue, shuffledQueue: nextShuffled, currentIndex: safeIndex, currentTrack });
+        return;
+      }
+      set({ queue: nextQueue, shuffledQueue: nextShuffled, currentIndex: index < currentIndex ? currentIndex - 1 : currentIndex });
+    },
+
+    reorderQueue: (from, to) => {
+      const { shuffledQueue, currentIndex } = get();
+      if (from === to || from < 0 || to < 0 || from >= shuffledQueue.length || to >= shuffledQueue.length) return;
+      const next = [...shuffledQueue];
+      const [moved] = next.splice(from, 1);
+      next.splice(to, 0, moved);
+      let newCurrent = currentIndex;
+      if (currentIndex === from) newCurrent = to;
+      else if (from < currentIndex && to >= currentIndex) newCurrent = currentIndex - 1;
+      else if (from > currentIndex && to <= currentIndex) newCurrent = currentIndex + 1;
+      set({ shuffledQueue: next, currentIndex: newCurrent });
+    },
+
+    clearQueue: () => {
+      const { currentTrack } = get();
+      set({ queue: currentTrack ? [currentTrack] : [], shuffledQueue: currentTrack ? [currentTrack] : [], currentIndex: 0 });
+      get().notify("File d'attente vidée");
+    },
+
+    jumpToQueueIndex: (index) => {
+      const { shuffledQueue } = get();
+      const t = shuffledQueue[index];
+      if (!t) return;
+      usePlayhead.getState().reset(t.duration || 0);
+      set((s) => {
+        const { recents, playCounts } = markPlayed(s, t);
+        const upd = {
+          currentIndex: index,
+          currentTrack: t,
+          isPlaying: true,
+          recentTrackhashes: recents,
+          playCounts,
+        };
+        persist({ ...get(), ...upd });
+        return upd;
+      });
+    },
+
+    toggleFavorite: (trackhash) => {
+      let nowFavorite = false;
+      set((s) => {
+        const next = new Set(s.favorites);
+        if (next.has(trackhash)) next.delete(trackhash);
+        else { next.add(trackhash); nowFavorite = true; }
+        const upd = { favorites: next };
+        persist({ ...get(), ...upd });
+        return upd;
+      });
+      void api.put("/api/state", { action: "favorite", trackhash, value: nowFavorite }).catch(() => {});
+      get().notify(nowFavorite ? "Ajouté aux favoris" : "Retiré des favoris");
+    },
+    isFavorite: (trackhash) => get().favorites.has(trackhash),
+
+    createPlaylist: (name, description) => {
+      const id = `pl-${Date.now().toString(36)}-${Math.floor(Math.random() * 1e6).toString(36)}`;
+      const colors = ["#2A2821", "#D95F45", "#C6A15B"] as [string, string, string];
+      const pl: Playlist = {
+        id,
+        name: name.trim() || "New Playlist",
+        description: description?.trim() || undefined,
+        trackcount: 0,
+        color: colors,
+        trackhashes: [],
+        pinned: false,
+      };
+      set((s) => {
+        const upd = { customPlaylists: [pl, ...s.customPlaylists] };
+        persist({ ...get(), ...upd });
+        return upd;
+      });
+      void api.put("/api/state", {
+        action: "playlist.upsert",
+        playlist: { id, name: pl.name, description: pl.description ?? null, pinned: false, trackhashes: [] },
+      }).catch(() => {});
+      get().notify(`Playlist « ${pl.name} » créée`);
+      return id;
+    },
+
+    deletePlaylist: (id) => {
+      set((s) => {
+        const upd = { customPlaylists: s.customPlaylists.filter((p) => String(p.id) !== id) };
+        persist({ ...get(), ...upd });
+        return upd;
+      });
+      void api.put("/api/state", { action: "playlist.delete", id }).catch(() => {});
+      get().notify("Playlist supprimée");
+    },
+
+    renamePlaylist: (id, name) => {
+      set((s) => {
+        const upd = {
+          customPlaylists: s.customPlaylists.map((p) => (String(p.id) === id ? { ...p, name: name.trim() || p.name } : p)),
+        };
+        persist({ ...get(), ...upd });
+        return upd;
+      });
+      pushPlaylist(id);
+    },
+
+    addToPlaylist: (id, track) => {
+      set((s) => {
+        const upd = {
+          customPlaylists: s.customPlaylists.map((p) => {
+            if (String(p.id) !== id) return p;
+            if (p.trackhashes?.includes(track.trackhash)) return p;
+            const trackhashes = [...(p.trackhashes ?? []), track.trackhash];
+            return { ...p, trackhashes, trackcount: trackhashes.length };
+          }),
+        };
+        persist({ ...get(), ...upd });
+        return upd;
+      });
+      pushPlaylist(id);
+      const pl = get().customPlaylists.find((p) => String(p.id) === id);
+      get().notify(`Ajouté à « ${pl?.name ?? "la playlist"} »`);
+    },
+
+    removeFromPlaylist: (id, trackhash) => {
+      set((s) => {
+        const upd = {
+          customPlaylists: s.customPlaylists.map((p) => {
+            if (String(p.id) !== id) return p;
+            const trackhashes = (p.trackhashes ?? []).filter((h) => h !== trackhash);
+            return { ...p, trackhashes, trackcount: trackhashes.length };
+          }),
+        };
+        persist({ ...get(), ...upd });
+        return upd;
+      });
+      pushPlaylist(id);
+    },
+
+    startSleepTimer: (minutes) => {
+      set({ sleepTimer: { active: true, endsAt: Date.now() + minutes * 60_000, minutes } });
+      get().notify(`Minuteur réglé sur ${minutes} min`);
+    },
+    cancelSleepTimer: () => {
+      set({ sleepTimer: { active: false, endsAt: null, minutes: 0 } });
+      get().notify("Minuteur annulé");
+    },
+
+    toggleRightPanel: () => set((s) => ({ rightPanelOpen: !s.rightPanelOpen })),
+    toggleFullscreenPlayer: () => set((s) => ({ fullscreenPlayer: !s.fullscreenPlayer, lyricsOpen: false, visualizerOpen: false })),
+    toggleLyrics: () => {
+      const willOpen = !get().lyricsOpen;
+      set({ lyricsOpen: willOpen });
+      // Auto-resolve lyrics (cache → sidecar → online) the first time the pane opens.
+      if (willOpen && !get().currentTrack?.lyrics?.length && get().lyricsStatus === "idle") {
+        void get().fetchLyrics(false);
+      }
+    },
+    toggleQueue: () => set((s) => ({ queueOpen: !s.queueOpen })),
+    setHelpOpen: (v) => set({ helpOpen: v }),
+    toggleMiniPlayer: () => set((s) => ({ miniPlayer: !s.miniPlayer })),
+    toggleKaraoke: () =>
+      set((s) => {
+        const karaokeMode = !s.karaokeMode;
+        persist({ ...get(), karaokeMode });
+        return { karaokeMode };
+      }),
+    adjustLyricsOffset: (delta) =>
+      set((s) => {
+        const lyricsOffset = clampOffset(s.lyricsOffset + delta);
+        persist({ ...get(), lyricsOffset });
+        return { lyricsOffset };
+      }),
+    resetLyricsOffset: () =>
+      set(() => {
+        const lyricsOffset = DEFAULT_LYRICS_OFFSET;
+        persist({ ...get(), lyricsOffset });
+        return { lyricsOffset };
+      }),
+    toggleVisualizer: () => set((s) => ({ visualizerOpen: !s.visualizerOpen })),
+    closeVisualizer: () => set({ visualizerOpen: false }),
+    setTheme: (id) => {
+      const theme = normalizeTheme(id);
+      set({ theme });
+      persist({ ...get(), theme });
+      applyTheme(theme);
+      // Keep writing the legacy `accent` key too so older clients still read a
+      // sane value, plus the new `theme` key going forward.
+      void api.put("/api/state", { action: "setting", key: "theme", value: theme }).catch(() => {});
+      void api.put("/api/state", { action: "setting", key: "accent", value: theme }).catch(() => {});
+    },
+    reorderCustomPlaylists: (from, to) => {
+      set((s) => {
+        if (from === to || from < 0 || to < 0 || from >= s.customPlaylists.length || to >= s.customPlaylists.length) return {};
+        const next = [...s.customPlaylists];
+        const [moved] = next.splice(from, 1);
+        next.splice(to, 0, moved);
+        const upd = { customPlaylists: next };
+        persist({ ...get(), ...upd });
+        return upd;
+      });
+      void api.put("/api/state", { action: "playlist.reorder", ids: get().customPlaylists.map((p) => String(p.id)) }).catch(() => {});
+    },
+    closeFullscreenPlayer: () => set({ fullscreenPlayer: false, lyricsOpen: false }),
+
+    openContextMenu: (x, y, track) => set({ contextMenu: { open: true, x, y, track } }),
+    openAlbumContextMenu: (x, y, album) => set({ contextMenu: { open: true, x, y, album } }),
+    openArtistContextMenu: (x, y, artist) => set({ contextMenu: { open: true, x, y, artist } }),
+    closeContextMenu: () => set((s) => ({ contextMenu: { ...s.contextMenu, open: false } })),
+
+    notify: (message) => {
+      const id = Date.now();
+      set({ toast: { id, message } });
+      if (typeof window !== "undefined") {
+        window.setTimeout(() => {
+          if (get().toast?.id === id) set({ toast: null });
+        }, 2600);
+      }
+    },
+    dismissToast: () => set({ toast: null }),
+
+    hydrateLocal: () => {
+      const p = loadPersisted();
+      const theme = normalizeTheme(p.theme ?? p.accent);
+      set({
+        volume: p.volume ?? 0.78,
+        muted: p.muted ?? false,
+        repeat: p.repeat ?? "off",
+        shuffle: p.shuffle ?? false,
+        favorites: new Set(p.favorites ?? []),
+        recentTrackhashes: p.recentTrackhashes ?? [],
+        playCounts: p.playCounts ?? {},
+        customPlaylists: p.customPlaylists ?? [],
+        karaokeMode: p.karaokeMode ?? true,
+        lyricsOffset: clampOffset(p.lyricsOffset ?? DEFAULT_LYRICS_OFFSET),
+        theme,
+      });
+      applyTheme(theme);
+    },
+
+    hydrateFromServer: async () => {
+      // Snapshot local state *before* the network round-trip so we can re-apply
+      // any optimistic favorite/playlist change the user made WHILE the GET was
+      // in flight. Without this, the server snapshot (which predates those
+      // changes) silently clobbers them — the root cause of "I favourited a
+      // track and it vanished / didn't save". The server stays the source of
+      // truth; we only graft back the user's just-made, not-yet-synced edits.
+      const beforeFav = new Set(get().favorites);
+      const beforePlaylistIds = new Set(get().customPlaylists.map((p) => String(p.id)));
+      try {
+        const s = await api.get<ServerState>("/api/state");
+        const local = get();
+
+        // Favorites added during the fetch window → graft on; removed → drop.
+        const liveFav = local.favorites;
+        const addedDuringFetch = [...liveFav].filter((h) => !beforeFav.has(h));
+        const removedDuringFetch = new Set([...beforeFav].filter((h) => !liveFav.has(h)));
+        const favorites = new Set(s.favorites);
+        addedDuringFetch.forEach((h) => favorites.add(h));
+        removedDuringFetch.forEach((h) => favorites.delete(h));
+
+        const serverPlaylists: Playlist[] = s.playlists.map((p) => ({
+          id: p.id, name: p.name, description: p.description ?? undefined, pinned: p.pinned,
+          trackhashes: p.trackhashes, trackcount: p.trackhashes.length,
+          color: ["#2A2821", "#D95F45", "#C6A15B"] as [string, string, string],
+        }));
+        // Keep any playlist created locally during the fetch window that the
+        // server snapshot doesn't know about yet (its own upsert is in flight).
+        const serverIds = new Set(serverPlaylists.map((p) => String(p.id)));
+        const localOnly = local.customPlaylists.filter(
+          (p) => !serverIds.has(String(p.id)) && !beforePlaylistIds.has(String(p.id)),
+        );
+        const customPlaylists = [...localOnly, ...serverPlaylists];
+
+        const theme = normalizeTheme(
+          (typeof s.settings.theme === "string" && (s.settings.theme as string)) ||
+            (typeof s.settings.accent === "string" && (s.settings.accent as string)) ||
+            local.theme,
+        );
+        set({
+          favorites,
+          playCounts: s.playCounts,
+          recentTrackhashes: s.recents,
+          customPlaylists,
+          theme,
+          syncReady: true,
+        });
+        applyTheme(theme);
+        persist({ ...get() });
+      } catch {
+        set({ syncReady: true }); // offline — keep the local cache
+      }
+    },
+
+    fetchLyrics: async (force = false) => {
+      const track = get().currentTrack;
+      if (!track) return;
+      set({ lyricsLoading: true, lyricsStatus: "loading" });
+      try {
+        const res = force
+          ? await api.post<LyricsResponse>(`/api/lyrics/${track.trackhash}`)
+          : await api.get<LyricsResponse>(`/api/lyrics/${track.trackhash}`);
+        const lines = res.lines ?? [];
+        const updated: Track = { ...track, lyrics: lines.length ? lines : undefined, hasLyrics: res.status === "found" };
+
+        useLibraryStore.setState((ls) => {
+          const idx = new Map(ls.trackIndex);
+          const existing = idx.get(track.trackhash);
+          if (existing) idx.set(track.trackhash, { ...existing, lyrics: updated.lyrics, hasLyrics: updated.hasLyrics });
+          return { trackIndex: idx };
+        });
+
+        set((s) => ({
+          currentTrack: s.currentTrack?.trackhash === track.trackhash ? updated : s.currentTrack,
+          lyricsLoading: false,
+          lyricsStatus: res.status,
+          lyricsPlain: res.plain ?? null,
+          // Respect the user's choice: never force the pane back open if they
+          // closed it; only keep it open when it already was.
+          lyricsOpen: s.lyricsOpen,
+        }));
+
+        if (res.status === "notfound") get().notify("Aucune parole trouvée en ligne");
+        else if (res.status === "instrumental") get().notify("Morceau instrumental");
+      } catch {
+        set({ lyricsLoading: false, lyricsStatus: "error" });
+        get().notify("Recherche de paroles indisponible");
+      }
+    },
+  };
+});
