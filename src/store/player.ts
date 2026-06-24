@@ -127,6 +127,9 @@ interface PlayerState {
   reorderQueue: (from: number, to: number) => void;
   clearQueue: () => void;
   jumpToQueueIndex: (index: number) => void;
+  /** Count a *real* listen (fired by the shell after a play threshold, not on
+   *  track selection): bumps recents + play count, server stays authoritative. */
+  scrobble: (trackhash: string) => void;
 
   toggleFavorite: (trackhash: string) => void;
   isFavorite: (trackhash: string) => boolean;
@@ -305,15 +308,6 @@ if (typeof window !== "undefined") {
 }
 
 export const usePlayer = create<PlayerState>((set, get) => {
-  const markPlayed = (state: PlayerState, track: Track) => {
-    const recents = [track.trackhash, ...state.recentTrackhashes.filter((h) => h !== track.trackhash)].slice(0, 100);
-    const nextCount = (state.playCounts[track.trackhash] ?? track.playcount ?? 0) + 1;
-    const playCounts = { ...state.playCounts, [track.trackhash]: nextCount };
-    // Write-through to the server so play history is shared across devices.
-    void api.put("/api/state", { action: "play", trackhash: track.trackhash }).catch(() => {});
-    return { recents, playCounts };
-  };
-
   // Push a single playlist's current contents to the server.
   const pushPlaylist = (id: string) => {
     const pl = get().customPlaylists.find((p) => String(p.id) === id);
@@ -397,16 +391,13 @@ export const usePlayer = create<PlayerState>((set, get) => {
         : reorderWithFirst(source, baseIndex);
 
       usePlayhead.getState().reset(first.duration || 0);
-      set((s) => {
-        const { recents, playCounts } = markPlayed(s, first);
+      set(() => {
         const next = {
           queue: source,
           shuffledQueue: order,
           currentIndex: 0,
           currentTrack: first,
           isPlaying: true,
-          recentTrackhashes: recents,
-          playCounts,
         };
         persist({ ...get(), ...next });
         return next;
@@ -423,16 +414,13 @@ export const usePlayer = create<PlayerState>((set, get) => {
         : reorderWithFirst(list, safeIndex);
 
       usePlayhead.getState().reset(first.duration || 0);
-      set((s) => {
-        const { recents, playCounts } = markPlayed(s, first);
+      set(() => {
         const next = {
           queue: list,
           shuffledQueue: order,
           currentIndex: 0,
           currentTrack: first,
           isPlaying: true,
-          recentTrackhashes: recents,
-          playCounts,
         };
         persist({ ...get(), ...next });
         return next;
@@ -458,14 +446,11 @@ export const usePlayer = create<PlayerState>((set, get) => {
       }
       const next = shuffledQueue[nextIndex];
       usePlayhead.getState().reset(next.duration || 0);
-      set((s) => {
-        const { recents, playCounts } = markPlayed(s, next);
+      set(() => {
         const upd = {
           currentIndex: nextIndex,
           currentTrack: next,
           isPlaying: true,
-          recentTrackhashes: recents,
-          playCounts,
         };
         persist({ ...get(), ...upd });
         return upd;
@@ -486,14 +471,11 @@ export const usePlayer = create<PlayerState>((set, get) => {
       }
       const prev = shuffledQueue[prevIndex];
       usePlayhead.getState().reset(prev.duration || 0);
-      set((s) => {
-        const { recents, playCounts } = markPlayed(s, prev);
+      set(() => {
         const upd = {
           currentIndex: prevIndex,
           currentTrack: prev,
           isPlaying: true,
-          recentTrackhashes: recents,
-          playCounts,
         };
         persist({ ...get(), ...upd });
         return upd;
@@ -631,18 +613,36 @@ export const usePlayer = create<PlayerState>((set, get) => {
       const t = shuffledQueue[index];
       if (!t) return;
       usePlayhead.getState().reset(t.duration || 0);
-      set((s) => {
-        const { recents, playCounts } = markPlayed(s, t);
+      set(() => {
         const upd = {
           currentIndex: index,
           currentTrack: t,
           isPlaying: true,
-          recentTrackhashes: recents,
-          playCounts,
         };
         persist({ ...get(), ...upd });
         return upd;
       });
+    },
+
+    scrobble: (trackhash) => {
+      // Optimistic local bump seeded from the *current per-user* count only (never
+      // from track.playcount — that double-counted against the server's own tally).
+      set((s) => {
+        const recents = [trackhash, ...s.recentTrackhashes.filter((h) => h !== trackhash)].slice(0, 100);
+        const nextCount = (s.playCounts[trackhash] ?? 0) + 1;
+        const upd = { recentTrackhashes: recents, playCounts: { ...s.playCounts, [trackhash]: nextCount } };
+        persist({ ...get(), ...upd });
+        return upd;
+      });
+      // The server is the source of truth: reconcile to the count it returns so
+      // multi-device play history converges instead of drifting upward.
+      void api.put<{ count?: number }>("/api/state", { action: "play", trackhash })
+        .then((r) => {
+          if (typeof r?.count === "number") {
+            set((s) => ({ playCounts: { ...s.playCounts, [trackhash]: r.count as number } }));
+          }
+        })
+        .catch(() => {});
     },
 
     toggleFavorite: (trackhash) => {

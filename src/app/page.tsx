@@ -198,8 +198,37 @@ function AuralisShell() {
     if (!audio) return;
 
     let lastPositionPush = 0;
+    // Scrobble gate: only count a play once the user has *actually listened* to
+    // min(30s, 50% of the track). We sum small forward deltas (ignoring seeks — a
+    // jump >2s isn't listening) so skip-spam no longer inflates counts/recents.
+    let accumHash = "";
+    let listened = 0;
+    let lastClock = 0;
+    let scrobbledHash = "";
     const onTimeUpdate = () => {
       usePlayhead.getState().setPosition(audio.currentTime);
+
+      const ct = usePlayer.getState().currentTrack;
+      if (ct) {
+        const cur = audio.currentTime;
+        if (ct.trackhash !== accumHash) {
+          accumHash = ct.trackhash;
+          listened = 0;
+          lastClock = cur;
+        } else {
+          const dt = cur - lastClock;
+          if (dt > 0 && dt < 2) listened += dt;
+          lastClock = cur;
+        }
+        if (scrobbledHash !== ct.trackhash) {
+          const dur = audio.duration && Number.isFinite(audio.duration) ? audio.duration : ct.duration || 0;
+          const threshold = dur > 0 ? Math.min(30, dur * 0.5) : 30;
+          if (listened >= threshold) {
+            scrobbledHash = ct.trackhash;
+            usePlayer.getState().scrobble(ct.trackhash);
+          }
+        }
+      }
       // Feed the OS media controls a position so the notification / lock screen /
       // Dynamic Island show a live progress bar (Spotify-style) and can scrub.
       // Throttled to ~1 Hz: on Android this crosses a JS→native bridge each call,
