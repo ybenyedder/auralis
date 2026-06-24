@@ -1,0 +1,93 @@
+{
+  "_comment": "Pterodactyl Egg for Auralis — https://github.com/ybenyedder/auralis. Author: Adam Mezerai <volt@webtvmedia.net>",
+  "meta": {
+    "version": "PTDL_v2",
+    "update_url": null
+  },
+  "exported_at": "2026-06-24T00:00:00+00:00",
+  "name": "Auralis",
+  "author": "volt@webtvmedia.net",
+  "description": "Self-hosted, local-first music platform (Next.js). Scans a music folder, streams it, fetches lyrics and serves a web + native client UI. Builds from source on install and runs with `next start`.",
+  "features": null,
+  "docker_images": {
+    "Node.js 20": "ghcr.io/parkervcp/yolks:nodejs_20",
+    "Node.js 22": "ghcr.io/parkervcp/yolks:nodejs_22"
+  },
+  "file_denylist": [],
+  "startup": "npx --no-install next start -H 0.0.0.0 -p {{SERVER_PORT}}",
+  "config": {
+    "files": "{}",
+    "startup": "{\"done\": \"Ready in\"}",
+    "logs": "{}",
+    "stop": "^C"
+  },
+  "scripts": {
+    "installation": {
+      "script": "#!/bin/bash\nset -e\napt-get update\napt-get install -y --no-install-recommends git ca-certificates python3 make g++\nmkdir -p /mnt/server\ncd /mnt/server\nif [ -d .git ]; then\n  echo 'Updating existing checkout...'\n  git fetch --all\n  git reset --hard origin/${GIT_BRANCH:-main}\nelse\n  echo 'Cloning Auralis...'\n  git clone ${GIT_ADDRESS:-https://github.com/ybenyedder/auralis.git} .\n  git checkout ${GIT_BRANCH:-main}\nfi\necho 'Installing dependencies...'\nnpm ci\necho 'Building...'\nnpm run build\nmkdir -p music data\necho 'Auralis install complete. Upload your audio into the music/ folder.'\n",
+      "container": "node:20-bookworm-slim",
+      "entrypoint": "bash"
+    }
+  },
+  "variables": [
+    {
+      "name": "Git Repository",
+      "description": "Source repository to clone and build.",
+      "env_variable": "GIT_ADDRESS",
+      "default_value": "https://github.com/ybenyedder/auralis.git",
+      "user_viewable": true,
+      "user_editable": false,
+      "rules": "required|string",
+      "field_type": "text"
+    },
+    {
+      "name": "Git Branch",
+      "description": "Branch to build.",
+      "env_variable": "GIT_BRANCH",
+      "default_value": "main",
+      "user_viewable": true,
+      "user_editable": false,
+      "rules": "required|string",
+      "field_type": "text"
+    },
+    {
+      "name": "Music directory",
+      "description": "Folder scanned and streamed. Upload your audio here.",
+      "env_variable": "AURALIS_MUSIC_DIR",
+      "default_value": "/home/container/music",
+      "user_viewable": true,
+      "user_editable": true,
+      "rules": "required|string",
+      "field_type": "text"
+    },
+    {
+      "name": "Data directory",
+      "description": "Writable folder for the SQLite database, cover-art cache and session secret.",
+      "env_variable": "AURALIS_DATA_DIR",
+      "default_value": "/home/container/data",
+      "user_viewable": true,
+      "user_editable": true,
+      "rules": "required|string",
+      "field_type": "text"
+    },
+    {
+      "name": "Admin password",
+      "description": "Initial admin password. Leave blank to get a random one printed once to the console.",
+      "env_variable": "AURALIS_ADMIN_PASSWORD",
+      "default_value": "",
+      "user_viewable": true,
+      "user_editable": true,
+      "rules": "nullable|string",
+      "field_type": "text"
+    },
+    {
+      "name": "Online lyrics",
+      "description": "Fetch missing lyrics from LRCLIB (true/false).",
+      "env_variable": "AURALIS_LYRICS_ONLINE",
+      "default_value": "true",
+      "user_viewable": true,
+      "user_editable": true,
+      "rules": "required|in:true,false",
+      "field_type": "text"
+    }
+  ]
+}
