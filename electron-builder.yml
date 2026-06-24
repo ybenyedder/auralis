@@ -1,0 +1,60 @@
+appId: local.auralis.desktop
+productName: Auralis
+copyright: Auralis
+
+directories:
+  output: dist-desktop
+  buildResources: build
+
+# Only the thin Electron shell goes inside the asar; the Next standalone server
+# (with its native better-sqlite3 binding) ships unpacked as a resource so it can
+# be spawned as a child process.
+files:
+  - desktop/**/*
+  - package.json
+
+extraResources:
+  - from: .next/standalone
+    to: app/server
+    filter:
+      - "**/*"
+
+asar: true
+
+# The bundled server's native modules are rebuilt for Electron by `desktop:prepare`
+# (against the standalone copy). Disable electron-builder's own rebuild so it does
+# not overwrite that binary with a Node-ABI prebuild.
+npmRebuild: false
+
+linux:
+  target:
+    - deb
+    - AppImage
+  category: AudioVideo
+  synopsis: Self-hosted local music player
+  description: Auralis is a self-hosted, local-first music player with real metadata, cover art and automatic lyrics.
+  maintainer: Auralis <maintainers@auralis.local>
+  desktop:
+    entry:
+      Name: Auralis
+      Categories: AudioVideo;Audio;Player;
+
+deb:
+  depends:
+    - libgtk-3-0
+    - libnotify4
+    - libnss3
+    - libxss1
+    - libasound2
+
+win:
+  target:
+    - nsis
+    - portable
+  artifactName: ${productName}-${version}-${arch}.${ext}
+
+nsis:
+  oneClick: false
+  perMachine: false
+  allowToChangeInstallationDirectory: true
+  artifactName: ${productName}-Setup-${version}.${ext}

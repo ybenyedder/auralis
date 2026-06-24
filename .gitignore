@@ -1,0 +1,46 @@
+# dependencies
+node_modules
+/.pnp
+.pnp.*
+
+# next.js
+/.next/
+/out/
+
+# desktop (electron) build output
+/dist-desktop/
+
+# android (Capacitor) — keep the native project, ignore build output + generated assets
+/android/.gradle/
+/android/build/
+/android/app/build/
+/android/local.properties
+/android/app/src/main/assets/public/
+/android/app/src/main/assets/capacitor.config.json
+/android/app/src/main/assets/capacitor.plugins.json
+/android/capacitor-cordova-android-plugins/
+
+# runtime data (SQLite db, art cache)
+/data/
+
+# misc
+.DS_Store
+*.pem
+*.log
+npm-debug.log*
+
+# env files
+.env
+.env.local
+.env.*
+!.env.example
+
+# typescript / next
+*.tsbuildinfo
+next-env.d.ts
+
+# tooling
+.vercel
+.claude
+.z-ai-config
+/skills/

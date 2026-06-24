@@ -1,0 +1,1398 @@
+"use client";
+
+import { useEffect, useMemo, useRef, useState } from "react";
+import {
+  CheckCircle2,
+  Disc3,
+  FileText,
+  FolderOpen,
+  HardDrive,
+  Info,
+  ListMusic,
+  Lock,
+  LogOut,
+  Palette,
+  Pause,
+  PencilLine,
+  Play,
+  Shuffle,
+  ShieldCheck,
+  Trash2,
+  UserPlus,
+  Volume2,
+  type LucideIcon,
+} from "lucide-react";
+import { usePlayer } from "@/store/player";
+import { THEMES, THEME_LIST, THEME_GROUPS, type Theme } from "@/lib/auralis/themes";
+import { api } from "@/lib/auralis/api";
+import {
+  albumsOfArtistFrom,
+  tracksForHashesFrom,
+  tracksOfAlbumFrom,
+  tracksOfArtistFrom,
+  useLibraryStore,
+} from "@/store/library";
+import { SectionHeader } from "../SectionHeader";
+import { TrackRow, TrackListHeader } from "../TrackRow";
+import { AlbumCard } from "../Cards";
+import { Artwork } from "../Artwork";
+import {
+  albumArtist,
+  brand,
+  coverVars,
+  formatCount,
+  formatLongDuration,
+  paletteForName,
+} from "@/lib/auralis/brand";
+import { cn } from "@/lib/utils";
+import type { Artist } from "@/lib/auralis/types";
+import { CONTACT_EMAIL, PROJECT_REPO } from "@/lib/auralis/brand";
+import { DonateButton, openDonate } from "../DonateReminder";
+import { Heart } from "lucide-react";
+
+const STORAGE_KEY = "auralis.vault.v1";
+
+type SettingsSection =
+  | "appearance"
+  | "playback"
+  | "library"
+  | "lyrics"
+  | "account"
+  | "data"
+  | "about";
+type SettingsRow = {
+  label: string;
+  value: string;
+  type: "text" | "toggle" | "action";
+  active?: boolean;
+  onAction?: () => void;
+  tone?: "success" | "warning" | "danger";
+};
+
+export function AlbumDetail({ albumhash }: { albumhash: string }) {
+  const { playList, currentTrack, isPlaying, togglePlay } = usePlayer();
+  const tracks = useLibraryStore((state) => state.tracks);
+  const albums = useLibraryStore((state) => state.albums);
+  const album = useMemo(
+    () => albums.find((item) => item.albumhash === albumhash),
+    [albums, albumhash],
+  );
+  const albumTracks = useMemo(
+    () => (album ? tracksOfAlbumFrom(tracks, album.albumhash) : []),
+    [album, tracks],
+  );
+
+  if (!album) return <EmptyDetail label="Album introuvable" />;
+
+  const colors = album.color ?? paletteForName(album.albumhash);
+  const isPlayingThis =
+    currentTrack?.albumhash === album.albumhash && isPlaying;
+  const totalDuration = albumTracks.reduce(
+    (sum, track) => sum + (track.duration || 0),
+    0,
+  );
+  const primaryArtistHash = album.albumartists[0]?.artisthash ?? "";
+  const otherAlbums = albumsOfArtistFrom(albums, primaryArtistHash)
+    .filter((item) => item.albumhash !== album.albumhash)
+    .slice(0, 6);
+
+  return (
+    <div className="fade-up">
+      <section className="hero-cover px-4 pb-6 pt-7 lg:px-6 lg:pt-8" style={coverVars(colors)}>
+        <div className="flex flex-col items-center text-center lg:flex-row lg:items-end lg:gap-6 lg:text-left">
+          <Artwork
+            title={album.title}
+            albumhash={album.albumhash}
+            size={208}
+            rounded={11}
+            colors={colors}
+            image={album.image}
+            fluid
+            className="w-[min(56vw,240px)] aspect-square lg:w-52 lg:h-52"
+          />
+          <div className="mt-4 min-w-0 lg:mt-0 lg:pb-2">
+            <p className="text-[10px] font-black uppercase tracking-[0.18em] text-[var(--brass)]">
+              Album
+            </p>
+            <h1 className="mt-1 text-[clamp(24px,7vw,32px)] font-black leading-tight tracking-tight text-foreground lg:text-[clamp(30px,4.5vw,56px)] lg:leading-none">
+              {album.title}
+            </h1>
+            <p className="mt-3 text-[13px] text-muted-foreground">
+              {albumArtist(album)} · {album.year ?? "année inconnue"} ·{" "}
+              {albumTracks.length} titres · {formatLongDuration(totalDuration)}
+            </p>
+          </div>
+        </div>
+
+        <div className="mt-5 flex items-center gap-2">
+          <button
+            onClick={() => {
+              if (currentTrack?.albumhash === album.albumhash) togglePlay();
+              else playList(albumTracks, 0);
+            }}
+            disabled={albumTracks.length === 0}
+            className="signal-button tap-press flex h-12 flex-1 items-center justify-center gap-2 rounded-[11px] px-5 text-[14px] font-black transition-colors disabled:opacity-40 lg:h-auto lg:flex-none lg:justify-start lg:py-2.5 lg:text-[13px]"
+          >
+            {isPlayingThis ? (
+              <Pause className="size-4 fill-current" />
+            ) : (
+              <Play className="size-4 fill-current" />
+            )}
+            {isPlayingThis ? "Pause" : "Lire"}
+          </button>
+          <button
+            onClick={() =>
+              albumTracks.length &&
+              playList(
+                [...albumTracks].sort(() => Math.random() - 0.5),
+                0,
+              )
+            }
+            disabled={albumTracks.length === 0}
+            className="ghost-button tap-press grid h-12 w-12 shrink-0 place-items-center rounded-[11px] transition-colors disabled:opacity-40 lg:h-10 lg:w-10"
+            aria-label="Shuffle album"
+          >
+            <Shuffle className="size-4" />
+          </button>
+        </div>
+      </section>
+
+      <div className="px-4 py-5 lg:px-6">
+        <TrackListHeader />
+        <div className="space-y-0.5">
+          {albumTracks.map((track, index) => (
+            <TrackRow
+              key={track.trackhash}
+              track={track}
+              index={index}
+              list={albumTracks}
+              showAlbum={false}
+            />
+          ))}
+        </div>
+
+        {otherAlbums.length > 0 && (
+          <div className="mt-8">
+            <SectionHeader
+              title={`Autres albums de ${album.albumartists[0]?.name ?? "cet artiste"}`}
+              eyebrow="Discographie"
+            />
+            <div className="grid grid-cols-2 gap-1 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6">
+              {otherAlbums.map((item) => (
+                <AlbumCard key={item.albumhash} album={item} />
+              ))}
+            </div>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+export function ArtistDetail({ artisthash }: { artisthash: string }) {
+  const { playList } = usePlayer();
+  const tracks = useLibraryStore((state) => state.tracks);
+  const artists = useLibraryStore((state) => state.artists);
+  const albums = useLibraryStore((state) => state.albums);
+  const artist = useMemo<Artist | undefined>(
+    () => artists.find((item) => item.artisthash === artisthash),
+    [artists, artisthash],
+  );
+  const artistAlbums = useMemo(
+    () => albumsOfArtistFrom(albums, artisthash),
+    [albums, artisthash],
+  );
+  const topTracks = useMemo(
+    () =>
+      [...tracksOfArtistFrom(tracks, artisthash)]
+        .sort((a, b) => (b.playcount || 0) - (a.playcount || 0))
+        .slice(0, 8),
+    [tracks, artisthash],
+  );
+
+  if (!artist) return <EmptyDetail label="Artiste introuvable" />;
+  const colors = paletteForName(artist.name);
+
+  return (
+    <div className="fade-up">
+      <section className="hero-cover px-4 pb-6 pt-7 lg:px-6 lg:pt-8" style={coverVars(colors)}>
+        <div className="relative flex flex-col items-center text-center lg:flex-row lg:items-end lg:gap-6 lg:text-left">
+          {artist.image ? (
+            <Artwork
+              name={artist.name}
+              artisthash={artist.artisthash}
+              image={artist.image}
+              size={176}
+              rounded={13}
+              colors={colors}
+              fluid
+              className="w-[min(52vw,200px)] aspect-square lg:size-44"
+            />
+          ) : (
+            <div
+              className="cover-fallback relative flex w-[min(52vw,200px)] aspect-square shrink-0 items-end overflow-hidden rounded-[13px] border border-[var(--line)] p-4 lg:size-44"
+              style={{ backgroundColor: colors[0] }}
+            >
+              <span className="text-[18vw] font-black leading-none text-white/82 lg:text-[64px]">
+                {artist.name.slice(0, 1).toUpperCase()}
+              </span>
+              <span
+                className="absolute inset-x-0 bottom-0 h-3"
+                style={{ background: colors[1] }}
+              />
+            </div>
+          )}
+          <div className="mt-4 min-w-0 lg:mt-0 lg:pb-1">
+            <p className="text-[10px] font-black uppercase tracking-[0.18em] text-[var(--brass)]">
+              Artiste
+            </p>
+            <h1 className="mt-1 text-[clamp(24px,7vw,32px)] font-black leading-tight tracking-tight text-foreground lg:text-[clamp(30px,4.5vw,56px)] lg:leading-none">
+              {artist.name}
+            </h1>
+            {artist.bio && (
+              <p className="mt-3 max-w-xl text-[13px] text-muted-foreground">
+                {artist.bio}
+              </p>
+            )}
+            <p className="mt-2 text-[12px] text-muted-foreground">
+              {formatCount(artist.playcount)} écoutes ·{" "}
+              {artist.albumcount ?? artistAlbums.length} albums ·{" "}
+              {artist.trackcount ?? topTracks.length} titres
+              {artist.genres?.length ? ` · ${artist.genres.join(", ")}` : ""}
+            </p>
+          </div>
+        </div>
+        <div className="mt-5 flex items-center gap-2">
+          <button
+            onClick={() => topTracks.length && playList(topTracks, 0)}
+            disabled={topTracks.length === 0}
+            className="signal-button tap-press flex h-12 flex-1 items-center justify-center gap-2 rounded-[11px] px-5 text-[14px] font-black transition-colors disabled:opacity-40 lg:h-auto lg:flex-none lg:justify-start lg:py-2.5 lg:text-[13px]"
+          >
+            <Play className="size-4 fill-current" /> Lire
+          </button>
+        </div>
+      </section>
+
+      <div className="px-4 py-5 lg:px-6">
+        <SectionHeader title="Populaire" eyebrow="Titres" />
+        <div className="mb-8 space-y-0.5">
+          {topTracks.map((track, index) => (
+            <TrackRow
+              key={track.trackhash}
+              track={track}
+              index={index}
+              list={topTracks}
+              showAlbum
+            />
+          ))}
+        </div>
+
+        <SectionHeader
+          title="Discographie"
+          eyebrow={`${artistAlbums.length} albums`}
+        />
+        <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6">
+          {artistAlbums.map((item) => (
+            <AlbumCard key={item.albumhash} album={item} />
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+export function PlaylistDetail({ id }: { id: string }) {
+  const {
+    playList,
+    currentTrack,
+    isPlaying,
+    togglePlay,
+    customPlaylists,
+    renamePlaylist,
+    deletePlaylist,
+    navigate,
+    removeFromPlaylist,
+  } = usePlayer();
+  const libraryTracks = useLibraryStore((state) => state.tracks);
+  const libraryPlaylists = useLibraryStore((state) => state.playlists);
+  const libraryPlaylist = useMemo(
+    () => libraryPlaylists.find((item) => String(item.id) === id),
+    [libraryPlaylists, id],
+  );
+  const customPlaylist = useMemo(
+    () => customPlaylists.find((item) => String(item.id) === id),
+    [customPlaylists, id],
+  );
+  const playlist = customPlaylist ?? libraryPlaylist;
+  const isCustom = Boolean(customPlaylist);
+  const tracks = useMemo(
+    () =>
+      playlist
+        ? tracksForHashesFrom(libraryTracks, playlist.trackhashes ?? [])
+        : [],
+    [libraryTracks, playlist],
+  );
+  const [editing, setEditing] = useState(false);
+  const [name, setName] = useState("");
+
+  if (!playlist) return <EmptyDetail label="Playlist introuvable" />;
+
+  const colors = playlist.color ?? paletteForName(playlist.name);
+  const coverImage = tracks.find((track) => track.image)?.image;
+  const totalDuration = tracks.reduce(
+    (sum, track) => sum + (track.duration || 0),
+    0,
+  );
+  const isPlayingThis =
+    tracks.some((track) => track.trackhash === currentTrack?.trackhash) &&
+    isPlaying;
+
+  const saveName = () => {
+    if (isCustom && name.trim()) renamePlaylist(id, name.trim());
+    setEditing(false);
+  };
+
+  const deleteCurrentPlaylist = () => {
+    if (!isCustom) return;
+    const ok = window.confirm(`Supprimer la playlist « ${playlist.name} » ?`);
+    if (!ok) return;
+    deletePlaylist(id);
+    navigate("library");
+  };
+
+  return (
+    <div className="fade-up">
+      <section className="hero-cover px-4 pb-6 pt-7 lg:px-6 lg:pt-8" style={coverVars(colors)}>
+        <div className="flex flex-col items-center text-center lg:flex-row lg:items-end lg:gap-6 lg:text-left">
+          {coverImage ? (
+            <Artwork
+              name={playlist.name}
+              image={coverImage}
+              size={208}
+              rounded={13}
+              colors={colors}
+              showInitials={false}
+              fluid
+              className="w-[min(56vw,240px)] aspect-square lg:size-[208px]"
+            />
+          ) : (
+            <div
+              className="cover-fallback relative flex w-[min(56vw,240px)] aspect-square shrink-0 items-end overflow-hidden rounded-[13px] border border-[var(--line)] p-4 lg:size-[208px]"
+              style={{ backgroundColor: colors[0] }}
+            >
+              <span
+                className="absolute inset-x-0 top-0 h-3"
+                style={{ background: colors[1] }}
+              />
+              <span className="relative text-[18px] font-black leading-tight text-white">
+                {playlist.name}
+              </span>
+            </div>
+          )}
+          <div className="mt-4 w-full min-w-0 lg:mt-0 lg:w-auto lg:pb-2">
+            <p className="text-[10px] font-black uppercase tracking-[0.18em] text-[var(--brass)]">
+              {isCustom ? "Playlist locale" : "Playlist catalogue"}
+            </p>
+            {editing && isCustom ? (
+              <input
+                value={name}
+                onChange={(event) => setName(event.target.value)}
+                onBlur={saveName}
+                onKeyDown={(event) => {
+                  if (event.key === "Enter") saveName();
+                  if (event.key === "Escape") {
+                    setName(playlist.name);
+                    setEditing(false);
+                  }
+                }}
+                className="mt-1 w-full rounded-[11px] border border-[var(--line-strong)] bg-black/20 px-3 py-2 text-center text-[22px] font-black leading-tight tracking-tight text-foreground outline-none lg:text-left lg:text-[clamp(30px,4.5vw,56px)] lg:leading-none"
+              />
+            ) : (
+              <h1 className="mt-1 text-[clamp(24px,7vw,32px)] font-black leading-tight tracking-tight text-foreground lg:text-[clamp(30px,4.5vw,56px)] lg:leading-none">
+                {playlist.name}
+              </h1>
+            )}
+            {playlist.description && (
+              <p className="mt-3 max-w-xl text-[13px] text-muted-foreground">
+                {playlist.description}
+              </p>
+            )}
+            <p className="mt-3 text-[13px] text-muted-foreground">
+              {tracks.length} titres · {formatLongDuration(totalDuration)}
+            </p>
+          </div>
+        </div>
+
+        <div className="mt-5 flex flex-wrap items-center gap-2">
+          <button
+            onClick={() => {
+              if (isPlayingThis) togglePlay();
+              else playList(tracks, 0);
+            }}
+            disabled={tracks.length === 0}
+            className="signal-button tap-press flex h-12 flex-1 items-center justify-center gap-2 rounded-[11px] px-5 text-[14px] font-black transition-colors disabled:opacity-40 lg:h-auto lg:flex-none lg:justify-start lg:py-2.5 lg:text-[13px]"
+          >
+            {isPlayingThis ? (
+              <Pause className="size-4 fill-current" />
+            ) : (
+              <Play className="size-4 fill-current" />
+            )}{" "}
+            {isPlayingThis ? "Pause" : "Lire"}
+          </button>
+          {isCustom && (
+            <>
+              <button
+                onClick={() => { setName(playlist.name); setEditing(true); }}
+                className="ghost-button tap-press flex h-12 items-center gap-2 rounded-[11px] px-4 text-[13px] font-bold transition-colors lg:h-10 lg:px-3 lg:text-[12px]"
+              >
+                <PencilLine className="size-4" /> Renommer
+              </button>
+              <button
+                onClick={deleteCurrentPlaylist}
+                className="ghost-button tap-press flex h-12 items-center gap-2 rounded-[11px] px-4 text-[13px] font-bold text-destructive transition-colors lg:h-10 lg:px-3 lg:text-[12px]"
+              >
+                <Trash2 className="size-4" /> Supprimer
+              </button>
+            </>
+          )}
+        </div>
+      </section>
+
+      <div className="px-4 py-5 lg:px-6">
+        {tracks.length > 0 ? (
+          <>
+            <TrackListHeader />
+            <div className="space-y-0.5">
+              {tracks.map((track, index) => (
+                <div key={track.trackhash} className="group/playlist relative flex items-center gap-1">
+                  <div className="min-w-0 flex-1">
+                    <TrackRow track={track} index={index} list={tracks} />
+                  </div>
+                  {isCustom && (
+                    <>
+                      {/* Mobile: always-visible 44px icon affordance */}
+                      <button
+                        onClick={() => removeFromPlaylist(id, track.trackhash)}
+                        aria-label={`Retirer ${track.title}`}
+                        className="tap-press grid h-11 w-11 shrink-0 place-items-center rounded-[11px] border border-destructive/20 bg-destructive/10 text-destructive lg:hidden"
+                      >
+                        <Trash2 className="size-4" />
+                      </button>
+                      {/* Desktop: hover-only inline pill */}
+                      <button
+                        onClick={() => removeFromPlaylist(id, track.trackhash)}
+                        className="absolute right-1 top-1/2 hidden -translate-y-1/2 rounded-[9px] border border-destructive/20 bg-destructive/10 px-2 py-1 text-[10px] font-bold text-destructive lg:group-hover/playlist:block"
+                      >
+                        Retirer
+                      </button>
+                    </>
+                  )}
+                </div>
+              ))}
+            </div>
+          </>
+        ) : (
+          <div className="matte-panel rounded-[13px] p-8 text-center">
+            <ListMusic className="mx-auto mb-3 size-8 text-muted-foreground/45" />
+            <p className="text-[13px] font-bold text-foreground">
+              Playlist vide
+            </p>
+            <p className="mt-1 text-[12px] text-muted-foreground">
+              Ajoute des titres depuis le menu contextuel d’un morceau.
+            </p>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+export function SettingsView() {
+  const {
+    volume,
+    muted,
+    repeat,
+    shuffle,
+    sleepTimer,
+    setVolume,
+    toggleMute,
+    toggleShuffle,
+    cycleRepeat,
+    startSleepTimer,
+    cancelSleepTimer,
+    theme,
+    setTheme,
+    rightPanelOpen,
+    toggleRightPanel,
+    customPlaylists,
+    favorites,
+    recentTrackhashes,
+    playCounts,
+    notify,
+  } = usePlayer();
+  const tracks = useLibraryStore((state) => state.tracks);
+  const albums = useLibraryStore((state) => state.albums);
+  const artists = useLibraryStore((state) => state.artists);
+  const root = useLibraryStore((state) => state.root);
+  const status = useLibraryStore((state) => state.status);
+  const error = useLibraryStore((state) => state.error);
+  const scannedAt = useLibraryStore((state) => state.scannedAt);
+  const rescan = useLibraryStore((state) => state.rescan);
+  const load = useLibraryStore((state) => state.load);
+  const scanProgress = useLibraryStore((state) => state.scan);
+  const [section, setSection] = useState<SettingsSection>("playback");
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const tracksWithLyrics = tracks.filter(
+    (track) => (track.lyrics?.length ?? 0) > 0,
+  ).length;
+  const totalDuration = tracks.reduce(
+    (sum, track) => sum + (track.duration || 0),
+    0,
+  );
+  const totalPlays = Object.values(playCounts).reduce(
+    (sum, count) => sum + count,
+    0,
+  );
+
+  const exportStorage = () => {
+    if (typeof window === "undefined") return;
+    const raw = window.localStorage.getItem(STORAGE_KEY) ?? "{}";
+    const blob = new Blob([raw], { type: "application/json" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = `auralis-local-state-${new Date().toISOString().slice(0, 10)}.json`;
+    link.click();
+    URL.revokeObjectURL(url);
+    notify("Données locales exportées");
+  };
+
+  const importStorage = (file?: File) => {
+    if (!file || typeof window === "undefined") return;
+    const reader = new FileReader();
+    reader.onload = () => {
+      try {
+        const text = String(reader.result ?? "{}");
+        const parsed = JSON.parse(text);
+        if (!parsed || typeof parsed !== "object")
+          throw new Error("JSON invalide");
+        window.localStorage.setItem(STORAGE_KEY, JSON.stringify(parsed));
+        window.location.reload();
+      } catch {
+        notify("Import refusé : fichier JSON invalide");
+      }
+    };
+    reader.readAsText(file);
+  };
+
+  const clearStorage = () => {
+    if (typeof window === "undefined") return;
+    const ok = window.confirm(
+      "Effacer favoris, playlists, historique, volume et thème locaux ?",
+    );
+    if (!ok) return;
+    window.localStorage.removeItem(STORAGE_KEY);
+    window.location.reload();
+  };
+
+  // Repoint the music library at a host-chosen folder. On the desktop app a native
+  // folder picker is used; on the web a path prompt. The server persists it and
+  // rescans, then we reload the library so the new tracks appear immediately.
+  const changeMusicDir = async () => {
+    const desktop = (window as unknown as { auralisDesktop?: { pickFolder?: () => Promise<string | null> } }).auralisDesktop;
+    let dir: string | null = null;
+    if (desktop?.pickFolder) {
+      dir = await desktop.pickFolder();
+    } else if (typeof window !== "undefined") {
+      dir = window.prompt("Chemin du dossier de musique à scanner :", root ?? "");
+    }
+    if (!dir) return;
+    try {
+      await api.post("/api/library/source", { dir });
+      notify("Dossier de musique mis à jour — indexation…");
+      await load();
+    } catch {
+      notify("Dossier invalide ou inaccessible");
+    }
+  };
+
+  const settingsSections: {
+    id: SettingsSection;
+    label: string;
+    detail: string;
+    icon: LucideIcon;
+  }[] = [
+    {
+      id: "playback",
+      label: "Lecture",
+      detail: "Volume, shuffle, repeat, sleep timer",
+      icon: Volume2,
+    },
+    {
+      id: "library",
+      label: "Bibliothèque",
+      detail: "Scan local et index courant",
+      icon: FolderOpen,
+    },
+    {
+      id: "lyrics",
+      label: "Paroles",
+      detail: "État réel des fichiers .lrc",
+      icon: FileText,
+    },
+    {
+      id: "appearance",
+      label: "Interface",
+      detail: "Accent et panneau de lecture",
+      icon: Palette,
+    },
+    {
+      id: "account",
+      label: "Compte",
+      detail: "Mot de passe admin, déconnexion",
+      icon: Lock,
+    },
+    {
+      id: "data",
+      label: "Données locales",
+      detail: "Export, import, reset",
+      icon: HardDrive,
+    },
+    {
+      id: "about",
+      label: "À propos",
+      detail: "Version et contrat produit",
+      icon: Info,
+    },
+  ];
+
+  const playbackRows: SettingsRow[] = [
+    {
+      label: "Volume",
+      value: `${Math.round(volume * 100)} %`,
+      type: "action",
+      onAction: () => setVolume(volume >= 1 ? 0.5 : Math.min(1, volume + 0.1)),
+    },
+    {
+      label: "Muet",
+      value: muted ? "Activé" : "Désactivé",
+      type: "toggle",
+      active: muted,
+      onAction: toggleMute,
+    },
+    {
+      label: "Shuffle",
+      value: shuffle ? "Activé" : "Désactivé",
+      type: "toggle",
+      active: shuffle,
+      onAction: toggleShuffle,
+    },
+    { label: "Repeat", value: repeat, type: "action", onAction: cycleRepeat },
+    sleepTimer.active
+      ? {
+          label: "Sleep timer",
+          value: "Annuler",
+          type: "action",
+          onAction: cancelSleepTimer,
+          tone: "warning",
+        }
+      : {
+          label: "Sleep timer",
+          value: "30 min",
+          type: "action",
+          onAction: () => startSleepTimer(30),
+        },
+  ];
+
+  const libraryRows: SettingsRow[] = [
+    {
+      label: "Statut scan",
+      value:
+        status === "loading"
+          ? "Scan en cours"
+          : status === "ready"
+            ? "Prêt"
+            : status === "error"
+              ? "Erreur"
+              : "En attente",
+      type: "text",
+      tone:
+        status === "ready"
+          ? "success"
+          : status === "error"
+            ? "danger"
+            : "warning",
+    },
+    {
+      label: "Dossier source",
+      value: root ?? "AURALIS_MUSIC_DIR ou ~/Music",
+      type: "text",
+    },
+    {
+      label: "Changer le dossier",
+      value: "Parcourir…",
+      type: "action",
+      onAction: () => void changeMusicDir(),
+    },
+    { label: "Titres indexés", value: String(tracks.length), type: "text" },
+    { label: "Albums", value: String(albums.length), type: "text" },
+    { label: "Artistes", value: String(artists.length), type: "text" },
+    {
+      label: "Durée totale",
+      value: formatLongDuration(totalDuration),
+      type: "text",
+    },
+    {
+      label: "Dernier scan",
+      value: scannedAt ? new Date(scannedAt).toLocaleString() : "Jamais",
+      type: "text",
+    },
+    {
+      label: "Relancer le scan",
+      value: scanProgress?.status === "scanning"
+        ? `Scan… ${scanProgress.processed}/${scanProgress.total || "?"}`
+        : status === "loading" ? "Scan…" : "Scanner",
+      type: "action",
+      onAction: () => void rescan(),
+    },
+  ];
+
+  const lyricsRows: SettingsRow[] = [
+    {
+      label: "Titres avec paroles",
+      value: `${tracksWithLyrics} / ${tracks.length}`,
+      type: "text",
+      tone: tracksWithLyrics > 0 ? "success" : "warning",
+    },
+    { label: "Source supportée", value: "Fichier .lrc sidecar", type: "text" },
+    {
+      label: "Affichage",
+      value: tracksWithLyrics > 0 ? "Activé par titre" : "Masqué si vide",
+      type: "text",
+    },
+    { label: "Convention", value: "song.mp3 + song.lrc", type: "text" },
+  ];
+
+  const dataRows: SettingsRow[] = [
+    { label: "Favoris", value: String(favorites.size), type: "text" },
+    {
+      label: "Playlists locales",
+      value: String(customPlaylists.length),
+      type: "text",
+    },
+    {
+      label: "Historique récent",
+      value: String(recentTrackhashes.length),
+      type: "text",
+    },
+    { label: "Écoutes enregistrées", value: String(totalPlays), type: "text" },
+    {
+      label: "Exporter",
+      value: "JSON",
+      type: "action",
+      onAction: exportStorage,
+    },
+    {
+      label: "Importer",
+      value: "JSON",
+      type: "action",
+      onAction: () => fileInputRef.current?.click(),
+    },
+    {
+      label: "Réinitialiser",
+      value: "Effacer",
+      type: "action",
+      onAction: clearStorage,
+      tone: "danger",
+    },
+  ];
+
+  const aboutRows: SettingsRow[] = [
+    { label: "Version", value: `Auralis ${brand.version}`, type: "text" },
+    { label: "Mode", value: "Lecteur local personnel", type: "text" },
+    { label: "Bibliothèque", value: `${tracks.length} titres`, type: "text" },
+    { label: "Contact", value: CONTACT_EMAIL, type: "text" },
+    {
+      label: "Code source",
+      value: "GitHub",
+      type: "action",
+      onAction: () => window.open(PROJECT_REPO, "_blank", "noopener,noreferrer"),
+    },
+    {
+      label: "Soutenir le projet",
+      value: "Faire un don",
+      type: "action",
+      onAction: openDonate,
+    },
+  ];
+
+  const activeSection = settingsSections.find((item) => item.id === section);
+
+  return (
+    <div className="fade-up px-4 py-5 lg:px-6">
+      <input
+        ref={fileInputRef}
+        type="file"
+        accept="application/json,.json"
+        className="hidden"
+        onChange={(event) => {
+          importStorage(event.target.files?.[0]);
+          event.currentTarget.value = "";
+        }}
+      />
+
+      <div className="mb-6">
+        <h1 className="text-[30px] font-black tracking-tight text-foreground">
+          Réglages
+        </h1>
+        {error && (
+          <p className="mt-2 max-w-2xl text-[12px] font-bold text-amber">
+            {error}
+          </p>
+        )}
+      </div>
+
+      {/* Mobile / tablet: horizontally scrollable section chips */}
+      <div className="-mx-4 mb-4 xl:hidden">
+        <div className="snap-x flex gap-2 overflow-x-auto px-4 pb-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+          {settingsSections.map((item) => {
+            const Icon = item.icon;
+            const isActive = section === item.id;
+            return (
+              <button
+                key={item.id}
+                onClick={() => setSection(item.id)}
+                aria-pressed={isActive}
+                className={cn(
+                  "tap-press flex h-11 shrink-0 snap-start items-center gap-2 rounded-[11px] border px-3.5 text-[13px] font-bold transition-colors",
+                  isActive
+                    ? "border-primary/30 bg-primary/15 text-foreground"
+                    : "border-[var(--line)] bg-white/[0.04] text-muted-foreground",
+                )}
+              >
+                <Icon
+                  className={cn(
+                    "size-4 shrink-0",
+                    isActive ? "text-primary-soft" : "text-muted-foreground",
+                  )}
+                />
+                {item.label}
+              </button>
+            );
+          })}
+        </div>
+        {activeSection && (
+          <p className="mt-2 px-1 text-[11.5px] text-muted-foreground/75">
+            {activeSection.detail}
+          </p>
+        )}
+      </div>
+
+      <div className="grid gap-5 xl:grid-cols-[300px_1fr]">
+        <aside className="matte-panel hidden rounded-[13px] p-3 xl:sticky xl:top-5 xl:block xl:self-start">
+          <p className="mb-1.5 px-2 text-[10px] font-black uppercase tracking-[0.16em] text-muted-foreground/75">
+            Sections
+          </p>
+          <div className="space-y-1">
+            {settingsSections.map((item) => (
+              <SettingsNavItem
+                key={item.id}
+                {...item}
+                active={section === item.id}
+                onClick={() => setSection(item.id)}
+              />
+            ))}
+          </div>
+        </aside>
+
+        <section className="min-w-0 space-y-5">
+          {section === "appearance" && (
+            <>
+              <ThemeGallery theme={theme} setTheme={setTheme} />
+              <SettingsCard
+                title="Interface"
+                rows={[
+                  {
+                    label: "Panneau de lecture",
+                    value: rightPanelOpen ? "Visible" : "Masqué",
+                    type: "toggle",
+                    active: rightPanelOpen,
+                    onAction: toggleRightPanel,
+                  },
+                ]}
+              />
+            </>
+          )}
+
+          {section === "playback" && (
+            <SettingsCard title="Lecture" rows={playbackRows} />
+          )}
+          {section === "library" && (
+            <SettingsCard title="Bibliothèque locale" rows={libraryRows} />
+          )}
+          {section === "lyrics" && (
+            <SettingsCard title="Paroles" rows={lyricsRows} />
+          )}
+          {section === "account" && <AccountSettings />}
+          {section === "data" && (
+            <SettingsCard title="Données locales" rows={dataRows} />
+          )}
+          {section === "about" && (
+            <>
+              <div className="matte-panel rounded-[13px] p-5">
+                <div className="flex items-start gap-4">
+                  <span className="grid size-11 shrink-0 place-items-center rounded-[13px] bg-primary/15 text-primary-soft">
+                    <Heart className="size-5" />
+                  </span>
+                  <div className="min-w-0">
+                    <h3 className="text-[15px] font-black leading-tight text-foreground">
+                      Soutenir Auralis
+                    </h3>
+                    <p className="mt-1 max-w-md text-[12.5px] leading-relaxed text-muted-foreground">
+                      Gratuit, sans pub et sans pistage. Un don aide à couvrir le
+                      développement et la maintenance — merci&nbsp;!
+                    </p>
+                    <DonateButton className="mt-3" />
+                  </div>
+                </div>
+              </div>
+              <SettingsCard title="À propos" rows={aboutRows} />
+            </>
+          )}
+        </section>
+      </div>
+    </div>
+  );
+}
+
+function SettingsNavItem({
+  label,
+  detail,
+  icon: Icon,
+  active,
+  onClick,
+}: {
+  label: string;
+  detail: string;
+  icon: LucideIcon;
+  active: boolean;
+  onClick: () => void;
+}) {
+  return (
+    <button
+      onClick={onClick}
+      className={cn(
+        "flex w-full items-center gap-2.5 rounded-[11px] px-2.5 py-2 text-left transition-colors",
+        active
+          ? "bg-primary/15 text-foreground"
+          : "text-muted-foreground hover:bg-white/[0.045] hover:text-foreground",
+      )}
+    >
+      <Icon
+        className={cn(
+          "size-4 shrink-0",
+          active ? "text-primary-soft" : "text-muted-foreground",
+        )}
+      />
+      <span className="min-w-0 flex-1">
+        <span className="block truncate text-[12.5px] font-bold">{label}</span>
+        <span className="block truncate text-[10.5px] opacity-70">
+          {detail}
+        </span>
+      </span>
+    </button>
+  );
+}
+
+function SettingsCard({ title, rows }: { title: string; rows: SettingsRow[] }) {
+  return (
+    <div className="matte-panel rounded-[13px] p-4">
+      <p className="mb-3 text-[10px] font-black uppercase tracking-[0.14em] text-muted-foreground/80">
+        {title}
+      </p>
+      <div className="space-y-1">
+        {rows.map((row) => {
+          const valueClass = cn(
+            "text-[12.5px]",
+            row.tone === "success"
+              ? "text-emerald font-bold"
+              : row.tone === "danger"
+                ? "text-destructive font-bold"
+                : row.tone === "warning"
+                  ? "text-amber font-bold"
+                  : "text-muted-foreground",
+          );
+          return (
+            <div
+              key={row.label}
+              className="flex min-h-[44px] items-center justify-between gap-4 border-b border-white/[0.04] py-2 last:border-0 lg:min-h-0"
+            >
+              <span className="min-w-0 text-[13px] text-foreground/90">
+                {row.label}
+              </span>
+              {row.type === "toggle" ? (
+                <button
+                  onClick={row.onAction}
+                  className={cn(
+                    "tap-press flex h-7 w-12 shrink-0 items-center rounded-[9px] px-0.5 transition-colors lg:h-5 lg:w-9",
+                    row.active
+                      ? "justify-end bg-primary"
+                      : "justify-start bg-white/10",
+                  )}
+                  aria-label={row.label}
+                  aria-pressed={row.active}
+                >
+                  <span className="size-6 rounded-[7px] bg-[var(--paper)] lg:size-4" />
+                </button>
+              ) : row.type === "action" && row.onAction ? (
+                <button
+                  onClick={row.onAction}
+                  className={cn(
+                    "tap-press flex min-h-[40px] shrink-0 items-center rounded-[11px] border px-3.5 text-[13px] font-bold transition-colors lg:min-h-0 lg:px-3 lg:py-1 lg:text-[12px]",
+                    row.tone === "danger"
+                      ? "border-destructive/25 bg-destructive/10 text-destructive hover:bg-destructive/15"
+                      : "border-primary/20 bg-primary/10 text-primary-soft hover:bg-primary/15",
+                  )}
+                >
+                  {row.value}
+                </button>
+              ) : (
+                <span className={valueClass}>{row.value}</span>
+              )}
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+// --- Theme gallery (appearance settings) -----------------------------------
+const TILE_STARS =
+  "radial-gradient(1px 1px at 18% 32%, #fff, transparent), radial-gradient(1px 1px at 68% 58%, #fff, transparent), radial-gradient(1.4px 1.4px at 44% 78%, #fff, transparent), radial-gradient(1px 1px at 84% 24%, rgba(255,255,255,0.8), transparent), radial-gradient(1px 1px at 30% 66%, rgba(255,255,255,0.7), transparent)";
+
+function ThemeGallery({ theme, setTheme }: { theme: string; setTheme: (id: string) => void }) {
+  const current = THEMES[theme] ?? THEME_LIST[0];
+  return (
+    <div className="matte-panel rounded-[13px] p-4">
+      <div className="mb-4 flex items-start justify-between gap-3">
+        <div className="min-w-0">
+          <p className="text-[10px] font-extrabold uppercase tracking-[0.14em] text-[var(--brass)]">
+            Thème
+          </p>
+          <h2 className="mt-0.5 text-[18px] font-black leading-tight text-foreground">
+            {current.label}
+          </h2>
+          <p className="mt-1 max-w-md text-[12px] leading-relaxed text-muted-foreground">
+            {current.blurb}
+          </p>
+        </div>
+        <span className="shrink-0 rounded-[11px] border border-[var(--line)] bg-white/[0.04] px-2.5 py-1 text-[10.5px] font-bold text-muted-foreground">
+          {THEME_LIST.length} thèmes
+        </span>
+      </div>
+
+      <div className="space-y-5">
+        {THEME_GROUPS.map((group) => {
+          const themes = THEME_LIST.filter((t) => t.group === group.id);
+          if (themes.length === 0) return null;
+          return (
+            <div key={group.id}>
+              <p className="mb-2 text-[10px] font-black uppercase tracking-[0.16em] text-muted-foreground/65">
+                {group.label}
+              </p>
+              <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-3 lg:grid-cols-4">
+                {themes.map((t) => (
+                  <ThemePreview
+                    key={t.id}
+                    theme={t}
+                    active={t.id === theme}
+                    onPick={() => setTheme(t.id)}
+                  />
+                ))}
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+function ThemePreview({ theme, active, onPick }: { theme: Theme; active: boolean; onPick: () => void }) {
+  const animated = theme.group !== "classic";
+  const [c0, c1, c2] = theme.swatch;
+  const primary = theme.vars.primary;
+  return (
+    <button
+      onClick={onPick}
+      aria-pressed={active}
+      aria-label={theme.label}
+      className={cn(
+        "group relative flex flex-col gap-1.5 rounded-[9px] border p-1.5 text-left transition-all",
+        active
+          ? "border-white/35 bg-white/[0.06]"
+          : "border-white/[0.07] hover:border-white/20 hover:bg-white/[0.03]",
+      )}
+    >
+      <div
+        className="relative h-16 w-full overflow-hidden rounded-[13px] lg:h-[72px]"
+        style={{
+          background: `radial-gradient(120% 90% at 24% 18%, ${c1}66, transparent 55%), linear-gradient(150deg, ${c0}, ${c2})`,
+        }}
+      >
+        {animated && (
+          <span
+            className="pointer-events-none absolute inset-0 opacity-55"
+            style={{ backgroundImage: TILE_STARS, backgroundSize: "100% 100%" }}
+          />
+        )}
+        {/* signal dot — the theme's primary action colour */}
+        <span
+          className="absolute bottom-1.5 left-1.5 h-3.5 w-3.5 rounded-full ring-1 ring-black/30"
+          style={{ background: primary }}
+        />
+        {active && (
+          <span className="absolute right-1.5 top-1.5 grid size-4 place-items-center rounded-full bg-white text-black">
+            <CheckCircle2 className="size-3.5" />
+          </span>
+        )}
+        {animated && (
+          <span className="absolute right-1.5 bottom-1.5 rounded-[7px] bg-black/45 px-1.5 py-0.5 text-[8.5px] font-black uppercase tracking-wide text-white/90">
+            Animé
+          </span>
+        )}
+      </div>
+      <span
+        className={cn(
+          "truncate px-0.5 text-[11.5px] font-bold",
+          active ? "text-foreground" : "text-muted-foreground group-hover:text-foreground",
+        )}
+      >
+        {theme.label}
+      </span>
+    </button>
+  );
+}
+
+function EmptyDetail({ label }: { label: string }) {
+  return (
+    <div className="flex h-full min-h-[60vh] flex-col items-center justify-center gap-3 text-center">
+      <div className="grid h-16 w-16 place-items-center rounded-[13px] border border-dashed border-[var(--line-strong)]">
+        <Disc3 className="size-7 text-muted-foreground/60" />
+      </div>
+      <p className="text-sm font-bold text-muted-foreground">{label}</p>
+    </div>
+  );
+}
+
+function AccountSettings() {
+  const notify = usePlayer((state) => state.notify);
+  const [current, setCurrent] = useState("");
+  const [next, setNext] = useState("");
+  const [confirm, setConfirm] = useState("");
+  const [busy, setBusy] = useState(false);
+
+  const changePassword = async () => {
+    if (!current || !next) return notify("Remplis les champs");
+    if (next.length < 6) return notify("Le nouveau mot de passe doit faire au moins 6 caractères");
+    if (next !== confirm) return notify("La confirmation ne correspond pas");
+    setBusy(true);
+    try {
+      const res = await fetch(api.url("/api/auth/password"), {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ currentPassword: current, newPassword: next }),
+      });
+      const data = (await res.json().catch(() => ({}))) as { error?: string };
+      if (!res.ok) notify(data.error ?? "Échec du changement de mot de passe");
+      else {
+        notify("Mot de passe mis à jour");
+        setCurrent(""); setNext(""); setConfirm("");
+      }
+    } catch {
+      notify("Serveur injoignable");
+    }
+    setBusy(false);
+  };
+
+  const logout = async () => {
+    try { await fetch(api.url("/api/auth/logout"), { method: "POST" }); } catch { /* reload anyway */ }
+    api.setToken(""); // drop the persisted token so logout actually sticks
+    window.location.reload();
+  };
+
+  const inputClass = "h-12 w-full rounded-[13px] border border-[var(--line)] bg-[var(--panel-2)] px-3 text-[16px] text-foreground outline-none focus:border-[var(--line-strong)] lg:h-auto lg:py-2.5 lg:text-[14px]";
+
+  return (
+    <div className="space-y-6">
+      <div>
+        <h3 className="mb-1 text-[14px] font-black text-foreground">Mot de passe admin</h3>
+        <p className="mb-4 text-[12px] text-muted-foreground/70">
+          Par défaut <code className="rounded bg-white/[0.06] px-1">admin123</code>. Change-le pour sécuriser ton serveur.
+        </p>
+        <div className="space-y-2.5 lg:max-w-sm">
+          <input type="password" value={current} onChange={(e) => setCurrent(e.target.value)} placeholder="Mot de passe actuel" className={inputClass} />
+          <input type="password" value={next} onChange={(e) => setNext(e.target.value)} placeholder="Nouveau mot de passe" className={inputClass} />
+          <input type="password" value={confirm} onChange={(e) => setConfirm(e.target.value)} placeholder="Confirmer le nouveau" className={inputClass} />
+          <button
+            onClick={changePassword}
+            disabled={busy}
+            className="signal-button tap-press mt-1 h-12 w-full rounded-[13px] px-4 text-[14px] font-black transition-colors disabled:opacity-40 lg:h-auto lg:w-auto lg:py-2.5 lg:text-[13px]"
+          >
+            {busy ? "Mise à jour…" : "Changer le mot de passe"}
+          </button>
+        </div>
+      </div>
+
+      <AccountManager />
+
+      <div className="border-t border-[var(--line)] pt-5">
+        <button
+          onClick={logout}
+          className="ghost-button tap-press flex h-12 w-full items-center justify-center gap-2 rounded-[13px] px-4 text-[14px] font-bold lg:h-auto lg:w-auto lg:justify-start lg:py-2.5 lg:text-[13px]"
+        >
+          <LogOut className="size-4" /> Se déconnecter
+        </button>
+      </div>
+    </div>
+  );
+}
+
+interface ManagedUser {
+  id: number;
+  username: string;
+  isAdmin: boolean;
+  createdAt: number;
+}
+
+/** Admin-only account management. Renders nothing for non-admins (403 from the API). */
+function AccountManager() {
+  const notify = usePlayer((state) => state.notify);
+  const [users, setUsers] = useState<ManagedUser[] | null>(null);
+  const [me, setMe] = useState<number | null>(null);
+  const [isAdmin, setIsAdmin] = useState(false);
+  const [name, setName] = useState("");
+  const [password, setPassword] = useState("");
+  const [makeAdmin, setMakeAdmin] = useState(false);
+  const [busy, setBusy] = useState(false);
+
+  const load = async () => {
+    try {
+      const res = await fetch(api.url("/api/auth/users"), { cache: "no-store", headers: api.headers() });
+      if (!res.ok) { setIsAdmin(false); return; }
+      const data = (await res.json()) as { users: ManagedUser[]; me: number };
+      setUsers(data.users);
+      setMe(data.me);
+      setIsAdmin(true);
+    } catch {
+      setIsAdmin(false);
+    }
+  };
+
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    void load();
+  }, []);
+
+  const create = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (busy) return;
+    if (!name.trim() || password.length < 6) return notify("Identifiant requis et mot de passe ≥ 6 caractères");
+    setBusy(true);
+    try {
+      const res = await fetch(api.url("/api/auth/users"), {
+        method: "POST",
+        headers: api.headers({ "Content-Type": "application/json" }),
+        body: JSON.stringify({ username: name.trim(), password, isAdmin: makeAdmin }),
+      });
+      const data = (await res.json().catch(() => ({}))) as { error?: string };
+      if (!res.ok) notify(data.error ?? "Création impossible");
+      else {
+        notify(`Compte « ${name.trim().toLowerCase()} » créé`);
+        setName(""); setPassword(""); setMakeAdmin(false);
+        void load();
+      }
+    } catch {
+      notify("Serveur injoignable");
+    }
+    setBusy(false);
+  };
+
+  const remove = async (u: ManagedUser) => {
+    if (!window.confirm(`Supprimer le compte « ${u.username} » et toutes ses données ?`)) return;
+    try {
+      const res = await fetch(api.url(`/api/auth/users?id=${u.id}`), { method: "DELETE", headers: api.headers() });
+      const data = (await res.json().catch(() => ({}))) as { error?: string };
+      if (!res.ok) notify(data.error ?? "Suppression impossible");
+      else { notify("Compte supprimé"); void load(); }
+    } catch {
+      notify("Serveur injoignable");
+    }
+  };
+
+  const resetPassword = async (u: ManagedUser) => {
+    const pw = window.prompt(`Nouveau mot de passe pour « ${u.username} » (≥ 6 caractères)`);
+    if (pw === null) return;
+    try {
+      const res = await fetch(api.url("/api/auth/users"), {
+        method: "PUT",
+        headers: api.headers({ "Content-Type": "application/json" }),
+        body: JSON.stringify({ id: u.id, password: pw }),
+      });
+      const data = (await res.json().catch(() => ({}))) as { error?: string };
+      if (!res.ok) notify(data.error ?? "Échec");
+      else notify("Mot de passe réinitialisé");
+    } catch {
+      notify("Serveur injoignable");
+    }
+  };
+
+  if (!isAdmin) return null;
+
+  const inputClass = "h-12 w-full rounded-[13px] border border-[var(--line)] bg-[var(--panel-2)] px-3 text-[16px] text-foreground outline-none focus:border-[var(--line-strong)] lg:h-auto lg:py-2.5 lg:text-[14px]";
+
+  return (
+    <div className="border-t border-[var(--line)] pt-5">
+      <h3 className="mb-1 flex items-center gap-2 text-[14px] font-black text-foreground">
+        <ShieldCheck className="size-4 text-primary-soft" /> Comptes
+      </h3>
+      <p className="mb-4 text-[12px] text-muted-foreground/70">
+        Chaque compte a ses propres favoris, playlists et historique.
+      </p>
+
+      <div className="mb-4 space-y-1.5">
+        {(users ?? []).map((u) => (
+          <div key={u.id} className="flex items-center gap-2 rounded-[13px] border border-[var(--line)] bg-black/20 px-3 py-2.5">
+            <span className="min-w-0 flex-1 truncate text-[13.5px] font-bold text-foreground">
+              {u.username}
+              {u.isAdmin && <span className="ml-2 rounded-[7px] bg-primary/15 px-1.5 py-0.5 text-[9.5px] font-black uppercase tracking-wide text-primary">Admin</span>}
+              {u.id === me && <span className="ml-2 text-[11px] font-medium text-muted-foreground/60">(vous)</span>}
+            </span>
+            <button onClick={() => resetPassword(u)} className="ghost-button shrink-0 rounded-[11px] px-2.5 py-1.5 text-[11.5px] font-bold" aria-label="Réinitialiser le mot de passe">
+              Mot de passe
+            </button>
+            {u.id !== me && (
+              <button onClick={() => remove(u)} className="tap-press grid h-8 w-8 shrink-0 place-items-center rounded-[11px] text-muted-foreground/70 hover:bg-[var(--destructive)]/15 hover:text-[var(--destructive)]" aria-label="Supprimer le compte">
+                <Trash2 className="size-4" />
+              </button>
+            )}
+          </div>
+        ))}
+      </div>
+
+      <form onSubmit={create} className="space-y-2.5 lg:max-w-sm">
+        <input value={name} onChange={(e) => setName(e.target.value)} placeholder="Identifiant (ex. famille)" autoCapitalize="off" autoCorrect="off" className={inputClass} />
+        <input type="password" value={password} onChange={(e) => setPassword(e.target.value)} placeholder="Mot de passe (≥ 6 caractères)" className={inputClass} />
+        <label className="flex items-center gap-2 px-1 text-[13px] font-semibold text-muted-foreground">
+          <input type="checkbox" checked={makeAdmin} onChange={(e) => setMakeAdmin(e.target.checked)} className="size-4 accent-[var(--primary)]" />
+          Administrateur (peut gérer les comptes)
+        </label>
+        <button type="submit" disabled={busy} className="signal-button tap-press flex h-12 w-full items-center justify-center gap-2 rounded-[13px] px-4 text-[14px] font-black disabled:opacity-40 lg:h-auto lg:w-auto lg:py-2.5 lg:text-[13px]">
+          <UserPlus className="size-4" /> {busy ? "Création…" : "Créer un compte"}
+        </button>
+      </form>
+    </div>
+  );
+}

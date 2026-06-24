@@ -1,0 +1,107 @@
+name: CI
+
+on:
+  push:
+    branches: [main, master]
+  pull_request:
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      # better-sqlite3 compiles a native binding during install.
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Typecheck
+        run: npm run typecheck
+
+      - name: Unit tests
+        run: npm test
+
+      - name: Build
+        run: npm run build
+        env:
+          NEXT_TELEMETRY_DISABLED: "1"
+
+  desktop-linux:
+    runs-on: ubuntu-latest
+    needs: verify
+    if: startsWith(github.ref, 'refs/tags/v')
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - run: npm ci
+      - name: Build Debian package + AppImage
+        run: npm run desktop:build:linux
+        env:
+          NEXT_TELEMETRY_DISABLED: "1"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: auralis-linux
+          path: |
+            dist-desktop/*.deb
+            dist-desktop/*.AppImage
+
+  # The Windows .exe MUST be built on Windows: node-gyp can't cross-compile the
+  # better-sqlite3 binding for the Windows ABI from Linux, and electron-builder's
+  # NSIS target needs a native toolchain (no Wine). Runs on windows-latest where
+  # desktop:prepare rebuilds the binding natively and NSIS/portable build directly.
+  desktop-windows:
+    runs-on: windows-latest
+    needs: verify
+    if: startsWith(github.ref, 'refs/tags/v')
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - run: npm ci
+      - name: Build Windows installer + portable
+        run: npm run desktop:build:win
+        env:
+          NEXT_TELEMETRY_DISABLED: "1"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: auralis-windows
+          path: |
+            dist-desktop/*.exe
+
+  android:
+    runs-on: ubuntu-latest
+    needs: verify
+    if: startsWith(github.ref, 'refs/tags/v')
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 21
+      - uses: android-actions/setup-android@v3
+      - run: npm ci
+      - name: Generate + build Android client
+        run: |
+          npx cap sync android
+          npm run mobile:apk
+      - uses: actions/upload-artifact@v4
+        with:
+          name: auralis-android
+          path: android/app/build/outputs/apk/debug/*.apk

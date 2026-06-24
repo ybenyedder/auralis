@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="512" height="512" viewBox="0 0 512 512">
+  <rect width="512" height="512" rx="112" fill="#0f0f0d"/>
+  <rect x="118" y="118" width="276" height="276" rx="20" fill="#EDE3CF"/>
+  <text x="256" y="332" font-family="Aptos, 'Segoe UI', sans-serif" font-size="210" font-weight="900" text-anchor="middle" fill="#151411">A</text>
+  <rect x="156" y="232" width="200" height="14" fill="#151411" opacity="0.85"/>
+  <rect x="156" y="270" width="200" height="14" fill="#151411" opacity="0.85"/>
+</svg>
