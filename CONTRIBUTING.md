@@ -42,4 +42,4 @@ Auralis version (`/api/health`). For security issues, see [SECURITY.md](SECURITY
 
 ## Contact
 
-**Adam Mezerai** — [volt@webtvmedia.net](mailto:volt@webtvmedia.net)
+**Youssef Ben yedder** — [volt@webtvmedia.net](mailto:volt@webtvmedia.net)

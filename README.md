@@ -197,10 +197,10 @@ in your day, fuel the next feature with a one-time tip:
 
 ## Contact
 
-Adam Mezerai — [volt@webtvmedia.net](mailto:volt@webtvmedia.net)
+Youssef Ben yedder — [volt@webtvmedia.net](mailto:volt@webtvmedia.net)
 
 ## License
 
-[Auralis Attribution License](LICENSE) © Adam Mezerai. You're free to use, fork and
+[Auralis Attribution License](LICENSE) © Youssef Ben yedder. You're free to use, fork and
 build on Auralis — as long as you credit the author and link back. No modifying it
 into your own thing without the tag.
