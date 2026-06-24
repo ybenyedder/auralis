@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { Home, Search, Library, Heart, Play, Pause, SkipForward } from "lucide-react";
+import { Home, Search, Library, Heart, Play, Pause, SkipBack, SkipForward } from "lucide-react";
 import { usePlayer, type ViewId } from "@/store/player";
 import { usePlayhead } from "@/store/playhead";
 import { Artwork } from "../Artwork";
@@ -44,6 +44,7 @@ function MiniPlayer() {
   const isPlaying = usePlayer((s) => s.isPlaying);
   const togglePlay = usePlayer((s) => s.togglePlay);
   const playNext = usePlayer((s) => s.playNext);
+  const playPrev = usePlayer((s) => s.playPrev);
   const openFullscreen = usePlayer((s) => s.toggleFullscreenPlayer);
   const toggleFavorite = usePlayer((s) => s.toggleFavorite);
   const fav = usePlayer((s) => (currentTrack ? s.favorites.has(currentTrack.trackhash) : false));
@@ -86,6 +87,13 @@ function MiniPlayer() {
           <Heart className={cn("size-[22px]", fav && "fill-primary", pop && "heart-pop")} onAnimationEnd={() => setPop(false)} />
         </button>
         <button
+          onClick={playPrev}
+          aria-label="Précédent"
+          className="tap-press grid h-11 w-9 shrink-0 place-items-center rounded-full text-foreground/80"
+        >
+          <SkipBack className="size-5 fill-current" />
+        </button>
+        <button
           onClick={togglePlay}
           aria-label={isPlaying ? "Pause" : "Lecture"}
           className="tap-press grid h-11 w-11 shrink-0 place-items-center rounded-full text-foreground"
@@ -95,7 +103,7 @@ function MiniPlayer() {
         <button
           onClick={playNext}
           aria-label="Suivant"
-          className="tap-press -ml-1 grid h-11 w-9 shrink-0 place-items-center rounded-full text-foreground/80"
+          className="tap-press grid h-11 w-9 shrink-0 place-items-center rounded-full text-foreground/80"
         >
           <SkipForward className="size-5 fill-current" />
         </button>
@@ -109,10 +117,14 @@ function MiniPlayer() {
 function MiniProgress() {
   const position = usePlayhead((s) => s.position);
   const duration = usePlayhead((s) => s.duration);
+  const trackhash = usePlayer((s) => s.currentTrack?.trackhash);
   const pct = duration > 0 ? Math.min(100, (position / duration) * 100) : 0;
   return (
     <div className="absolute inset-x-0 top-0 h-[2px] bg-white/[0.07]">
-      <div className="h-full bg-primary transition-[width] duration-300 ease-linear" style={{ width: `${pct}%` }} />
+      {/* Keyed on the track so a song change remounts the bar instead of sweeping
+          from the previous position; the short linear ease just smooths the ~4 Hz
+          playback ticks (it no longer lags on seek/track-change). */}
+      <div key={trackhash} className="h-full bg-primary transition-[width] duration-200 ease-linear" style={{ width: `${pct}%` }} />
     </div>
   );
 }

@@ -329,6 +329,9 @@ function ProgressBar({
 function VolumeSlider({ value, onChange }: { value: number; onChange: (v: number) => void }) {
   const ref = useRef<HTMLDivElement>(null);
   const [hover, setHover] = useState(false);
+  // Track drag via an internal flag + pointer capture (matches ProgressBar) rather
+  // than e.buttons, which reads 0 for touch and broke dragging on coarse pointers.
+  const [dragging, setDragging] = useState(false);
   const compute = (clientX: number) => {
     const el = ref.current;
     if (!el) return 0;
@@ -338,11 +341,20 @@ function VolumeSlider({ value, onChange }: { value: number; onChange: (v: number
   const onDown = (e: React.PointerEvent) => {
     e.preventDefault();
     (e.target as HTMLElement).setPointerCapture(e.pointerId);
+    setDragging(true);
     onChange(compute(e.clientX));
   };
   const onMove = (e: React.PointerEvent) => {
-    if (e.buttons !== 1) return;
+    if (!dragging) return;
     onChange(compute(e.clientX));
+  };
+  const onUp = () => setDragging(false);
+  // Arrow-key operability (the slider was mouse-only before).
+  const onKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === "ArrowRight" || e.key === "ArrowUp") { e.preventDefault(); onChange(Math.min(1, value + 0.05)); }
+    else if (e.key === "ArrowLeft" || e.key === "ArrowDown") { e.preventDefault(); onChange(Math.max(0, value - 0.05)); }
+    else if (e.key === "Home") { e.preventDefault(); onChange(0); }
+    else if (e.key === "End") { e.preventDefault(); onChange(1); }
   };
 
   return (
@@ -350,14 +362,19 @@ function VolumeSlider({ value, onChange }: { value: number; onChange: (v: number
       ref={ref}
       onPointerDown={onDown}
       onPointerMove={onMove}
+      onPointerUp={onUp}
+      onPointerCancel={onUp}
+      onKeyDown={onKeyDown}
       onMouseEnter={() => setHover(true)}
       onMouseLeave={() => setHover(false)}
-      className="group relative h-[3px] w-20 cursor-pointer rounded-[2px] bg-white/[0.09]"
+      className="group relative h-[3px] w-20 cursor-pointer rounded-[2px] bg-white/[0.09] focus-auralis"
       role="slider"
+      tabIndex={0}
       aria-label="Volume"
       aria-valuemin={0}
       aria-valuemax={100}
       aria-valuenow={Math.round(value * 100)}
+      aria-valuetext={`Volume ${Math.round(value * 100)} %`}
     >
       <div
         className="absolute inset-y-0 left-0 rounded-[2px]"

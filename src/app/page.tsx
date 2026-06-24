@@ -130,9 +130,12 @@ function AuralisShell() {
       previoustrack: () => playPrev(),
       nexttrack: () => playNext(),
       seekto: (t) => seek(t),
+      // Relative scrub from the lock screen / wired-headset seek buttons.
+      seekbackward: (offset) => seekRelative(-offset),
+      seekforward: (offset) => seekRelative(offset),
       stop: () => { usePlayer.setState({ isPlaying: false }); seek(0); },
     });
-  }, [currentTrack, togglePlay, playNext, playPrev, seek]);
+  }, [currentTrack, togglePlay, playNext, playPrev, seek, seekRelative]);
 
   // Reflect transport state to the OS media controls.
   useEffect(() => {

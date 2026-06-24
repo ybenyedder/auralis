@@ -38,6 +38,9 @@ export interface MediaHandlers {
   nexttrack: () => void;
   stop: () => void;
   seekto: (time: number) => void;
+  /** Relative scrub from the lock screen / headset (seekOffset seconds). */
+  seekbackward: (offset: number) => void;
+  seekforward: (offset: number) => void;
 }
 
 function isNative(): boolean {
@@ -138,6 +141,9 @@ export function setMediaHandlers(handlers: MediaHandlers) {
           if (typeof d.seekTime === "number") handlers.seekto(d.seekTime);
         })
         .catch(() => {});
+      // The native plugin's ActionDetails has no seekOffset; use a fixed 10s step.
+      void p.setActionHandler({ action: "seekbackward" }, () => handlers.seekbackward(10)).catch(() => {});
+      void p.setActionHandler({ action: "seekforward" }, () => handlers.seekforward(10)).catch(() => {});
       void p.setActionHandler({ action: "stop" }, () => handlers.stop()).catch(() => {});
     });
     return;
@@ -151,7 +157,14 @@ export function setMediaHandlers(handlers: MediaHandlers) {
   ms.setActionHandler("seekto", (d) => {
     if (typeof d.seekTime === "number") handlers.seekto(d.seekTime);
   });
-  // "stop" isn't supported everywhere — guard so an unknown action can't throw.
+  // seekbackward/forward + stop aren't supported everywhere — guard each so an
+  // unknown action can't throw and abort the remaining handler registrations.
+  try {
+    ms.setActionHandler("seekbackward", (d) => handlers.seekbackward(d.seekOffset ?? 10));
+    ms.setActionHandler("seekforward", (d) => handlers.seekforward(d.seekOffset ?? 10));
+  } catch {
+    /* seek actions unsupported on this platform */
+  }
   try {
     ms.setActionHandler("stop", () => handlers.stop());
   } catch {

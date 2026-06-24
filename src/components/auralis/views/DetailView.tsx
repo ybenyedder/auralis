@@ -22,7 +22,7 @@ import {
   Volume2,
   type LucideIcon,
 } from "lucide-react";
-import { usePlayer } from "@/store/player";
+import { usePlayer, shuffleArray } from "@/store/player";
 import { THEMES, THEME_LIST, THEME_GROUPS, type Theme } from "@/lib/auralis/themes";
 import { api } from "@/lib/auralis/api";
 import {
@@ -144,16 +144,10 @@ export function AlbumDetail({ albumhash }: { albumhash: string }) {
             {isPlayingThis ? "Pause" : "Lire"}
           </button>
           <button
-            onClick={() =>
-              albumTracks.length &&
-              playList(
-                [...albumTracks].sort(() => Math.random() - 0.5),
-                0,
-              )
-            }
+            onClick={() => albumTracks.length && playList(shuffleArray(albumTracks), 0)}
             disabled={albumTracks.length === 0}
             className="ghost-button tap-press grid h-12 w-12 shrink-0 place-items-center rounded-[11px] transition-colors disabled:opacity-40 lg:h-10 lg:w-10"
-            aria-label="Shuffle album"
+            aria-label="Lecture aléatoire de l'album"
           >
             <Shuffle className="size-4" />
           </button>
@@ -272,6 +266,17 @@ export function ArtistDetail({ artisthash }: { artisthash: string }) {
             className="signal-button tap-press flex h-12 flex-1 items-center justify-center gap-2 rounded-[11px] px-5 text-[14px] font-black transition-colors disabled:opacity-40 lg:h-auto lg:flex-none lg:justify-start lg:py-2.5 lg:text-[13px]"
           >
             <Play className="size-4 fill-current" /> Lire
+          </button>
+          <button
+            onClick={() => {
+              const all = tracksOfArtistFrom(tracks, artisthash);
+              if (all.length) playList(shuffleArray(all), 0);
+            }}
+            disabled={topTracks.length === 0}
+            className="ghost-button tap-press grid h-12 w-12 shrink-0 place-items-center rounded-[11px] transition-colors disabled:opacity-40 lg:h-10 lg:w-10"
+            aria-label="Lecture aléatoire de l'artiste"
+          >
+            <Shuffle className="size-4" />
           </button>
         </div>
       </section>

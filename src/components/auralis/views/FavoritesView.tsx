@@ -2,7 +2,7 @@
 
 import { useMemo, useState } from "react";
 import { Heart, Play, Shuffle, ArrowDownUp } from "lucide-react";
-import { usePlayer } from "@/store/player";
+import { usePlayer, shuffleArray } from "@/store/player";
 import { useLibraryStore } from "@/store/library";
 import { TrackRow, TrackListHeader } from "../TrackRow";
 import { formatLongDuration, trackArtist, trackTitle } from "@/lib/auralis/brand";
@@ -67,7 +67,7 @@ export function FavoritesView() {
             <Play className="size-4 fill-current" /> Lire
           </button>
           <button
-            onClick={() => favTracks.length && playList([...favTracks].sort(() => Math.random() - 0.5), 0)}
+            onClick={() => favTracks.length && playList(shuffleArray(favTracks), 0)}
             disabled={favTracks.length === 0}
             className="ghost-button flex min-h-[44px] flex-1 items-center justify-center gap-2 rounded-[11px] px-5 text-[13px] font-bold transition-colors disabled:opacity-40 lg:min-h-0 lg:flex-none lg:py-2.5"
           >

@@ -1,8 +1,8 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { Folder, ChevronRight, Music2, Home } from "lucide-react";
-import { usePlayer } from "@/store/player";
+import { Folder, ChevronRight, Music2, Play, Shuffle, Home } from "lucide-react";
+import { usePlayer, shuffleArray } from "@/store/player";
 import { useLibraryStore } from "@/store/library";
 import { TrackRow, TrackListHeader } from "../TrackRow";
 import type { FolderNode } from "@/lib/auralis/types";
@@ -115,13 +115,23 @@ export function FoldersView() {
             <p className="text-[10px] font-black uppercase tracking-[0.14em] text-muted-foreground/70">
               Titres · {tracksInFolder.length}
             </p>
-            <button
-              onClick={() => tracksInFolder.length && playList(tracksInFolder, 0)}
-              disabled={tracksInFolder.length === 0}
-              className="ghost-button tap-press flex min-h-[36px] shrink-0 items-center gap-1.5 rounded-[11px] px-2.5 py-1 text-[11px] font-bold transition-colors disabled:opacity-40"
-            >
-              <Music2 className="size-3" /> Lire le dossier
-            </button>
+            <div className="flex shrink-0 items-center gap-1.5">
+              <button
+                onClick={() => tracksInFolder.length && playList(tracksInFolder, 0)}
+                disabled={tracksInFolder.length === 0}
+                className="signal-button tap-press flex min-h-[44px] items-center gap-1.5 rounded-[11px] px-3.5 text-[12px] font-black transition-colors disabled:opacity-40 lg:min-h-0 lg:py-2"
+              >
+                <Play className="size-3.5 fill-current" /> Lire le dossier
+              </button>
+              <button
+                onClick={() => tracksInFolder.length && playList(shuffleArray(tracksInFolder), 0)}
+                disabled={tracksInFolder.length === 0}
+                className="ghost-button tap-press grid min-h-[44px] w-11 place-items-center rounded-[11px] transition-colors disabled:opacity-40 lg:min-h-0 lg:h-9 lg:w-9"
+                aria-label="Lecture aléatoire du dossier"
+              >
+                <Shuffle className="size-3.5" />
+              </button>
+            </div>
           </div>
           <TrackListHeader />
           <div className="lg:max-h-[calc(100vh-320px)] lg:overflow-y-auto lg:scroll-auralis">
