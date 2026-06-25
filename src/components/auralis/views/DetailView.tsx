@@ -23,6 +23,7 @@ import {
   type LucideIcon,
 } from "lucide-react";
 import { usePlayer, shuffleArray } from "@/store/player";
+import { useStats } from "@/store/stats";
 import { THEMES, THEME_LIST, THEME_GROUPS, type Theme } from "@/lib/auralis/themes";
 import { api } from "@/lib/auralis/api";
 import {
@@ -535,6 +536,7 @@ export function SettingsView() {
   const favorites = usePlayer((s) => s.favorites);
   const recentTrackhashes = usePlayer((s) => s.recentTrackhashes);
   const playCounts = usePlayer((s) => s.playCounts);
+  const resetServerStats = usePlayer((s) => s.resetServerStats);
   const notify = usePlayer((s) => s.notify);
   const tracks = useLibraryStore((state) => state.tracks);
   const albums = useLibraryStore((state) => state.albums);
@@ -600,6 +602,14 @@ export function SettingsView() {
     if (!ok) return;
     window.localStorage.removeItem(STORAGE_KEY);
     window.location.reload();
+  };
+
+  // Server-side: wipe play counts / recents / streak (favourites + playlists kept).
+  const resetStats = () => {
+    if (typeof window === "undefined") return;
+    if (!window.confirm("Réinitialiser ton historique d'écoute (compteurs, récents, série) ? Tes favoris et playlists sont conservés.")) return;
+    resetServerStats();
+    void useStats.getState().fetchStats();
   };
 
   // Repoint the music library at a host-chosen folder. On the desktop app a native
@@ -811,6 +821,13 @@ export function SettingsView() {
       value: "JSON",
       type: "action",
       onAction: () => fileInputRef.current?.click(),
+    },
+    {
+      label: "Réinitialiser l'écoute",
+      value: "Effacer",
+      type: "action",
+      onAction: resetStats,
+      tone: "danger",
     },
     {
       label: "Réinitialiser",

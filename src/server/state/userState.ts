@@ -85,6 +85,18 @@ export function recordPlay(userId: number, trackhash: string): number {
   return (db.prepare("SELECT count FROM playcounts WHERE user_id = ? AND trackhash = ?").get(userId, trackhash) as { count: number } | undefined)?.count ?? 0;
 }
 
+/** Wipe a user's listening history (play counts, recents, per-day event log).
+ *  Favourites and playlists are kept — this only clears the "stats" signals. */
+export function resetUserStats(userId: number): void {
+  const db = getDb();
+  const tx = db.transaction(() => {
+    db.prepare("DELETE FROM playcounts WHERE user_id = ?").run(userId);
+    db.prepare("DELETE FROM recents WHERE user_id = ?").run(userId);
+    db.prepare("DELETE FROM play_events WHERE user_id = ?").run(userId);
+  });
+  tx();
+}
+
 export function setSetting(userId: number, key: string, value: unknown): void {
   getDb().prepare("INSERT INTO user_settings (user_id, key, value) VALUES (?, ?, ?) ON CONFLICT(user_id, key) DO UPDATE SET value = excluded.value")
     .run(userId, key, JSON.stringify(value));

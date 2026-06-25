@@ -1,6 +1,6 @@
 import {
   getUserState, setFavorite, recordPlay, setSetting,
-  upsertPlaylist, deletePlaylist, reorderPlaylists, replaceUserState,
+  upsertPlaylist, deletePlaylist, reorderPlaylists, replaceUserState, resetUserStats,
 } from "@/server/state/userState";
 import { getRequestUser } from "@/server/auth";
 import { json, checkCsrf } from "@/server/http";
@@ -71,6 +71,10 @@ export async function PUT(request: Request) {
     case "replace":
       if (!body.state) return json({ error: "state required" }, { status: 400 });
       replaceUserState(uid, body.state);
+      return json({ ok: true });
+    case "resetStats":
+      // Clear this user's play counts / recents / event log (favourites + playlists kept).
+      resetUserStats(uid);
       return json({ ok: true });
     default:
       return json({ error: `Unknown action: ${body.action}` }, { status: 400 });

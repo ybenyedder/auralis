@@ -206,6 +206,7 @@ interface PlayerState {
   hydrateLocal: () => void;
   hydrateFromServer: () => Promise<void>;
   restoreLastSession: () => void;
+  resetServerStats: () => void;
   fetchLyrics: (force?: boolean) => Promise<void>;
 }
 
@@ -1043,6 +1044,15 @@ export const usePlayer = create<PlayerState>((set, get) => {
       // Restored PAUSED — the now-playing surface shows where you left off and the
       // user presses play to resume (we deliberately don't auto-start audio).
       set({ queue: order, shuffledQueue: order, currentIndex: idx, currentTrack: order[idx], isPlaying: false });
+    },
+
+    resetServerStats: () => {
+      // Clear the local listening signals immediately (optimistic) and ask the
+      // server to wipe play counts / recents / event log. Favourites + playlists keep.
+      set({ recentTrackhashes: [], playCounts: {} });
+      persist({ ...get(), recentTrackhashes: [], playCounts: {} });
+      void api.put("/api/state", { action: "resetStats" }).catch(() => {});
+      get().notify("Historique d'écoute réinitialisé");
     },
 
     fetchLyrics: async (force = false) => {

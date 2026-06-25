@@ -93,3 +93,19 @@ test("listening time sums played track durations over the week", async () => {
   assert.equal(s.weekListeningSeconds, 180 + 180 + 240, "2×a + 1×b durations");
   assert.equal(s.weekPlays, 3);
 });
+
+test("resetUserStats wipes play counts / recents / events", async () => {
+  const { db, getListeningStats } = await setup();
+  const { resetUserStats } = await import("../src/server/state/userState");
+  const now = Date.now();
+  addTrack(db, "t", 180);
+  addEvent(db, "t", now);
+  addEvent(db, "t", now - DAY);
+  assert.ok(getListeningStats(UID).totalPlays > 0, "seeded before reset");
+  resetUserStats(UID);
+  const s = getListeningStats(UID);
+  assert.equal(s.totalPlays, 0);
+  assert.equal(s.weekPlays, 0);
+  assert.equal(s.streak, 0);
+  assert.equal(s.weekListeningSeconds, 0);
+});
