@@ -20,6 +20,7 @@ import {
 import { usePlayer } from "@/store/player";
 import { useLibraryStore } from "@/store/library";
 import { trackArtist, trackTitle } from "@/lib/auralis/brand";
+import { useFocusTrap } from "@/lib/auralis/useFocusTrap";
 import { cn } from "@/lib/utils";
 
 interface CmdItem {
@@ -46,6 +47,8 @@ export function CommandPalette() {
   const [active, setActive] = useState(0);
   const inputRef = useRef<HTMLInputElement>(null);
   const listRef = useRef<HTMLDivElement>(null);
+  const dialogRef = useRef<HTMLDivElement>(null);
+  useFocusTrap(commandOpen, dialogRef, inputRef);
 
   // Reset the query + selection each time the palette opens, and focus input.
   useEffect(() => {
@@ -169,7 +172,7 @@ export function CommandPalette() {
   return (
     <div className="fixed inset-0 z-[75] flex items-start justify-center pt-[12vh]" role="dialog" aria-modal="true" aria-label="Command palette">
       <div className="backdrop-in absolute inset-0 bg-black/70" onClick={() => setCommandOpen(false)} />
-      <div className="scale-in matte-panel relative w-full max-w-[560px] overflow-hidden rounded-[8px]">
+      <div ref={dialogRef} className="scale-in matte-panel relative w-full max-w-[560px] overflow-hidden rounded-[8px]">
         {/* Search row */}
         <div className="flex items-center gap-3 border-b border-[var(--line)] px-4 py-3">
           <Search className="size-4 text-muted-foreground" />
@@ -183,12 +186,16 @@ export function CommandPalette() {
             placeholder="Search tracks, albums, artists"
             className="w-full bg-transparent text-[14px] text-foreground placeholder:text-muted-foreground/70 outline-none"
             aria-label="Command input"
+            role="combobox"
+            aria-expanded
+            aria-controls="cmd-listbox"
+            aria-autocomplete="list"
           />
           <kbd className="rounded-[9px] border border-[var(--line)] bg-white/[0.05] px-1.5 py-0.5 text-[9.5px] font-bold text-muted-foreground">ESC</kbd>
         </div>
 
         {/* Results */}
-        <div ref={listRef} className="max-h-[52vh] overflow-y-auto scroll-auralis p-2">
+        <div ref={listRef} id="cmd-listbox" role="listbox" aria-label="Résultats" className="max-h-[52vh] overflow-y-auto scroll-auralis p-2">
           {filtered.length === 0 ? (
             <div className="flex flex-col items-center gap-2 py-10 text-center">
               <Search className="size-6 text-muted-foreground/50" />
@@ -207,6 +214,8 @@ export function CommandPalette() {
                     <button
                       key={it.id}
                       data-cmd-item
+                      role="option"
+                      aria-selected={isActive}
                       onMouseMove={() => setActive(idx)}
                       onClick={() => {
                         it.action();

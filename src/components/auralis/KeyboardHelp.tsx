@@ -1,7 +1,8 @@
 "use client";
 
-import { useEffect } from "react";
+import { useEffect, useRef } from "react";
 import { usePlayer } from "@/store/player";
+import { useFocusTrap } from "@/lib/auralis/useFocusTrap";
 import { Keyboard, X } from "lucide-react";
 
 interface ShortcutGroup {
@@ -39,6 +40,8 @@ const GROUPS: ShortcutGroup[] = [
 export function KeyboardHelp() {
   const helpOpen = usePlayer((s) => s.helpOpen);
   const setHelpOpen = usePlayer((s) => s.setHelpOpen);
+  const dialogRef = useRef<HTMLDivElement>(null);
+  useFocusTrap(helpOpen, dialogRef);
 
   useEffect(() => {
     if (!helpOpen) return;
@@ -54,7 +57,7 @@ export function KeyboardHelp() {
   return (
     <div className="fixed inset-0 z-[78] flex items-center justify-center" role="dialog" aria-modal="true" aria-label="Keyboard shortcuts">
       <div className="backdrop-in absolute inset-0 bg-black/70" onClick={() => setHelpOpen(false)} />
-      <div className="scale-in matte-panel relative w-full max-w-[520px] overflow-hidden rounded-[8px]">
+      <div ref={dialogRef} className="scale-in matte-panel relative w-full max-w-[520px] overflow-hidden rounded-[8px]">
         {/* Header */}
         <div className="flex items-center justify-between border-b border-[var(--line)] px-5 py-3.5">
           <div className="flex items-center gap-2.5">
