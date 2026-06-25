@@ -1,105 +1,42 @@
-name: Release
-
-# Builds the installers on a tag push and attaches them to the GitHub Release.
-# The Windows .exe must be produced on a Windows runner (the native better-sqlite3
-# binding can't be cross-compiled from Linux), so each OS builds its own target.
+name: Build and Release Desktop Apps
 
 on:
   push:
-    tags: ["v*"]
-  workflow_dispatch:
-    inputs:
-      tag:
-        description: "Existing tag to build and attach to (e.g. v1.0.0)"
-        required: true
-
-permissions:
-  contents: write
+    tags:
+      - 'v*' # Se déclenche quand tu crées un tag (ex: v1.4.0)
+  workflow_dispatch: # Permet de lancer la compilation manuellement depuis GitHub
 
 jobs:
-  linux:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          ref: ${{ github.event.inputs.tag || github.ref }}
-      - uses: actions/setup-node@v4
-        with:
-          node-version: 20
-          cache: npm
-      - run: npm ci
-      # `--publish never`: action-gh-release attaches the artifacts, so stop
-      # electron-builder from trying to publish them itself (it would fail in CI
-      # for want of GH_TOKEN, even though the .deb/.AppImage built fine).
-      - name: Build .deb + .AppImage
-        run: npm run build && npm run desktop:prepare && npx electron-builder --linux --publish never
-        env:
-          NEXT_TELEMETRY_DISABLED: "1"
-      - name: Attach to release
-        uses: softprops/action-gh-release@v2
-        with:
-          tag_name: ${{ github.event.inputs.tag || github.ref_name }}
-          files: |
-            dist-desktop/*.deb
-            dist-desktop/*.AppImage
-          fail_on_unmatched_files: false
+  build:
+    strategy:
+      matrix:
+        os: [ubuntu-latest, windows-latest]
 
-  windows:
-    runs-on: windows-latest
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          ref: ${{ github.event.inputs.tag || github.ref }}
-      - uses: actions/setup-node@v4
-        with:
-          node-version: 20
-      # The Linux-generated lockfile pins optional deps to Linux, so npm skips the
-      # win32 native binaries of lightningcss / @tailwindcss/oxide (npm optional-deps
-      # bug). Dropping the lockfile lets npm re-resolve the win32 binaries.
-      - name: Install (re-resolve win32 native deps)
-        shell: bash
-        run: |
-          rm -f package-lock.json
-          npm install --no-audit --no-fund
-      - name: Build .exe (NSIS installer + portable)
-        shell: bash
-        run: npm run build && npm run desktop:prepare && npx electron-builder --win --publish never
-        env:
-          NEXT_TELEMETRY_DISABLED: "1"
-      - name: Attach to release
-        uses: softprops/action-gh-release@v2
-        with:
-          tag_name: ${{ github.event.inputs.tag || github.ref_name }}
-          files: dist-desktop/*.exe
-          fail_on_unmatched_files: false
+    runs-on: ${{ matrix.os }}
 
-  android:
-    runs-on: ubuntu-latest
+    permissions:
+      contents: write # Permet à l'action de publier sur la page "Releases"
+
     steps:
-      - uses: actions/checkout@v4
-        with:
-          ref: ${{ github.event.inputs.tag || github.ref }}
-      - uses: actions/setup-node@v4
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
         with:
           node-version: 20
-          cache: npm
-      - uses: actions/setup-java@v4
-        with:
-          distribution: temurin
-          java-version: 21
-      - uses: android-actions/setup-android@v3
-      - run: npm ci
-      - name: Build APK
-        run: |
-          npx cap sync android
-          npm run mobile:apk
-      - name: Rename + attach to release
-        shell: bash
-        run: |
-          TAG="${{ github.event.inputs.tag || github.ref_name }}"
-          cp android/app/build/outputs/apk/debug/app-debug.apk "auralis-${TAG#v}.apk"
-      - uses: softprops/action-gh-release@v2
-        with:
-          tag_name: ${{ github.event.inputs.tag || github.ref_name }}
-          files: auralis-*.apk
-          fail_on_unmatched_files: false
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm install
+
+      - name: Prepare Web App
+        run: npm run build
+
+      - name: Prepare Desktop
+        run: npm run desktop:prepare
+
+      - name: Build and Publish Electron App
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: npx electron-builder --publish always
