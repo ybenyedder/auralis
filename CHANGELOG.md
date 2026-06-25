@@ -4,6 +4,70 @@ All notable changes to Auralis are documented here. The format is based on
 [Keep a Changelog](https://keepachangelog.com/) and this project adheres to
 [Semantic Versioning](https://semver.org/).
 
+## [Unreleased]
+
+Engagement, security, ergonomics and homogeneity pass. Adds one forward-only DB
+migration (v3 `play_events`, v4 `users.token_version`); no manual data migration.
+
+### Added
+- **Engagement loop.** The server already recorded plays/history/favourites but
+  surfaced none of it. New read-only `GET /api/stats` exposes a listening **streak**
+  (consecutive days, computed from a new append-only `play_events` log), today/week
+  play counts and a 7-day sparkline. The Home view gains a **“Mix du jour”** (a
+  deterministic per-day shuffle of what you like/play, stable until midnight), a
+  **“Reprendre l’écoute”** shelf, an **“À redécouvrir”** shelf (favourites you
+  haven’t played lately) and a time-of-day greeting. A streak chip sits in the
+  sidebar / mobile header and links to a weekly recap in Insights.
+- **Share.** A Share action (native share sheet → clipboard fallback) on the track
+  context menu, Now-Playing panel and full-screen player.
+- **Empty states are now actionable** — empty queue → shuffle-all, empty
+  favourites / history → browse the library.
+- **OS lock-screen scrubbing** — `seekbackward` / `seekforward` MediaSession
+  handlers (web + native Android) wired to ±10 s.
+- **Mini-player Previous button** and full keyboard operability + opaque focus ring
+  for the volume slider.
+
+### Security
+- **Revocable sessions.** Session tokens embed a `token_version`; changing a
+  password bumps it so every previously-issued token (incl. a leaked 30-day one)
+  stops validating. The password-change endpoint re-issues a fresh cookie/token so
+  the current device stays signed in while others are signed out.
+- **CSRF / same-origin guard** on cookie-authenticated mutations (`/api/state`,
+  `/api/auth/password`, `/api/auth/users`, `library/source`, `library/scan`).
+  Bearer/`?token=` clients are exempt; reverse-proxy setups are honoured via
+  `X-Forwarded-Host` and an `AURALIS_ALLOWED_ORIGINS` allowlist.
+- **Lyrics egress hardening.** Outbound lookups now use `redirect: "error"`
+  (anti-SSRF) + a 512 KB response cap, concurrent resolves are de-duplicated to a
+  single request, and forced re-fetches are rate-limited (12/min/user).
+- **Native shells.** Electron gains a `will-navigate` origin guard, an app-level
+  `web-contents-created` clamp (no popups / `<webview>`) and `sandbox: true`;
+  Capacitor sets `allowMixedContent: false`.
+- **`/api/health`** trimmed to a minimal liveness probe (no uptime / scan internals
+  on the unauthenticated, CORS-open response).
+
+### Fixed
+- **Play counts are trustworthy.** A play is counted only after a real listen
+  threshold (min 30 s / 50 %), not on track selection, so skips no longer inflate
+  counts/recents; the client now reconciles to the server’s authoritative count
+  instead of double-incrementing locally.
+- **Biased shuffle** (`Math.random() - 0.5`) replaced with the existing Fisher-Yates
+  shuffle in Favourites and Album detail.
+- **Karaoke timing round-trips** — `serializeLrc` preserves per-word stamps and
+  rolls 100 centiseconds into the next second.
+- Visualizer canvas no longer tears down ~4×/s; the global keyboard listener binds
+  once instead of on every track change.
+
+### Changed
+- **Homogeneity.** A single per-theme `--primary-foreground` (theme `ink`) fixes
+  dark text on light accents across all 16 themes; toggle/active states unified on
+  `bg-primary/15`; `::selection` and the focus ring now track the active theme.
+- **A11y.** Focus trap + restore for the command palette and keyboard-help modals
+  (palette is now a proper combobox/listbox); `aria-current` on nav; `role=tab` on
+  the now-playing tabs; labelled search inputs; toast carries a tone
+  (success/error/info) with an assertive live region for errors and an optional
+  **Annuler** action (clearing the queue is undoable).
+- Reduced-transparency users get an opaque, blur-free fallback for glass themes.
+
 ## [1.1.0] — 2026-06-24
 
 Security, performance and mobile hardening pass. No data migration required.
