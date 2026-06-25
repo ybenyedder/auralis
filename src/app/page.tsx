@@ -47,8 +47,6 @@ function AuralisShell() {
   const view = usePlayer((s) => s.view);
   const fullscreenPlayer = usePlayer((s) => s.fullscreenPlayer);
   const currentTrack = usePlayer((s) => s.currentTrack);
-  const commandOpen = usePlayer((s) => s.commandOpen);
-  const helpOpen = usePlayer((s) => s.helpOpen);
   const visualizerOpen = usePlayer((s) => s.visualizerOpen);
   const isPlaying = usePlayer((s) => s.isPlaying);
   const volume = usePlayer((s) => s.volume);
@@ -349,15 +347,15 @@ function AuralisShell() {
           cycleRepeat();
           break;
         case "Escape":
-          if (fullscreenPlayer) toggleFullscreenPlayer();
+          if (usePlayer.getState().fullscreenPlayer) toggleFullscreenPlayer();
           break;
         case "f":
         case "F":
-          if (currentTrack) toggleFullscreenPlayer();
+          if (usePlayer.getState().currentTrack) toggleFullscreenPlayer();
           break;
         case "v":
         case "V":
-          if (currentTrack) toggleVisualizer();
+          if (usePlayer.getState().currentTrack) toggleVisualizer();
           break;
         case "/":
           e.preventDefault();
@@ -371,7 +369,10 @@ function AuralisShell() {
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [togglePlay, playNext, playPrev, seekRelative, setVolume, toggleMute, toggleShuffle, cycleRepeat, fullscreenPlayer, toggleFullscreenPlayer, currentTrack, setCommandOpen, commandOpen, setHelpOpen, helpOpen, toggleVisualizer]);
+    // Actions are stable store refs; transient values (currentTrack, fullscreenPlayer,
+    // commandOpen, helpOpen) are read live via getState() inside the handler so this
+    // listener binds ONCE instead of re-binding on every track change.
+  }, [togglePlay, playNext, playPrev, seekRelative, setVolume, toggleMute, toggleShuffle, cycleRepeat, toggleFullscreenPlayer, setCommandOpen, setHelpOpen, toggleVisualizer]);
 
   const renderView = () => {
     switch (view.view) {

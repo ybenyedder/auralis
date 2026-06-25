@@ -79,6 +79,7 @@ export function Sidebar() {
               key={item.id}
               onClick={() => navigate(item.id)}
               title={item.label}
+              aria-current={active ? "page" : undefined}
               className={cn(
                 "group flex w-full items-center justify-center gap-2.5 rounded-[11px] px-2.5 py-2.5 text-left transition-colors lg:justify-start lg:py-2",
                 active ? "bg-[var(--paper)] text-[var(--ink)]" : "text-muted-foreground/80 hover:bg-white/[0.05] hover:text-foreground",

@@ -349,12 +349,18 @@ function VolumeSlider({ value, onChange }: { value: number; onChange: (v: number
     onChange(compute(e.clientX));
   };
   const onUp = () => setDragging(false);
-  // Arrow-key operability (the slider was mouse-only before).
+  // Arrow-key operability (the slider was mouse-only before). stopPropagation on
+  // handled keys so the window-level Arrow shortcut doesn't ALSO change the volume
+  // (that double-applied the step when the slider had focus).
   const onKeyDown = (e: React.KeyboardEvent) => {
-    if (e.key === "ArrowRight" || e.key === "ArrowUp") { e.preventDefault(); onChange(Math.min(1, value + 0.05)); }
-    else if (e.key === "ArrowLeft" || e.key === "ArrowDown") { e.preventDefault(); onChange(Math.max(0, value - 0.05)); }
-    else if (e.key === "Home") { e.preventDefault(); onChange(0); }
-    else if (e.key === "End") { e.preventDefault(); onChange(1); }
+    const k = e.key;
+    if (k === "ArrowRight" || k === "ArrowUp") onChange(Math.min(1, value + 0.05));
+    else if (k === "ArrowLeft" || k === "ArrowDown") onChange(Math.max(0, value - 0.05));
+    else if (k === "Home") onChange(0);
+    else if (k === "End") onChange(1);
+    else return;
+    e.preventDefault();
+    e.stopPropagation();
   };
 
   return (

@@ -39,7 +39,7 @@ export function NowPlayingPanel() {
     <aside className="glass-chrome keyline-left hidden w-[300px] shrink-0 flex-col bg-[var(--sidebar)] xl:flex">
       {/* Header */}
       <div className="flex h-12 items-center justify-between border-b border-[var(--line)] px-3">
-        <div className="flex items-center gap-1">
+        <div role="tablist" aria-label="Panneau de lecture" className="flex items-center gap-1">
           <TabButton active={tab === "now"} onClick={() => selectTab("now")} label="Lecture" />
           <TabButton active={tab === "lyrics"} onClick={() => selectTab("lyrics")} label="Paroles" icon={Mic2} />
           <TabButton active={tab === "queue"} onClick={() => selectTab("queue")} label="File" icon={ListMusic} />
@@ -160,6 +160,8 @@ function TabButton({ active, onClick, label, icon: Icon, disabled = false }: {
     <button
       onClick={onClick}
       disabled={disabled}
+      role="tab"
+      aria-selected={active}
       title={disabled ? `${label} non disponibles pour ce titre` : label}
       className={cn(
         "flex items-center gap-1 rounded-[11px] px-2 py-1.5 text-[11px] font-bold transition-colors",

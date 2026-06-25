@@ -822,3 +822,22 @@ kbd {
     scroll-behavior: auto !important;
   }
 }
+
+/* Reduced-transparency / data-saver: drop the stacked backdrop-filter blur (a
+   real GPU + battery cost on the low-end Android WebViews this app targets) and
+   fall back to opaque surfaces so glass themes stay legible without the work. */
+@media (prefers-reduced-transparency: reduce) {
+  :root[data-glass="1"] .matte-panel,
+  :root[data-glass="1"] .matte-panel-2,
+  :root[data-glass="1"] .section-band,
+  :root[data-glass="1"] .hero-cover {
+    backdrop-filter: none;
+    -webkit-backdrop-filter: none;
+    background-color: color-mix(in srgb, var(--bg-solid), #ffffff 6%);
+  }
+  :root[data-glass="1"] .glass-chrome {
+    backdrop-filter: none;
+    -webkit-backdrop-filter: none;
+    background-color: var(--bg-solid);
+  }
+}

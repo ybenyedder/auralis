@@ -79,7 +79,8 @@ export function Artwork({
           `linear-gradient(180deg, ${c1}, ${c2}), repeating-linear-gradient(90deg, rgba(255,255,255,0.12) 0 1px, transparent 1px 7px)`,
         border: "1px solid rgba(237,227,207,0.14)",
       }}
-      aria-hidden="true"
+      role="img"
+      aria-label={title || name || album || "Pochette"}
     >
       <span
         className="absolute bottom-0 left-0 right-0 h-[18%]"

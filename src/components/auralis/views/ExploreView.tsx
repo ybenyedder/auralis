@@ -48,6 +48,8 @@ export function ExploreView() {
           <div className="matte-panel flex items-center gap-2 rounded-[13px] px-4 py-3">
             <Search className="size-4 text-muted-foreground" />
             <input
+              type="search"
+              aria-label="Rechercher titres, artistes, albums"
               value={searchQuery}
               onChange={(event) => setSearch(event.target.value)}
               placeholder="Rechercher titres, artistes, albums"
@@ -86,6 +88,9 @@ export function ExploreView() {
         <div className="matte-panel flex items-center gap-2 rounded-[13px] border-primary/30 px-4 py-3">
           <Search className="size-4 text-primary-soft" />
           <input
+            type="search"
+            aria-label="Rechercher dans la bibliothèque"
+            autoFocus
             value={searchQuery}
             onChange={(event) => setSearch(event.target.value)}
             placeholder="Rechercher"

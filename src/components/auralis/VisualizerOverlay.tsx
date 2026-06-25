@@ -160,8 +160,11 @@ export function VisualizerOverlay() {
       ctx.arc(cx, cy, discR - 4, 0, Math.PI * 2);
       ctx.stroke();
 
-      // Progress arc around the disc
-      const prog = duration > 0 ? position / duration : 0;
+      // Progress arc around the disc. Read the playhead live here (NOT from the
+      // effect deps) so this rAF loop is set up ONCE per track — listing
+      // position/duration as deps tore the canvas down and rebuilt it ~4×/s.
+      const { position: livePos, duration: liveDur } = usePlayhead.getState();
+      const prog = liveDur > 0 ? livePos / liveDur : 0;
       if (prog > 0) {
         ctx.strokeStyle = "#F9FAFB";
         ctx.lineWidth = 3;
@@ -179,7 +182,9 @@ export function VisualizerOverlay() {
       cancelAnimationFrame(rafRef.current);
       window.removeEventListener("resize", resize);
     };
-  }, [visualizerOpen, currentTrack, isPlaying, position, duration]);
+    // position/duration are read live via getState() in the render loop (not closed
+    // over here), so the canvas isn't re-created on every playhead tick.
+  }, [visualizerOpen, currentTrack, isPlaying]);
 
   if (!visualizerOpen || !currentTrack) return null;
   return (
