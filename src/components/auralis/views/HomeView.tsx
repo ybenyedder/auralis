@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { Play, TrendingUp, Flame, Sparkles, RotateCcw, Clock3, Settings } from "lucide-react";
+import { Play, TrendingUp, Flame, Sparkles, RotateCcw, Clock3, Settings, Compass } from "lucide-react";
 import { usePlayer } from "@/store/player";
 import { useLibraryStore, tracksForHashesFrom } from "@/store/library";
 import { useStats } from "@/store/stats";
@@ -75,6 +75,15 @@ export function HomeView() {
     const recentSet = new Set(recentTrackhashes.slice(0, 30));
     return tracks.filter((t) => favorites.has(t.trackhash) && !recentSet.has(t.trackhash)).slice(0, 6);
   }, [tracks, favorites, recentTrackhashes]);
+
+  // Discover: tracks you own but have never played — surfaces forgotten music.
+  // Daily-seeded so the picks rotate, and only when there's a real backlog.
+  const neverPlayed = useMemo(() => {
+    if (now == null) return [];
+    const unplayed = tracks.filter((t) => (playCounts[t.trackhash] ?? t.playcount ?? 0) === 0);
+    if (unplayed.length < 4) return [];
+    return seededShuffle(unplayed, (Math.floor(now / 86_400_000) ^ 0x9e3779b1) >>> 0).slice(0, 6);
+  }, [tracks, playCounts, now]);
 
   // Recently added: files indexed in the last ~30 days, newest first. On a fresh
   // scan everything qualifies (shows your newest tracks); on an established library
@@ -230,6 +239,17 @@ export function HomeView() {
           <div className="mt-3 space-y-px">
             {rediscover.map((track, index) => (
               <TrackRow key={track.trackhash} track={track} index={index} list={rediscover} showAlbum />
+            ))}
+          </div>
+        </section>
+      )}
+
+      {neverPlayed.length > 0 && (
+        <section>
+          <SectionHeader title="Découvertes" eyebrow="Jamais écouté" icon={<Compass className="size-4 text-primary-soft" />} action="Lire" onAction={() => playList(neverPlayed, 0)} />
+          <div className="mt-3 space-y-px">
+            {neverPlayed.map((track, index) => (
+              <TrackRow key={track.trackhash} track={track} index={index} list={neverPlayed} showAlbum />
             ))}
           </div>
         </section>
