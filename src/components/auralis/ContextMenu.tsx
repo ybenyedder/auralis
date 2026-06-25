@@ -235,9 +235,9 @@ function TrackMenu({
       <div className={cn(sheet ? "p-2" : "p-1.5", playlistOpen && "p-0")}>
         {!playlistOpen && (
           <>
-            <MenuItem sheet={sheet} icon={Play} label="Play now" onClick={() => run(() => playTrack(track, [track], 0))} />
-            <MenuItem sheet={sheet} icon={ListPlus} label="Play next" onClick={() => run(() => addToQueueNext(track))} />
-            <MenuItem sheet={sheet} icon={Plus} label="Add to queue" onClick={() => run(() => addToQueueEnd(track))} />
+            <MenuItem sheet={sheet} icon={Play} label="Lire maintenant" onClick={() => run(() => playTrack(track, [track], 0))} />
+            <MenuItem sheet={sheet} icon={ListPlus} label="Lire ensuite" onClick={() => run(() => addToQueueNext(track))} />
+            <MenuItem sheet={sheet} icon={Plus} label="Ajouter à la file" onClick={() => run(() => addToQueueEnd(track))} />
           </>
         )}
         <PlaylistSubmenu
@@ -257,7 +257,7 @@ function TrackMenu({
             <MenuItem
               sheet={sheet}
               icon={Heart}
-              label={fav ? "Remove from favorites" : "Save to favorites"}
+              label={fav ? "Retirer des favoris" : "Ajouter aux favoris"}
               onClick={() => run(() => toggleFavorite(track.trackhash))}
               accent={fav ? "primary" : undefined}
             />
@@ -272,7 +272,7 @@ function TrackMenu({
               <MenuItem
                 sheet={sheet}
                 icon={Disc3}
-                label="Go to album"
+                label="Aller à l'album"
                 onClick={() => run(() => navigate("album", album.albumhash))}
               />
             )}
@@ -280,7 +280,7 @@ function TrackMenu({
               <MenuItem
                 sheet={sheet}
                 icon={UserRound}
-                label="Go to artist"
+                label="Aller à l'artiste"
                 onClick={() => run(() => navigate("artist", artist.artisthash))}
               />
             )}
@@ -341,8 +341,8 @@ function AlbumMenu({
       <div className={cn(sheet ? "p-2" : "p-1.5", playlistOpen && "p-0")}>
         {!playlistOpen && (
           <>
-            <MenuItem sheet={sheet} icon={Play} label="Play album" onClick={() => run(() => playList(tracks, 0))} />
-            <MenuItem sheet={sheet} icon={ListPlus} label="Add album to queue" onClick={() => run(addAlbumToQueue)} />
+            <MenuItem sheet={sheet} icon={Play} label="Lire l'album" onClick={() => run(() => playList(tracks, 0))} />
+            <MenuItem sheet={sheet} icon={ListPlus} label="Ajouter l'album à la file" onClick={() => run(addAlbumToQueue)} />
           </>
         )}
         <PlaylistSubmenu
@@ -356,17 +356,17 @@ function AlbumMenu({
           }}
           onAdd={(plId) => tracks.forEach((t) => addToPlaylist(plId, t))}
           run={run}
-          labelOverride="Add album to playlist"
+          labelOverride="Ajouter l'album à une playlist"
         />
         {!playlistOpen && (
           <>
             <div className="my-1 h-px bg-white/[0.06]" />
-            <MenuItem sheet={sheet} icon={Disc3} label="Go to album" onClick={() => run(() => navigate("album", album.albumhash))} />
+            <MenuItem sheet={sheet} icon={Disc3} label="Aller à l'album" onClick={() => run(() => navigate("album", album.albumhash))} />
             {artist && (
               <MenuItem
                 sheet={sheet}
                 icon={UserRound}
-                label="Go to artist"
+                label="Aller à l'artiste"
                 onClick={() => run(() => navigate("artist", artist.artisthash))}
               />
             )}
@@ -402,19 +402,19 @@ function ArtistMenu({
     <>
       <MenuHeader
         title={artist.name}
-        subtitle={`${formatCount(artist.playcount)} plays · ${artist.genres?.join(", ") || "Artist"}`}
+        subtitle={`${formatCount(artist.playcount)} écoutes · ${artist.genres?.join(", ") || "Artiste"}`}
         colors={["#2A2821", "#D95F45", "#C6A15B"]}
         initial={artist.name[0] || "A"}
         round
         sheet={sheet}
       />
       <div className={sheet ? "p-2" : "p-1.5"}>
-        <MenuItem sheet={sheet} icon={Play} label="Play top tracks" onClick={() => run(() => playList(topTracks, 0))} />
-        <MenuItem sheet={sheet} icon={ListPlus} label="Add top tracks to queue" onClick={() => run(() => topTracks.forEach((t) => addToQueueEnd(t)))} />
+        <MenuItem sheet={sheet} icon={Play} label="Lire les titres populaires" onClick={() => run(() => playList(topTracks, 0))} />
+        <MenuItem sheet={sheet} icon={ListPlus} label="Ajouter les titres à la file" onClick={() => run(() => topTracks.forEach((t) => addToQueueEnd(t)))} />
         <div className="my-1 h-px bg-white/[0.06]" />
-        <MenuItem sheet={sheet} icon={UserRound} label="Go to artist" onClick={() => run(() => navigate("artist", artist.artisthash))} />
+        <MenuItem sheet={sheet} icon={UserRound} label="Aller à l'artiste" onClick={() => run(() => navigate("artist", artist.artisthash))} />
         {albumCount > 0 && (
-          <p className={cn("text-muted-foreground/70", sheet ? "px-3 py-1.5 text-xs" : "px-2.5 py-1 text-[10.5px]")}>{albumCount} albums · {artist.trackcount} tracks</p>
+          <p className={cn("text-muted-foreground/70", sheet ? "px-3 py-1.5 text-xs" : "px-2.5 py-1 text-[10.5px]")}>{albumCount} albums · {artist.trackcount} titres</p>
         )}
       </div>
     </>
@@ -491,7 +491,7 @@ function PlaylistSubmenu({
         <MenuItem
           sheet
           icon={ListMusic}
-          label={labelOverride ?? "Add to playlist"}
+          label={labelOverride ?? "Ajouter à une playlist"}
           trailing={<ChevronRight className="size-5 text-muted-foreground/70" />}
           onClick={() => setSubmenu("playlists")}
         />
@@ -504,17 +504,17 @@ function PlaylistSubmenu({
           className="tap-press mb-1 flex min-h-[48px] w-full items-center gap-3 rounded-md px-3 text-left text-[15px] font-semibold text-foreground active:bg-white/[0.05]"
         >
           <ChevronRight className="size-5 rotate-180 text-muted-foreground/70" />
-          {labelOverride ?? "Add to playlist"}
+          {labelOverride ?? "Ajouter à une playlist"}
         </button>
         <div className="my-1 h-px bg-white/[0.06]" />
         <button
           onClick={() => run(onCreate)}
           className="tap-press flex min-h-[48px] w-full items-center gap-3 rounded-md px-3 text-left text-[15px] font-semibold text-primary-soft active:bg-white/[0.05]"
         >
-          <Plus className="size-5" /> New playlist
+          <Plus className="size-5" /> Nouvelle playlist
         </button>
         {customPlaylists.length === 0 ? (
-          <p className="px-3 py-3 text-[13px] text-muted-foreground/70">No custom playlists yet</p>
+          <p className="px-3 py-3 text-[13px] text-muted-foreground/70">Aucune playlist personnelle</p>
         ) : (
           customPlaylists.map((pl) => (
             <button
@@ -540,7 +540,7 @@ function PlaylistSubmenu({
     <div className="relative">
       <MenuItem
         icon={ListMusic}
-        label={labelOverride ?? "Add to playlist"}
+        label={labelOverride ?? "Ajouter à une playlist"}
         trailing={<ChevronRight className="size-3.5" />}
         onClick={() => setSubmenu(open ? null : "playlists")}
         active={open}
@@ -551,10 +551,10 @@ function PlaylistSubmenu({
             onClick={() => run(onCreate)}
             className="flex w-full items-center gap-2.5 px-2.5 py-2 text-left text-[12px] font-semibold text-primary-soft hover:bg-white/[0.05]"
           >
-            <Plus className="size-3.5" /> New playlist
+            <Plus className="size-3.5" /> Nouvelle playlist
           </button>
           {customPlaylists.length === 0 ? (
-            <p className="px-2.5 py-2 text-[11px] text-muted-foreground/70">No custom playlists yet</p>
+            <p className="px-2.5 py-2 text-[11px] text-muted-foreground/70">Aucune playlist personnelle</p>
           ) : (
             customPlaylists.map((pl) => (
               <button

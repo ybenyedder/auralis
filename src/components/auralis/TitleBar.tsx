@@ -58,6 +58,8 @@ export function TitleBar() {
         <div className={cn("flex h-8 items-center gap-2 rounded-[13px] border bg-[var(--panel-2)] px-2.5 transition-colors", focused ? "border-[var(--line-strong)]" : "border-[var(--line)]")}>
           <Search className="size-3 text-muted-foreground/50 shrink-0" />
           <input
+            type="search"
+            aria-label="Rechercher dans la bibliothèque"
             value={searchQuery}
             onChange={(e) => {
               setSearch(e.target.value);

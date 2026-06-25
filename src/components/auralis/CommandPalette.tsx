@@ -28,7 +28,7 @@ interface CmdItem {
   label: string;
   sub?: string;
   icon: ComponentType<{ className?: string }>;
-  group: "Navigate" | "Tracks" | "Albums" | "Artists" | "Playlists";
+  group: "Navigation" | "Titres" | "Albums" | "Artistes" | "Playlists";
   action: () => void;
   keywords?: string;
 }
@@ -64,21 +64,21 @@ export function CommandPalette() {
 
   const items = useMemo<CmdItem[]>(() => {
     const nav: CmdItem[] = [
-      { id: "nav-home", label: "Home", icon: Home, group: "Navigate", action: () => navigate("home") },
-      { id: "nav-explore", label: "Explore", icon: Compass, group: "Navigate", action: () => navigate("explore") },
-      { id: "nav-library", label: "Library", icon: Library, group: "Navigate", action: () => navigate("library") },
-      { id: "nav-favorites", label: "Favorites", icon: Heart, group: "Navigate", action: () => navigate("favorites") },
-      { id: "nav-recents", label: "Recents", icon: History, group: "Navigate", action: () => navigate("recents") },
-      { id: "nav-folders", label: "Folders", icon: FolderTree, group: "Navigate", action: () => navigate("folders") },
-      { id: "nav-insights", label: "Insights", icon: BarChart3, group: "Navigate", action: () => navigate("insights") },
-      { id: "nav-settings", label: "Settings", icon: Settings, group: "Navigate", action: () => navigate("settings") },
+      { id: "nav-home", label: "Accueil", icon: Home, group: "Navigation", action: () => navigate("home") },
+      { id: "nav-explore", label: "Recherche", icon: Compass, group: "Navigation", action: () => navigate("explore") },
+      { id: "nav-library", label: "Bibliothèque", icon: Library, group: "Navigation", action: () => navigate("library") },
+      { id: "nav-favorites", label: "Favoris", icon: Heart, group: "Navigation", action: () => navigate("favorites") },
+      { id: "nav-recents", label: "Historique", icon: History, group: "Navigation", action: () => navigate("recents") },
+      { id: "nav-folders", label: "Dossiers", icon: FolderTree, group: "Navigation", action: () => navigate("folders") },
+      { id: "nav-insights", label: "Analyse", icon: BarChart3, group: "Navigation", action: () => navigate("insights") },
+      { id: "nav-settings", label: "Réglages", icon: Settings, group: "Navigation", action: () => navigate("settings") },
     ];
     const trackItems: CmdItem[] = tracks.slice(0, 40).map((t) => ({
       id: `t-${t.trackhash}`,
       label: trackTitle(t),
       sub: trackArtist(t),
       icon: Play,
-      group: "Tracks",
+      group: "Titres",
       keywords: `${t.title} ${t.artist} ${t.album} ${t.genre}`,
       action: () => playTrack(t, [t], 0),
     }));
@@ -96,13 +96,13 @@ export function CommandPalette() {
       label: a.name,
       sub: a.genres?.join(", "),
       icon: UserRound,
-      group: "Artists",
+      group: "Artistes",
       action: () => navigate("artist", a.artisthash),
     }));
     const playlistItems: CmdItem[] = [...customPlaylists, ...playlists].map((p) => ({
       id: `p-${p.id}`,
       label: p.name,
-      sub: `${p.trackcount} tracks`,
+      sub: `${p.trackcount} titres`,
       icon: ListMusicIcon,
       group: "Playlists",
       action: () => navigate("playlist", String(p.id)),
@@ -170,7 +170,7 @@ export function CommandPalette() {
   let runningIndex = -1;
 
   return (
-    <div className="fixed inset-0 z-[75] flex items-start justify-center pt-[12vh]" role="dialog" aria-modal="true" aria-label="Command palette">
+    <div className="fixed inset-0 z-[75] flex items-start justify-center pt-[12vh]" role="dialog" aria-modal="true" aria-label="Palette de commandes">
       <div className="backdrop-in absolute inset-0 bg-black/70" onClick={() => setCommandOpen(false)} />
       <div ref={dialogRef} className="scale-in matte-panel relative w-full max-w-[560px] overflow-hidden rounded-[8px]">
         {/* Search row */}
@@ -183,9 +183,9 @@ export function CommandPalette() {
               setQ(e.target.value);
               setActive(0);
             }}
-            placeholder="Search tracks, albums, artists"
+            placeholder="Rechercher titres, albums, artistes"
             className="w-full bg-transparent text-[14px] text-foreground placeholder:text-muted-foreground/70 outline-none"
-            aria-label="Command input"
+            aria-label="Rechercher"
             role="combobox"
             aria-expanded
             aria-controls="cmd-listbox"
@@ -199,7 +199,7 @@ export function CommandPalette() {
           {filtered.length === 0 ? (
             <div className="flex flex-col items-center gap-2 py-10 text-center">
               <Search className="size-6 text-muted-foreground/50" />
-              <p className="text-[13px] font-semibold text-muted-foreground">No results for “{q}”</p>
+              <p className="text-[13px] font-semibold text-muted-foreground">Aucun résultat pour « {q} »</p>
             </div>
           ) : (
             groups.map(([group, gItems]) => (
@@ -250,7 +250,7 @@ export function CommandPalette() {
         {/* Footer */}
         <div className="flex items-center justify-between border-t border-[var(--line)] px-4 py-2 text-[10.5px] text-muted-foreground">
           <span className="flex items-center gap-1.5">
-            <Clock3 className="size-3" /> Auralis command
+            <Clock3 className="size-3" /> Commande Auralis
           </span>
           <span className="flex items-center gap-2">
             <kbd className="rounded-[9px] border border-[var(--line)] bg-white/[0.05] px-1 py-0.5 font-bold">↑↓</kbd>
