@@ -299,7 +299,9 @@ function AuralisShell() {
     // position once (best-effort — a miss just starts from 0). Only ever set after
     // restoreLastSession(), so normal track changes pass through untouched.
     const onLoadedMeta = () => {
-      const seekTo = consumeResumeSeek();
+      // Only seek when the resume position was armed for THIS exact track (guards
+      // against a restored track that 404s leaking its seek onto the next track).
+      const seekTo = consumeResumeSeek(usePlayer.getState().currentTrack?.trackhash);
       if (seekTo != null && audio.duration && Number.isFinite(audio.duration)) {
         audio.currentTime = Math.min(seekTo, Math.max(0, audio.duration - 0.25));
         usePlayhead.getState().setPosition(audio.currentTime);

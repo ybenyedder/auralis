@@ -29,15 +29,24 @@ export function getAudioTime(): number | null {
   return audioEl ? audioEl.currentTime : null;
 }
 
-// Seconds to seek to when a RESTORED track's audio loads — set by
-// restoreLastSession, consumed once by the shell's loadedmetadata handler. The
-// seek is best-effort: if it never applies, playback simply starts from 0 (and the
-// first timeupdate re-syncs the scrubber), so a miss is benign.
-let pendingResumeSeek: number | null = null;
-export function consumeResumeSeek(): number | null {
-  const s = pendingResumeSeek;
+// Where to seek when a RESTORED track's audio loads — set by restoreLastSession,
+// consumed once by the shell's loadedmetadata handler. Bound to the specific
+// trackhash so a restored track that never loads (e.g. its file 404s) can't leak a
+// stale seek onto an unrelated track the user picks next. Best-effort: a miss just
+// starts from 0 (the first timeupdate re-syncs the scrubber), so it's benign.
+let pendingResumeSeek: { trackhash: string; position: number } | null = null;
+function clearResumeSeek() {
   pendingResumeSeek = null;
-  return s;
+}
+/** Returns the resume position ONLY when it was armed for `trackhash`, then clears
+ *  it. Any other (normal) track loading gets null and leaves nothing armed. */
+export function consumeResumeSeek(trackhash: string | undefined | null): number | null {
+  if (pendingResumeSeek && trackhash && pendingResumeSeek.trackhash === trackhash) {
+    const pos = pendingResumeSeek.position;
+    pendingResumeSeek = null;
+    return pos;
+  }
+  return null;
 }
 
 export type ViewId =
@@ -310,14 +319,21 @@ function writePersist(state: PlayerState) {
       // Persist the live play order (capped so an autoplay-grown queue can't bloat
       // localStorage). currentIndex points into shuffledQueue.
       lastSession: state.currentTrack
-        ? {
-            trackhash: state.currentTrack.trackhash,
-            queueHashes: state.shuffledQueue.slice(0, 200).map((t) => t.trackhash),
-            currentIndex: Math.min(state.currentIndex, 199),
-            // Live playhead (lives in its own store) — read at write time so the
-            // pagehide/beforeunload flush captures where the user actually is.
-            position: Math.floor(usePlayhead.getState().position),
-          }
+        ? (() => {
+            // Keep a ≤200-track window AROUND the current track (autoplay can grow
+            // the queue well past 200, so a plain slice(0,200) would drop the very
+            // track being played). relIndex stays valid inside the window.
+            const q = state.shuffledQueue;
+            const start = q.length <= 200 ? 0 : Math.max(0, Math.min(state.currentIndex - 40, q.length - 200));
+            return {
+              trackhash: state.currentTrack.trackhash,
+              queueHashes: q.slice(start, start + 200).map((t) => t.trackhash),
+              currentIndex: state.currentIndex - start,
+              // Live playhead (its own store) — read at write time so the pagehide/
+              // beforeunload flush captures where the user actually is.
+              position: Math.floor(usePlayhead.getState().position),
+            };
+          })()
         : undefined,
     };
     window.localStorage.setItem(LS_KEY, JSON.stringify(data));
@@ -453,6 +469,7 @@ export const usePlayer = create<PlayerState>((set, get) => {
     setCommandOpen: (v) => set({ commandOpen: v }),
 
     playTrack: (track, list, startIndex) => {
+      clearResumeSeek();
       const source = list && list.length ? list : [track];
       const idx = list ? (startIndex ?? list.findIndex((t) => t.trackhash === track.trackhash)) : 0;
       const baseIndex = idx >= 0 ? idx : 0;
@@ -477,6 +494,7 @@ export const usePlayer = create<PlayerState>((set, get) => {
     },
 
     playList: (list, startIndex = 0) => {
+      clearResumeSeek();
       if (list.length === 0) return;
       const { shuffle } = get();
       const safeIndex = startIndex >= 0 && startIndex < list.length ? startIndex : 0;
@@ -506,6 +524,7 @@ export const usePlayer = create<PlayerState>((set, get) => {
     },
 
     playNext: () => {
+      clearResumeSeek();
       const { currentIndex, repeat } = get();
       let shuffledQueue = get().shuffledQueue;
       if (shuffledQueue.length === 0) return;
@@ -539,6 +558,7 @@ export const usePlayer = create<PlayerState>((set, get) => {
     },
 
     playPrev: () => {
+      clearResumeSeek();
       const { shuffledQueue, currentIndex, repeat } = get();
       if (shuffledQueue.length === 0) return;
       if (usePlayhead.getState().position > 3) {
@@ -701,6 +721,7 @@ export const usePlayer = create<PlayerState>((set, get) => {
     },
 
     jumpToQueueIndex: (index) => {
+      clearResumeSeek();
       const { shuffledQueue } = get();
       const t = shuffledQueue[index];
       if (!t) return;
@@ -1003,14 +1024,21 @@ export const usePlayer = create<PlayerState>((set, get) => {
       const track = byHash.get(ls.trackhash);
       if (!track) return; // the track left the library (rescan/move)
       const queue = (ls.queueHashes ?? []).map((h) => byHash.get(h)).filter((t): t is Track => Boolean(t));
-      const order = queue.length ? queue : [track];
+      let order = queue.length ? queue : [track];
       let idx = order.findIndex((t) => t.trackhash === ls.trackhash);
-      if (idx < 0) idx = 0;
+      if (idx < 0) {
+        // The saved current track isn't in the (windowed/truncated) queue — resume
+        // it alone rather than wrongly selecting order[0].
+        order = [track];
+        idx = 0;
+      }
       const pos = typeof ls.position === "number" && ls.position > 1 ? ls.position : 0;
       usePlayhead.getState().reset(track.duration || 0);
       if (pos > 0) {
         usePlayhead.getState().setPosition(pos); // scrubber shows where you left off
-        pendingResumeSeek = pos; // the <audio> element seeks here once it loads
+        pendingResumeSeek = { trackhash: order[idx].trackhash, position: pos }; // <audio> seeks here on load
+      } else {
+        pendingResumeSeek = null;
       }
       // Restored PAUSED — the now-playing surface shows where you left off and the
       // user presses play to resume (we deliberately don't auto-start audio).
