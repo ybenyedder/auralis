@@ -109,3 +109,17 @@ test("resetUserStats wipes play counts / recents / events", async () => {
   assert.equal(s.streak, 0);
   assert.equal(s.weekListeningSeconds, 0);
 });
+
+test("resetUserStats is scoped to the user (no cross-user wipe — IDOR-safe)", async () => {
+  const { db, getListeningStats } = await setup();
+  const { resetUserStats } = await import("../src/server/state/userState");
+  const now = Date.now();
+  addTrack(db, "t", 180);
+  addEvent(db, "t", now); // user 1
+  // user 2's signals
+  db.prepare("INSERT INTO play_events (user_id, trackhash, played_at) VALUES (2, 't', ?)").run(now);
+  db.prepare("INSERT INTO playcounts (user_id, trackhash, count, last_played) VALUES (2, 't', 5, ?)").run(now);
+  resetUserStats(1);
+  assert.equal(getListeningStats(1).totalPlays, 0, "user 1 cleared");
+  assert.equal(getListeningStats(2).totalPlays, 5, "user 2 untouched");
+});
