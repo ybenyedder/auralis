@@ -18,7 +18,7 @@ export function AuralisGlyph({ className }: { className?: string }) {
 /** The badged mark used in the sidebar / title bar / mobile header. */
 export function BrandMark({ className }: { className?: string }) {
   return (
-    <span className={`brand-mark ${className ?? ""}`} aria-label="Auralis">
+    <span className={`brand-mark ${className ?? ""}`} role="img" aria-label="Auralis">
       <AuralisGlyph />
     </span>
   );
