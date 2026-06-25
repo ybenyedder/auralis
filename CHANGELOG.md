@@ -34,6 +34,8 @@ migration (v3 `play_events`, v4 `users.token_version`); no manual data migration
   **listening-time** stat and a **“Tes artistes les plus écoutés”** panel in
   Insights, and an **`L` = like** keyboard shortcut.
 - **Sleep timer “fin du titre”** — stop playback at the end of the current track.
+- **Resume where you left off.** The current track, play order and playhead position
+  are persisted on close and restored (paused) on reopen — press play to continue.
 - **Share.** A Share action (native share sheet → clipboard fallback) on the track
   context menu, Now-Playing panel and full-screen player.
 - **Empty states are now actionable** — empty queue → shuffle-all, empty
