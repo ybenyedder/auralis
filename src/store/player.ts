@@ -29,6 +29,17 @@ export function getAudioTime(): number | null {
   return audioEl ? audioEl.currentTime : null;
 }
 
+// Seconds to seek to when a RESTORED track's audio loads — set by
+// restoreLastSession, consumed once by the shell's loadedmetadata handler. The
+// seek is best-effort: if it never applies, playback simply starts from 0 (and the
+// first timeupdate re-syncs the scrubber), so a miss is benign.
+let pendingResumeSeek: number | null = null;
+export function consumeResumeSeek(): number | null {
+  const s = pendingResumeSeek;
+  pendingResumeSeek = null;
+  return s;
+}
+
 export type ViewId =
   | "home"
   | "explore"
@@ -254,9 +265,10 @@ interface Persisted {
   playCounts: Record<string, number>;
   karaokeMode: boolean;
   lyricsOffset: number;
-  /** Last playback session (current track + play order) so it can be restored,
-   *  paused, after a reload/reopen. Hashes only; resolved against the library. */
-  lastSession?: { trackhash: string; queueHashes: string[]; currentIndex: number };
+  /** Last playback session (current track + play order + position) so it can be
+   *  restored, paused, after a reload/reopen. Hashes only; resolved against the
+   *  library. `position` is the playhead in seconds. */
+  lastSession?: { trackhash: string; queueHashes: string[]; currentIndex: number; position: number };
 }
 
 // A small default karaoke lead-in: the highlight appears a beat before the word
@@ -302,6 +314,9 @@ function writePersist(state: PlayerState) {
             trackhash: state.currentTrack.trackhash,
             queueHashes: state.shuffledQueue.slice(0, 200).map((t) => t.trackhash),
             currentIndex: Math.min(state.currentIndex, 199),
+            // Live playhead (lives in its own store) — read at write time so the
+            // pagehide/beforeunload flush captures where the user actually is.
+            position: Math.floor(usePlayhead.getState().position),
           }
         : undefined,
     };
@@ -344,9 +359,14 @@ function persist(state: PlayerState) {
 }
 
 if (typeof window !== "undefined") {
-  // Guarantee the last coalesced write lands before the app is backgrounded/closed.
-  window.addEventListener("pagehide", flushPersist);
-  window.addEventListener("beforeunload", flushPersist);
+  // On close/background, persist the CURRENT state (so the live playhead position is
+  // captured for session resume), then flush synchronously so nothing is lost.
+  const persistNow = () => {
+    try { persist(usePlayer.getState()); } catch { /* store not ready */ }
+    flushPersist();
+  };
+  window.addEventListener("pagehide", persistNow);
+  window.addEventListener("beforeunload", persistNow);
 }
 
 const initial = loadPersisted();
@@ -986,7 +1006,12 @@ export const usePlayer = create<PlayerState>((set, get) => {
       const order = queue.length ? queue : [track];
       let idx = order.findIndex((t) => t.trackhash === ls.trackhash);
       if (idx < 0) idx = 0;
+      const pos = typeof ls.position === "number" && ls.position > 1 ? ls.position : 0;
       usePlayhead.getState().reset(track.duration || 0);
+      if (pos > 0) {
+        usePlayhead.getState().setPosition(pos); // scrubber shows where you left off
+        pendingResumeSeek = pos; // the <audio> element seeks here once it loads
+      }
       // Restored PAUSED — the now-playing surface shows where you left off and the
       // user presses play to resume (we deliberately don't auto-start audio).
       set({ queue: order, shuffledQueue: order, currentIndex: idx, currentTrack: order[idx], isPlaying: false });

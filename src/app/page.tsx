@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef } from "react";
-import { usePlayer, bindAudio, type ViewId } from "@/store/player";
+import { usePlayer, bindAudio, consumeResumeSeek, type ViewId } from "@/store/player";
 import { usePlayhead } from "@/store/playhead";
 import { TitleBar } from "@/components/auralis/TitleBar";
 import { Sidebar } from "@/components/auralis/Sidebar";
@@ -295,15 +295,28 @@ function AuralisShell() {
       usePlayer.getState().notify("Flux audio indisponible", { tone: "error" });
     };
 
+    // Session resume: when a restored track's metadata loads, seek to the saved
+    // position once (best-effort — a miss just starts from 0). Only ever set after
+    // restoreLastSession(), so normal track changes pass through untouched.
+    const onLoadedMeta = () => {
+      const seekTo = consumeResumeSeek();
+      if (seekTo != null && audio.duration && Number.isFinite(audio.duration)) {
+        audio.currentTime = Math.min(seekTo, Math.max(0, audio.duration - 0.25));
+        usePlayhead.getState().setPosition(audio.currentTime);
+      }
+    };
+
     audio.addEventListener("timeupdate", onTimeUpdate);
     audio.addEventListener("durationchange", onDurationChange);
     audio.addEventListener("ended", onEnded);
     audio.addEventListener("error", onError);
+    audio.addEventListener("loadedmetadata", onLoadedMeta);
     return () => {
       audio.removeEventListener("timeupdate", onTimeUpdate);
       audio.removeEventListener("durationchange", onDurationChange);
       audio.removeEventListener("ended", onEnded);
       audio.removeEventListener("error", onError);
+      audio.removeEventListener("loadedmetadata", onLoadedMeta);
     };
   }, []);
 
