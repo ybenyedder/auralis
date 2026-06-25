@@ -1242,9 +1242,9 @@ function AccountSettings() {
           ou défini via <code className="rounded bg-white/[0.06] px-1">AURALIS_ADMIN_PASSWORD</code>. Change-le ici pour le personnaliser.
         </p>
         <div className="space-y-2.5 lg:max-w-sm">
-          <input type="password" value={current} onChange={(e) => setCurrent(e.target.value)} placeholder="Mot de passe actuel" className={inputClass} />
-          <input type="password" value={next} onChange={(e) => setNext(e.target.value)} placeholder="Nouveau mot de passe" className={inputClass} />
-          <input type="password" value={confirm} onChange={(e) => setConfirm(e.target.value)} placeholder="Confirmer le nouveau" className={inputClass} />
+          <input type="password" autoComplete="current-password" value={current} onChange={(e) => setCurrent(e.target.value)} placeholder="Mot de passe actuel" className={inputClass} />
+          <input type="password" autoComplete="new-password" value={next} onChange={(e) => setNext(e.target.value)} placeholder="Nouveau mot de passe" className={inputClass} />
+          <input type="password" autoComplete="new-password" value={confirm} onChange={(e) => setConfirm(e.target.value)} placeholder="Confirmer le nouveau" className={inputClass} />
           <button
             onClick={changePassword}
             disabled={busy}
@@ -1396,8 +1396,8 @@ function AccountManager() {
       </div>
 
       <form onSubmit={create} className="space-y-2.5 lg:max-w-sm">
-        <input value={name} onChange={(e) => setName(e.target.value)} placeholder="Identifiant (ex. famille)" autoCapitalize="off" autoCorrect="off" className={inputClass} />
-        <input type="password" value={password} onChange={(e) => setPassword(e.target.value)} placeholder="Mot de passe (≥ 6 caractères)" className={inputClass} />
+        <input value={name} onChange={(e) => setName(e.target.value)} placeholder="Identifiant (ex. famille)" autoCapitalize="off" autoCorrect="off" autoComplete="off" className={inputClass} />
+        <input type="password" value={password} onChange={(e) => setPassword(e.target.value)} placeholder="Mot de passe (≥ 6 caractères)" autoComplete="new-password" className={inputClass} />
         <label className="flex items-center gap-2 px-1 text-[13px] font-semibold text-muted-foreground">
           <input type="checkbox" checked={makeAdmin} onChange={(e) => setMakeAdmin(e.target.checked)} className="size-4 accent-[var(--primary)]" />
           Administrateur (peut gérer les comptes)

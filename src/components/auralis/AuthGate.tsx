@@ -117,6 +117,7 @@ function LoginScreen({ onUnlock }: { onUnlock: () => void }) {
             type="text"
             autoCapitalize="off"
             autoCorrect="off"
+            autoComplete="username"
             value={username}
             onChange={(e) => setUsername(e.target.value)}
             className="mb-4 w-full rounded-[13px] border border-[var(--line)] bg-[var(--panel-2)] px-3.5 py-3 text-[15px] text-foreground outline-none focus:border-[var(--line-strong)]"
@@ -127,6 +128,7 @@ function LoginScreen({ onUnlock }: { onUnlock: () => void }) {
         <input
           id="pw"
           type="password"
+          autoComplete="current-password"
           value={password}
           onChange={(e) => setPassword(e.target.value)}
           className="w-full rounded-[13px] border border-[var(--line)] bg-[var(--panel-2)] px-3.5 py-3 text-[15px] text-foreground outline-none focus:border-[var(--line-strong)]"
