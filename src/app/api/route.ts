@@ -16,6 +16,7 @@ export async function GET() {
       "/api/lyrics/:trackhash",
       "/api/art/:hash",
       "/api/state",
+      "/api/stats",
       "/api/stream/:path",
     ],
   });

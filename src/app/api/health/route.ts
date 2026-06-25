@@ -1,6 +1,5 @@
 import { getDb } from "@/server/db";
 import { getConfig } from "@/server/config";
-import { getScanProgress } from "@/server/library/scanner";
 import { json, withCors } from "@/server/http";
 
 export const runtime = "nodejs";
@@ -17,8 +16,10 @@ export async function GET() {
   }
   // Health is the one endpoint clients probe cross-origin (before navigating to
   // the server), so it explicitly opts back into an open ACAO. Because it is both
-  // unauthenticated AND CORS-open, it must NOT leak host details — the absolute
-  // musicDir path (which reveals the OS username / filesystem layout) is omitted.
+  // unauthenticated AND CORS-open, it must NOT leak host internals: the absolute
+  // musicDir path is omitted, and the detailed scan progress + process uptime are
+  // kept off the open response (they're observable to authenticated clients via
+  // /api/library and /api/library/scan). What remains is a minimal liveness probe.
   return withCors(json({
     name: "Auralis",
     status: dbOk ? "ok" : "degraded",
@@ -26,7 +27,5 @@ export async function GET() {
     db: dbOk,
     tracks,
     lyricsOnline: config.lyricsOnline,
-    scan: getScanProgress(),
-    uptime: Math.round(process.uptime()),
   }));
 }

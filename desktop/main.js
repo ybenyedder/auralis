@@ -98,12 +98,28 @@ function createWindow(url) {
       preload: path.join(__dirname, "preload.js"),
       contextIsolation: true,
       nodeIntegration: false,
-      sandbox: false,
+      // The renderer only loads our own server's UI; sandbox it. The preload uses
+      // just contextBridge + ipcRenderer (+ process.platform), all available in a
+      // sandboxed preload, so nothing breaks.
+      sandbox: true,
     },
   });
 
   mainWindow.once("ready-to-show", () => mainWindow.show());
   mainWindow.loadURL(url);
+
+  // The window must only ever show OUR server's origin. Any other navigation
+  // (a poisoned link, a redirect, a saved-address swap) would otherwise run
+  // untrusted remote code in the trusted app context next to the preload bridge.
+  const expectedOrigin = (() => { try { return new URL(url).origin; } catch { return null; } })();
+  mainWindow.webContents.on("will-navigate", (event, target) => {
+    let sameOrigin = false;
+    try { sameOrigin = expectedOrigin !== null && new URL(target).origin === expectedOrigin; } catch { sameOrigin = false; }
+    if (!sameOrigin) {
+      event.preventDefault();
+      if (/^https?:/.test(target)) shell.openExternal(target);
+    }
+  });
 
   // External links open in the user's browser, never inside the app shell.
   mainWindow.webContents.setWindowOpenHandler(({ url: target }) => {
@@ -139,6 +155,17 @@ ipcMain.handle("dialog:pickFolder", async () => {
     properties: ["openDirectory"],
   });
   return res.canceled || !res.filePaths.length ? null : res.filePaths[0];
+});
+
+// Defense in depth: clamp EVERY web contents the app creates — deny popups
+// (external links go to the system browser) and forbid <webview> embedding, so
+// no path can spawn an untrusted frame inside the trusted app.
+app.on("web-contents-created", (_e, contents) => {
+  contents.setWindowOpenHandler(({ url: target }) => {
+    if (/^https?:/.test(target)) shell.openExternal(target);
+    return { action: "deny" };
+  });
+  contents.on("will-attach-webview", (event) => event.preventDefault());
 });
 
 const singleInstance = app.requestSingleInstanceLock();
