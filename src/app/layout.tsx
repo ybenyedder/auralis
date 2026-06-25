@@ -2,10 +2,10 @@ import type { ReactNode } from "react";
 import "./globals.css";
 
 export const metadata = {
-  title: "Auralis — Personal Music Vault",
+  title: "Auralis — Ton coffre musical personnel",
   description:
-    "Auralis is a high-fidelity personal music vault. Uncompromised privacy, label-grade aesthetics, local-first playback.",
-  keywords: ["Auralis", "music", "player", "vault", "library", "desktop"],
+    "Auralis est un lecteur de musique personnel haute-fidélité : confidentialité totale, esthétique soignée, lecture 100% locale.",
+  keywords: ["Auralis", "musique", "lecteur", "bibliothèque", "local", "bureau"],
   authors: [{ name: "Auralis" }],
   applicationName: "Auralis",
   manifest: "/manifest.webmanifest",

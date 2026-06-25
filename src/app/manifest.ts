@@ -4,9 +4,9 @@ import type { MetadataRoute } from "next";
 // installable as a standalone PWA on desktop + Android with proper icons.
 export default function manifest(): MetadataRoute.Manifest {
   return {
-    name: "Auralis — Personal Music Vault",
+    name: "Auralis — Coffre musical personnel",
     short_name: "Auralis",
-    description: "A private, local-first music player for your own collection.",
+    description: "Un lecteur de musique privé et 100% local pour ta propre collection.",
     start_url: "/",
     scope: "/",
     display: "standalone",
