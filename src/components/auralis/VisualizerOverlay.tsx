@@ -4,6 +4,7 @@ import { useEffect, useRef } from "react";
 import { X, Play, Pause, SkipForward } from "lucide-react";
 import { usePlayer } from "@/store/player";
 import { usePlayhead } from "@/store/playhead";
+import { useFocusTrap } from "@/lib/auralis/useFocusTrap";
 import { hashString } from "@/lib/auralis/brand";
 import { formatDuration, trackArtist, trackTitle } from "@/lib/auralis/brand";
 
@@ -30,6 +31,8 @@ export function VisualizerOverlay() {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const rafRef = useRef<number>(0);
   const startRef = useRef<number>(0);
+  const rootRef = useRef<HTMLDivElement>(null);
+  useFocusTrap(visualizerOpen, rootRef);
 
   useEffect(() => {
     if (!visualizerOpen) return;
@@ -188,7 +191,7 @@ export function VisualizerOverlay() {
 
   if (!visualizerOpen || !currentTrack) return null;
   return (
-    <div className="fixed inset-0 z-[70] flex flex-col">
+    <div ref={rootRef} role="dialog" aria-modal="true" aria-label="Visualiseur Auralis Scope" className="fixed inset-0 z-[70] flex flex-col">
       <canvas ref={canvasRef} className="absolute inset-0 h-full w-full" />
       <div className="absolute inset-0 bg-black/30" />
 
