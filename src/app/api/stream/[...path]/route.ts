@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import fs from "fs";
+import { stat as fsStat } from "fs/promises";
 import { Readable } from "stream";
 import { contentTypeFor, isSupportedAudioPath, resolveLibraryPath } from "@/server/paths";
 import { checkAuth } from "@/server/http";
@@ -56,9 +57,16 @@ async function streamAudio(request: NextRequest, context: RouteContext, headOnly
 
   if (!filePath) return new NextResponse("Forbidden", { status: 403 });
   if (!isSupportedAudioPath(filePath)) return new NextResponse("Unsupported Media Type", { status: 415 });
-  if (!fs.existsSync(filePath)) return new NextResponse("Not Found", { status: 404 });
 
-  const stat = fs.statSync(filePath);
+  // One async stat instead of existsSync + statSync — keeps the blocking sync I/O
+  // off the event loop on every range request (a seek storms this route). ENOENT
+  // (missing file) surfaces as a 404 via the catch.
+  let stat;
+  try {
+    stat = await fsStat(filePath);
+  } catch {
+    return new NextResponse("Not Found", { status: 404 });
+  }
   if (!stat.isFile()) return new NextResponse("Not Found", { status: 404 });
 
   const fileSize = stat.size;
