@@ -211,23 +211,23 @@ export function HomeView() {
         </section>
       )}
 
-      {recentlyAdded.length > 0 && (
-        <section>
-          <SectionHeader title="Récemment ajoutés" eyebrow="Nouveautés" icon={<Clock3 className="size-4 text-primary-soft" />} action="Lire" onAction={() => playList(recentlyAdded, 0)} />
-          <div className="mt-3 space-y-px">
-            {recentlyAdded.map((track, index) => (
-              <TrackRow key={track.trackhash} track={track} index={index} list={recentlyAdded} showAlbum />
-            ))}
-          </div>
-        </section>
-      )}
-
       {recent.length > 0 && (
         <section>
           <SectionHeader title="Reprendre l’écoute" eyebrow="Récemment" action="Historique" onAction={() => navigate("recents")} />
           <div className="mt-3 space-y-px">
             {recent.map((track, index) => (
               <TrackRow key={track.trackhash} track={track} index={index} list={recent} showAlbum />
+            ))}
+          </div>
+        </section>
+      )}
+
+      {recentlyAdded.length > 0 && (
+        <section>
+          <SectionHeader title="Récemment ajoutés" eyebrow="Nouveautés" icon={<Clock3 className="size-4 text-primary-soft" />} action="Lire" onAction={() => playList(recentlyAdded, 0)} />
+          <div className="mt-3 space-y-px">
+            {recentlyAdded.map((track, index) => (
+              <TrackRow key={track.trackhash} track={track} index={index} list={recentlyAdded} showAlbum />
             ))}
           </div>
         </section>
