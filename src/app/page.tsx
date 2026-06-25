@@ -26,6 +26,7 @@ import { AlbumDetail, ArtistDetail, PlaylistDetail, SettingsView } from "@/compo
 import { useLibrary } from "@/store/library";
 import { useStats } from "@/store/stats";
 import { api } from "@/lib/auralis/api";
+import { trackTitle, trackArtist } from "@/lib/auralis/brand";
 import { AuthGate } from "@/components/auralis/AuthGate";
 import { MobileHeader } from "@/components/auralis/mobile/MobileHeader";
 import { MobileDock } from "@/components/auralis/mobile/MobileDock";
@@ -455,6 +456,12 @@ function AuralisShell() {
       <ThemeBackdrop paused={fullscreenPlayer || visualizerOpen} />
       <div className="app-chrome relative z-[1] flex h-[100dvh] w-screen flex-col overflow-hidden text-foreground">
       <audio ref={audioRef} preload="metadata" />
+
+      {/* Announce track changes to screen readers (the visual now-playing surfaces
+          are scattered across the chrome; this gives AT a single spoken cue). */}
+      <div className="sr-only" aria-live="polite" aria-atomic="true">
+        {currentTrack ? `En lecture : ${trackTitle(currentTrack)} — ${trackArtist(currentTrack)}` : ""}
+      </div>
 
       {/* Desktop chrome — collapsed on phones in favour of the mobile shell. */}
       <div className="hidden md:block">
