@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
   Play,
   ListPlus,
@@ -14,6 +14,7 @@ import {
 } from "lucide-react";
 import { usePlayer } from "@/store/player";
 import { shareTrack } from "@/lib/auralis/share";
+import { useFocusTrap } from "@/lib/auralis/useFocusTrap";
 import { albumsOfArtistFrom, tracksOfAlbumFrom, tracksOfArtistFrom, useLibraryStore } from "@/store/library";
 import { trackArtist, trackTitle, albumArtist, formatCount } from "@/lib/auralis/brand";
 import { cn } from "@/lib/utils";
@@ -37,6 +38,9 @@ export function ContextMenuHost() {
 
   const [submenu, setSubmenu] = useState<"playlists" | null>(null);
   const [pos, setPos] = useState({ x: 0, y: 0 });
+  const trapRef = useRef<HTMLDivElement>(null);
+  // Trap focus inside the open menu/sheet and restore it to the opener on close.
+  useFocusTrap(contextMenu.open, trapRef);
 
   // Clamp the menu position into the viewport whenever it opens, and reset
   // the playlist submenu state. (Position only feeds the desktop popover; the
@@ -138,9 +142,9 @@ export function ContextMenuHost() {
   );
 
   return (
-    <>
-      {/* Desktop (lg+): the original cursor-anchored popover, unchanged. */}
-      <div className="fixed inset-0 z-[70] hidden lg:block" aria-hidden>
+    <div ref={trapRef}>
+      {/* Desktop (lg+): the original cursor-anchored popover. */}
+      <div className="fixed inset-0 z-[70] hidden lg:block">
         <div
           data-context-menu
           role="menu"
@@ -171,7 +175,7 @@ export function ContextMenuHost() {
           {menu(true)}
         </div>
       </div>
-    </>
+    </div>
   );
 }
 
