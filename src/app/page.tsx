@@ -394,6 +394,10 @@ function AuralisShell() {
           if (liked) usePlayer.getState().toggleFavorite(liked.trackhash);
           break;
         }
+        case "q":
+        case "Q":
+          usePlayer.getState().toggleQueue();
+          break;
         case "Escape":
           if (usePlayer.getState().fullscreenPlayer) toggleFullscreenPlayer();
           break;

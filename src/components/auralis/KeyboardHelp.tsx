@@ -31,6 +31,7 @@ const GROUPS: ShortcutGroup[] = [
       { keys: ["Ctrl", "K"], desc: "Ouvrir la palette de commandes" },
       { keys: ["/"], desc: "Ouvrir la palette de commandes" },
       { keys: ["F"], desc: "Ouvrir / fermer le lecteur plein écran" },
+      { keys: ["Q"], desc: "Ouvrir / fermer la file d'attente" },
       { keys: ["V"], desc: "Ouvrir / fermer le visualiseur" },
       { keys: ["Échap"], desc: "Fermer l'overlay ou le plein écran" },
       { keys: ["?"], desc: "Afficher cette aide" },
