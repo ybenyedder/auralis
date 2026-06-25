@@ -77,6 +77,9 @@ export function recordPlay(userId: number, trackhash: string): number {
     `).run(userId, trackhash, now);
     db.prepare("INSERT INTO recents (user_id, trackhash, played_at) VALUES (?, ?, ?) ON CONFLICT(user_id, trackhash) DO UPDATE SET played_at = excluded.played_at").run(userId, trackhash, now);
     db.prepare("DELETE FROM recents WHERE user_id = ? AND trackhash NOT IN (SELECT trackhash FROM recents WHERE user_id = ? ORDER BY played_at DESC LIMIT ?)").run(userId, userId, RECENTS_LIMIT);
+    // Append to the per-day event log (streaks / weekly recap) and prune the tail.
+    db.prepare("INSERT INTO play_events (user_id, trackhash, played_at) VALUES (?, ?, ?)").run(userId, trackhash, now);
+    db.prepare("DELETE FROM play_events WHERE user_id = ? AND played_at < ?").run(userId, now - 400 * 86_400_000);
   });
   tx();
   return (db.prepare("SELECT count FROM playcounts WHERE user_id = ? AND trackhash = ?").get(userId, trackhash) as { count: number } | undefined)?.count ?? 0;

@@ -175,6 +175,19 @@ const MIGRATIONS: string[] = [
   INSERT INTO user_settings (user_id, key, value) SELECT 1, substr(key, 6), value FROM settings WHERE key LIKE 'pref.%';
   DELETE FROM settings WHERE key LIKE 'pref.%';
   `,
+  // v3 — append-only listening event log powering streaks + weekly recap. The
+  // `recents` ring only keeps the latest play per track (so it can't tell that the
+  // same five songs were played every day), which a day-by-day streak needs. The
+  // log is pruned to ~400 days on write so it stays bounded while still allowing a
+  // year-in-review.
+  `
+  CREATE TABLE IF NOT EXISTS play_events (
+    user_id   INTEGER NOT NULL,
+    trackhash TEXT NOT NULL,
+    played_at INTEGER NOT NULL
+  );
+  CREATE INDEX IF NOT EXISTS idx_play_events_user_time ON play_events(user_id, played_at DESC);
+  `,
 ];
 
 function migrate(db: DB) {

@@ -14,9 +14,11 @@ import {
   Pin,
   ChevronUp,
   ChevronDown,
+  Flame,
 } from "lucide-react";
 import { usePlayer } from "@/store/player";
 import { useLibraryStore } from "@/store/library";
+import { useStats } from "@/store/stats";
 import { BrandMark } from "./BrandMark";
 import { cn } from "@/lib/utils";
 import type { ViewId } from "@/lib/auralis/types";
@@ -44,6 +46,7 @@ export function Sidebar() {
   const createPlaylist = usePlayer((s) => s.createPlaylist);
   const reorderCustomPlaylists = usePlayer((s) => s.reorderCustomPlaylists);
   const libraryPlaylists = useLibraryStore((state) => state.playlists);
+  const streak = useStats((s) => s.streak);
 
   const onNewPlaylist = () => {
     const id = createPlaylist(`Playlist ${customPlaylists.length + 1}`);
@@ -55,6 +58,16 @@ export function Sidebar() {
       <div className="flex items-center justify-center gap-2.5 px-3 pb-4 pt-5 lg:justify-start lg:px-5">
         <BrandMark />
         <span className="hidden text-[17px] font-black tracking-tight text-foreground lg:inline">Auralis</span>
+        {streak > 0 && (
+          <button
+            onClick={() => navigate("insights")}
+            title={`Série d'écoute : ${streak} jours d'affilée`}
+            aria-label={`Série d'écoute : ${streak} jours`}
+            className="ml-auto hidden items-center gap-1 rounded-full bg-primary/15 px-2 py-1 text-[11px] font-black text-primary-soft transition-colors hover:bg-primary/25 lg:flex"
+          >
+            <Flame className="size-3.5" /> {streak}
+          </button>
+        )}
       </div>
 
       <div className="flex flex-col gap-1 px-2">

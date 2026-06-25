@@ -1,17 +1,28 @@
 "use client";
 
-import { useMemo, type ComponentType } from "react";
-import { TrendingUp, Clock3, Disc3, UserRound, Headphones } from "lucide-react";
+import { useEffect, useMemo, type ComponentType } from "react";
+import { TrendingUp, Clock3, Disc3, UserRound, Headphones, Flame } from "lucide-react";
 import { usePlayer } from "@/store/player";
 import { useLibraryStore } from "@/store/library";
+import { useStats } from "@/store/stats";
 import { formatCount, formatLongDuration } from "@/lib/auralis/brand";
 import { SectionHeader } from "../SectionHeader";
+import { cn } from "@/lib/utils";
 
 export function InsightsView() {
   const tracks = useLibraryStore((s) => s.tracks);
   const albums = useLibraryStore((s) => s.albums);
   const artists = useLibraryStore((s) => s.artists);
   const playCounts = usePlayer((state) => state.playCounts);
+  const streak = useStats((s) => s.streak);
+  const weekPlays = useStats((s) => s.weekPlays);
+  const todayPlays = useStats((s) => s.todayPlays);
+  const playsByDay = useStats((s) => s.playsByDay);
+  const statsLoaded = useStats((s) => s.loaded);
+  const fetchStats = useStats((s) => s.fetchStats);
+  useEffect(() => {
+    if (!statsLoaded) void fetchStats();
+  }, [statsLoaded, fetchStats]);
   const tracksWithCounts = useMemo(
     () => tracks.map((track) => ({ ...track, playcount: playCounts[track.trackhash] ?? track.playcount ?? 0 })),
     [tracks, playCounts],
@@ -61,6 +72,8 @@ export function InsightsView() {
         </p>
       </div>
 
+      <WeeklyRecap streak={streak} weekPlays={weekPlays} todayPlays={todayPlays} playsByDay={playsByDay} />
+
       <div className="mb-6 grid grid-cols-2 gap-3 md:grid-cols-4">
         {kpis.map((kpi) => {
           const Icon = kpi.icon;
@@ -105,6 +118,47 @@ export function InsightsView() {
               value: album.trackcount || 0,
             }))}
           />
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function WeeklyRecap({ streak, weekPlays, todayPlays, playsByDay }: {
+  streak: number; weekPlays: number; todayPlays: number; playsByDay: { day: string; count: number }[];
+}) {
+  const max = Math.max(1, ...playsByDay.map((d) => d.count));
+  return (
+    <div className="mb-6 grid gap-3 sm:grid-cols-[minmax(0,240px)_1fr]">
+      <div className="matte-panel flex items-center gap-3 rounded-[13px] p-4">
+        <span className="grid size-12 shrink-0 place-items-center rounded-[13px] bg-primary/15 text-primary-soft">
+          <Flame className="size-6" />
+        </span>
+        <div className="min-w-0">
+          <p className="text-[26px] font-black leading-none tracking-tight text-foreground tabular-nums">{streak}</p>
+          <p className="mt-1 text-[11px] font-bold uppercase tracking-[0.12em] text-muted-foreground/80">
+            {streak > 0 ? `jour${streak > 1 ? "s" : ""} d’affilée` : "Commence ta série"}
+          </p>
+        </div>
+      </div>
+      <div className="matte-panel rounded-[13px] p-4">
+        <div className="mb-2 flex items-baseline justify-between gap-2">
+          <p className="text-[10px] font-black uppercase tracking-[0.14em] text-muted-foreground/80">7 derniers jours</p>
+          <p className="text-[12px] text-muted-foreground">
+            <span className="font-black tabular-nums text-foreground">{weekPlays}</span> écoutes ·{" "}
+            <span className="font-black tabular-nums text-foreground">{todayPlays}</span> aujourd’hui
+          </p>
+        </div>
+        <div className="flex h-16 items-end gap-1.5">
+          {(playsByDay.length ? playsByDay : Array.from({ length: 7 }, (_, i) => ({ day: String(i), count: 0 }))).map((d, i, arr) => {
+            const h = Math.max(6, (d.count / max) * 100);
+            const isToday = i === arr.length - 1;
+            return (
+              <div key={d.day} className="flex flex-1 items-end" title={`${d.count} écoutes`}>
+                <div className={cn("w-full rounded-[3px]", isToday ? "bg-primary" : "bg-primary/35")} style={{ height: `${h}%` }} />
+              </div>
+            );
+          })}
         </div>
       </div>
     </div>

@@ -1,14 +1,31 @@
 "use client";
 
-import { useMemo } from "react";
-import { Play, TrendingUp } from "lucide-react";
+import { useEffect, useMemo, useState } from "react";
+import { Play, TrendingUp, Flame, Sparkles, RotateCcw } from "lucide-react";
 import { usePlayer } from "@/store/player";
 import { useLibraryStore, tracksForHashesFrom } from "@/store/library";
+import { useStats } from "@/store/stats";
 import { SectionHeader } from "../SectionHeader";
 import { TrackRow } from "../TrackRow";
 import { AlbumCard, ArtistCard } from "../Cards";
 import { Artwork } from "../Artwork";
 import { coverVars, trackArtist, trackTitle } from "@/lib/auralis/brand";
+
+/** Deterministic per-day shuffle (LCG) so the "Mix du jour" is stable across a
+ *  day and reshuffles at midnight — no Math.random, so SSR and reloads agree. */
+function seededShuffle<T>(arr: T[], seed: number): T[] {
+  const a = [...arr];
+  let s = (seed || 1) >>> 0;
+  const rand = () => {
+    s = (s * 1664525 + 1013904223) >>> 0;
+    return s / 0x100000000;
+  };
+  for (let i = a.length - 1; i > 0; i--) {
+    const j = Math.floor(rand() * (i + 1));
+    [a[i], a[j]] = [a[j], a[i]];
+  }
+  return a;
+}
 
 export function HomeView() {
   const playList = usePlayer((s) => s.playList);
@@ -16,24 +33,66 @@ export function HomeView() {
   const currentTrack = usePlayer((s) => s.currentTrack);
   const playCounts = usePlayer((s) => s.playCounts);
   const recentTrackhashes = usePlayer((s) => s.recentTrackhashes);
+  const favorites = usePlayer((s) => s.favorites);
   const tracks = useLibraryStore((s) => s.tracks);
   const albums = useLibraryStore((s) => s.albums);
   const artists = useLibraryStore((s) => s.artists);
   const error = useLibraryStore((s) => s.error);
 
-  const curated = useMemo(() => tracks.slice(0, 12), [tracks]);
-  // Real listening history (falls back to the first tracks on a fresh library).
-  const recent = useMemo(() => {
-    const hist = tracksForHashesFrom(tracks, recentTrackhashes).slice(0, 6);
-    return hist.length ? hist : tracks.slice(0, 6);
-  }, [tracks, recentTrackhashes]);
+  const streak = useStats((s) => s.streak);
+  const weekPlays = useStats((s) => s.weekPlays);
+  const statsLoaded = useStats((s) => s.loaded);
+  const fetchStats = useStats((s) => s.fetchStats);
+  useEffect(() => {
+    if (!statsLoaded) void fetchStats();
+  }, [statsLoaded, fetchStats]);
+
+  // Read the wall clock once after mount (never during render — that's impure and
+  // would also risk an SSR/CSR mismatch). Drives the daily-mix seed + the greeting.
+  const [now, setNow] = useState<number | null>(null);
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setNow(Date.now());
+  }, []);
+
+  // Real listening history (no fake fill — an empty history shows no shelf).
+  const recent = useMemo(
+    () => tracksForHashesFrom(tracks, recentTrackhashes).slice(0, 6),
+    [tracks, recentTrackhashes],
+  );
+
+  // Daily Mix: a stable-for-the-day shuffle drawn from what you actually like /
+  // play, falling back to the whole library on a fresh account.
+  const dailyMix = useMemo(() => {
+    const liked = tracks.filter((t) => favorites.has(t.trackhash) || (playCounts[t.trackhash] ?? 0) > 0);
+    const pool = liked.length >= 8 ? liked : tracks;
+    const daySeed = now != null ? Math.floor(now / 86_400_000) : 0;
+    return seededShuffle(pool, daySeed).slice(0, 30);
+  }, [tracks, favorites, playCounts, now]);
+
+  // Rediscover: favourited but not played recently — pull people back to old loves.
+  const rediscover = useMemo(() => {
+    const recentSet = new Set(recentTrackhashes.slice(0, 30));
+    return tracks.filter((t) => favorites.has(t.trackhash) && !recentSet.has(t.trackhash)).slice(0, 6);
+  }, [tracks, favorites, recentTrackhashes]);
+
   const featuredAlbums = albums.slice(0, 6);
   const featuredArtists = artists.slice(0, 6);
   const topTracks = useMemo(
     () => [...tracks].sort((a, b) => (playCounts[b.trackhash] ?? b.playcount ?? 0) - (playCounts[a.trackhash] ?? a.playcount ?? 0)).slice(0, 5),
     [tracks, playCounts],
   );
-  const leadTrack = currentTrack ?? tracks[0];
+  const leadTrack = currentTrack ?? recent[0] ?? tracks[0];
+  const mixLead = dailyMix[0];
+
+  const greeting = (() => {
+    if (now == null) return "Bienvenue";
+    const h = new Date(now).getHours();
+    if (h < 6) return "Bonne nuit";
+    if (h < 12) return "Bonjour";
+    if (h < 18) return "Bon après-midi";
+    return "Bonsoir";
+  })();
 
   return (
     <div className="fade-up space-y-6 px-4 py-4 lg:space-y-8 lg:px-6 lg:py-6">
@@ -49,9 +108,19 @@ export function HomeView() {
             className="hidden shadow-[0_20px_44px_-26px_rgba(0,0,0,0.95)] sm:block"
           />
           <div className="min-w-0 flex-1">
-            <p className="text-[10px] font-black uppercase tracking-[0.2em] text-[var(--brass)]">
-              {currentTrack ? "En lecture" : "Bibliothèque locale"}
-            </p>
+            <div className="flex flex-wrap items-center gap-2">
+              <p className="text-[10px] font-black uppercase tracking-[0.2em] text-[var(--brass)]">
+                {currentTrack ? "En lecture" : greeting}
+              </p>
+              {streak > 0 && (
+                <span className="inline-flex items-center gap-1 rounded-full bg-primary/15 px-2 py-0.5 text-[10.5px] font-black text-primary-soft">
+                  <Flame className="size-3" /> {streak} jour{streak > 1 ? "s" : ""} d’affilée
+                </span>
+              )}
+              {weekPlays > 0 && (
+                <span className="text-[10.5px] font-bold text-muted-foreground/70">{weekPlays} écoutes cette semaine</span>
+              )}
+            </div>
             <h1 className="mt-2 max-w-3xl text-[26px] font-black leading-[1.02] tracking-tight text-foreground lg:text-[clamp(30px,5vw,58px)] lg:leading-[0.92]">
               {leadTrack ? trackTitle(leadTrack) : "Aucune musique indexée"}
             </h1>
@@ -59,8 +128,11 @@ export function HomeView() {
             {error && <p className="mt-2 max-w-xl text-[12px] text-amber">{error}</p>}
             <div className="mt-4 flex flex-wrap items-center gap-2 lg:mt-5">
               <button
-                onClick={() => curated.length && playList(curated, leadTrack ? Math.max(0, curated.findIndex((track) => track.trackhash === leadTrack.trackhash)) : 0)}
-                disabled={curated.length === 0}
+                onClick={() => {
+                  const queue = recent.length ? recent : dailyMix.length ? dailyMix : tracks.slice(0, 30);
+                  if (queue.length) playList(queue, leadTrack ? Math.max(0, queue.findIndex((t) => t.trackhash === leadTrack.trackhash)) : 0);
+                }}
+                disabled={tracks.length === 0}
                 className="signal-button tap-press flex h-11 items-center gap-2 rounded-[11px] px-5 text-[13px] font-black disabled:opacity-40 lg:h-auto lg:px-4 lg:py-2 lg:text-[12px]"
               >
                 <Play className="size-4 fill-current" />
@@ -74,12 +146,56 @@ export function HomeView() {
         </div>
       </section>
 
+      {dailyMix.length > 0 && (
+        <section>
+          <SectionHeader title="Mix du jour" eyebrow="Rien que pour toi" icon={<Sparkles className="size-4 text-primary-soft" />} />
+          <div className="mt-3 grid gap-3 lg:grid-cols-[300px_1fr] lg:gap-5">
+            <button
+              onClick={() => playList(dailyMix, 0)}
+              className="hero-cover card-lift group relative flex min-h-[150px] flex-col justify-between overflow-hidden rounded-[16px] border border-[var(--line)] p-4 text-left"
+              style={coverVars(mixLead?.color)}
+              aria-label="Lire le mix du jour"
+            >
+              <div className="flex items-center justify-between">
+                <span className="text-[10px] font-black uppercase tracking-[0.18em] text-[var(--brass)]">
+                  {now != null ? new Date(now).toLocaleDateString("fr-FR", { weekday: "long", day: "numeric", month: "long" }) : ""}
+                </span>
+                <Sparkles className="size-4 text-primary-soft" />
+              </div>
+              <div>
+                <p className="text-[22px] font-black leading-none tracking-tight text-foreground">Mix du jour</p>
+                <p className="mt-1.5 text-[12px] text-muted-foreground">{dailyMix.length} titres · renouvelé chaque jour</p>
+              </div>
+              <span className="signal-button tap-press inline-flex w-fit items-center gap-2 rounded-[11px] px-4 py-2 text-[12px] font-black">
+                <Play className="size-4 fill-current" /> Lire le mix
+              </span>
+            </button>
+            <div className="space-y-px">
+              {dailyMix.slice(0, 5).map((track, index) => (
+                <TrackRow key={track.trackhash} track={track} index={index} list={dailyMix} showAlbum />
+              ))}
+            </div>
+          </div>
+        </section>
+      )}
+
       {recent.length > 0 && (
         <section>
-          <SectionHeader title="Écouté récemment" eyebrow="Reprendre" action="Historique" onAction={() => navigate("recents")} />
+          <SectionHeader title="Reprendre l’écoute" eyebrow="Récemment" action="Historique" onAction={() => navigate("recents")} />
           <div className="mt-3 space-y-px">
             {recent.map((track, index) => (
               <TrackRow key={track.trackhash} track={track} index={index} list={recent} showAlbum />
+            ))}
+          </div>
+        </section>
+      )}
+
+      {rediscover.length > 0 && (
+        <section>
+          <SectionHeader title="À redécouvrir" eyebrow="Tes favoris oubliés" icon={<RotateCcw className="size-4 text-primary-soft" />} action="Favoris" onAction={() => navigate("favorites")} />
+          <div className="mt-3 space-y-px">
+            {rediscover.map((track, index) => (
+              <TrackRow key={track.trackhash} track={track} index={index} list={rediscover} showAlbum />
             ))}
           </div>
         </section>

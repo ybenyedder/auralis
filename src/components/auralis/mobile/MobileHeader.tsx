@@ -1,7 +1,8 @@
 "use client";
 
-import { ChevronLeft, Search, Settings } from "lucide-react";
+import { ChevronLeft, Search, Settings, Flame } from "lucide-react";
 import { usePlayer, type ViewId } from "@/store/player";
+import { useStats } from "@/store/stats";
 import { BrandMark } from "../BrandMark";
 
 const ROOT_TABS: ViewId[] = ["home", "explore", "library", "favorites"];
@@ -28,6 +29,7 @@ export function MobileHeader() {
   const view = usePlayer((s) => s.view);
   const navigate = usePlayer((s) => s.navigate);
   const back = usePlayer((s) => s.back);
+  const streak = useStats((s) => s.streak);
 
   const isRoot = ROOT_TABS.includes(view.view);
   const label = VIEW_LABEL[view.view];
@@ -58,6 +60,15 @@ export function MobileHeader() {
       )}
 
       <div className="ml-auto flex h-14 items-center gap-0.5">
+        {streak > 0 && (
+          <button
+            onClick={() => navigate("insights")}
+            aria-label={`Série d'écoute : ${streak} jours`}
+            className="tap-press mr-0.5 flex items-center gap-1 rounded-full bg-primary/15 px-2.5 py-1.5 text-[12px] font-black text-primary-soft"
+          >
+            <Flame className="size-3.5" /> {streak}
+          </button>
+        )}
         {view.view !== "explore" && (
           <button
             onClick={() => navigate("explore")}

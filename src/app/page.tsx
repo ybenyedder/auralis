@@ -24,6 +24,7 @@ import { FoldersView } from "@/components/auralis/views/FoldersView";
 import { InsightsView } from "@/components/auralis/views/InsightsView";
 import { AlbumDetail, ArtistDetail, PlaylistDetail, SettingsView } from "@/components/auralis/views/DetailView";
 import { useLibrary } from "@/store/library";
+import { useStats } from "@/store/stats";
 import { api } from "@/lib/auralis/api";
 import { AuthGate } from "@/components/auralis/AuthGate";
 import { MobileHeader } from "@/components/auralis/mobile/MobileHeader";
@@ -83,6 +84,7 @@ function AuralisShell() {
   useEffect(() => {
     hydrateLocal();
     void hydrateFromServer();
+    void useStats.getState().fetchStats();
   }, [hydrateLocal, hydrateFromServer]);
 
   // Desktop (Electron) OS media keys → transport controls.
@@ -226,6 +228,8 @@ function AuralisShell() {
           if (listened >= threshold) {
             scrobbledHash = ct.trackhash;
             usePlayer.getState().scrobble(ct.trackhash);
+            // Refresh the streak/recap once the listen actually counts.
+            void useStats.getState().fetchStats();
           }
         }
       }
