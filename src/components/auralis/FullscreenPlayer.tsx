@@ -18,6 +18,7 @@ import {
 } from "lucide-react";
 import { usePlayer } from "@/store/player";
 import { shareTrack } from "@/lib/auralis/share";
+import { useFocusTrap } from "@/lib/auralis/useFocusTrap";
 import { usePlayhead } from "@/store/playhead";
 import { Artwork } from "./Artwork";
 import { LyricsView } from "./LyricsView";
@@ -59,6 +60,10 @@ export function FullscreenPlayer() {
   const [dragY, setDragY] = useState(0);
   const [dragging, setDragging] = useState(false);
   const dragStart = useRef<number | null>(null);
+  // The fullscreen player is a modal takeover: trap focus while open and restore
+  // it to the opener on close (it's conditionally mounted, so active is always true).
+  const rootRef = useRef<HTMLDivElement>(null);
+  useFocusTrap(true, rootRef);
 
   useEffect(() => {
     if (!currentTrack) closeFullscreenPlayer();
@@ -101,6 +106,10 @@ export function FullscreenPlayer() {
 
   return (
     <div
+      ref={rootRef}
+      role="dialog"
+      aria-modal="true"
+      aria-label="Lecteur plein écran"
       className="rise-in fixed inset-0 z-[60] bg-[var(--bg-solid)]"
       style={dragY ? { transform: `translateY(${dragY}px)`, transition: dragging ? "none" : "transform 0.2s ease" } : undefined}
     >
