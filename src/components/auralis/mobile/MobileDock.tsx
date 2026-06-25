@@ -51,13 +51,16 @@ function MiniPlayer() {
   const [pop, setPop] = useState(false);
   // Fire the heart-pop on the actual false→true favourite transition (any surface),
   // not on the tap — so a rapid double-tap that ends unfavourited never animates an
-  // empty heart, and favouriting from elsewhere still pops here.
-  const prevFav = useRef(fav);
+  // empty heart, and favouriting from elsewhere still pops here. Gated on the SAME
+  // trackhash so skipping into an already-liked track (where `fav` flips true purely
+  // from the track change) does NOT spuriously animate.
+  const prevFav = useRef({ hash: currentTrack?.trackhash, fav });
   useEffect(() => {
+    const hash = currentTrack?.trackhash;
     // eslint-disable-next-line react-hooks/set-state-in-effect
-    if (fav && !prevFav.current) setPop(true);
-    prevFav.current = fav;
-  }, [fav]);
+    if (fav && !prevFav.current.fav && prevFav.current.hash === hash) setPop(true);
+    prevFav.current = { hash, fav };
+  }, [fav, currentTrack?.trackhash]);
 
   if (!currentTrack) return null;
 

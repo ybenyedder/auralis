@@ -1350,9 +1350,13 @@ function AccountManager() {
         headers: api.headers({ "Content-Type": "application/json" }),
         body: JSON.stringify({ id: u.id, password: pw }),
       });
-      const data = (await res.json().catch(() => ({}))) as { error?: string };
+      const data = (await res.json().catch(() => ({}))) as { error?: string; token?: string };
       if (!res.ok) notify(data.error ?? "Échec");
-      else notify("Mot de passe réinitialisé");
+      else {
+        // Self-reset re-issues the session (token clients must adopt it).
+        if (data.token && api.token()) api.setToken(data.token);
+        notify("Mot de passe réinitialisé");
+      }
     } catch {
       notify("Serveur injoignable");
     }
