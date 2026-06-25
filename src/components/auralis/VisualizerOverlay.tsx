@@ -199,12 +199,12 @@ export function VisualizerOverlay() {
             <span className="size-2 rounded-[2px] bg-primary-soft animate-pulse" />
           </span>
           <p className="text-[10px] font-black uppercase tracking-[0.22em] text-white/80">
-            Auralis Scope · Visualizer
+            Auralis Scope · Visualiseur
           </p>
         </div>
         <button
           onClick={closeVisualizer}
-          aria-label="Close visualizer"
+          aria-label="Fermer le visualiseur"
           className="grid h-9 w-9 place-items-center rounded-[11px] bg-white/10 text-foreground transition-colors hover:bg-white/20"
         >
           <X className="size-5" />
@@ -217,7 +217,7 @@ export function VisualizerOverlay() {
           <div className="flex items-end justify-between gap-6">
             <div className="min-w-0">
               <p className="text-[10px] font-black uppercase tracking-[0.2em] text-white/60">
-                Now scoping
+                À l’écoute
               </p>
               <h2 className="mt-1 truncate text-[28px] font-black tracking-tight text-foreground">
                 {trackTitle(currentTrack)}
@@ -230,14 +230,14 @@ export function VisualizerOverlay() {
             <div className="flex items-center gap-3">
               <button
                 onClick={togglePlay}
-                aria-label={isPlaying ? "Pause" : "Play"}
+                aria-label={isPlaying ? "Pause" : "Lecture"}
                 className="signal-button grid h-12 w-14 place-items-center rounded-[13px] transition-colors active:translate-y-px"
               >
                 {isPlaying ? <Pause className="size-6 fill-current" /> : <Play className="size-6 fill-current ml-1" />}
               </button>
               <button
                 onClick={playNext}
-                aria-label="Next"
+                aria-label="Suivant"
                 className="grid h-11 w-11 place-items-center rounded-[11px] bg-white/10 text-foreground transition-colors hover:bg-white/20"
               >
                 <SkipForward className="size-5 fill-current" />

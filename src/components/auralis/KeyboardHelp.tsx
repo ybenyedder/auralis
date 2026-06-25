@@ -12,27 +12,27 @@ interface ShortcutGroup {
 
 const GROUPS: ShortcutGroup[] = [
   {
-    label: "Playback",
+    label: "Lecture",
     items: [
-      { keys: ["Space"], desc: "Play / pause" },
-      { keys: ["←", "→"], desc: "Seek −5s / +5s" },
-      { keys: ["Shift", "←"], desc: "Previous track" },
-      { keys: ["Shift", "→"], desc: "Next track" },
-      { keys: ["↑", "↓"], desc: "Volume up / down" },
-      { keys: ["M"], desc: "Mute / unmute" },
-      { keys: ["S"], desc: "Toggle shuffle" },
-      { keys: ["R"], desc: "Cycle repeat (off → all → one)" },
+      { keys: ["Espace"], desc: "Lecture / pause" },
+      { keys: ["←", "→"], desc: "Reculer / avancer de 5 s" },
+      { keys: ["Maj", "←"], desc: "Titre précédent" },
+      { keys: ["Maj", "→"], desc: "Titre suivant" },
+      { keys: ["↑", "↓"], desc: "Volume + / −" },
+      { keys: ["M"], desc: "Couper / rétablir le son" },
+      { keys: ["S"], desc: "Lecture aléatoire" },
+      { keys: ["R"], desc: "Répétition (off → tout → un)" },
     ],
   },
   {
     label: "Navigation",
     items: [
-      { keys: ["⌘", "K"], desc: "Open command palette" },
-      { keys: ["/"], desc: "Open command palette" },
-      { keys: ["F"], desc: "Open / close fullscreen player" },
-      { keys: ["V"], desc: "Open / close Auralis Scope visualizer" },
-      { keys: ["Esc"], desc: "Close overlay or fullscreen" },
-      { keys: ["?"], desc: "Show this help" },
+      { keys: ["Ctrl", "K"], desc: "Ouvrir la palette de commandes" },
+      { keys: ["/"], desc: "Ouvrir la palette de commandes" },
+      { keys: ["F"], desc: "Ouvrir / fermer le lecteur plein écran" },
+      { keys: ["V"], desc: "Ouvrir / fermer le visualiseur" },
+      { keys: ["Échap"], desc: "Fermer l'overlay ou le plein écran" },
+      { keys: ["?"], desc: "Afficher cette aide" },
     ],
   },
 ];
@@ -55,7 +55,7 @@ export function KeyboardHelp() {
   if (!helpOpen) return null;
 
   return (
-    <div className="fixed inset-0 z-[78] flex items-center justify-center" role="dialog" aria-modal="true" aria-label="Keyboard shortcuts">
+    <div className="fixed inset-0 z-[78] flex items-center justify-center" role="dialog" aria-modal="true" aria-label="Raccourcis clavier">
       <div className="backdrop-in absolute inset-0 bg-black/70" onClick={() => setHelpOpen(false)} />
       <div ref={dialogRef} className="scale-in matte-panel relative w-full max-w-[520px] overflow-hidden rounded-[8px]">
         {/* Header */}
@@ -65,12 +65,12 @@ export function KeyboardHelp() {
               <Keyboard className="size-4" />
             </span>
             <div>
-              <p className="text-[13px] font-black leading-tight text-foreground">Keyboard shortcuts</p>
+              <p className="text-[13px] font-black leading-tight text-foreground">Raccourcis clavier</p>
             </div>
           </div>
           <button
             onClick={() => setHelpOpen(false)}
-            aria-label="Close"
+            aria-label="Fermer"
             className="grid size-7 place-items-center rounded-[9px] text-muted-foreground transition-colors hover:bg-white/[0.06] hover:text-foreground"
           >
             <X className="size-4" />

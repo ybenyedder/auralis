@@ -46,7 +46,7 @@ export function NowPlayingPanel() {
         </div>
         <button
           onClick={toggleRightPanel}
-          aria-label="Close panel"
+          aria-label="Fermer le panneau"
           className="grid h-8 w-8 place-items-center rounded-[11px] text-muted-foreground/45 transition-colors hover:bg-white/[0.06] hover:text-foreground"
         >
           <ChevronLeft className="size-4" />
@@ -121,15 +121,15 @@ export function NowPlayingPanel() {
                     <MetaLine label="Album" value={currentTrack.album} />
                   )}
                   {currentTrack.year && (
-                    <MetaLine label="Year" value={String(currentTrack.year)} />
+                    <MetaLine label="Année" value={String(currentTrack.year)} />
                   )}
                   {currentTrack.genre && (
                     <MetaLine label="Genre" value={currentTrack.genre} />
                   )}
                   {currentTrack.bitrate && (
-                    <MetaLine label="Quality" value={`${currentTrack.bitrate} kbps`} />
+                    <MetaLine label="Qualité" value={`${currentTrack.bitrate} kbps`} />
                   )}
-                  <MetaLine label="Duration" value={formatDuration(currentTrack.duration || 0)} />
+                  <MetaLine label="Durée" value={formatDuration(currentTrack.duration || 0)} />
                 </div>
               </div>
             </>

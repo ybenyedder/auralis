@@ -117,7 +117,7 @@ function QueueRow({
         <button onClick={onMoveDown} disabled={!canMoveDown} className="tap-press grid size-10 place-items-center rounded-[9px] text-muted-foreground transition-colors hover:bg-white/[0.06] hover:text-foreground disabled:opacity-25 lg:size-6" aria-label="Descendre dans la file">
           <ArrowDown className="size-4 lg:size-3" />
         </button>
-        <button onClick={onRemove} className="tap-press grid size-10 place-items-center rounded-[9px] text-muted-foreground transition-colors hover:bg-white/[0.06] hover:text-foreground lg:size-6" aria-label="Remove from queue">
+        <button onClick={onRemove} className="tap-press grid size-10 place-items-center rounded-[9px] text-muted-foreground transition-colors hover:bg-white/[0.06] hover:text-foreground lg:size-6" aria-label="Retirer de la file">
           <X className="size-4 lg:size-3" />
         </button>
       </div>

@@ -82,7 +82,7 @@ export function PlayerBar() {
       <div className="flex min-w-0 items-center gap-3" style={{ flexBasis: "28%" }}>
         {currentTrack ? (
           <>
-            <button onClick={toggleFullscreenPlayer} aria-label="Expand player" className="shrink-0">
+            <button onClick={toggleFullscreenPlayer} aria-label="Agrandir le lecteur" className="shrink-0">
               <Artwork
                 title={currentTrack.title}
                 trackhash={currentTrack.trackhash}
@@ -105,7 +105,7 @@ export function PlayerBar() {
             </div>
             <button
               onClick={() => toggleFavorite(currentTrack.trackhash)}
-              aria-label={fav ? "Remove from favorites" : "Add to favorites"}
+              aria-label={fav ? "Retirer des favoris" : "Ajouter aux favoris"}
               className={cn("ml-1 grid h-9 w-9 shrink-0 place-items-center rounded-[11px] transition-colors", fav ? "bg-primary/15 text-primary" : "text-muted-foreground/45 hover:bg-white/[0.06] hover:text-foreground")}
             >
               <Heart className={cn("size-4", fav && "fill-primary")} />
@@ -121,7 +121,7 @@ export function PlayerBar() {
         <div className="flex items-center gap-2">
           <button
             onClick={toggleShuffle}
-            aria-label="Shuffle"
+            aria-label="Lecture aléatoire"
             className={cn("grid h-9 w-9 place-items-center rounded-[11px] transition-colors", shuffle ? "bg-primary/15 text-primary" : "text-muted-foreground/45 hover:bg-white/[0.06] hover:text-foreground")}
           >
             <Shuffle className="size-4" />
@@ -129,7 +129,7 @@ export function PlayerBar() {
           <button
             onClick={playPrev}
             disabled={!currentTrack}
-            aria-label="Previous"
+            aria-label="Précédent"
             className="grid h-9 w-9 place-items-center rounded-[11px] text-foreground/70 transition-colors hover:bg-white/[0.06] hover:text-foreground disabled:opacity-30"
           >
             <SkipBack className="size-[18px] fill-current" />
@@ -137,7 +137,7 @@ export function PlayerBar() {
           <button
             onClick={togglePlay}
             disabled={!currentTrack}
-            aria-label={isPlaying ? "Pause" : "Play"}
+            aria-label={isPlaying ? "Pause" : "Lecture"}
             className="signal-button grid h-10 w-10 place-items-center rounded-[12px] transition-[filter,transform] active:translate-y-px disabled:opacity-30"
           >
             {isPlaying
@@ -147,14 +147,14 @@ export function PlayerBar() {
           <button
             onClick={playNext}
             disabled={!currentTrack}
-            aria-label="Next"
+            aria-label="Suivant"
             className="grid h-9 w-9 place-items-center rounded-[11px] text-foreground/70 transition-colors hover:bg-white/[0.06] hover:text-foreground disabled:opacity-30"
           >
             <SkipForward className="size-[18px] fill-current" />
           </button>
           <button
             onClick={cycleRepeat}
-            aria-label="Repeat"
+            aria-label="Répéter"
             className={cn("grid h-9 w-9 place-items-center rounded-[11px] transition-colors", repeat !== "off" ? "bg-primary/15 text-primary" : "text-muted-foreground/45 hover:bg-white/[0.06] hover:text-foreground")}
           >
             {repeat === "one" ? <Repeat1 className="size-4" /> : <Repeat className="size-4" />}
@@ -168,7 +168,7 @@ export function PlayerBar() {
         <div className="relative">
           <button
             onClick={() => setSleepOpen((v) => !v)}
-            aria-label="Sleep timer"
+            aria-label="Minuteur de veille"
             className={cn("grid h-9 w-9 place-items-center rounded-[11px] transition-colors hover:bg-white/[0.06]", sleepTimer.active ? "bg-primary/15 text-primary" : "text-muted-foreground/45 hover:text-foreground")}
           >
             <Moon className="size-4" />
@@ -187,7 +187,7 @@ export function PlayerBar() {
 
         <button
           onClick={toggleQueue}
-          aria-label="Queue"
+          aria-label="File d'attente"
           className={cn("grid h-9 w-9 place-items-center rounded-[11px] transition-colors hover:bg-white/[0.06]", queueOpen ? "bg-primary/15 text-primary" : "text-muted-foreground/45 hover:text-foreground")}
         >
           <ListMusic className="size-4" />
@@ -197,7 +197,7 @@ export function PlayerBar() {
         <div className="hidden lg:flex items-center gap-2">
           <button
             onClick={toggleMute}
-            aria-label={muted ? "Unmute" : "Mute"}
+            aria-label={muted ? "Rétablir le son" : "Couper le son"}
             className="grid h-9 w-9 place-items-center rounded-[11px] text-muted-foreground/45 transition-colors hover:bg-white/[0.06] hover:text-foreground"
           >
             {muted || vol === 0 ? <VolumeX className="size-4" /> : <Volume2 className="size-4" />}
@@ -207,7 +207,7 @@ export function PlayerBar() {
 
         <button
           onClick={toggleFullscreenPlayer}
-          aria-label="Expand player"
+          aria-label="Agrandir le lecteur"
           className="grid h-9 w-9 place-items-center rounded-[11px] text-muted-foreground/45 transition-colors hover:bg-white/[0.06] hover:text-foreground"
         >
           <Maximize2 className="size-4" />
@@ -304,7 +304,7 @@ function ProgressBar({
       onMouseLeave={() => setHover(false)}
       className={cn("group relative flex-1 cursor-pointer py-2.5 touch-none", disabled && "pointer-events-none opacity-30")}
       role="slider"
-      aria-label="Seek"
+      aria-label="Position de lecture"
       aria-valuemin={0}
       aria-valuemax={100}
       aria-valuenow={Math.round(value)}
