@@ -30,9 +30,10 @@ migration (v3 `play_events`, v4 `users.token_version`); no manual data migration
 - **Onboarding.** An empty library now shows a “Configurer la bibliothèque” CTA on
   the hero instead of a disabled Play button.
 - **More discovery + stats.** A **“Découvertes”** shelf (tracks you own but have
-  never played), an **“À suivre”** next-track peek in the full-screen player, a
-  **listening-time** stat and a **“Tes artistes les plus écoutés”** panel in
-  Insights, and an **`L` = like** keyboard shortcut.
+  never played), **“Tes mix par genre”** on Explore (a one-tap shuffle per
+  well-represented genre), an **“À suivre”** next-track peek in the full-screen
+  player, a **listening-time** stat (week + total) and a **“Tes artistes les plus
+  écoutés”** panel in Insights, and **`L` = like** / **`Q` = queue** shortcuts.
 - **Sleep timer “fin du titre”** — stop playback at the end of the current track.
 - **Resume where you left off.** The current track, play order and playhead position
   are persisted on close and restored (paused) on reopen — press play to continue.
@@ -62,6 +63,11 @@ migration (v3 `play_events`, v4 `users.token_version`); no manual data migration
   Capacitor sets `allowMixedContent: false`.
 - **`/api/health`** trimmed to a minimal liveness probe (no uptime / scan internals
   on the unauthenticated, CORS-open response).
+- **Data control / privacy.** A **“Réinitialiser l’écoute”** action (Settings → Data)
+  wipes your server-side play counts / recents / event log (favourites + playlists
+  kept), scoped to your own account. A one-time nudge prompts personalising the
+  auto-generated admin password. `robots.txt` now disallows all crawling (Auralis is
+  a private app, not a public site).
 
 ### Fixed
 - **Play counts are trustworthy.** A play is counted only after a real listen
@@ -94,7 +100,10 @@ migration (v3 `play_events`, v4 `users.token_version`); no manual data migration
 - Reduced-transparency users get an opaque, blur-free fallback for glass themes.
 - **Fully French UI.** The context menu, command palette and keyboard-help modal
   (previously English) plus stray English labels/aria are now French throughout,
-  and login/password forms carry the right `autoComplete` hints.
+  and login/password forms carry the right `autoComplete` hints. The document
+  `lang` is now `fr` (screen readers use the right voice) and the page title,
+  meta description and PWA manifest name/description are French too. A polite
+  live region announces the now-playing track on each change.
 
 ## [1.1.0] — 2026-06-24
 
