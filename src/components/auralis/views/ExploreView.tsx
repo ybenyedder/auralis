@@ -2,8 +2,9 @@
 
 import { useMemo } from "react";
 import { Search, X } from "lucide-react";
-import { usePlayer } from "@/store/player";
+import { usePlayer, shuffleArray } from "@/store/player";
 import { useLibraryStore, tracksForHashesFrom } from "@/store/library";
+import { paletteForName } from "@/lib/auralis/brand";
 import { SectionHeader } from "../SectionHeader";
 import { TrackRow, TrackListHeader } from "../TrackRow";
 import { AlbumCard, ArtistCard } from "../Cards";
@@ -11,11 +12,28 @@ import { AlbumCard, ArtistCard } from "../Cards";
 export function ExploreView() {
   const searchQuery = usePlayer((s) => s.searchQuery);
   const setSearch = usePlayer((s) => s.setSearch);
+  const playList = usePlayer((s) => s.playList);
   const recentTrackhashes = usePlayer((s) => s.recentTrackhashes);
   const tracks = useLibraryStore((s) => s.tracks);
   const albums = useLibraryStore((s) => s.albums);
   const artists = useLibraryStore((s) => s.artists);
   const query = searchQuery.trim().toLowerCase();
+
+  // Genre "mixes": one card per well-represented genre, plays a shuffle of it.
+  const genreMixes = useMemo(() => {
+    const byGenre = new Map<string, typeof tracks>();
+    for (const t of tracks) {
+      if (!t.genre) continue;
+      const arr = byGenre.get(t.genre) ?? [];
+      arr.push(t);
+      byGenre.set(t.genre, arr);
+    }
+    return [...byGenre.entries()]
+      .filter(([, arr]) => arr.length >= 5)
+      .sort((a, b) => b[1].length - a[1].length)
+      .slice(0, 8)
+      .map(([genre, arr]) => ({ genre, tracks: arr }));
+  }, [tracks]);
 
   const results = useMemo(() => {
     if (!query) return null;
@@ -57,6 +75,29 @@ export function ExploreView() {
             />
           </div>
         </div>
+
+        {genreMixes.length > 0 && (
+          <div className="mb-7 lg:mb-8">
+            <SectionHeader title="Tes mix par genre" eyebrow="Ambiances" />
+            <div className="snap-x -mx-4 mt-3 flex gap-2.5 overflow-x-auto px-4 pb-1 lg:mx-0 lg:grid lg:grid-cols-4 lg:overflow-visible lg:px-0 xl:grid-cols-4">
+              {genreMixes.map(({ genre, tracks: gt }) => {
+                const [c0, c1, c2] = paletteForName(genre);
+                return (
+                  <button
+                    key={genre}
+                    onClick={() => playList(shuffleArray(gt), 0)}
+                    aria-label={`Lire un mix ${genre}`}
+                    className="card-lift tap-press relative flex h-24 w-[160px] shrink-0 snap-start flex-col justify-end overflow-hidden rounded-[13px] border border-[var(--line)] p-3 text-left lg:w-auto"
+                    style={{ background: `radial-gradient(120% 90% at 15% 12%, ${c2}55, transparent 55%), linear-gradient(150deg, ${c0}, ${c1})` }}
+                  >
+                    <span className="truncate text-[14px] font-black leading-tight text-white drop-shadow-[0_1px_3px_rgba(0,0,0,0.5)]">{genre}</span>
+                    <span className="mt-0.5 text-[11px] font-bold text-white/75">{gt.length} titres</span>
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        )}
 
         {historyTracks.length > 0 && (
           <div className="mb-7 lg:mb-8">
