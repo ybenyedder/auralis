@@ -19,6 +19,7 @@ const SORT_LABELS: Record<SortMode, string> = {
 
 export function FavoritesView() {
   const playList = usePlayer((s) => s.playList);
+  const navigate = usePlayer((s) => s.navigate);
   const favorites = usePlayer((s) => s.favorites);
   const tracks = useLibraryStore((s) => s.tracks);
   const [sort, setSort] = useState<SortMode>("recent");
@@ -97,7 +98,14 @@ export function FavoritesView() {
             <div className="grid h-16 w-16 place-items-center rounded-[13px] border border-dashed border-[var(--line-strong)]">
               <Heart className="size-7 text-muted-foreground/60" />
             </div>
-            <p className="text-[14px] font-bold text-muted-foreground">Aucun favori</p>
+            <p className="text-[14px] font-bold text-muted-foreground">Aucun favori pour l’instant</p>
+            <p className="max-w-xs text-[12.5px] text-muted-foreground/70">Touche le cœur sur un titre pour le retrouver ici.</p>
+            <button
+              onClick={() => navigate("library")}
+              className="signal-button tap-press mt-1 flex items-center gap-2 rounded-[11px] px-4 py-2.5 text-[13px] font-black"
+            >
+              <Play className="size-4 fill-current" /> Parcourir la bibliothèque
+            </button>
           </div>
         ) : (
           <>

@@ -1,8 +1,9 @@
 "use client";
 
 import type { CSSProperties } from "react";
-import { ArrowDown, ArrowUp, X, Trash2 } from "lucide-react";
-import { usePlayer } from "@/store/player";
+import { ArrowDown, ArrowUp, X, Trash2, Shuffle } from "lucide-react";
+import { usePlayer, shuffleArray } from "@/store/player";
+import { useLibraryStore } from "@/store/library";
 import { Artwork } from "./Artwork";
 import { EqualizerBars } from "./SectionHeader";
 import { formatDuration, trackArtist, trackTitle } from "@/lib/auralis/brand";
@@ -17,6 +18,8 @@ export function QueueList({ maxHeight }: { maxHeight?: string }) {
   const removeFromQueue = usePlayer((s) => s.removeFromQueue);
   const reorderQueue = usePlayer((s) => s.reorderQueue);
   const clearQueue = usePlayer((s) => s.clearQueue);
+  const playList = usePlayer((s) => s.playList);
+  const libraryTracks = useLibraryStore((s) => s.tracks);
 
   return (
     <div className="flex min-h-0 flex-1 flex-col">
@@ -34,7 +37,16 @@ export function QueueList({ maxHeight }: { maxHeight?: string }) {
         style={maxHeight ? ({ "--queue-max-h": maxHeight } as CSSProperties) : undefined}
       >
         {shuffledQueue.length === 0 ? (
-          <div className="flex h-28 items-center justify-center text-center text-[12px] text-muted-foreground/50">La file est vide.</div>
+          <div className="flex flex-col items-center justify-center gap-3 px-4 py-10 text-center">
+            <p className="text-[12px] text-muted-foreground/60">La file est vide.</p>
+            <button
+              onClick={() => libraryTracks.length && playList(shuffleArray(libraryTracks), 0)}
+              disabled={libraryTracks.length === 0}
+              className="signal-button tap-press flex items-center gap-2 rounded-[11px] px-4 py-2.5 text-[12.5px] font-black disabled:opacity-40"
+            >
+              <Shuffle className="size-4" /> Lecture aléatoire
+            </button>
+          </div>
         ) : (
           <div className="space-y-1">
             {shuffledQueue.map((track, index) => (

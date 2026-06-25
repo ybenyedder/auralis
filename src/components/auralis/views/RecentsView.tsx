@@ -11,6 +11,7 @@ import { trackArtist, trackTitle } from "@/lib/auralis/brand";
 
 export function RecentsView() {
   const playTrack = usePlayer((s) => s.playTrack);
+  const navigate = usePlayer((s) => s.navigate);
   const recentTrackhashes = usePlayer((s) => s.recentTrackhashes);
   const tracks = useLibraryStore((s) => s.tracks);
 
@@ -73,6 +74,13 @@ export function RecentsView() {
               <History className="size-6 text-muted-foreground/60" />
             </div>
             <p className="text-[13px] font-bold text-muted-foreground">Aucun historique réel pour l’instant</p>
+            <p className="max-w-xs text-[12px] text-muted-foreground/70">Lance quelques titres : ils apparaîtront ici après écoute.</p>
+            <button
+              onClick={() => navigate("library")}
+              className="signal-button tap-press mt-1 flex items-center gap-2 rounded-[11px] px-4 py-2.5 text-[13px] font-black"
+            >
+              <Play className="size-4 fill-current" /> Parcourir la bibliothèque
+            </button>
           </div>
         )}
       </div>

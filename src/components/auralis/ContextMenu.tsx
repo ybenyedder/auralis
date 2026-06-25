@@ -10,8 +10,10 @@ import {
   UserRound,
   ChevronRight,
   ListMusic,
+  Share2,
 } from "lucide-react";
 import { usePlayer } from "@/store/player";
+import { shareTrack } from "@/lib/auralis/share";
 import { albumsOfArtistFrom, tracksOfAlbumFrom, tracksOfArtistFrom, useLibraryStore } from "@/store/library";
 import { trackArtist, trackTitle, albumArtist, formatCount } from "@/lib/auralis/brand";
 import { cn } from "@/lib/utils";
@@ -254,6 +256,12 @@ function TrackMenu({
               label={fav ? "Remove from favorites" : "Save to favorites"}
               onClick={() => run(() => toggleFavorite(track.trackhash))}
               accent={fav ? "primary" : undefined}
+            />
+            <MenuItem
+              sheet={sheet}
+              icon={Share2}
+              label="Partager"
+              onClick={() => run(() => void shareTrack(track, usePlayer.getState().notify))}
             />
             <div className="my-1 h-px bg-white/[0.06]" />
             {album && (

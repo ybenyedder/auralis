@@ -1,7 +1,8 @@
 "use client";
 
-import { ListMusic, Mic2, ChevronLeft, Heart, Plus } from "lucide-react";
+import { ListMusic, Mic2, ChevronLeft, Heart, Plus, Share2 } from "lucide-react";
 import { usePlayer } from "@/store/player";
+import { shareTrack } from "@/lib/auralis/share";
 import { LyricsView } from "./LyricsView";
 import { Artwork } from "./Artwork";
 import { QueueList } from "./QueueList";
@@ -20,6 +21,7 @@ export function NowPlayingPanel() {
   const toggleFavorite = usePlayer((s) => s.toggleFavorite);
   const isFavorite = usePlayer((s) => s.isFavorite);
   const openContextMenu = usePlayer((s) => s.openContextMenu);
+  const notify = usePlayer((s) => s.notify);
   const fav = currentTrack ? isFavorite(currentTrack.trackhash) : false;
 
   const tab: "now" | "queue" | "lyrics" = queueOpen ? "queue" : lyricsOpen ? "lyrics" : "now";
@@ -103,6 +105,13 @@ export function NowPlayingPanel() {
                     className="flex h-9 items-center gap-1.5 rounded-full border border-[var(--line)] bg-white/[0.04] px-3 text-[12px] font-bold text-muted-foreground transition-colors hover:bg-white/[0.08] hover:text-foreground"
                   >
                     <Plus className="size-4" /> Playlist
+                  </button>
+                  <button
+                    onClick={() => void shareTrack(currentTrack, notify)}
+                    aria-label="Partager le titre"
+                    className="grid h-9 w-9 place-items-center rounded-full text-muted-foreground/55 transition-colors hover:bg-white/[0.06] hover:text-foreground"
+                  >
+                    <Share2 className="size-[18px]" />
                   </button>
                 </div>
 

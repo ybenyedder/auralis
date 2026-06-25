@@ -14,8 +14,10 @@ import {
   Mic2,
   ListMusic,
   MoreHorizontal,
+  Share2,
 } from "lucide-react";
 import { usePlayer } from "@/store/player";
+import { shareTrack } from "@/lib/auralis/share";
 import { usePlayhead } from "@/store/playhead";
 import { Artwork } from "./Artwork";
 import { LyricsView } from "./LyricsView";
@@ -47,6 +49,7 @@ export function FullscreenPlayer() {
   const toggleQueue = usePlayer((s) => s.toggleQueue);
   const queueOpen = usePlayer((s) => s.queueOpen);
   const openContextMenu = usePlayer((s) => s.openContextMenu);
+  const notify = usePlayer((s) => s.notify);
 
   const [favPop, setFavPop] = useState(false);
   // Drag-down-to-close gesture on the mobile top region.
@@ -299,6 +302,13 @@ export function FullscreenPlayer() {
           className={cn("tap-press flex h-11 items-center gap-2 rounded-[11px] px-4 text-[12px] font-bold transition-colors", queueOpen ? "bg-primary/15 text-primary" : "text-muted-foreground")}
         >
           <ListMusic className="size-5" /> File
+        </button>
+        <button
+          onClick={() => void shareTrack(currentTrack, notify)}
+          aria-label="Partager le titre"
+          className="tap-press grid h-11 w-11 place-items-center rounded-[11px] text-muted-foreground transition-colors"
+        >
+          <Share2 className="size-5" />
         </button>
       </div>
 
