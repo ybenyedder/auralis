@@ -185,6 +185,7 @@ interface PlayerState {
 
   hydrateLocal: () => void;
   hydrateFromServer: () => Promise<void>;
+  restoreLastSession: () => void;
   fetchLyrics: (force?: boolean) => Promise<void>;
 }
 
@@ -253,6 +254,9 @@ interface Persisted {
   playCounts: Record<string, number>;
   karaokeMode: boolean;
   lyricsOffset: number;
+  /** Last playback session (current track + play order) so it can be restored,
+   *  paused, after a reload/reopen. Hashes only; resolved against the library. */
+  lastSession?: { trackhash: string; queueHashes: string[]; currentIndex: number };
 }
 
 // A small default karaoke lead-in: the highlight appears a beat before the word
@@ -291,6 +295,15 @@ function writePersist(state: PlayerState) {
       playCounts: state.playCounts,
       karaokeMode: state.karaokeMode,
       lyricsOffset: state.lyricsOffset,
+      // Persist the live play order (capped so an autoplay-grown queue can't bloat
+      // localStorage). currentIndex points into shuffledQueue.
+      lastSession: state.currentTrack
+        ? {
+            trackhash: state.currentTrack.trackhash,
+            queueHashes: state.shuffledQueue.slice(0, 200).map((t) => t.trackhash),
+            currentIndex: Math.min(state.currentIndex, 199),
+          }
+        : undefined,
     };
     window.localStorage.setItem(LS_KEY, JSON.stringify(data));
   } catch {
@@ -957,6 +970,26 @@ export const usePlayer = create<PlayerState>((set, get) => {
       } catch {
         set({ syncReady: true }); // offline — keep the local cache
       }
+    },
+
+    restoreLastSession: () => {
+      // Don't clobber anything the user already started before the library loaded.
+      if (get().currentTrack) return;
+      const ls = loadPersisted().lastSession;
+      if (!ls?.trackhash) return;
+      const lib = useLibraryStore.getState().tracks;
+      if (lib.length === 0) return; // library not ready yet
+      const byHash = new Map(lib.map((t) => [t.trackhash, t]));
+      const track = byHash.get(ls.trackhash);
+      if (!track) return; // the track left the library (rescan/move)
+      const queue = (ls.queueHashes ?? []).map((h) => byHash.get(h)).filter((t): t is Track => Boolean(t));
+      const order = queue.length ? queue : [track];
+      let idx = order.findIndex((t) => t.trackhash === ls.trackhash);
+      if (idx < 0) idx = 0;
+      usePlayhead.getState().reset(track.duration || 0);
+      // Restored PAUSED — the now-playing surface shows where you left off and the
+      // user presses play to resume (we deliberately don't auto-start audio).
+      set({ queue: order, shuffledQueue: order, currentIndex: idx, currentTrack: order[idx], isPlaying: false });
     },
 
     fetchLyrics: async (force = false) => {

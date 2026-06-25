@@ -74,8 +74,9 @@ function AuralisShell() {
 
   const mainRef = useRef<HTMLDivElement>(null);
   const audioRef = useRef<HTMLAudioElement>(null);
-  // Mounts the library loader + SSE scan stream. Its return value isn't needed here.
-  useLibrary();
+  // Mounts the library loader + SSE scan stream; `status` lets us restore the last
+  // session once the catalogue is available (to resolve track hashes).
+  const { status: libStatus } = useLibrary();
 
   // Apply persisted local state after mount (avoids SSR hydration mismatch), then
   // reconcile with the server's shared state.
@@ -84,6 +85,12 @@ function AuralisShell() {
     void hydrateFromServer();
     void useStats.getState().fetchStats();
   }, [hydrateLocal, hydrateFromServer]);
+
+  // Restore the last session (current track + queue, paused) once the library is
+  // ready to resolve the saved hashes. No-ops if the user already started playing.
+  useEffect(() => {
+    if (libStatus === "ready") usePlayer.getState().restoreLastSession();
+  }, [libStatus]);
 
   // Deep-link support: a PWA shortcut / shared link can open a specific view via
   // ?view= (navigation is client-side state, so we resolve it here on load).
