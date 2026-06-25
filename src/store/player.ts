@@ -62,6 +62,19 @@ interface SleepTimer {
   minutes: number;
 }
 
+export type ToastTone = "success" | "error" | "info";
+export interface ToastModel {
+  id: number;
+  message: string;
+  tone: ToastTone;
+  /** Optional inline action (e.g. "Annuler") — extends the auto-dismiss window. */
+  action?: { label: string; run: () => void };
+}
+export interface NotifyOptions {
+  tone?: ToastTone;
+  action?: { label: string; run: () => void };
+}
+
 interface PlayerState {
   view: NavTarget;
   navHistory: NavTarget[];
@@ -98,7 +111,7 @@ interface PlayerState {
   visualizerOpen: boolean;
   theme: ThemeId;
   contextMenu: ContextMenuState;
-  toast: { id: number; message: string } | null;
+  toast: ToastModel | null;
   lyricsLoading: boolean;
   lyricsStatus: "idle" | "loading" | "found" | "notfound" | "instrumental" | "error";
   lyricsPlain: string | null;
@@ -161,7 +174,7 @@ interface PlayerState {
   openAlbumContextMenu: (x: number, y: number, album: Album) => void;
   openArtistContextMenu: (x: number, y: number, artist: Artist) => void;
   closeContextMenu: () => void;
-  notify: (message: string) => void;
+  notify: (message: string, opts?: NotifyOptions) => void;
   dismissToast: () => void;
 
   hydrateLocal: () => void;
@@ -603,9 +616,13 @@ export const usePlayer = create<PlayerState>((set, get) => {
     },
 
     clearQueue: () => {
-      const { currentTrack } = get();
+      const { currentTrack, queue, shuffledQueue, currentIndex } = get();
+      // Nothing meaningful to clear (empty, or just the current track).
+      if (shuffledQueue.length <= (currentTrack ? 1 : 0)) return;
       set({ queue: currentTrack ? [currentTrack] : [], shuffledQueue: currentTrack ? [currentTrack] : [], currentIndex: 0 });
-      get().notify("File d'attente vidée");
+      get().notify("File d'attente vidée", {
+        action: { label: "Annuler", run: () => set({ queue, shuffledQueue, currentIndex }) },
+      });
     },
 
     jumpToQueueIndex: (index) => {
@@ -810,13 +827,14 @@ export const usePlayer = create<PlayerState>((set, get) => {
     openArtistContextMenu: (x, y, artist) => set({ contextMenu: { open: true, x, y, artist } }),
     closeContextMenu: () => set((s) => ({ contextMenu: { ...s.contextMenu, open: false } })),
 
-    notify: (message) => {
+    notify: (message, opts) => {
       const id = Date.now();
-      set({ toast: { id, message } });
+      set({ toast: { id, message, tone: opts?.tone ?? "success", action: opts?.action } });
       if (typeof window !== "undefined") {
+        // Give an actionable toast (e.g. "Annuler") longer to be clicked.
         window.setTimeout(() => {
           if (get().toast?.id === id) set({ toast: null });
-        }, 2600);
+        }, opts?.action ? 5200 : 2600);
       }
     },
     dismissToast: () => set({ toast: null }),
@@ -922,11 +940,11 @@ export const usePlayer = create<PlayerState>((set, get) => {
           lyricsOpen: s.lyricsOpen,
         }));
 
-        if (res.status === "notfound") get().notify("Aucune parole trouvée en ligne");
-        else if (res.status === "instrumental") get().notify("Morceau instrumental");
+        if (res.status === "notfound") get().notify("Aucune parole trouvée en ligne", { tone: "info" });
+        else if (res.status === "instrumental") get().notify("Morceau instrumental", { tone: "info" });
       } catch {
         set({ lyricsLoading: false, lyricsStatus: "error" });
-        get().notify("Recherche de paroles indisponible");
+        get().notify("Recherche de paroles indisponible", { tone: "error" });
       }
     },
   };

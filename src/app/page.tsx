@@ -173,7 +173,7 @@ function AuralisShell() {
       // Rapid track switches abort the previous play() — that rejection is
       // expected, not a real failure, so don't toast on AbortError.
       audio.play().catch((err: unknown) => {
-        if (!(err instanceof DOMException) || err.name !== "AbortError") notify("Lecture audio indisponible");
+        if (!(err instanceof DOMException) || err.name !== "AbortError") notify("Lecture audio indisponible", { tone: "error" });
       });
     } else {
       audio.pause();
@@ -258,7 +258,7 @@ function AuralisShell() {
         audio.currentTime = 0;
         usePlayhead.getState().setPosition(0);
         usePlayer.setState({ isPlaying: true });
-        audio.play().catch(() => state.notify("Lecture audio indisponible"));
+        audio.play().catch(() => state.notify("Lecture audio indisponible", { tone: "error" }));
         return;
       }
       state.playNext();
@@ -268,7 +268,7 @@ function AuralisShell() {
       // surface a toast for a genuine media failure on a real source.
       if (!audio.getAttribute("src")) return;
       if (audio.error && audio.error.code === audio.error.MEDIA_ERR_ABORTED) return;
-      usePlayer.getState().notify("Flux audio indisponible");
+      usePlayer.getState().notify("Flux audio indisponible", { tone: "error" });
     };
 
     audio.addEventListener("timeupdate", onTimeUpdate);

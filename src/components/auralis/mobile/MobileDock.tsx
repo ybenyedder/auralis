@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Home, Search, Library, Heart, Play, Pause, SkipBack, SkipForward } from "lucide-react";
 import { usePlayer, type ViewId } from "@/store/player";
 import { usePlayhead } from "@/store/playhead";
@@ -49,6 +49,15 @@ function MiniPlayer() {
   const toggleFavorite = usePlayer((s) => s.toggleFavorite);
   const fav = usePlayer((s) => (currentTrack ? s.favorites.has(currentTrack.trackhash) : false));
   const [pop, setPop] = useState(false);
+  // Fire the heart-pop on the actual false→true favourite transition (any surface),
+  // not on the tap — so a rapid double-tap that ends unfavourited never animates an
+  // empty heart, and favouriting from elsewhere still pops here.
+  const prevFav = useRef(fav);
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    if (fav && !prevFav.current) setPop(true);
+    prevFav.current = fav;
+  }, [fav]);
 
   if (!currentTrack) return null;
 
@@ -80,7 +89,7 @@ function MiniPlayer() {
         </button>
 
         <button
-          onClick={() => { if (!fav) setPop(true); toggleFavorite(currentTrack.trackhash); }}
+          onClick={() => toggleFavorite(currentTrack.trackhash)}
           aria-label={fav ? "Retirer des favoris" : "Ajouter aux favoris"}
           className={cn("tap-press grid h-11 w-10 shrink-0 place-items-center rounded-full", fav ? "text-primary" : "text-muted-foreground/65")}
         >
