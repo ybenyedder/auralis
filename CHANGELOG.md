@@ -6,8 +6,10 @@ All notable changes to Auralis are documented here. The format is based on
 
 ## [Unreleased]
 
-Engagement, security, ergonomics and homogeneity pass. Adds one forward-only DB
-migration (v3 `play_events`, v4 `users.token_version`); no manual data migration.
+## [1.2.0] — 2026-06-25
+
+Engagement, security, ergonomics and homogeneity pass. Adds two forward-only DB
+migrations (v3 `play_events`, v4 `users.token_version`); no manual data migration.
 
 ### Added
 - **Engagement loop.** The server already recorded plays/history/favourites but

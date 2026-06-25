@@ -15,6 +15,7 @@ issue for security vulnerabilities.
 
 | Version | Supported |
 | ------- | --------- |
+| 1.2.x   | ✅        |
 | 1.1.x   | ✅        |
 | 1.0.x   | ✅        |
 

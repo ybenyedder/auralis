@@ -16,7 +16,7 @@ const log = createLogger("lyrics");
 const NEGATIVE_TTL_MS = 7 * 24 * 60 * 60 * 1000; // retry "not found" weekly
 const FETCH_TIMEOUT_MS = 9000;
 const MAX_LYRICS_BYTES = 512 * 1024; // bound memory: a lyrics doc is never this big
-const USER_AGENT = "Auralis/1.1.0 (self-hosted music server; https://github.com/ybenyedder/auralis)";
+const USER_AGENT = "Auralis/1.2.0 (self-hosted music server; https://github.com/ybenyedder/auralis)";
 
 /** Fetch JSON from a (operator-configured) lyrics endpoint with three guards the
  *  raw fetch lacked: a hard timeout, `redirect: "error"` so a poisoned endpoint
