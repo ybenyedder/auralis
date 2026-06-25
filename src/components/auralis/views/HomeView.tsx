@@ -64,7 +64,7 @@ export function HomeView() {
   // Daily Mix: a stable-for-the-day shuffle drawn from what you actually like /
   // play, falling back to the whole library on a fresh account.
   const dailyMix = useMemo(() => {
-    const liked = tracks.filter((t) => favorites.has(t.trackhash) || (playCounts[t.trackhash] ?? 0) > 0);
+    const liked = tracks.filter((t) => favorites.has(t.trackhash) || (playCounts[t.trackhash] ?? t.playcount ?? 0) > 0);
     const pool = liked.length >= 8 ? liked : tracks;
     const daySeed = now != null ? Math.floor(now / 86_400_000) : 0;
     return seededShuffle(pool, daySeed).slice(0, 30);
