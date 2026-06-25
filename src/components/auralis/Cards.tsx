@@ -218,7 +218,7 @@ export const PlaylistTile = memo(function PlaylistTile({ playlist }: { playlist:
       <div className="min-w-0">
         <p className="truncate text-[13px] font-black leading-tight text-foreground">{playlist.name}</p>
         <p className="mt-1 truncate text-[11.5px] leading-tight text-muted-foreground">
-          {playlist.trackcount} tracks
+          {playlist.trackcount} titres
         </p>
       </div>
     </div>
