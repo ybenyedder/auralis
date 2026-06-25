@@ -219,11 +219,16 @@ async function fetchFromLrclib(track: TrackMeta): Promise<LrclibHit | null> {
   const top = scored[0];
   if (!top) return null;
   const best = top.hit;
+  const durKnown = typeof best.duration === "number" && !!track.duration;
+  const durDelta = durKnown ? Math.abs((best.duration as number) - track.duration) : Infinity;
   // Reject wildly mismatched durations to avoid pairing the wrong song.
-  if (typeof best.duration === "number" && track.duration && Math.abs(best.duration - track.duration) > 15) return null;
-  // A clearly-different title means a different song that merely matched the loose
-  // search — never attach it, even if the duration was close.
-  if (top.titleP >= 250) return null;
+  if (durKnown && durDelta > 15) return null;
+  // A clearly-different title is dropped ONLY when the duration also fails to
+  // corroborate. A tight duration match (≤4s) trusts the candidate even if the
+  // local title carries different decoration ("(Album Version)" vs "- Single Edit",
+  // a remaster, a transliteration); a different title with loose/unknown duration
+  // is a genuinely different song that merely matched the loose search → drop it.
+  if (top.titleP >= 250 && durDelta > 4) return null;
   return best;
 }
 
