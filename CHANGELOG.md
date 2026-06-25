@@ -29,6 +29,11 @@ migration (v3 `play_events`, v4 `users.token_version`); no manual data migration
   shareable and bookmarkable.
 - **Onboarding.** An empty library now shows a “Configurer la bibliothèque” CTA on
   the hero instead of a disabled Play button.
+- **More discovery + stats.** A **“Découvertes”** shelf (tracks you own but have
+  never played), an **“À suivre”** next-track peek in the full-screen player, a
+  **listening-time** stat and a **“Tes artistes les plus écoutés”** panel in
+  Insights, and an **`L` = like** keyboard shortcut.
+- **Sleep timer “fin du titre”** — stop playback at the end of the current track.
 - **Share.** A Share action (native share sheet → clipboard fallback) on the track
   context menu, Now-Playing panel and full-screen player.
 - **Empty states are now actionable** — empty queue → shuffle-all, empty
@@ -78,11 +83,12 @@ migration (v3 `play_events`, v4 `users.token_version`); no manual data migration
 - **Homogeneity.** A single per-theme `--primary-foreground` (theme `ink`) fixes
   dark text on light accents across all 16 themes; toggle/active states unified on
   `bg-primary/15`; `::selection` and the focus ring now track the active theme.
-- **A11y.** Focus trap + restore for the command palette and keyboard-help modals
-  (palette is now a proper combobox/listbox); `aria-current` on nav; `role=tab` on
-  the now-playing tabs; labelled search inputs; toast carries a tone
-  (success/error/info) with an assertive live region for errors and an optional
-  **Annuler** action (clearing the queue is undoable).
+- **A11y.** Focus trap + restore for the command palette, keyboard-help, context
+  menu, full-screen player and visualizer (all proper `role=dialog`); palette is a
+  combobox/listbox; `aria-current` on nav; `role=tab` on the now-playing tabs;
+  labelled search inputs; toast carries a tone (success/error/info) with an
+  assertive live region for errors and an optional **Annuler** action (clearing the
+  queue is undoable).
 - Reduced-transparency users get an opaque, blur-free fallback for glass themes.
 - **Fully French UI.** The context menu, command palette and keyboard-help modal
   (previously English) plus stray English labels/aria are now French throughout,
