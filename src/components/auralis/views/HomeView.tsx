@@ -117,20 +117,20 @@ export function HomeView() {
 
   return (
     <div className="fade-up space-y-6 px-4 py-4 lg:space-y-8 lg:px-6 lg:py-6">
-      <section className="hero-cover grid gap-4 rounded-[18px] border border-[var(--line)] px-4 py-5 shadow-[0_18px_40px_-30px_rgba(0,0,0,0.9)] lg:gap-5 lg:px-6 lg:py-7" style={coverVars(leadTrack?.color)}>
+      <section className="hero-cover grid gap-4 rounded-xl border border-[var(--line)] px-4 py-5 shadow-[0_8px_22px_-16px_rgba(0,0,0,0.4)] lg:gap-5 lg:px-6 lg:py-7" style={coverVars(leadTrack?.color)}>
         <div className="flex min-w-0 items-end gap-4 lg:gap-6">
           <Artwork
             title={leadTrack?.title}
             trackhash={leadTrack?.trackhash}
             size={128}
-            rounded={13}
+            rounded={12}
             colors={leadTrack?.color}
             image={leadTrack?.image}
-            className="hidden shadow-[0_20px_44px_-26px_rgba(0,0,0,0.95)] sm:block"
+            className="hidden shadow-[0_8px_24px_-18px_rgba(0,0,0,0.4)] sm:block"
           />
           <div className="min-w-0 flex-1">
             <div className="flex flex-wrap items-center gap-2">
-              <p className="text-[10px] font-black uppercase tracking-[0.2em] text-[var(--brass)]">
+              <p className="text-[10px] font-semibold uppercase tracking-[0.08em] text-[var(--brass)]">
                 {currentTrack ? "En lecture" : greeting}
               </p>
               {streak > 0 && (
@@ -151,7 +151,7 @@ export function HomeView() {
               {tracks.length === 0 ? (
                 <button
                   onClick={() => navigate("settings")}
-                  className="signal-button tap-press flex h-11 items-center gap-2 rounded-[11px] px-5 text-[13px] font-black lg:h-auto lg:px-4 lg:py-2 lg:text-[12px]"
+                  className="signal-button tap-press flex h-11 items-center gap-2 rounded-full px-5 text-[13px] font-black transition-all duration-200 hover:scale-105 lg:h-auto lg:px-4 lg:py-2 lg:text-[12px]"
                 >
                   <Settings className="size-4" />
                   Configurer la bibliothèque
@@ -163,12 +163,12 @@ export function HomeView() {
                       const queue = recent.length ? recent : dailyMix.length ? dailyMix : tracks.slice(0, 30);
                       if (queue.length) playList(queue, leadTrack ? Math.max(0, queue.findIndex((t) => t.trackhash === leadTrack.trackhash)) : 0);
                     }}
-                    className="signal-button tap-press flex h-11 items-center gap-2 rounded-[11px] px-5 text-[13px] font-black lg:h-auto lg:px-4 lg:py-2 lg:text-[12px]"
+                    className="signal-button tap-press flex h-11 items-center gap-2 rounded-full px-5 text-[13px] font-black transition-all duration-200 hover:scale-105 shadow-[0_4px_12px_rgba(0,0,0,0.2)] lg:h-auto lg:px-4 lg:py-2 lg:text-[12px]"
                   >
                     <Play className="size-4 fill-current" />
                     Lire
                   </button>
-                  <button onClick={() => navigate("library")} className="ghost-button tap-press flex h-11 items-center rounded-[11px] px-5 text-[13px] font-black lg:h-auto lg:px-4 lg:py-2 lg:text-[12px]">
+                  <button onClick={() => navigate("library")} className="ghost-button tap-press flex h-11 items-center rounded-full px-5 text-[13px] font-black transition-all duration-200 hover:scale-105 lg:h-auto lg:px-4 lg:py-2 lg:text-[12px]">
                     Bibliothèque
                   </button>
                 </>
@@ -184,12 +184,12 @@ export function HomeView() {
           <div className="mt-3 grid gap-3 lg:grid-cols-[300px_1fr] lg:gap-5">
             <button
               onClick={() => playList(dailyMix, 0)}
-              className="hero-cover card-lift group relative flex min-h-[150px] flex-col justify-between overflow-hidden rounded-[16px] border border-[var(--line)] p-4 text-left"
-              style={coverVars(mixLead?.color)}
+              className="hero-cover card-lift group relative flex min-h-[150px] flex-col justify-between overflow-hidden rounded-2xl border border-transparent shadow-[0_4px_24px_rgba(0,0,0,0.15)] p-4 text-left"
+              style={{ ...coverVars(mixLead?.color), border: "1px solid rgba(255,255,255,0.05)" }}
               aria-label="Lire le mix du jour"
             >
               <div className="flex items-center justify-between">
-                <span className="text-[10px] font-black uppercase tracking-[0.18em] text-[var(--brass)]">
+                <span className="text-[10px] font-semibold uppercase tracking-[0.08em] text-[var(--brass)]">
                   {now != null ? new Date(now).toLocaleDateString("fr-FR", { weekday: "long", day: "numeric", month: "long" }) : ""}
                 </span>
                 <Sparkles className="size-4 text-primary-soft" />
@@ -198,7 +198,7 @@ export function HomeView() {
                 <p className="text-[22px] font-black leading-none tracking-tight text-foreground">Mix du jour</p>
                 <p className="mt-1.5 text-[12px] text-muted-foreground">{dailyMix.length} titres · renouvelé chaque jour</p>
               </div>
-              <span className="signal-button tap-press inline-flex w-fit items-center gap-2 rounded-[11px] px-4 py-2 text-[12px] font-black">
+              <span className="signal-button tap-press inline-flex w-fit items-center gap-2 rounded-full px-4 py-2 text-[12px] font-black shadow-[0_4px_12px_rgba(0,0,0,0.2)] transition-transform duration-200 group-hover:scale-105">
                 <Play className="size-4 fill-current" /> Lire le mix
               </span>
             </button>

@@ -47,7 +47,7 @@ export function NowPlayingPanel() {
         <button
           onClick={toggleRightPanel}
           aria-label="Fermer le panneau"
-          className="grid h-8 w-8 place-items-center rounded-[11px] text-muted-foreground/45 transition-colors hover:bg-white/[0.06] hover:text-foreground"
+          className="grid h-8 w-8 place-items-center rounded-full text-muted-foreground/45 transition-all duration-200 hover:bg-white/[0.04] hover:text-white hover:scale-105"
         >
           <ChevronLeft className="size-4" />
         </button>
@@ -64,7 +64,7 @@ export function NowPlayingPanel() {
                   title={currentTrack.title}
                   trackhash={currentTrack.trackhash}
                   size={240}
-                  rounded={11}
+                  rounded={12}
                   colors={currentTrack.color}
                   image={currentTrack.image}
                   className="w-full aspect-square h-auto"
@@ -91,8 +91,8 @@ export function NowPlayingPanel() {
                     onClick={() => toggleFavorite(currentTrack.trackhash)}
                     aria-label={fav ? "Retirer des favoris" : "Ajouter aux favoris"}
                     className={cn(
-                      "grid h-9 w-9 place-items-center rounded-full transition-colors",
-                      fav ? "bg-primary/15 text-primary" : "text-muted-foreground/55 hover:bg-white/[0.06] hover:text-foreground",
+                      "grid h-9 w-9 place-items-center rounded-full transition-all duration-200 hover:scale-110",
+                      fav ? "text-primary drop-shadow-[0_0_8px_rgba(217,95,69,0.5)]" : "text-muted-foreground/55 hover:text-foreground",
                     )}
                   >
                     <Heart className={cn("size-[18px]", fav && "fill-primary")} />
@@ -102,14 +102,14 @@ export function NowPlayingPanel() {
                       const r = (e.currentTarget as HTMLElement).getBoundingClientRect();
                       openContextMenu(r.left, r.bottom + 4, currentTrack);
                     }}
-                    className="flex h-9 items-center gap-1.5 rounded-full border border-[var(--line)] bg-white/[0.04] px-3 text-[12px] font-bold text-muted-foreground transition-colors hover:bg-white/[0.08] hover:text-foreground"
+                    className="flex h-9 items-center gap-1.5 rounded-full bg-white/5 px-3 text-[12px] font-bold text-white/70 shadow-[inset_0_1px_0_rgba(255,255,255,0.05)] transition-all duration-200 hover:bg-white/10 hover:text-white hover:scale-105"
                   >
                     <Plus className="size-4" /> Playlist
                   </button>
                   <button
                     onClick={() => void shareTrack(currentTrack, notify)}
                     aria-label="Partager le titre"
-                    className="grid h-9 w-9 place-items-center rounded-full text-muted-foreground/55 transition-colors hover:bg-white/[0.06] hover:text-foreground"
+                    className="grid h-9 w-9 place-items-center rounded-full text-muted-foreground/55 transition-all duration-200 hover:text-foreground hover:scale-110"
                   >
                     <Share2 className="size-[18px]" />
                   </button>
@@ -164,8 +164,8 @@ function TabButton({ active, onClick, label, icon: Icon, disabled = false }: {
       aria-selected={active}
       title={disabled ? `${label} non disponibles pour ce titre` : label}
       className={cn(
-        "flex items-center gap-1 rounded-[11px] px-2 py-1.5 text-[11px] font-bold transition-colors",
-        disabled ? "cursor-not-allowed text-muted-foreground/25" : active ? "bg-[var(--paper)] text-[var(--ink)]" : "text-muted-foreground/50 hover:bg-white/[0.06] hover:text-foreground",
+        "flex items-center gap-1 rounded-full px-3 py-1.5 text-[11px] font-bold transition-all duration-200",
+        disabled ? "cursor-not-allowed text-muted-foreground/25" : active ? "bg-white/10 text-white shadow-[0_2px_8px_rgba(0,0,0,0.1)]" : "text-muted-foreground/50 hover:bg-white/[0.04] hover:text-foreground",
       )}
     >
       {Icon && <Icon className="size-3.5" />}
@@ -177,7 +177,7 @@ function TabButton({ active, onClick, label, icon: Icon, disabled = false }: {
 function MetaLine({ label, value }: { label: string; value: string }) {
   return (
     <div className="grid grid-cols-[72px_minmax(0,1fr)] items-baseline gap-2 border-b border-[var(--line)] py-2 last:border-0">
-      <span className="text-[10.5px] font-bold uppercase tracking-[0.1em] text-muted-foreground/45">{label}</span>
+      <span className="text-[10.5px] font-semibold uppercase tracking-[0.06em] text-muted-foreground/45">{label}</span>
       <span className="truncate text-[12px] text-muted-foreground/85">{value}</span>
     </div>
   );

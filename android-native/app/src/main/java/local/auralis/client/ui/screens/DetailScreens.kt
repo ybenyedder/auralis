@@ -1,0 +1,189 @@
+package local.auralis.client.ui.screens
+
+import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.aspectRatio
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyRow
+import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.itemsIndexed
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.Icon
+import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.Text
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.Edit
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+import local.auralis.client.ui.AppViewModel
+import local.auralis.client.ui.UiState
+import local.auralis.client.ui.ViewId
+import local.auralis.client.ui.components.CoverArt
+import local.auralis.client.ui.components.Eyebrow
+import local.auralis.client.ui.components.GhostPill
+import local.auralis.client.ui.components.PlayPill
+import local.auralis.client.ui.components.TrackRow
+import local.auralis.client.ui.components.formatLongDuration
+import local.auralis.client.ui.theme.LocalAuralis
+
+@Composable
+fun AlbumDetail(vm: AppViewModel, ui: UiState, albumhash: String) {
+    val colors = LocalAuralis.current
+    val album = ui.albums.find { it.albumhash == albumhash }
+    val tracks = ui.tracks.filter { it.albumhash == albumhash }
+        .sortedWith(compareBy({ it.disc ?: 1 }, { it.track ?: 0 }))
+    val current = vm.playback.value.currentId
+    LazyColumn(contentPadding = PaddingValues(start = 16.dp, end = 16.dp, bottom = 170.dp)) {
+        item {
+            Column(Modifier.padding(top = 8.dp)) {
+                CoverArt(album?.image, albumhash, Modifier.size(180.dp), cornerRadius = 16)
+                Spacer(Modifier.height(14.dp))
+                Text(album?.title ?: "Album", fontSize = 26.sp, fontWeight = FontWeight.Black, color = colors.foreground)
+                Text(album?.artistName ?: "", color = colors.textMuted, fontSize = 14.sp,
+                    modifier = Modifier.clickable {
+                        album?.albumartists?.firstOrNull()?.let { vm.navigate(ViewId.ARTIST, it.artisthash) }
+                    })
+                Spacer(Modifier.height(4.dp))
+                val dur = tracks.sumOf { it.duration ?: 0.0 }
+                Text("${tracks.size} titres · ${formatLongDuration(dur)}", color = colors.textFaint, fontSize = 12.sp)
+                Spacer(Modifier.height(14.dp))
+                Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                    PlayPill("Lire") { vm.playList(tracks) }
+                    GhostPill("Aléatoire") { vm.playShuffled(tracks) }
+                }
+                Spacer(Modifier.height(10.dp))
+            }
+        }
+        itemsIndexed(tracks) { idx, t ->
+            TrackRow(
+                t, isCurrent = t.trackhash == current, isFavorite = ui.favorites.contains(t.trackhash),
+                onClick = { vm.playTrack(t, tracks, idx) },
+                onToggleFavorite = { vm.toggleFavorite(t.trackhash) }, onMore = { vm.openTrackMenu(t) },
+            )
+        }
+    }
+}
+
+@Composable
+fun ArtistDetail(vm: AppViewModel, ui: UiState, artisthash: String) {
+    val colors = LocalAuralis.current
+    val artist = ui.artists.find { it.artisthash == artisthash }
+    val tracks = ui.tracks.filter { it.primaryArtistHash == artisthash || it.artists.any { a -> a.artisthash == artisthash } }
+    val albums = ui.albums.filter { it.albumartists.any { a -> a.artisthash == artisthash } }
+    val top = tracks.sortedByDescending { ui.playCounts[it.trackhash] ?: it.playcount }.take(8)
+    val current = vm.playback.value.currentId
+    LazyColumn(contentPadding = PaddingValues(start = 16.dp, end = 16.dp, bottom = 170.dp)) {
+        item {
+            Column(Modifier.padding(top = 8.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+                CoverArt(artist?.image, artisthash, Modifier.size(150.dp).clip(CircleShape))
+                Spacer(Modifier.height(14.dp))
+                Text(artist?.name ?: "Artiste", fontSize = 26.sp, fontWeight = FontWeight.Black, color = colors.foreground)
+                Text("${tracks.size} titres · ${albums.size} albums", color = colors.textMuted, fontSize = 13.sp)
+                Spacer(Modifier.height(14.dp))
+                Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                    PlayPill("Lire") { vm.playList(top.ifEmpty { tracks }) }
+                    GhostPill("Aléatoire") { vm.playShuffled(tracks) }
+                }
+                Spacer(Modifier.height(10.dp))
+            }
+        }
+        if (top.isNotEmpty()) {
+            item { local.auralis.client.ui.components.SectionHeader("Populaire") }
+            itemsIndexed(top) { idx, t ->
+                TrackRow(
+                    t, isCurrent = t.trackhash == current, isFavorite = ui.favorites.contains(t.trackhash),
+                    onClick = { vm.playTrack(t, top, idx) },
+                    onToggleFavorite = { vm.toggleFavorite(t.trackhash) }, onMore = { vm.openTrackMenu(t) },
+                )
+            }
+        }
+        if (albums.isNotEmpty()) {
+            item {
+                Spacer(Modifier.height(16.dp))
+                local.auralis.client.ui.components.SectionHeader("Discographie")
+                LazyRow(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                    items(albums) { a -> AlbumCard(a) { vm.navigate(ViewId.ALBUM, a.albumhash) } }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+fun PlaylistDetail(vm: AppViewModel, ui: UiState, playlistId: String) {
+    val colors = LocalAuralis.current
+    val pl = ui.playlists.find { it.id == playlistId }
+    val tracks = pl?.trackhashes?.mapNotNull { ui.trackByHash[it] } ?: emptyList()
+    val current = vm.playback.value.currentId
+    var renaming by remember { mutableStateOf(false) }
+    var newName by remember { mutableStateOf(pl?.name ?: "") }
+    LazyColumn(contentPadding = PaddingValues(start = 16.dp, end = 16.dp, bottom = 170.dp)) {
+        item {
+            Column(Modifier.padding(top = 8.dp)) {
+                CoverArt(null, playlistId, Modifier.size(160.dp), cornerRadius = 16)
+                Spacer(Modifier.height(14.dp))
+                if (renaming) {
+                    OutlinedTextField(value = newName, onValueChange = { newName = it }, singleLine = true,
+                        modifier = Modifier.fillMaxWidth())
+                    Spacer(Modifier.height(8.dp))
+                    Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                        PlayPill("Enregistrer") { vm.renamePlaylist(playlistId, newName); renaming = false }
+                        GhostPill("Annuler") { renaming = false }
+                    }
+                } else {
+                    Text(pl?.name ?: "Playlist", fontSize = 26.sp, fontWeight = FontWeight.Black, color = colors.foreground)
+                    Text("${tracks.size} titres", color = colors.textMuted, fontSize = 13.sp)
+                    Spacer(Modifier.height(14.dp))
+                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                        PlayPill("Lire") { vm.playList(tracks) }
+                        GhostPill("Aléatoire") { vm.playShuffled(tracks) }
+                        Text(if (pl?.pinned == true) "📌" else "📍", fontSize = 18.sp,
+                            modifier = Modifier.clickable { vm.togglePin(playlistId) })
+                        Icon(Icons.Filled.Edit, "Renommer", tint = colors.textMuted,
+                            modifier = Modifier.size(22.dp).clickable { newName = pl?.name ?: ""; renaming = true })
+                        Icon(Icons.Filled.Delete, "Supprimer", tint = colors.destructive,
+                            modifier = Modifier.size(22.dp).clickable { vm.deletePlaylist(playlistId); vm.navigate(ViewId.LIBRARY) })
+                    }
+                }
+                Spacer(Modifier.height(10.dp))
+            }
+        }
+        itemsIndexed(tracks) { idx, t ->
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Box(Modifier.weight(1f)) {
+                    TrackRow(
+                        t, isCurrent = t.trackhash == current, isFavorite = ui.favorites.contains(t.trackhash),
+                        onClick = { vm.playTrack(t, tracks, idx) },
+                        onToggleFavorite = { vm.toggleFavorite(t.trackhash) }, onMore = { vm.openTrackMenu(t) },
+                    )
+                }
+                Text("Retirer", color = colors.textFaint, fontSize = 12.sp,
+                    modifier = Modifier.clickable { vm.removeFromPlaylist(playlistId, t.trackhash) }.padding(8.dp))
+            }
+        }
+        if (tracks.isEmpty()) item { EmptyHint("Playlist vide", "Ajoute des titres via le menu ⋮ d'un morceau.") }
+    }
+}

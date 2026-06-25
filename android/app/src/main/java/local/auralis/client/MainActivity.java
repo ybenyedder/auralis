@@ -13,6 +13,10 @@ import com.getcapacitor.BridgeActivity;
 public class MainActivity extends BridgeActivity {
     @Override
     public void onCreate(Bundle savedInstanceState) {
+        // Register custom plugins BEFORE super.onCreate() so the bridge can resolve
+        // them. AudioWakeLock lets the web layer hold a partial CPU wake lock while
+        // audio plays, keeping background playback alive with the screen off.
+        registerPlugin(AudioWakeLockPlugin.class);
         super.onCreate(savedInstanceState);
 
         // Android 13+ (API 33) requires the runtime POST_NOTIFICATIONS grant before

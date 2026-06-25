@@ -113,7 +113,7 @@ export function FullscreenPlayer() {
       className="rise-in fixed inset-0 z-[60] bg-[var(--bg-solid)]"
       style={dragY ? { transform: `translateY(${dragY}px)`, transition: dragging ? "none" : "transform 0.2s ease" } : undefined}
     >
-      {/* The fullscreen sheet carries its OWN animated backdrop so it fully
+      {/* The fullscreen sheet carries its OWN backdrop wash so it fully
           occludes the app shell underneath (with glass themes a transparent
           shell would otherwise bleed through). */}
       <ThemeBackdrop />
@@ -127,13 +127,13 @@ export function FullscreenPlayer() {
           onClick={closeFullscreenPlayer}
           aria-label="Réduire le lecteur"
           title="Réduire (Échap)"
-          className="ghost-button tap-press z-[1] flex h-11 items-center gap-2 rounded-[11px] px-3 transition-colors lg:h-9"
+          className="tap-press z-[1] flex h-11 items-center gap-2 rounded-full px-3 transition-all duration-200 text-white/70 hover:text-white hover:bg-white/10 lg:h-9"
         >
           <ChevronDown className="size-6 lg:size-5" />
           <span className="hidden text-[12.5px] font-bold lg:inline">Réduire</span>
         </button>
         <p
-          className="flex-1 cursor-grab select-none text-center text-[10px] font-black uppercase tracking-[0.2em] text-muted-foreground active:cursor-grabbing"
+          className="flex-1 cursor-grab select-none text-center text-[10px] font-semibold uppercase tracking-[0.08em] text-muted-foreground active:cursor-grabbing"
           onPointerDown={onDragPointerDown}
           onPointerMove={onDragPointerMove}
           onPointerUp={onDragPointerEnd}
@@ -143,13 +143,13 @@ export function FullscreenPlayer() {
         <button
           onClick={openMore}
           aria-label="Options du titre"
-          className="ghost-button tap-press grid h-11 w-11 place-items-center rounded-[11px] transition-colors lg:hidden"
+          className="tap-press grid h-11 w-11 place-items-center rounded-full transition-all duration-200 text-white/70 hover:text-white hover:bg-white/10 lg:hidden"
         >
           <MoreHorizontal className="size-6" />
         </button>
         <button
           onClick={toggleQueue}
-          className={cn("hidden h-9 w-9 place-items-center rounded-[11px] transition-colors lg:grid", queueOpen ? "bg-primary/15 text-primary" : "ghost-button")}
+          className={cn("hidden h-9 w-9 place-items-center rounded-full transition-all duration-200 lg:grid", queueOpen ? "bg-white/20 text-white shadow-[0_0_12px_rgba(255,255,255,0.1)]" : "text-white/70 hover:text-white hover:bg-white/10")}
           aria-label="File d'attente"
         >
           <ListMusic className="size-5" />
@@ -177,19 +177,15 @@ export function FullscreenPlayer() {
                 title={currentTrack.title}
                 trackhash={currentTrack.trackhash}
                 size={360}
-                rounded={13}
+                rounded={12}
                 colors={colors}
                 image={currentTrack.image}
                 className={cn("w-[min(74vw,360px)] aspect-square transition-transform duration-500", isPlaying ? "scale-100" : "scale-[0.97]")}
               />
               {isPlaying && (
-                <div className="matte-panel absolute -bottom-2 left-1/2 flex -translate-x-1/2 items-center gap-1.5 rounded-[11px] px-3 py-1">
-                  <span className="flex items-end gap-[2px] h-2.5">
-                    {[0, 1, 2].map((i) => (
-                      <span key={i} className="eq-bar w-[2px] rounded-[1px] bg-primary" style={{ height: "100%", animationDelay: `${i * 0.18}s`, animationDuration: `${0.7 + (i % 2) * 0.25}s` }} />
-                    ))}
-                  </span>
-                  <span className="text-[9px] font-black uppercase tracking-wider text-primary-soft">En lecture</span>
+                <div className="matte-panel absolute -bottom-2 left-1/2 flex -translate-x-1/2 items-center gap-1.5 rounded-md px-3 py-1">
+                  <EqualizerBars className="h-2.5" />
+                  <span className="text-[9px] font-semibold uppercase tracking-[0.06em] text-primary-soft">En lecture</span>
                 </div>
               )}
             </div>
@@ -199,7 +195,7 @@ export function FullscreenPlayer() {
               {currentTrack.album && <p className="mt-1 text-[12px] text-muted-foreground/65">{currentTrack.album} · {currentTrack.year}</p>}
               {nextTrack && (
                 <button onClick={toggleQueue} className="mt-3 inline-flex max-w-full items-center gap-1.5 truncate text-[11px] text-muted-foreground/60 transition-colors hover:text-foreground/80">
-                  <span className="shrink-0 font-black uppercase tracking-wider text-[var(--brass)]">À suivre</span>
+                  <span className="shrink-0 font-semibold uppercase tracking-[0.06em] text-[var(--brass)]">À suivre</span>
                   <span className="truncate">{trackTitle(nextTrack)} — {trackArtist(nextTrack)}</span>
                 </button>
               )}
@@ -216,19 +212,15 @@ export function FullscreenPlayer() {
               title={currentTrack.title}
               trackhash={currentTrack.trackhash}
               size={340}
-              rounded={13}
+              rounded={12}
               colors={colors}
               image={currentTrack.image}
               className={cn("transition-transform duration-500", isPlaying && "scale-100", !isPlaying && "scale-95")}
             />
             {isPlaying && (
-              <div className="matte-panel absolute -bottom-2 left-1/2 flex -translate-x-1/2 items-center gap-1.5 rounded-[11px] px-3 py-1">
-                <span className="flex items-end gap-[2px] h-2.5">
-                  {[0, 1, 2].map((i) => (
-                    <span key={i} className="eq-bar w-[2px] rounded-[1px] bg-primary" style={{ height: "100%", animationDelay: `${i * 0.18}s`, animationDuration: `${0.7 + (i % 2) * 0.25}s` }} />
-                  ))}
-                </span>
-                <span className="text-[9px] font-black uppercase tracking-wider text-primary-soft">En lecture</span>
+              <div className="matte-panel absolute -bottom-2 left-1/2 flex -translate-x-1/2 items-center gap-1.5 rounded-md px-3 py-1">
+                <EqualizerBars className="h-2.5" />
+                <span className="text-[9px] font-semibold uppercase tracking-[0.06em] text-primary-soft">En lecture</span>
               </div>
             )}
           </div>
@@ -238,7 +230,7 @@ export function FullscreenPlayer() {
             {currentTrack.album && <p className="mt-0.5 text-[12px] text-muted-foreground/65">{currentTrack.album} · {currentTrack.year}</p>}
             {nextTrack && (
               <button onClick={toggleQueue} className="mt-3 inline-flex max-w-full items-center gap-1.5 truncate text-[11px] text-muted-foreground/55 transition-colors hover:text-foreground/80">
-                <span className="shrink-0 font-black uppercase tracking-wider text-[var(--brass)]">À suivre</span>
+                <span className="shrink-0 font-semibold uppercase tracking-[0.06em] text-[var(--brass)]">À suivre</span>
                 <span className="truncate">{trackTitle(nextTrack)} — {trackArtist(nextTrack)}</span>
               </button>
             )}
@@ -251,7 +243,7 @@ export function FullscreenPlayer() {
             <button
               onClick={toggleLyrics}
               className={cn(
-                "flex items-center gap-1.5 rounded-[11px] px-3.5 py-1.5 text-[11.5px] font-bold transition-colors",
+                "flex items-center gap-1.5 rounded-md px-3.5 py-1.5 text-[11.5px] font-bold transition-colors",
                 lyricsOpen ? "signal-button" : "ghost-button",
               )}
             >
@@ -278,27 +270,27 @@ export function FullscreenPlayer() {
       <div className="mx-auto flex w-full items-center justify-between px-6 pb-5 lg:max-w-2xl lg:justify-center lg:gap-6 lg:px-10 lg:pb-8">
         <button
           onClick={toggleShuffle}
-          className={cn("tap-press grid h-11 w-11 place-items-center rounded-[11px] transition-colors lg:h-10 lg:w-10", shuffle ? "bg-primary/15 text-primary" : "text-muted-foreground hover:bg-white/[0.06] hover:text-foreground")}
+          className={cn("tap-press grid h-11 w-11 place-items-center rounded-full transition-all duration-200 lg:h-10 lg:w-10", shuffle ? "text-primary drop-shadow-[0_0_8px_rgba(217,95,69,0.4)] scale-105" : "text-white/50 hover:text-white/90 hover:scale-105")}
           aria-label="Lecture aléatoire"
         >
           <Shuffle className="size-5" />
         </button>
-        <button onClick={playPrev} className="tap-press grid h-12 w-12 place-items-center rounded-[11px] text-foreground/80 transition-colors hover:bg-white/[0.06] hover:text-foreground lg:h-10 lg:w-10" aria-label="Précédent">
+        <button onClick={playPrev} className="tap-press grid h-12 w-12 place-items-center rounded-full text-white/70 transition-all duration-200 hover:text-white hover:scale-110 lg:h-10 lg:w-10" aria-label="Précédent">
           <SkipBack className="size-7 fill-current" />
         </button>
         <button
           onClick={togglePlay}
           aria-label={isPlaying ? "Pause" : "Lecture"}
-          className="signal-button tap-press grid h-16 w-16 place-items-center rounded-[16px] transition-[filter,transform] active:translate-y-px lg:h-14 lg:w-14"
+          className="signal-button tap-press grid h-16 w-16 place-items-center rounded-xl transition-[filter,transform] active:translate-y-px lg:h-14 lg:w-14"
         >
           {isPlaying ? <Pause className="size-7 fill-current" /> : <Play className="size-7 fill-current ml-1" />}
         </button>
-        <button onClick={playNext} className="tap-press grid h-12 w-12 place-items-center rounded-[11px] text-foreground/80 transition-colors hover:bg-white/[0.06] hover:text-foreground lg:h-10 lg:w-10" aria-label="Suivant">
+        <button onClick={playNext} className="tap-press grid h-12 w-12 place-items-center rounded-full text-white/70 transition-all duration-200 hover:text-white hover:scale-110 lg:h-10 lg:w-10" aria-label="Suivant">
           <SkipForward className="size-7 fill-current" />
         </button>
         <button
           onClick={cycleRepeat}
-          className={cn("tap-press grid h-11 w-11 place-items-center rounded-[11px] transition-colors lg:h-10 lg:w-10", repeat !== "off" ? "bg-primary/15 text-primary" : "text-muted-foreground hover:bg-white/[0.06] hover:text-foreground")}
+          className={cn("tap-press grid h-11 w-11 place-items-center rounded-full transition-all duration-200 lg:h-10 lg:w-10", repeat !== "off" ? "text-primary drop-shadow-[0_0_8px_rgba(217,95,69,0.4)] scale-105" : "text-white/50 hover:text-white/90 hover:scale-105")}
           aria-label="Répéter"
         >
           {repeat === "one" ? <Repeat1 className="size-5" /> : <Repeat className="size-5" />}
@@ -311,26 +303,26 @@ export function FullscreenPlayer() {
         <button
           onClick={onFav}
           aria-label={fav ? "Retirer des favoris" : "Ajouter aux favoris"}
-          className={cn("tap-press grid h-11 w-11 place-items-center rounded-[11px] transition-colors", fav ? "text-primary" : "text-muted-foreground")}
+          className={cn("tap-press grid h-11 w-11 place-items-center rounded-full transition-all duration-200 hover:scale-110", fav ? "text-primary drop-shadow-[0_0_8px_rgba(217,95,69,0.5)]" : "text-white/60 hover:text-white")}
         >
           <Heart className={cn("size-6", fav && "fill-primary", favPop && "heart-pop")} onAnimationEnd={() => setFavPop(false)} />
         </button>
         <button
           onClick={toggleLyrics}
-          className={cn("tap-press flex h-11 items-center gap-2 rounded-[11px] px-4 text-[12px] font-bold transition-colors", lyricsOpen ? "bg-primary/15 text-primary" : "text-muted-foreground")}
+          className={cn("tap-press flex h-11 items-center gap-2 rounded-full px-4 text-[12px] font-bold transition-all duration-200", lyricsOpen ? "bg-white/20 text-white shadow-[0_0_12px_rgba(255,255,255,0.1)]" : "text-white/60 hover:text-white hover:bg-white/10")}
         >
           <Mic2 className="size-5" /> Paroles
         </button>
         <button
           onClick={toggleQueue}
-          className={cn("tap-press flex h-11 items-center gap-2 rounded-[11px] px-4 text-[12px] font-bold transition-colors", queueOpen ? "bg-primary/15 text-primary" : "text-muted-foreground")}
+          className={cn("tap-press flex h-11 items-center gap-2 rounded-full px-4 text-[12px] font-bold transition-all duration-200", queueOpen ? "bg-white/20 text-white shadow-[0_0_12px_rgba(255,255,255,0.1)]" : "text-white/60 hover:text-white hover:bg-white/10")}
         >
           <ListMusic className="size-5" /> File
         </button>
         <button
           onClick={() => void shareTrack(currentTrack, notify)}
           aria-label="Partager le titre"
-          className="tap-press grid h-11 w-11 place-items-center rounded-[11px] text-muted-foreground transition-colors"
+          className="tap-press grid h-11 w-11 place-items-center rounded-full text-white/60 transition-all duration-200 hover:text-white hover:bg-white/10 hover:scale-110"
         >
           <Share2 className="size-5" />
         </button>
@@ -340,17 +332,17 @@ export function FullscreenPlayer() {
       <div className="mx-auto hidden w-full max-w-2xl items-center justify-between px-10 pb-6 lg:flex">
         <button
           onClick={onFav}
-          className={cn("flex items-center gap-2 rounded-[11px] px-3 py-1.5 text-[12px] font-bold transition-colors", fav ? "bg-primary/15 text-primary" : "ghost-button")}
+          className={cn("flex items-center gap-2 rounded-md px-3 py-1.5 text-[12px] font-bold transition-colors", fav ? "bg-primary/15 text-primary" : "ghost-button")}
         >
           <Heart className={cn("size-4", fav && "fill-primary", favPop && "heart-pop")} onAnimationEnd={() => setFavPop(false)} />
           {fav ? "Aimé" : "Aimer"}
         </button>
         {isPlaying && (
-          <span className="flex items-center gap-2 text-[11px] font-bold uppercase tracking-wider text-muted-foreground">
+          <span className="flex items-center gap-2 text-[11px] font-semibold uppercase tracking-[0.06em] text-muted-foreground">
             <EqualizerBars active className="h-3" /> En lecture
           </span>
         )}
-        <button onClick={openMore} className="ghost-button grid h-8 w-8 place-items-center rounded-[11px] transition-colors" aria-label="Options du titre">
+        <button onClick={openMore} className="ghost-button grid h-8 w-8 place-items-center rounded-md transition-colors" aria-label="Options du titre">
           <MoreHorizontal className="size-4" />
         </button>
       </div>
@@ -392,12 +384,12 @@ function FullscreenScrubber({ seek }: { seek: (time: number) => void }) {
             setScrubPct(null);
           }}
         >
-          <div className="h-1.5 w-full overflow-hidden rounded-[2px] bg-white/15">
-            <div className="h-full rounded-[2px] bg-[var(--paper)]" style={{ width: `${pct}%` }} />
+          <div className="h-1.5 w-full overflow-hidden rounded-xs bg-[var(--line-strong)]">
+            <div className="h-full rounded-xs bg-[var(--paper)]" style={{ width: `${pct}%` }} />
           </div>
           {/* Thumb: always visible on mobile, hover/scrub-only on desktop. */}
           <div
-            className="pointer-events-none absolute top-1/2 h-4 w-2 -translate-y-1/2 rounded-[2px] bg-[var(--paper)] transition-opacity lg:opacity-0"
+            className="pointer-events-none absolute top-1/2 h-4 w-2 -translate-y-1/2 rounded-xs bg-[var(--paper)] transition-opacity lg:opacity-0"
             style={{ left: `calc(${pct}% - 4px)`, opacity: scrubPct !== null ? 1 : undefined }}
           />
         </div>

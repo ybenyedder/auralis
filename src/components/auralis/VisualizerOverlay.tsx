@@ -198,17 +198,17 @@ export function VisualizerOverlay() {
       {/* Top bar */}
       <div className="relative flex items-center justify-between px-6 py-4">
         <div className="flex items-center gap-2">
-          <span className="grid h-7 w-7 place-items-center rounded-[9px] bg-white/10 text-primary-soft">
-            <span className="size-2 rounded-[2px] bg-primary-soft animate-pulse" />
+          <span className="grid h-7 w-7 place-items-center rounded-full bg-white/10 backdrop-blur shadow-[0_2px_8px_rgba(0,0,0,0.2)] text-primary-soft">
+            <span className="size-2 rounded-full bg-primary-soft animate-pulse" />
           </span>
-          <p className="text-[10px] font-black uppercase tracking-[0.22em] text-white/80">
+          <p className="text-[10px] font-semibold uppercase tracking-[0.08em] text-white/80">
             Auralis Scope · Visualiseur
           </p>
         </div>
         <button
           onClick={closeVisualizer}
           aria-label="Fermer le visualiseur"
-          className="grid h-9 w-9 place-items-center rounded-[11px] bg-white/10 text-foreground transition-colors hover:bg-white/20"
+          className="grid h-9 w-9 place-items-center rounded-full bg-white/10 text-foreground backdrop-blur shadow-[0_2px_8px_rgba(0,0,0,0.2)] transition-all duration-200 hover:bg-white/20 hover:scale-105"
         >
           <X className="size-5" />
         </button>
@@ -219,7 +219,7 @@ export function VisualizerOverlay() {
         <div className="mx-auto max-w-3xl">
           <div className="flex items-end justify-between gap-6">
             <div className="min-w-0">
-              <p className="text-[10px] font-black uppercase tracking-[0.2em] text-white/60">
+              <p className="text-[10px] font-semibold uppercase tracking-[0.08em] text-white/60">
                 À l’écoute
               </p>
               <h2 className="mt-1 truncate text-[28px] font-black tracking-tight text-foreground">
@@ -234,14 +234,14 @@ export function VisualizerOverlay() {
               <button
                 onClick={togglePlay}
                 aria-label={isPlaying ? "Pause" : "Lecture"}
-                className="signal-button grid h-12 w-14 place-items-center rounded-[13px] transition-colors active:translate-y-px"
+                className="signal-button grid h-14 w-14 place-items-center rounded-full shadow-[0_8px_24px_rgba(0,0,0,0.3)] transition-all duration-200 hover:scale-105 active:scale-95"
               >
                 {isPlaying ? <Pause className="size-6 fill-current" /> : <Play className="size-6 fill-current ml-1" />}
               </button>
               <button
                 onClick={playNext}
                 aria-label="Suivant"
-                className="grid h-11 w-11 place-items-center rounded-[11px] bg-white/10 text-foreground transition-colors hover:bg-white/20"
+                className="grid h-12 w-12 place-items-center rounded-full bg-white/10 backdrop-blur shadow-[0_4px_16px_rgba(0,0,0,0.2)] text-foreground transition-all duration-200 hover:bg-white/20 hover:scale-105 active:scale-95"
               >
                 <SkipForward className="size-5 fill-current" />
               </button>

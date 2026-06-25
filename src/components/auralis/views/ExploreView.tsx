@@ -63,7 +63,7 @@ export function ExploreView() {
     return (
       <div className="fade-up px-4 py-4 lg:px-6 lg:py-5">
         <div className="safe-px sticky top-0 z-10 -mx-4 mb-5 bg-background px-4 md:static md:mx-0 md:mb-6 md:bg-transparent md:px-0">
-          <div className="matte-panel flex items-center gap-2 rounded-[13px] px-4 py-3">
+          <div className="matte-panel flex items-center gap-2 rounded-full px-5 py-3 shadow-[inset_0_1px_0_rgba(255,255,255,0.05)] focus-within:ring-2 focus-within:ring-white/10 transition-all">
             <Search className="size-4 text-muted-foreground" />
             <input
               type="search"
@@ -87,7 +87,7 @@ export function ExploreView() {
                     key={genre}
                     onClick={() => playList(shuffleArray(gt), 0)}
                     aria-label={`Lire un mix ${genre}`}
-                    className="card-lift tap-press relative flex h-24 w-[160px] shrink-0 snap-start flex-col justify-end overflow-hidden rounded-[13px] border border-[var(--line)] p-3 text-left lg:w-auto"
+                    className="card-lift tap-press relative flex h-24 w-[160px] shrink-0 snap-start flex-col justify-end overflow-hidden rounded-2xl border-none shadow-[0_4px_16px_rgba(0,0,0,0.15)] p-4 text-left lg:w-auto"
                     style={{ background: `radial-gradient(120% 90% at 15% 12%, ${c2}55, transparent 55%), linear-gradient(150deg, ${c0}, ${c1})` }}
                   >
                     <span className="truncate text-[14px] font-black leading-tight text-white drop-shadow-[0_1px_3px_rgba(0,0,0,0.5)]">{genre}</span>
@@ -126,7 +126,7 @@ export function ExploreView() {
   return (
     <div className="fade-up px-4 py-4 lg:px-6 lg:py-5">
       <div className="safe-px sticky top-0 z-10 -mx-4 mb-5 bg-background px-4 lg:static lg:mx-0 lg:mb-6 lg:bg-transparent lg:px-0">
-        <div className="matte-panel flex items-center gap-2 rounded-[13px] border-primary/30 px-4 py-3">
+        <div className="flex items-center gap-2 rounded-full border border-transparent bg-white/10 px-5 py-3 shadow-[inset_0_1px_0_rgba(255,255,255,0.05)] focus-within:ring-2 focus-within:ring-white/10 transition-all">
           <Search className="size-4 text-primary-soft" />
           <input
             type="search"
@@ -139,7 +139,7 @@ export function ExploreView() {
           />
           <button
             onClick={() => setSearch("")}
-            className="grid h-11 w-11 shrink-0 place-items-center rounded-[13px] text-muted-foreground hover:bg-white/[0.06] hover:text-foreground lg:h-6 lg:w-6 lg:rounded-[9px]"
+            className="grid h-11 w-11 shrink-0 place-items-center rounded-full text-muted-foreground transition-all duration-200 hover:bg-white/10 hover:text-foreground lg:h-8 lg:w-8"
             aria-label="Effacer"
           >
             <X className="size-4 lg:size-3.5" />
@@ -149,7 +149,7 @@ export function ExploreView() {
 
       {empty ? (
         <div className="flex flex-col items-center justify-center gap-3 py-12 text-center lg:py-20">
-          <div className="grid h-16 w-16 place-items-center rounded-[13px] border border-dashed border-[var(--line-strong)]">
+          <div className="grid h-16 w-16 place-items-center rounded-lg border border-dashed border-[var(--line-strong)]">
             <Search className="size-7 text-muted-foreground/60" />
           </div>
           <p className="text-[14px] font-bold text-muted-foreground">Aucun résultat pour “{searchQuery}”</p>

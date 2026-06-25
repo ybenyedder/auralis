@@ -172,7 +172,7 @@ export function CommandPalette() {
   return (
     <div className="fixed inset-0 z-[75] flex items-start justify-center pt-[12vh]" role="dialog" aria-modal="true" aria-label="Palette de commandes">
       <div className="backdrop-in absolute inset-0 bg-black/70" onClick={() => setCommandOpen(false)} />
-      <div ref={dialogRef} className="scale-in matte-panel relative w-full max-w-[560px] overflow-hidden rounded-[8px]">
+      <div ref={dialogRef} className="scale-in matte-panel relative w-full max-w-[560px] overflow-hidden rounded-sm">
         {/* Search row */}
         <div className="flex items-center gap-3 border-b border-[var(--line)] px-4 py-3">
           <Search className="size-4 text-muted-foreground" />
@@ -191,7 +191,7 @@ export function CommandPalette() {
             aria-controls="cmd-listbox"
             aria-autocomplete="list"
           />
-          <kbd className="rounded-[9px] border border-[var(--line)] bg-white/[0.05] px-1.5 py-0.5 text-[9.5px] font-bold text-muted-foreground">ESC</kbd>
+          <kbd className="rounded-full bg-white/5 px-2 py-0.5 text-[9px] font-bold text-muted-foreground shadow-[inset_0_1px_0_rgba(255,255,255,0.05)]">ESC</kbd>
         </div>
 
         {/* Results */}
@@ -204,7 +204,7 @@ export function CommandPalette() {
           ) : (
             groups.map(([group, gItems]) => (
               <div key={group} className="mb-1.5">
-                <p className="px-2 py-1 text-[10px] font-black uppercase tracking-[0.16em] text-muted-foreground/70">{group}</p>
+                <p className="px-2 py-1 text-[10px] font-semibold uppercase tracking-[0.07em] text-muted-foreground/70">{group}</p>
                 {gItems.map((it) => {
                   runningIndex += 1;
                   const idx = runningIndex;
@@ -222,14 +222,14 @@ export function CommandPalette() {
                         setCommandOpen(false);
                       }}
                       className={cn(
-                        "flex w-full items-center gap-3 rounded-[11px] px-2.5 py-2 text-left transition-colors",
-                        isActive ? "bg-white/[0.09]" : "hover:bg-white/[0.045]",
+                        "group flex w-full items-center gap-3 rounded-md px-2.5 py-2 text-left transition-all duration-200",
+                        isActive ? "bg-white/5" : "hover:bg-white/[0.03]",
                       )}
                     >
                       <span
                         className={cn(
-                          "grid size-7 shrink-0 place-items-center rounded-[9px]",
-                          isActive ? "bg-primary/20 text-primary-soft" : "bg-white/[0.05] text-muted-foreground",
+                          "grid size-7 shrink-0 place-items-center transition-transform duration-200",
+                          isActive ? "text-primary drop-shadow-[0_0_8px_rgba(217,95,69,0.5)] scale-110" : "text-muted-foreground group-hover:scale-110",
                         )}
                       >
                         <Icon className="size-3.5" />
@@ -253,8 +253,8 @@ export function CommandPalette() {
             <Clock3 className="size-3" /> Commande Auralis
           </span>
           <span className="flex items-center gap-2">
-            <kbd className="rounded-[9px] border border-[var(--line)] bg-white/[0.05] px-1 py-0.5 font-bold">↑↓</kbd>
-            <kbd className="rounded-[9px] border border-[var(--line)] bg-white/[0.05] px-1 py-0.5 font-bold">↵</kbd>
+            <kbd className="rounded-sm border border-[var(--line)] bg-[var(--panel-2)] px-1 py-0.5 font-bold">↑↓</kbd>
+            <kbd className="rounded-sm border border-[var(--line)] bg-[var(--panel-2)] px-1 py-0.5 font-bold">↵</kbd>
           </span>
         </div>
       </div>

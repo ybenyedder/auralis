@@ -19,10 +19,10 @@ export function ToastHost() {
   const Icon = tone === "error" ? AlertTriangle : tone === "info" ? Info : CheckCircle2;
   const iconClass =
     tone === "error"
-      ? "bg-destructive/15 text-destructive"
+      ? "text-destructive drop-shadow-[0_0_8px_rgba(239,68,68,0.5)]"
       : tone === "info"
-        ? "bg-white/10 text-foreground"
-        : "bg-emerald/15 text-emerald";
+        ? "text-foreground drop-shadow-[0_0_8px_rgba(255,255,255,0.3)]"
+        : "text-emerald drop-shadow-[0_0_8px_rgba(16,185,129,0.5)]";
 
   return (
     <div
@@ -31,8 +31,8 @@ export function ToastHost() {
       aria-live={tone === "error" ? "assertive" : "polite"}
       className="pointer-events-none fixed bottom-[calc(var(--tabbar-h)+var(--miniplayer-h)+var(--safe-bottom)+12px)] left-1/2 z-[80] -translate-x-1/2 lg:bottom-[92px]"
     >
-      <div className="toast-in matte-panel pointer-events-auto flex items-center gap-3 rounded-[13px] px-4 py-2.5">
-        <span className={cn("grid size-5 shrink-0 place-items-center rounded-[9px]", iconClass)}>
+      <div className="toast-in matte-panel pointer-events-auto flex items-center gap-3 rounded-lg px-4 py-2.5">
+        <span className={cn("grid size-5 shrink-0 place-items-center", iconClass)}>
           <Icon className="size-3.5" />
         </span>
         <p className="max-w-xs truncate text-[12.5px] font-semibold text-foreground">
@@ -41,7 +41,7 @@ export function ToastHost() {
         {action && (
           <button
             onClick={() => { action.run(); dismissToast(); }}
-            className="shrink-0 rounded-[9px] bg-primary/15 px-2.5 py-1 text-[11.5px] font-black text-primary-soft transition-colors hover:bg-primary/25"
+            className="shrink-0 rounded-full bg-white/10 px-3 py-1 text-[11px] font-bold text-white transition-all duration-200 hover:bg-white/20 hover:scale-105"
           >
             {action.label}
           </button>
@@ -49,7 +49,7 @@ export function ToastHost() {
         <button
           onClick={dismissToast}
           aria-label="Fermer"
-          className="grid size-5 shrink-0 place-items-center rounded-[9px] text-muted-foreground transition-colors hover:bg-white/10 hover:text-foreground"
+          className="grid size-5 shrink-0 place-items-center rounded-sm text-muted-foreground transition-colors hover:bg-[var(--panel-3)] hover:text-foreground"
         >
           <X className="size-3" />
         </button>

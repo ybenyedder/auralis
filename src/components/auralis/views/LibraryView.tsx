@@ -66,7 +66,7 @@ export function LibraryView() {
     <div className="fade-up px-4 py-5 lg:px-6">
       <div className="mb-5 flex flex-wrap items-center justify-between gap-3">
         <div>
-          <p className="text-[10px] font-black uppercase tracking-[0.18em] text-[var(--brass)]">
+          <p className="text-[10px] font-semibold uppercase tracking-[0.08em] text-[var(--brass)]">
             Collection scannée
           </p>
           <h1 className="text-[28px] font-black tracking-tight text-foreground">Bibliothèque</h1>
@@ -75,11 +75,11 @@ export function LibraryView() {
           </p>
         </div>
         <div className="flex items-center gap-2">
-          <div className="matte-panel flex h-10 items-center gap-1 rounded-[13px] px-1 lg:h-auto lg:p-0.5">
+          <div className="matte-panel flex h-10 items-center gap-1 rounded-full px-3 lg:h-auto lg:p-1.5 lg:px-2">
             <select
               value={sort}
               onChange={(event) => setSort(event.target.value as SortMode)}
-              className="h-9 cursor-pointer bg-transparent px-2 text-[13px] font-semibold text-muted-foreground outline-none lg:h-auto lg:py-1 lg:text-[11.5px]"
+              className="h-9 cursor-pointer bg-transparent px-2 text-[13px] font-semibold text-muted-foreground outline-none transition-colors hover:text-foreground lg:h-auto lg:py-1 lg:text-[11.5px]"
               aria-label="Trier"
             >
               <option value="az" className="bg-[#1b1a16]">A → Z</option>
@@ -90,17 +90,17 @@ export function LibraryView() {
             <ArrowDownUp className="size-3 text-muted-foreground/70" />
           </div>
           {(tab === "albums" || tab === "artists") && (
-            <div className="matte-panel flex items-center gap-0.5 rounded-[13px] p-1 lg:p-0.5">
+            <div className="matte-panel flex items-center gap-0.5 rounded-full p-1 lg:p-1">
               <button
                 onClick={() => setGrid(true)}
-                className={cn("grid h-8 w-8 place-items-center rounded-[9px] transition-colors lg:h-6 lg:w-6", grid ? "bg-[var(--paper)] text-[var(--ink)]" : "text-muted-foreground hover:bg-white/[0.06] hover:text-foreground")}
+                className={cn("grid h-8 w-8 place-items-center rounded-full transition-all duration-200 lg:h-7 lg:w-7", grid ? "bg-white text-black shadow-sm" : "text-muted-foreground hover:bg-white/10 hover:text-foreground")}
                 aria-label="Vue grille"
               >
                 <LayoutGrid className="size-4 lg:size-3.5" />
               </button>
               <button
                 onClick={() => setGrid(false)}
-                className={cn("grid h-8 w-8 place-items-center rounded-[9px] transition-colors lg:h-6 lg:w-6", !grid ? "bg-[var(--paper)] text-[var(--ink)]" : "text-muted-foreground hover:bg-white/[0.06] hover:text-foreground")}
+                className={cn("grid h-8 w-8 place-items-center rounded-full transition-all duration-200 lg:h-7 lg:w-7", !grid ? "bg-white text-black shadow-sm" : "text-muted-foreground hover:bg-white/10 hover:text-foreground")}
                 aria-label="Vue liste"
               >
                 <List className="size-4 lg:size-3.5" />
@@ -128,7 +128,7 @@ export function LibraryView() {
             >
               <Icon className="size-3.5 shrink-0" />
               <span className="truncate">{item.label}</span>
-              <span className="hidden rounded-[7px] bg-white/[0.08] px-1.5 py-0.5 text-[10px] tabular-nums text-muted-foreground sm:inline-block">{item.count}</span>
+              <span className="hidden rounded-full bg-white/10 px-2 py-0.5 text-[10px] tabular-nums text-muted-foreground transition-all group-hover:bg-white/15 sm:inline-block">{item.count}</span>
               {active && <span className="absolute inset-x-2 -bottom-px h-0.5 bg-primary" />}
             </button>
           );
@@ -140,7 +140,7 @@ export function LibraryView() {
           {sortedAlbums.map((album) => <AlbumCard key={album.albumhash} album={album} />)}
         </div>
       ) : (
-        <div className="matte-panel rounded-[13px] p-2">
+        <div className="matte-panel rounded-lg p-2">
           {sortedAlbums.map((album, index) => <AlbumListRow key={album.albumhash} album={album} index={index} />)}
         </div>
       ))}
@@ -150,13 +150,13 @@ export function LibraryView() {
           {sortedArtists.map((artist) => <ArtistCard key={artist.artisthash} artist={artist} />)}
         </div>
       ) : (
-        <div className="matte-panel rounded-[13px] p-2">
+        <div className="matte-panel rounded-lg p-2">
           {sortedArtists.map((artist, index) => <ArtistListRow key={artist.artisthash} artist={artist} index={index} />)}
         </div>
       ))}
 
       {tab === "tracks" && (
-        <div className="matte-panel rounded-[13px] p-2">
+        <div className="matte-panel rounded-lg p-2">
           <TrackListHeader />
           <div className="lg:max-h-[calc(100vh-280px)] lg:overflow-y-auto lg:scroll-auralis">
             {sortedTracks.map((track, index) => <TrackRow key={track.trackhash} track={track} index={index} list={sortedTracks} />)}
@@ -178,26 +178,26 @@ export function LibraryView() {
                   setCreating(false);
                   navigate("playlist", id);
                 }}
-                className="matte-panel flex items-center gap-2 rounded-[13px] p-1.5"
+                className="matte-panel flex items-center gap-2 rounded-full p-1.5 transition-all duration-200 focus-within:ring-2 focus-within:ring-white/10"
               >
                 <input
                   autoFocus
                   value={newName}
                   onChange={(e) => setNewName(e.target.value)}
                   placeholder="Nom de la playlist"
-                  className="min-h-[40px] w-full bg-transparent px-2 text-[15px] text-foreground outline-none lg:text-[14px]"
+                  className="min-h-[40px] w-full bg-transparent px-4 text-[15px] text-foreground outline-none lg:text-[14px]"
                 />
-                <button type="submit" disabled={!newName.trim()} className="signal-button shrink-0 rounded-[11px] px-4 py-2 text-[13px] font-black disabled:opacity-40">
+                <button type="submit" disabled={!newName.trim()} className="signal-button shrink-0 rounded-full px-5 py-2.5 text-[13px] font-black shadow-[0_4px_12px_rgba(0,0,0,0.2)] transition-all duration-200 hover:scale-105 disabled:opacity-40">
                   Créer
                 </button>
-                <button type="button" onClick={() => { setCreating(false); setNewName(""); }} className="ghost-button shrink-0 rounded-[11px] px-3 py-2 text-[13px] font-bold">
+                <button type="button" onClick={() => { setCreating(false); setNewName(""); }} className="ghost-button shrink-0 rounded-full px-4 py-2.5 text-[13px] font-bold transition-all duration-200 hover:scale-105">
                   Annuler
                 </button>
               </form>
             ) : (
               <button
                 onClick={() => setCreating(true)}
-                className="ghost-button inline-flex min-h-[44px] items-center gap-2 rounded-[13px] px-4 text-[13px] font-bold lg:min-h-0 lg:py-2"
+                className="ghost-button inline-flex min-h-[44px] items-center gap-2 rounded-full px-5 text-[13px] font-bold transition-all duration-200 hover:bg-white/[0.04] hover:scale-105 lg:min-h-0 lg:py-2.5"
               >
                 <Plus className="size-4" /> Nouvelle playlist
               </button>
@@ -208,7 +208,7 @@ export function LibraryView() {
               {allPlaylists.map((playlist) => <PlaylistTile key={playlist.id} playlist={playlist} />)}
             </div>
           ) : (
-            <div className="matte-panel rounded-[13px] p-8 text-center text-[13px] font-bold text-muted-foreground">
+            <div className="matte-panel rounded-lg p-8 text-center text-[13px] font-bold text-muted-foreground">
               Aucune playlist. Crée-en une avec le bouton ci-dessus.
             </div>
           )}
@@ -216,10 +216,10 @@ export function LibraryView() {
       )}
 
       <div className="mt-7 md:hidden">
-        <p className="mb-2 px-1 text-[10px] font-black uppercase tracking-[0.18em] text-[var(--brass)]">
+        <p className="mb-2 px-1 text-[10px] font-semibold uppercase tracking-[0.08em] text-[var(--brass)]">
           Plus
         </p>
-        <div className="matte-panel overflow-hidden rounded-[13px]">
+        <div className="matte-panel overflow-hidden rounded-lg">
           {moreLinks.map((link, index) => {
             const Icon = link.icon;
             return (
@@ -227,7 +227,7 @@ export function LibraryView() {
                 key={link.view}
                 onClick={() => navigate(link.view)}
                 className={cn(
-                  "tap-press flex w-full items-center gap-3 px-3 py-3 text-left transition-colors hover:bg-white/[0.045]",
+                  "tap-press flex w-full items-center gap-3 px-3 py-3 text-left transition-colors hover:bg-[var(--panel-2)]",
                   index > 0 && "border-t border-[var(--line)]",
                 )}
               >
@@ -254,12 +254,12 @@ function AlbumListRow({ album, index }: { album: Album; index: number }) {
   const navigate = usePlayer((s) => s.navigate);
   return (
     <button
-      className="track-row group grid w-full cursor-pointer grid-cols-[28px_minmax(0,1fr)_auto] items-center gap-3 rounded-[9px] px-2 py-2 text-left hover:bg-white/[0.045]"
+      className="track-row group grid w-full cursor-pointer grid-cols-[28px_minmax(0,1fr)_auto] items-center gap-3 rounded-xl px-2 py-2 text-left transition-all hover:bg-white/[0.04]"
       onClick={() => navigate("album", album.albumhash)}
     >
       <span className="text-center text-[12px] tabular-nums text-muted-foreground">{index + 1}</span>
       <div className="flex min-w-0 items-center gap-3">
-        <div className="size-10 shrink-0 rounded-md" style={{ background: album.color?.[0], borderBottom: `4px solid ${album.color?.[1]}` }} />
+        <div className="size-10 shrink-0 rounded-md border border-[var(--line)]" style={{ background: album.color?.[0] }} />
         <div className="min-w-0">
           <p className="truncate text-[13px] font-bold leading-tight text-foreground">{album.title}</p>
           <p className="mt-0.5 truncate text-[11.5px] leading-tight text-muted-foreground">{album.albumartists[0]?.name}</p>
@@ -278,12 +278,12 @@ function ArtistListRow({ artist, index }: { artist: Artist; index: number }) {
   const colors = paletteForName(artist.name);
   return (
     <button
-      className="track-row group grid w-full cursor-pointer grid-cols-[28px_minmax(0,1fr)_auto] items-center gap-3 rounded-[9px] px-2 py-2 text-left hover:bg-white/[0.045]"
+      className="track-row group grid w-full cursor-pointer grid-cols-[28px_minmax(0,1fr)_auto] items-center gap-3 rounded-full px-2 py-2 text-left transition-all hover:bg-white/[0.04]"
       onClick={() => navigate("artist", artist.artisthash)}
     >
       <span className="text-center text-[12px] tabular-nums text-muted-foreground">{index + 1}</span>
       <div className="flex min-w-0 items-center gap-3">
-        <div className="size-10 shrink-0 rounded-[9px] border border-[var(--line)]" style={{ background: colors[0], borderBottomColor: colors[1] }} />
+        <div className="size-10 shrink-0 rounded-full shadow-[0_2px_8px_rgba(0,0,0,0.3)]" style={{ background: colors[0] }} />
         <div className="min-w-0">
           <p className="truncate text-[13px] font-bold leading-tight text-foreground">{artist.name}</p>
           <p className="mt-0.5 truncate text-[11.5px] leading-tight text-muted-foreground">{artist.genres?.join(", ") || "Artiste local"}</p>

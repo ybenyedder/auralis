@@ -81,8 +81,8 @@ export function Sidebar() {
               title={item.label}
               aria-current={active ? "page" : undefined}
               className={cn(
-                "group flex w-full items-center justify-center gap-2.5 rounded-[11px] px-2.5 py-2.5 text-left transition-colors lg:justify-start lg:py-2",
-                active ? "bg-[var(--paper)] text-[var(--ink)]" : "text-muted-foreground/80 hover:bg-white/[0.05] hover:text-foreground",
+                "group flex w-full items-center justify-center gap-2.5 rounded-md px-2.5 py-2.5 text-left transition-all duration-200 lg:justify-start lg:py-2",
+                active ? "bg-white/10 text-white shadow-[inset_2px_0_0_var(--primary)]" : "text-white/60 hover:bg-white/[0.03] hover:text-white",
               )}
             >
               <Icon className="size-[18px] shrink-0 lg:size-4" />
@@ -97,10 +97,10 @@ export function Sidebar() {
 
       <div className="flex min-h-0 flex-1 flex-col px-2 pb-2">
         <div className="mb-2 hidden items-center justify-between px-2.5 lg:flex">
-          <span className="text-[10px] font-black uppercase tracking-[0.18em] text-muted-foreground/55">Playlists</span>
+          <span className="text-[10px] font-semibold uppercase tracking-[0.08em] text-muted-foreground/55">Playlists</span>
           <button
             onClick={onNewPlaylist}
-            className="grid h-6 w-6 place-items-center rounded-[9px] text-muted-foreground/60 transition-colors hover:bg-white/[0.06] hover:text-foreground"
+            className="grid h-6 w-6 place-items-center rounded-sm text-muted-foreground/60 transition-colors hover:bg-[var(--panel-2)] hover:text-foreground"
             aria-label="Nouvelle playlist"
           >
             <Plus className="size-3.5" />
@@ -113,8 +113,8 @@ export function Sidebar() {
               <div
                 key={`cp-${playlist.id}`}
                 className={cn(
-                  "group flex w-full items-center gap-1 rounded-[11px] py-1.5 pr-2 text-left transition-colors",
-                  active ? "bg-white/[0.08] text-foreground" : "text-muted-foreground/75 hover:bg-white/[0.05] hover:text-foreground",
+                  "group flex w-full items-center gap-1 rounded-md py-1.5 pr-2 text-left transition-all duration-200",
+                  active ? "bg-white/5 text-foreground shadow-[inset_2px_0_0_var(--primary)]" : "text-muted-foreground/75 hover:bg-white/[0.03] hover:text-foreground",
                 )}
               >
                 <button onClick={() => navigate("playlist", String(playlist.id))} className="flex min-w-0 flex-1 items-center gap-2.5 px-2 text-left">
@@ -125,7 +125,7 @@ export function Sidebar() {
                   <button
                     onClick={() => reorderCustomPlaylists(index, index - 1)}
                     disabled={index === 0}
-                    className="grid size-5 place-items-center rounded-[7px] text-muted-foreground/60 hover:bg-white/[0.06] hover:text-foreground disabled:opacity-25"
+                    className="grid size-5 place-items-center rounded-sm text-muted-foreground/60 hover:bg-[var(--panel-2)] hover:text-foreground disabled:opacity-25"
                     aria-label="Monter la playlist"
                   >
                     <ChevronUp className="size-3" />
@@ -133,7 +133,7 @@ export function Sidebar() {
                   <button
                     onClick={() => reorderCustomPlaylists(index, index + 1)}
                     disabled={index === customPlaylists.length - 1}
-                    className="grid size-5 place-items-center rounded-[7px] text-muted-foreground/60 hover:bg-white/[0.06] hover:text-foreground disabled:opacity-25"
+                    className="grid size-5 place-items-center rounded-sm text-muted-foreground/60 hover:bg-[var(--panel-2)] hover:text-foreground disabled:opacity-25"
                     aria-label="Descendre la playlist"
                   >
                     <ChevronDown className="size-3" />
@@ -143,7 +143,7 @@ export function Sidebar() {
             );
           })}
 
-          {customPlaylists.length > 0 && libraryPlaylists.length > 0 && <div className="mx-3 my-1.5 h-px bg-white/[0.04]" />}
+          {customPlaylists.length > 0 && libraryPlaylists.length > 0 && <div className="mx-3 my-1.5 h-px bg-[var(--panel-2)]" />}
 
           {libraryPlaylists.map((playlist) => {
             const active = view.view === "playlist" && view.id === String(playlist.id);
@@ -152,8 +152,8 @@ export function Sidebar() {
                 key={playlist.id}
                 onClick={() => navigate("playlist", String(playlist.id))}
                 className={cn(
-                  "group flex w-full items-center gap-2.5 rounded-[11px] px-2.5 py-1.5 text-left transition-colors",
-                  active ? "bg-white/[0.08] text-foreground" : "text-muted-foreground/75 hover:bg-white/[0.05] hover:text-foreground",
+                  "group flex w-full items-center gap-2.5 rounded-md px-2.5 py-1.5 text-left transition-all duration-200",
+                  active ? "bg-white/5 text-foreground shadow-[inset_2px_0_0_var(--primary)]" : "text-muted-foreground/75 hover:bg-white/[0.03] hover:text-foreground",
                 )}
               >
                 <ListMusic className="size-3.5 shrink-0 text-muted-foreground/40" />
@@ -172,8 +172,8 @@ export function Sidebar() {
           onClick={() => navigate("settings")}
           title="Réglages"
           className={cn(
-            "flex w-full items-center justify-center gap-3 rounded-[11px] px-2.5 py-2.5 text-left transition-colors lg:justify-start lg:py-2",
-            view.view === "settings" ? "bg-white/[0.08] text-foreground" : "text-muted-foreground/60 hover:bg-white/[0.05] hover:text-foreground",
+            "flex w-full items-center justify-center gap-3 rounded-md px-2.5 py-2.5 text-left transition-all duration-200 lg:justify-start lg:py-2",
+            view.view === "settings" ? "bg-white/5 text-foreground shadow-[inset_2px_0_0_var(--primary)]" : "text-muted-foreground/60 hover:bg-white/[0.03] hover:text-foreground",
           )}
         >
           <Settings className="size-[18px] shrink-0 lg:size-4" />

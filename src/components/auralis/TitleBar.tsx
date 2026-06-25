@@ -44,7 +44,7 @@ export function TitleBar() {
           disabled={!canBack}
           aria-label="Retour"
           title="Retour"
-          className={cn("grid h-7 w-7 place-items-center rounded-[11px] transition-colors", canBack ? "text-muted-foreground hover:bg-white/[0.06] hover:text-foreground" : "text-muted-foreground/20 cursor-default")}
+          className={cn("grid h-7 w-7 place-items-center rounded-full transition-all duration-200", canBack ? "text-muted-foreground hover:bg-white/[0.04] hover:text-white hover:scale-105" : "text-muted-foreground/20 cursor-default")}
         >
           <ChevronLeft className="size-4" />
         </button>
@@ -55,7 +55,7 @@ export function TitleBar() {
 
       {/* Search — interactive, NOT draggable. */}
       <div className="w-full max-w-md shrink">
-        <div className={cn("flex h-8 items-center gap-2 rounded-[13px] border bg-[var(--panel-2)] px-2.5 transition-colors", focused ? "border-[var(--line-strong)]" : "border-[var(--line)]")}>
+        <div className={cn("flex h-8 items-center gap-2 rounded-full border border-transparent bg-white/5 shadow-[inset_0_1px_0_rgba(255,255,255,0.05)] px-2.5 transition-all duration-300", focused ? "bg-white/10 shadow-[inset_0_1px_0_rgba(255,255,255,0.1)] ring-1 ring-white/10" : "hover:bg-white/[0.07]")}>
           <Search className="size-3 text-muted-foreground/50 shrink-0" />
           <input
             type="search"
@@ -70,7 +70,7 @@ export function TitleBar() {
             placeholder="Rechercher dans la bibliothèque"
             className="w-full bg-transparent text-[12px] text-foreground placeholder:text-muted-foreground/40 outline-none"
           />
-          <span className="hidden rounded-[9px] border border-[var(--line)] px-1.5 py-0.5 text-[9px] font-bold text-muted-foreground md:inline">CTRL K</span>
+          <span className="hidden rounded-full bg-white/5 px-2 py-0.5 text-[9px] font-bold text-muted-foreground shadow-[inset_0_1px_0_rgba(255,255,255,0.05)] md:inline">CTRL K</span>
         </div>
       </div>
 
@@ -83,7 +83,7 @@ export function TitleBar() {
           onClick={toggleRightPanel}
           aria-label={rightPanelOpen ? "Masquer le panneau" : "Afficher le panneau"}
           title={rightPanelOpen ? "Masquer le panneau" : "Afficher le panneau"}
-          className={cn("hidden xl:grid h-8 w-8 place-items-center rounded-[11px] transition-colors hover:bg-white/[0.06]", rightPanelOpen ? "text-foreground/70" : "text-muted-foreground/40 hover:text-foreground/70")}
+          className={cn("hidden xl:grid h-8 w-8 place-items-center rounded-full transition-all duration-200 hover:bg-white/[0.04] hover:scale-105", rightPanelOpen ? "text-white" : "text-muted-foreground/40 hover:text-white")}
         >
           <PanelRight className="size-3.5" />
         </button>

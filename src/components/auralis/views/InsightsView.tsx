@@ -84,7 +84,7 @@ export function InsightsView() {
   return (
     <div className="fade-up px-4 py-4 lg:px-6 lg:py-5">
       <div className="mb-6">
-        <p className="text-[10px] font-black uppercase tracking-[0.18em] text-[var(--brass)]">Analyse</p>
+        <p className="text-[10px] font-semibold uppercase tracking-[0.08em] text-[var(--brass)]">Analyse</p>
         <h1 className="flex items-center gap-2 text-[28px] font-black tracking-tight text-foreground">
           <TrendingUp className="size-6 text-primary-soft" /> Insights
         </h1>
@@ -99,13 +99,13 @@ export function InsightsView() {
         {kpis.map((kpi) => {
           const Icon = kpi.icon;
           return (
-            <div key={kpi.label} className="matte-panel relative overflow-hidden rounded-[13px] p-4">
+            <div key={kpi.label} className="matte-panel relative overflow-hidden rounded-2xl p-4 shadow-[0_4px_16px_rgba(0,0,0,0.15)]">
               <span className="absolute inset-x-0 top-0 h-1 bg-primary" />
               <div className="relative flex items-center gap-2">
-                <span className="grid h-8 w-8 shrink-0 place-items-center rounded-[9px] bg-primary/15 text-primary-soft">
+                <span className="grid h-8 w-8 shrink-0 place-items-center rounded-full bg-primary/15 text-primary-soft shadow-[inset_0_1px_0_rgba(255,255,255,0.05)]">
                   <Icon className="size-4" />
                 </span>
-                <p className="min-w-0 truncate text-[10px] font-black uppercase tracking-[0.14em] text-muted-foreground/80">{kpi.label}</p>
+                <p className="min-w-0 truncate text-[10px] font-semibold uppercase tracking-[0.06em] text-muted-foreground/80">{kpi.label}</p>
               </div>
               <p className="relative mt-3 break-words text-[20px] font-black leading-tight tracking-tight text-foreground tabular-nums lg:text-[22px]">{kpi.value}</p>
             </div>
@@ -114,7 +114,7 @@ export function InsightsView() {
       </div>
 
       {totalPlays === 0 && (
-        <div className="matte-panel mb-5 rounded-[13px] border-amber/20 p-4 text-[12.5px] text-muted-foreground">
+        <div className="matte-panel mb-5 rounded-2xl border-amber/20 p-4 text-[12.5px] text-muted-foreground shadow-[0_4px_16px_rgba(0,0,0,0.15)]">
           Les compteurs d’écoute démarrent à zéro : aucune statistique artificielle n’est injectée. Ils augmentent uniquement lorsque tu lances réellement des titres dans cette instance locale.
         </div>
       )}
@@ -136,7 +136,7 @@ export function InsightsView() {
           <BarList rows={genreData.map((genre) => ({ id: genre.name, label: genre.name, value: genre.value }))} />
         </MetricPanel>
 
-        <div className="matte-panel rounded-[13px] p-4 lg:col-span-2">
+        <div className="matte-panel rounded-2xl p-4 lg:col-span-2 shadow-[0_4px_16px_rgba(0,0,0,0.15)]">
           <SectionHeader title="Albums les plus volumineux" eyebrow="Nombre de titres" />
           <BarList
             rows={albumData.map((album) => ({
@@ -157,13 +157,13 @@ function WeeklyRecap({ streak, weekPlays, todayPlays, playsByDay, weekListeningS
   const max = Math.max(1, ...playsByDay.map((d) => d.count));
   return (
     <div className="mb-6 grid gap-3 sm:grid-cols-[minmax(0,240px)_1fr]">
-      <div className="matte-panel flex items-center gap-3 rounded-[13px] p-4">
-        <span className="grid size-12 shrink-0 place-items-center rounded-[13px] bg-primary/15 text-primary-soft">
+      <div className="matte-panel flex items-center gap-3 rounded-2xl p-4 shadow-[0_4px_16px_rgba(0,0,0,0.15)]">
+        <span className="grid size-12 shrink-0 place-items-center rounded-full bg-primary/15 text-primary-soft">
           <Flame className="size-6" />
         </span>
         <div className="min-w-0">
           <p className="text-[26px] font-black leading-none tracking-tight text-foreground tabular-nums">{streak}</p>
-          <p className="mt-1 text-[11px] font-bold uppercase tracking-[0.12em] text-muted-foreground/80">
+          <p className="mt-1 text-[11px] font-semibold uppercase tracking-[0.06em] text-muted-foreground/80">
             {streak > 0 ? `jour${streak > 1 ? "s" : ""} d’affilée` : "Commence ta série"}
           </p>
           {totalListeningSeconds > 0 && (
@@ -171,9 +171,9 @@ function WeeklyRecap({ streak, weekPlays, todayPlays, playsByDay, weekListeningS
           )}
         </div>
       </div>
-      <div className="matte-panel rounded-[13px] p-4">
+      <div className="matte-panel rounded-2xl p-4 shadow-[0_4px_16px_rgba(0,0,0,0.15)]">
         <div className="mb-2 flex flex-wrap items-baseline justify-between gap-x-2 gap-y-0.5">
-          <p className="text-[10px] font-black uppercase tracking-[0.14em] text-muted-foreground/80">7 derniers jours</p>
+          <p className="text-[10px] font-semibold uppercase tracking-[0.06em] text-muted-foreground/80">7 derniers jours</p>
           <p className="text-[12px] text-muted-foreground">
             <span className="font-black tabular-nums text-foreground">{weekPlays}</span> écoutes ·{" "}
             {weekListeningSeconds > 0 && (<><span className="font-black tabular-nums text-foreground">{formatLongDuration(weekListeningSeconds)}</span> ·{" "}</>)}
@@ -186,7 +186,7 @@ function WeeklyRecap({ streak, weekPlays, todayPlays, playsByDay, weekListeningS
             const isToday = i === arr.length - 1;
             return (
               <div key={d.day} className="flex flex-1 items-end" title={`${d.count} écoutes`}>
-                <div className={cn("w-full rounded-[3px]", isToday ? "bg-primary" : "bg-primary/35")} style={{ height: `${h}%` }} />
+                <div className={cn("w-full rounded-xs", isToday ? "bg-primary" : "bg-primary/35")} style={{ height: `${h}%` }} />
               </div>
             );
           })}
@@ -198,7 +198,7 @@ function WeeklyRecap({ streak, weekPlays, todayPlays, playsByDay, weekListeningS
 
 function MetricPanel({ title, eyebrow, children }: { title: string; eyebrow: string; children: React.ReactNode }) {
   return (
-    <div className="matte-panel rounded-[13px] p-4">
+    <div className="matte-panel rounded-2xl p-4 shadow-[0_4px_16px_rgba(0,0,0,0.15)]">
       <SectionHeader title={title} eyebrow={eyebrow} />
       {children}
     </div>
@@ -208,7 +208,7 @@ function MetricPanel({ title, eyebrow, children }: { title: string; eyebrow: str
 function BarList({ rows }: { rows: { id: string; label: string; value: number }[] }) {
   const max = Math.max(1, ...rows.map((row) => row.value));
   if (rows.length === 0) {
-    return <div className="rounded-[11px] border border-dashed border-[var(--line)] p-6 text-center text-[12px] text-muted-foreground">Aucune donnée disponible.</div>;
+    return <div className="rounded-md border border-dashed border-[var(--line)] p-6 text-center text-[12px] text-muted-foreground">Aucune donnée disponible.</div>;
   }
 
   return (
@@ -222,8 +222,8 @@ function BarList({ rows }: { rows: { id: string; label: string; value: number }[
               <span className="min-w-0 flex-1 truncate font-semibold text-foreground/90 lg:text-foreground">{row.label}</span>
               <span className="shrink-0 tabular-nums font-semibold text-foreground">{row.value}</span>
             </div>
-            <div className="mt-1.5 h-2 overflow-hidden rounded-[2px] bg-white/[0.06] lg:mt-1 lg:h-1.5">
-              <div className="h-full rounded-[2px] bg-primary" style={{ width: `${percent}%` }} />
+            <div className="mt-1.5 h-2 overflow-hidden rounded-xs bg-[var(--panel-2)] lg:mt-1 lg:h-1.5">
+              <div className="h-full rounded-xs bg-primary" style={{ width: `${percent}%` }} />
             </div>
           </div>
         );

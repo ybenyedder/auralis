@@ -11,6 +11,11 @@ contextBridge.exposeInMainWorld("auralisDesktop", {
   close: () => ipcRenderer.send("window:close"),
   // Native folder picker (returns the chosen absolute path, or null if cancelled).
   pickFolder: () => ipcRenderer.invoke("dialog:pickFolder"),
+  // First-run source chooser (setup.html): submit { mode, url|musicDir } or abort.
+  submitSetup: (cfg) => ipcRenderer.invoke("setup:submit", cfg),
+  cancelSetup: () => ipcRenderer.send("setup:cancel"),
+  // Forget the saved source and relaunch into the chooser (called from Settings).
+  reconfigure: () => ipcRenderer.invoke("desktop:reconfigure"),
   onWindowState: (cb) => {
     const handler = (_e, state) => cb(state);
     ipcRenderer.on("window:state", handler);

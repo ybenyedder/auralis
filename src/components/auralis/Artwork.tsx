@@ -12,7 +12,7 @@ interface ArtworkProps {
   albumhash?: string;
   artisthash?: string;
   size?: number;
-  rounded?: number;
+  rounded?: number | string;
   className?: string;
   showInitials?: boolean;
   colors?: [string, string, string];
@@ -30,7 +30,7 @@ export function Artwork({
   albumhash,
   artisthash,
   size = 48,
-  rounded = 11,
+  rounded = 9999,
   className = "",
   showInitials = true,
   colors,
@@ -38,7 +38,7 @@ export function Artwork({
   fluid = false,
 }: ArtworkProps) {
   const [imgError, setImgError] = useState(false);
-  const [c1, c2, c3] = colors ?? paletteFor({ title, name, album, trackhash, albumhash, artisthash });
+  const [c1, c2] = colors ?? paletteFor({ title, name, album, trackhash, albumhash, artisthash });
 
   const src = api.assetUrl(image);
   const showRealImage = Boolean(src) && !imgError;
@@ -66,29 +66,26 @@ export function Artwork({
     );
   }
 
-  // Fallback artwork: matte label block, deterministic colors, no decorative glow.
+  // Fallback artwork: a clean flat colour aplat with a single elegant initial —
+  // no diagonal hatch, no stripes, no decorative colour bar. A restrained
+  // vertical tone from the deterministic palette gives just enough depth.
   const initials = (title || name || album || "?").charAt(0).toUpperCase();
-  const fontSize = Math.max(10, Math.round(size * 0.36));
+  const fontSize = Math.max(11, Math.round(size * 0.38));
 
   return (
     <div
       className={`relative overflow-hidden shrink-0 ${className}`}
       style={{
         ...boxStyle,
-        background:
-          `linear-gradient(180deg, ${c1}, ${c2}), repeating-linear-gradient(90deg, rgba(255,255,255,0.12) 0 1px, transparent 1px 7px)`,
-        border: "1px solid rgba(237,227,207,0.14)",
+        background: `linear-gradient(160deg, ${c1}, ${c2})`,
+        border: "1px solid rgba(255,255,255,0.08)",
       }}
       role="img"
       aria-label={title || name || album || "Pochette"}
     >
-      <span
-        className="absolute bottom-0 left-0 right-0 h-[18%]"
-        style={{ background: c3 }}
-      />
       {showInitials && (
         <span
-          className="absolute inset-0 grid place-items-center font-black text-white/76"
+          className="absolute inset-0 grid place-items-center font-bold text-white/85"
           style={{ fontSize }}
         >
           {initials}

@@ -52,26 +52,26 @@ export const AlbumCard = memo(function AlbumCard({ album, onOpen }: AlbumCardPro
         }
       }}
       onContextMenu={(e) => onContext(e, album)}
-      className="group matte-panel relative flex cursor-pointer flex-col gap-2.5 rounded-[13px] p-2.5 text-left transition-colors hover:bg-[var(--panel-2)] focus-auralis card-lift"
+      className="group matte-panel relative flex cursor-pointer flex-col gap-2.5 rounded-2xl p-2.5 text-left transition-all hover:bg-white/[0.04] focus-auralis card-lift active:scale-[0.98]"
     >
       <div className="relative">
         <Artwork
           title={album.title}
           albumhash={album.albumhash}
           size={156}
-          rounded={9}
+          rounded={10}
           colors={colors}
           image={album.image}
           fluid
-          className="w-full aspect-square transition-transform lg:group-hover:scale-[1.02]"
+          className="w-full aspect-square"
         />
         <button
           onClick={handlePlay}
           aria-label={`Lire ${album.title}`}
           className={cn(
-            "signal-button absolute bottom-2 right-2 grid h-10 w-10 place-items-center rounded-full transition-all lg:h-9 lg:w-9 lg:rounded-[11px]",
-            "opacity-100 lg:translate-y-2 lg:opacity-0 lg:group-hover:translate-y-0 lg:group-hover:opacity-100",
-            isPlaying && "lg:translate-y-0 lg:opacity-100",
+            "signal-button absolute bottom-2 right-2 grid h-10 w-10 place-items-center rounded-full shadow-[0_4px_12px_rgba(0,0,0,0.3)] transition-all hover:scale-110 lg:h-10 lg:w-10",
+            "opacity-100 lg:opacity-0 lg:group-hover:opacity-100",
+            isPlaying && "lg:opacity-100",
           )}
         >
           <Play className="size-4 fill-current ml-0.5" />
@@ -79,7 +79,7 @@ export const AlbumCard = memo(function AlbumCard({ album, onOpen }: AlbumCardPro
         <button
           onClick={onMore}
           aria-label="Plus d'options"
-          className="absolute right-2 top-2 grid h-8 w-8 place-items-center rounded-full bg-black/55 text-white transition-all hover:bg-black/90 lg:h-7 lg:w-7 lg:rounded-[9px] lg:bg-black/70 lg:opacity-0 lg:group-hover:opacity-100"
+          className="absolute right-2 top-2 grid h-8 w-8 place-items-center rounded-full bg-black/30 backdrop-blur-md border border-white/10 text-white/90 shadow-[0_4px_12px_rgba(0,0,0,0.3)] transition-all duration-200 hover:bg-black/50 hover:text-white lg:h-7 lg:w-7 lg:opacity-0 lg:group-hover:opacity-100"
         >
           <MoreVertical className="size-4 lg:size-3.5" />
         </button>
@@ -111,7 +111,7 @@ export const ArtistCard = memo(function ArtistCard({ artist }: { artist: Artist 
         }
       }}
       onContextMenu={(e) => onContext(e, artist)}
-      className="group matte-panel relative flex cursor-pointer flex-col gap-2.5 rounded-[13px] p-2.5 text-left transition-colors hover:bg-[var(--panel-2)] focus-auralis card-lift"
+      className="group matte-panel relative flex cursor-pointer flex-col gap-2.5 rounded-2xl p-2.5 text-left transition-all hover:bg-white/[0.04] focus-auralis card-lift active:scale-[0.98]"
     >
       <div className="relative">
         {artist.image ? (
@@ -120,18 +120,17 @@ export const ArtistCard = memo(function ArtistCard({ artist }: { artist: Artist 
             artisthash={artist.artisthash}
             image={artist.image}
             size={156}
-            rounded={9}
+            rounded={10}
             colors={colors}
             fluid
-            className="w-full aspect-square transition-transform lg:group-hover:scale-[1.01]"
+            className="w-full aspect-square"
           />
         ) : (
           <div
-            className="cover-fallback flex aspect-square w-full items-end overflow-hidden rounded-[9px] border border-[var(--line)] p-3 transition-transform lg:group-hover:scale-[1.01]"
+            className="cover-fallback grid aspect-square w-full place-items-center overflow-hidden rounded-full border-none p-3 shadow-[0_4px_16px_rgba(0,0,0,0.2)]"
             style={{ backgroundColor: colors[0] }}
           >
-            <span className="text-[34px] font-black leading-none text-white/82">{artist.name.slice(0, 1).toUpperCase()}</span>
-            <span className="absolute inset-x-0 bottom-0 h-2" style={{ background: colors[1] }} />
+            <span className="text-[34px] font-bold leading-none text-white/85">{artist.name.slice(0, 1).toUpperCase()}</span>
           </div>
         )}
         <button
@@ -141,7 +140,7 @@ export const ArtistCard = memo(function ArtistCard({ artist }: { artist: Artist 
             openArtistContextMenu(e.clientX, e.clientY, artist);
           }}
           aria-label="Plus d'options"
-          className="absolute right-2 top-2 grid h-8 w-8 place-items-center rounded-full bg-black/55 text-white transition-all hover:bg-black/90 lg:h-7 lg:w-7 lg:rounded-[9px] lg:bg-black/70 lg:opacity-0 lg:group-hover:opacity-100"
+          className="absolute right-2 top-2 grid h-8 w-8 place-items-center rounded-full bg-black/30 backdrop-blur-md border border-white/10 text-white/90 shadow-[0_4px_12px_rgba(0,0,0,0.3)] transition-all duration-200 hover:bg-black/50 hover:text-white lg:h-7 lg:w-7 lg:opacity-0 lg:group-hover:opacity-100"
         >
           <MoreVertical className="size-4 lg:size-3.5" />
         </button>
@@ -178,7 +177,7 @@ export const PlaylistTile = memo(function PlaylistTile({ playlist }: { playlist:
           navigate("playlist", String(playlist.id));
         }
       }}
-      className="group matte-panel relative flex cursor-pointer flex-col gap-2.5 rounded-[13px] p-2.5 text-left transition-colors hover:bg-[var(--panel-2)] focus-auralis card-lift"
+      className="group matte-panel relative flex cursor-pointer flex-col gap-2.5 rounded-2xl p-2.5 text-left transition-all hover:bg-white/[0.04] focus-auralis card-lift active:scale-[0.98]"
     >
       <div className="relative">
         {coverImage ? (
@@ -186,19 +185,18 @@ export const PlaylistTile = memo(function PlaylistTile({ playlist }: { playlist:
             name={playlist.name}
             image={coverImage}
             size={156}
-            rounded={9}
+            rounded={10}
             colors={colors}
             showInitials={false}
             fluid
-            className="w-full aspect-square transition-transform lg:group-hover:scale-[1.02]"
+            className="w-full aspect-square"
           />
         ) : (
           <div
-            className="cover-fallback flex aspect-square w-full items-end overflow-hidden rounded-[9px] border border-[var(--line)]"
-            style={{ backgroundColor: colors[0] }}
+            className="cover-fallback flex aspect-square w-full items-center justify-center overflow-hidden rounded-2xl border-none shadow-[0_4px_16px_rgba(0,0,0,0.2)]"
+            style={{ background: `linear-gradient(135deg, ${colors[0]}, ${colors[1] || '#1a1a1a'})` }}
           >
-            <span className="absolute inset-x-0 top-0 h-2" style={{ background: colors[1] }} />
-            <span className="relative line-clamp-3 p-3 text-[15px] font-black leading-tight text-white/95">
+            <span className="relative p-4 text-center text-[18px] font-black tracking-tight leading-tight text-white/95 drop-shadow-md line-clamp-3">
               {playlist.name}
             </span>
           </div>
@@ -210,7 +208,7 @@ export const PlaylistTile = memo(function PlaylistTile({ playlist }: { playlist:
             if (list.length) playList(list, 0);
           }}
           aria-label={`Lire ${playlist.name}`}
-          className="signal-button absolute bottom-2 right-2 grid h-10 w-10 place-items-center rounded-full opacity-100 transition-all lg:h-9 lg:w-9 lg:translate-y-2 lg:rounded-[11px] lg:opacity-0 lg:group-hover:translate-y-0 lg:group-hover:opacity-100"
+          className="signal-button absolute bottom-2 right-2 grid h-10 w-10 place-items-center rounded-full opacity-100 shadow-[0_4px_12px_rgba(0,0,0,0.3)] transition-all hover:scale-110 lg:h-10 lg:w-10 lg:opacity-0 lg:group-hover:opacity-100"
         >
           <Play className="size-4 fill-current ml-0.5" />
         </button>

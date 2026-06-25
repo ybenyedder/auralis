@@ -59,11 +59,11 @@ export function KeyboardHelp() {
   return (
     <div className="fixed inset-0 z-[78] flex items-center justify-center" role="dialog" aria-modal="true" aria-label="Raccourcis clavier">
       <div className="backdrop-in absolute inset-0 bg-black/70" onClick={() => setHelpOpen(false)} />
-      <div ref={dialogRef} className="scale-in matte-panel relative w-full max-w-[520px] overflow-hidden rounded-[8px]">
+      <div ref={dialogRef} className="scale-in matte-panel relative w-full max-w-[520px] overflow-hidden rounded-sm">
         {/* Header */}
         <div className="flex items-center justify-between border-b border-[var(--line)] px-5 py-3.5">
           <div className="flex items-center gap-2.5">
-            <span className="grid size-7 place-items-center rounded-[9px] bg-primary/15 text-primary-soft">
+            <span className="grid size-7 place-items-center rounded-sm bg-primary/15 text-primary-soft">
               <Keyboard className="size-4" />
             </span>
             <div>
@@ -73,7 +73,7 @@ export function KeyboardHelp() {
           <button
             onClick={() => setHelpOpen(false)}
             aria-label="Fermer"
-            className="grid size-7 place-items-center rounded-[9px] text-muted-foreground transition-colors hover:bg-white/[0.06] hover:text-foreground"
+            className="grid size-7 place-items-center rounded-full text-muted-foreground transition-all duration-200 hover:bg-white/[0.04] hover:text-foreground hover:scale-105"
           >
             <X className="size-4" />
           </button>
@@ -83,7 +83,7 @@ export function KeyboardHelp() {
         <div className="grid gap-5 p-5 sm:grid-cols-2">
           {GROUPS.map((g) => (
             <div key={g.label}>
-              <p className="mb-2 text-[10px] font-black uppercase tracking-[0.16em] text-muted-foreground/80">{g.label}</p>
+              <p className="mb-2 text-[10px] font-semibold uppercase tracking-[0.07em] text-muted-foreground/80">{g.label}</p>
               <div className="space-y-1.5">
                 {g.items.map((it) => (
                   <div key={it.desc} className="flex items-center justify-between gap-3">
@@ -92,7 +92,7 @@ export function KeyboardHelp() {
                       {it.keys.map((k) => (
                         <kbd
                           key={k}
-                          className="min-w-[20px] rounded-[9px] border border-[var(--line)] bg-white/[0.06] px-1.5 py-0.5 text-center text-[10px] font-bold text-foreground/90"
+                          className="min-w-[20px] rounded-full bg-white/5 px-2 py-0.5 text-center text-[10px] font-bold text-foreground/90 shadow-[inset_0_1px_0_rgba(255,255,255,0.05)] border border-transparent"
                         >
                           {k}
                         </kbd>
@@ -107,7 +107,7 @@ export function KeyboardHelp() {
 
         {/* Footer */}
         <div className="border-t border-[var(--line)] px-5 py-2.5 text-center text-[10.5px] text-muted-foreground/70">
-          <kbd className="rounded-[9px] border border-[var(--line)] bg-white/[0.05] px-1 font-bold">Esc</kbd>
+          <kbd className="rounded-full bg-white/5 px-2 py-0.5 font-bold shadow-[inset_0_1px_0_rgba(255,255,255,0.05)]">Esc</kbd>
         </div>
       </div>
     </div>

@@ -24,10 +24,10 @@ export function QueueList({ maxHeight }: { maxHeight?: string }) {
   return (
     <div className="flex min-h-0 flex-1 flex-col">
       <div className="flex items-center justify-between px-4 py-2 lg:py-2">
-        <p className="text-[12px] font-black uppercase tracking-[0.12em] text-muted-foreground lg:text-[11px]">{shuffledQueue.length} titres</p>
+        <p className="text-[12px] font-semibold uppercase tracking-[0.06em] text-muted-foreground lg:text-[11px]">{shuffledQueue.length} titres</p>
         <button
           onClick={clearQueue}
-          className="tap-press flex min-h-[40px] items-center gap-1.5 rounded-[9px] px-2.5 py-1 text-[12px] font-bold text-muted-foreground/70 transition-colors hover:bg-white/[0.06] hover:text-foreground lg:min-h-0 lg:gap-1 lg:text-[10.5px]"
+          className="tap-press flex min-h-[40px] items-center gap-1.5 rounded-full px-3 py-1 text-[12px] font-bold text-muted-foreground/70 transition-all duration-200 hover:bg-white/[0.04] hover:text-foreground hover:scale-105 lg:min-h-0 lg:gap-1 lg:text-[10.5px]"
         >
           <Trash2 className="size-3.5 lg:size-3" /> Nettoyer
         </button>
@@ -42,7 +42,7 @@ export function QueueList({ maxHeight }: { maxHeight?: string }) {
             <button
               onClick={() => libraryTracks.length && playList(shuffleArray(libraryTracks), 0)}
               disabled={libraryTracks.length === 0}
-              className="signal-button tap-press flex items-center gap-2 rounded-[11px] px-4 py-2.5 text-[12.5px] font-black disabled:opacity-40"
+              className="signal-button tap-press flex items-center gap-2 rounded-md px-4 py-2.5 text-[12.5px] font-black disabled:opacity-40"
             >
               <Shuffle className="size-4" /> Lecture aléatoire
             </button>
@@ -97,13 +97,13 @@ function QueueRow({
   return (
     <div
       className={cn(
-        "group flex items-center gap-2 rounded-[11px] px-2 py-1.5 transition-colors lg:py-2",
-        active ? "bg-primary/12 text-foreground" : "hover:bg-white/[0.045]",
+        "group flex items-center gap-2 rounded-sm px-2 py-1.5 transition-all duration-200 lg:py-2",
+        active ? "bg-gradient-to-r from-primary/10 to-transparent text-foreground shadow-[inset_2px_0_0_var(--primary)]" : "hover:bg-white/[0.02]",
       )}
     >
       <span className="w-5 text-right text-[11px] tabular-nums text-muted-foreground/55 lg:text-[10px]">{index + 1}</span>
       <button onClick={onPlay} className="flex min-w-0 flex-1 items-center gap-2.5 text-left">
-        <Artwork title={track.title} trackhash={track.trackhash} size={32} rounded={9} colors={track.color} image={track.image} fluid className="size-9 lg:size-8" />
+        <Artwork title={track.title} trackhash={track.trackhash} size={32} rounded={10} colors={track.color} image={track.image} fluid className="size-9 lg:size-8" />
         <div className="min-w-0">
           <p className={cn("truncate text-[13px] font-bold leading-tight lg:text-[12px]", active ? "text-primary-soft" : "text-foreground")}>{trackTitle(track)}</p>
           <p className="mt-0.5 truncate text-[11.5px] leading-tight text-muted-foreground lg:text-[10.5px]">{trackArtist(track)}</p>
@@ -111,13 +111,13 @@ function QueueRow({
       </button>
       {active ? <EqualizerBars active={isPlaying} className="h-3" /> : <span className="hidden text-[10px] tabular-nums text-muted-foreground/70 lg:inline">{formatDuration(track.duration)}</span>}
       <div className="flex items-center gap-0.5 lg:hidden lg:group-hover:flex">
-        <button onClick={onMoveUp} disabled={!canMoveUp} className="tap-press grid size-10 place-items-center rounded-[9px] text-muted-foreground transition-colors hover:bg-white/[0.06] hover:text-foreground disabled:opacity-25 lg:size-6" aria-label="Monter dans la file">
+        <button onClick={onMoveUp} disabled={!canMoveUp} className="tap-press grid size-10 place-items-center rounded-full text-muted-foreground transition-all duration-200 hover:scale-110 hover:text-foreground disabled:opacity-25 lg:size-6" aria-label="Monter dans la file">
           <ArrowUp className="size-4 lg:size-3" />
         </button>
-        <button onClick={onMoveDown} disabled={!canMoveDown} className="tap-press grid size-10 place-items-center rounded-[9px] text-muted-foreground transition-colors hover:bg-white/[0.06] hover:text-foreground disabled:opacity-25 lg:size-6" aria-label="Descendre dans la file">
+        <button onClick={onMoveDown} disabled={!canMoveDown} className="tap-press grid size-10 place-items-center rounded-full text-muted-foreground transition-all duration-200 hover:scale-110 hover:text-foreground disabled:opacity-25 lg:size-6" aria-label="Descendre dans la file">
           <ArrowDown className="size-4 lg:size-3" />
         </button>
-        <button onClick={onRemove} className="tap-press grid size-10 place-items-center rounded-[9px] text-muted-foreground transition-colors hover:bg-white/[0.06] hover:text-foreground lg:size-6" aria-label="Retirer de la file">
+        <button onClick={onRemove} className="tap-press grid size-10 place-items-center rounded-full text-muted-foreground transition-all duration-200 hover:scale-110 hover:text-foreground lg:size-6" aria-label="Retirer de la file">
           <X className="size-4 lg:size-3" />
         </button>
       </div>

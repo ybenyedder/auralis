@@ -77,7 +77,7 @@ function MiniPlayer() {
             title={currentTrack.title}
             trackhash={currentTrack.trackhash}
             size={42}
-            rounded={11}
+            rounded={10}
             colors={currentTrack.color}
             image={currentTrack.image}
           />
@@ -132,7 +132,7 @@ function MiniProgress() {
   const trackhash = usePlayer((s) => s.currentTrack?.trackhash);
   const pct = duration > 0 ? Math.min(100, (position / duration) * 100) : 0;
   return (
-    <div className="absolute inset-x-0 top-0 h-[2px] bg-white/[0.07]">
+    <div className="absolute inset-x-0 top-0 h-[2px] bg-[var(--panel-2)]">
       {/* Keyed on the track so a song change remounts the bar instead of sweeping
           from the previous position; the short linear ease just smooths the ~4 Hz
           playback ticks (it no longer lags on seek/track-change). */}

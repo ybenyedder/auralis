@@ -6,7 +6,7 @@ export async function GET() {
   return json({
     name: "Auralis",
     status: "ok",
-    version: "1.1.0",
+    version: "1.3.0",
     endpoints: [
       "/api/health",
       "/api/library",

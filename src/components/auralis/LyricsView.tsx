@@ -251,7 +251,7 @@ export function LyricsView({ variant }: { variant: "panel" | "stage" }) {
 
   return (
     <div className="flex h-full flex-col items-center justify-center gap-3 px-6 text-center">
-      <span className="grid size-12 place-items-center rounded-full bg-white/[0.06] ring-1 ring-white/10">
+      <span className="grid size-12 place-items-center rounded-full bg-[var(--panel-2)] ring-1 ring-[var(--line-strong)]">
         <Mic2 className="size-5 text-muted-foreground" />
       </span>
       {lyricsLoading ? (
@@ -265,7 +265,7 @@ export function LyricsView({ variant }: { variant: "panel" | "stage" }) {
           <p className="text-[13px] font-semibold text-muted-foreground">
             {lyricsStatus === "instrumental" ? "Morceau instrumental" : "Aucune parole pour ce titre"}
           </p>
-          <button onClick={() => fetchLyrics(true)} className="ghost-button tap-press rounded-[11px] px-3.5 py-2 text-[12px] font-bold">
+          <button onClick={() => fetchLyrics(true)} className="ghost-button tap-press rounded-md px-3.5 py-2 text-[12px] font-bold">
             Chercher en ligne
           </button>
         </>
@@ -350,7 +350,7 @@ function KaraokeSwitch() {
   const karaokeMode = usePlayer((s) => s.karaokeMode);
   const toggleKaraoke = usePlayer((s) => s.toggleKaraoke);
   return (
-    <div role="group" aria-label="Mode des paroles" className="inline-flex items-center gap-0.5 rounded-full border border-[var(--line)] bg-white/[0.04] p-0.5">
+    <div role="group" aria-label="Mode des paroles" className="inline-flex items-center gap-0.5 rounded-full bg-black/20 backdrop-blur-md p-1 shadow-[inset_0_1px_0_rgba(255,255,255,0.05)]">
       <SwitchSeg active={!karaokeMode} onClick={() => karaokeMode && toggleKaraoke()} label="Standard" icon={Captions} />
       <SwitchSeg active={karaokeMode} onClick={() => !karaokeMode && toggleKaraoke()} label="Karaoké" icon={Mic2} />
     </div>
@@ -365,11 +365,11 @@ function SyncOffset() {
   const resetLyricsOffset = usePlayer((s) => s.resetLyricsOffset);
   const label = `${lyricsOffset >= 0 ? "+" : ""}${lyricsOffset.toFixed(1)}s`;
   return (
-    <div role="group" aria-label="Décalage des paroles" className="inline-flex items-center gap-0.5 rounded-full border border-[var(--line)] bg-white/[0.04] p-0.5 text-[11px] font-bold">
+    <div role="group" aria-label="Décalage des paroles" className="inline-flex items-center gap-0.5 rounded-full bg-black/20 backdrop-blur-md p-1 text-[11px] font-bold shadow-[inset_0_1px_0_rgba(255,255,255,0.05)]">
       <button
         onClick={() => adjustLyricsOffset(-0.1)}
         aria-label="Retarder les paroles"
-        className="grid size-6 place-items-center rounded-full text-muted-foreground/70 transition-colors hover:bg-white/[0.06] hover:text-foreground"
+        className="grid size-6 place-items-center rounded-full text-white/50 transition-all duration-200 hover:bg-white/10 hover:text-white"
       >
         <Minus className="size-3" />
       </button>
@@ -384,7 +384,7 @@ function SyncOffset() {
       <button
         onClick={() => adjustLyricsOffset(0.1)}
         aria-label="Avancer les paroles"
-        className="grid size-6 place-items-center rounded-full text-muted-foreground/70 transition-colors hover:bg-white/[0.06] hover:text-foreground"
+        className="grid size-6 place-items-center rounded-full text-white/50 transition-all duration-200 hover:bg-white/10 hover:text-white"
       >
         <Plus className="size-3" />
       </button>

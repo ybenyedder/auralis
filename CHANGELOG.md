@@ -6,6 +6,32 @@ All notable changes to Auralis are documented here. The format is based on
 
 ## [Unreleased]
 
+## [1.3.0] — 2026-06-25
+
+Native mobile rewrite, desktop onboarding and a gentle donation reminder.
+
+### Added
+- **Native Android client (`android-native/`).** A from-scratch **Kotlin / Jetpack
+  Compose** app replacing the Capacitor WebView shell. It talks to a self-hosted
+  Auralis server over the same HTTP API and plays audio natively with
+  **Media3 / ExoPlayer** + a `MediaSessionService` — real background playback,
+  lock-screen controls and audio focus (no more WebView wake-lock workaround).
+  Feature parity with the web app: connect/login, library (sort + grid/list +
+  counts), search (server FTS + genre mixes + history), Home shelves (mix du jour,
+  reprendre, à redécouvrir, découvertes), favourites (5-way sort), folders, insights,
+  album/artist/playlist detail, mini + fullscreen player, queue, synced **karaoke
+  lyrics** (offset + toggle), track ⋮ context menu (play next / queue /
+  add-to-playlist), playlist create/rename/delete/reorder/pin, sleep timer, in-app
+  volume, session resume, streak-milestone toasts, command palette, a visualiser,
+  all 14 themes with an animated Compose backdrop, and full settings (password
+  change, admin user management, rescan, change folder, export/import, reset
+  history). Build with `npm run mobile:native` (offline: `AURALIS_OFFLINE=1`).
+- **Desktop first-run setup.** On first launch the desktop app asks whether to run
+  **locally** (spawns the bundled server on a chosen music folder) or **connect to a
+  remote Auralis server** by URL — re-pickable later from Settings.
+- **Donation reminder.** A dismissible popup invites support on the first launch and
+  then every third launch thereafter (web/desktop and the native app).
+
 ## [1.2.0] — 2026-06-25
 
 Engagement, security, ergonomics and homogeneity pass. Adds two forward-only DB

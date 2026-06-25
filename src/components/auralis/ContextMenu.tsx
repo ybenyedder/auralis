@@ -148,7 +148,7 @@ export function ContextMenuHost() {
         <div
           data-context-menu
           role="menu"
-          className="scale-in matte-panel fixed w-[248px] overflow-hidden rounded-[13px]"
+          className="scale-in matte-panel fixed w-[248px] overflow-hidden rounded-lg"
           style={{ left: pos.x, top: pos.y }}
         >
           {menu(false)}
@@ -166,11 +166,11 @@ export function ContextMenuHost() {
         <div
           data-context-menu
           role="menu"
-          className="sheet-up matte-panel safe-bottom absolute inset-x-0 bottom-0 max-h-[85vh] overflow-y-auto rounded-t-[14px] border-x-0 border-b-0"
+          className="sheet-up matte-panel safe-bottom absolute inset-x-0 bottom-0 max-h-[85vh] overflow-y-auto rounded-t-lg border-x-0 border-b-0"
         >
           {/* Drag handle */}
           <div className="flex justify-center pt-2.5 pb-1">
-            <span className="h-1 w-9 rounded-full bg-white/20" />
+            <span className="h-1 w-9 rounded-full bg-[var(--line-strong)]" />
           </div>
           {menu(true)}
         </div>
@@ -267,7 +267,7 @@ function TrackMenu({
               label="Partager"
               onClick={() => run(() => void shareTrack(track, usePlayer.getState().notify))}
             />
-            <div className="my-1 h-px bg-white/[0.06]" />
+            <div className="my-1 h-px bg-[var(--panel-2)]" />
             {album && (
               <MenuItem
                 sheet={sheet}
@@ -360,7 +360,7 @@ function AlbumMenu({
         />
         {!playlistOpen && (
           <>
-            <div className="my-1 h-px bg-white/[0.06]" />
+            <div className="my-1 h-px bg-[var(--panel-2)]" />
             <MenuItem sheet={sheet} icon={Disc3} label="Aller à l'album" onClick={() => run(() => navigate("album", album.albumhash))} />
             {artist && (
               <MenuItem
@@ -411,7 +411,7 @@ function ArtistMenu({
       <div className={sheet ? "p-2" : "p-1.5"}>
         <MenuItem sheet={sheet} icon={Play} label="Lire les titres populaires" onClick={() => run(() => playList(topTracks, 0))} />
         <MenuItem sheet={sheet} icon={ListPlus} label="Ajouter les titres à la file" onClick={() => run(() => topTracks.forEach((t) => addToQueueEnd(t)))} />
-        <div className="my-1 h-px bg-white/[0.06]" />
+        <div className="my-1 h-px bg-[var(--panel-2)]" />
         <MenuItem sheet={sheet} icon={UserRound} label="Aller à l'artiste" onClick={() => run(() => navigate("artist", artist.artisthash))} />
         {albumCount > 0 && (
           <p className={cn("text-muted-foreground/70", sheet ? "px-3 py-1.5 text-xs" : "px-2.5 py-1 text-[10.5px]")}>{albumCount} albums · {artist.trackcount} titres</p>
@@ -446,11 +446,11 @@ function MenuHeader({
     >
       <span
         className={cn(
-          "grid shrink-0 place-items-center rounded-[9px] font-black text-white/85",
-          sheet ? "size-12 text-[15px]" : "size-9 text-[11px]",
-          round && "rounded-[11px]",
+          "grid shrink-0 place-items-center font-black text-white/90 shadow-[0_4px_12px_rgba(0,0,0,0.3)]",
+          sheet ? "size-12 text-[15px] rounded-2xl" : "size-9 text-[11px] rounded-xl",
+          round && "rounded-full",
         )}
-        style={{ background: colors[0], borderBottom: `4px solid ${colors[1]}` }}
+        style={{ background: colors[0] }}
       >
         {initial.toUpperCase()}
       </span>
@@ -501,15 +501,15 @@ function PlaylistSubmenu({
       <div className="p-2">
         <button
           onClick={() => setSubmenu(null)}
-          className="tap-press mb-1 flex min-h-[48px] w-full items-center gap-3 rounded-md px-3 text-left text-[15px] font-semibold text-foreground active:bg-white/[0.05]"
+          className="tap-press mb-1 flex min-h-[48px] w-full items-center gap-3 rounded-md px-3 text-left text-[15px] font-semibold text-foreground active:bg-[var(--panel-2)]"
         >
           <ChevronRight className="size-5 rotate-180 text-muted-foreground/70" />
           {labelOverride ?? "Ajouter à une playlist"}
         </button>
-        <div className="my-1 h-px bg-white/[0.06]" />
+        <div className="my-1 h-px bg-[var(--panel-2)]" />
         <button
           onClick={() => run(onCreate)}
-          className="tap-press flex min-h-[48px] w-full items-center gap-3 rounded-md px-3 text-left text-[15px] font-semibold text-primary-soft active:bg-white/[0.05]"
+          className="tap-press flex min-h-[48px] w-full items-center gap-3 rounded-md px-3 text-left text-[15px] font-semibold text-primary-soft active:bg-[var(--panel-2)]"
         >
           <Plus className="size-5" /> Nouvelle playlist
         </button>
@@ -520,11 +520,11 @@ function PlaylistSubmenu({
             <button
               key={pl.id}
               onClick={() => run(() => onAdd(String(pl.id)))}
-              className="tap-press flex min-h-[48px] w-full items-center gap-3 rounded-md px-3 text-left text-[15px] font-medium text-foreground/90 active:bg-white/[0.05]"
+              className="tap-press flex min-h-[48px] w-full items-center gap-3 rounded-md px-3 text-left text-[15px] font-medium text-foreground/90 active:bg-[var(--panel-2)]"
             >
               <span
-                className="size-5 shrink-0 rounded-[7px]"
-                style={{ background: pl.color?.[0], borderBottom: `3px solid ${pl.color?.[1]}` }}
+                className="size-5 shrink-0 rounded-sm"
+                style={{ background: pl.color?.[0] }}
               />
               <span className="truncate">{pl.name}</span>
               <span className="ml-auto text-[12px] text-muted-foreground">{pl.trackcount}</span>
@@ -546,10 +546,10 @@ function PlaylistSubmenu({
         active={open}
       />
       {open && (
-        <div className="scale-in matte-panel mb-1 ml-2 overflow-hidden rounded-[11px]">
+        <div className="scale-in matte-panel mb-1 ml-2 overflow-hidden rounded-md">
           <button
             onClick={() => run(onCreate)}
-            className="flex w-full items-center gap-2.5 px-2.5 py-2 text-left text-[12px] font-semibold text-primary-soft hover:bg-white/[0.05]"
+            className="flex w-full items-center gap-2.5 px-2.5 py-2 text-left text-[12px] font-semibold text-primary-soft hover:bg-[var(--panel-2)]"
           >
             <Plus className="size-3.5" /> Nouvelle playlist
           </button>
@@ -560,11 +560,11 @@ function PlaylistSubmenu({
               <button
                 key={pl.id}
                 onClick={() => run(() => onAdd(String(pl.id)))}
-                className="flex w-full items-center gap-2.5 px-2.5 py-2 text-left text-[12px] font-medium text-foreground/90 hover:bg-white/[0.05]"
+                className="flex w-full items-center gap-2.5 px-2.5 py-2 text-left text-[12px] font-medium text-foreground/90 hover:bg-[var(--panel-2)]"
               >
                 <span
-                  className="size-4 shrink-0 rounded-[7px]"
-                  style={{ background: pl.color?.[0], borderBottom: `3px solid ${pl.color?.[1]}` }}
+                  className="size-4 shrink-0 rounded-sm"
+                  style={{ background: pl.color?.[0] }}
                 />
                 <span className="truncate">{pl.name}</span>
                 <span className="ml-auto text-[10px] text-muted-foreground">{pl.trackcount}</span>
@@ -602,9 +602,9 @@ function MenuItem({
         "flex w-full items-center rounded-md text-left font-medium transition-colors",
         // Touch sizing on the mobile sheet, original compact sizing on desktop.
         sheet
-          ? "tap-press min-h-[48px] gap-3 px-3 text-[15px] active:bg-white/[0.05]"
+          ? "tap-press min-h-[48px] gap-3 px-3 text-[15px] active:bg-[var(--panel-2)]"
           : "gap-2.5 px-2.5 py-2 text-[12.5px]",
-        active ? "bg-white/[0.07] text-foreground" : "text-foreground/90 hover:bg-white/[0.05]",
+        active ? "bg-white/5 text-foreground" : "text-foreground/90 hover:bg-white/[0.04]",
         accent === "primary" && "text-primary",
       )}
     >

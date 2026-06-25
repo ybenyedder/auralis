@@ -108,14 +108,14 @@ export function AlbumDetail({ albumhash }: { albumhash: string }) {
             title={album.title}
             albumhash={album.albumhash}
             size={208}
-            rounded={11}
+            rounded={12}
             colors={colors}
             image={album.image}
             fluid
             className="w-[min(56vw,240px)] aspect-square lg:w-52 lg:h-52"
           />
           <div className="mt-4 min-w-0 lg:mt-0 lg:pb-2">
-            <p className="text-[10px] font-black uppercase tracking-[0.18em] text-[var(--brass)]">
+            <p className="text-[10px] font-semibold uppercase tracking-[0.08em] text-[var(--brass)]">
               Album
             </p>
             <h1 className="mt-1 text-[clamp(24px,7vw,32px)] font-black leading-tight tracking-tight text-foreground lg:text-[clamp(30px,4.5vw,56px)] lg:leading-none">
@@ -135,7 +135,7 @@ export function AlbumDetail({ albumhash }: { albumhash: string }) {
               else playList(albumTracks, 0);
             }}
             disabled={albumTracks.length === 0}
-            className="signal-button tap-press flex h-12 flex-1 items-center justify-center gap-2 rounded-[11px] px-5 text-[14px] font-black transition-colors disabled:opacity-40 lg:h-auto lg:flex-none lg:justify-start lg:py-2.5 lg:text-[13px]"
+            className="signal-button tap-press flex h-12 flex-1 items-center justify-center gap-2 rounded-full px-5 text-[14px] font-black transition-all duration-200 hover:scale-105 shadow-[0_4px_12px_rgba(0,0,0,0.2)] disabled:opacity-40 lg:h-auto lg:flex-none lg:justify-start lg:py-2.5 lg:text-[13px]"
           >
             {isPlayingThis ? (
               <Pause className="size-4 fill-current" />
@@ -147,7 +147,7 @@ export function AlbumDetail({ albumhash }: { albumhash: string }) {
           <button
             onClick={() => albumTracks.length && playList(shuffleArray(albumTracks), 0)}
             disabled={albumTracks.length === 0}
-            className="ghost-button tap-press grid h-12 w-12 shrink-0 place-items-center rounded-[11px] transition-colors disabled:opacity-40 lg:h-10 lg:w-10"
+            className="ghost-button tap-press grid h-12 w-12 shrink-0 place-items-center rounded-full transition-all duration-200 hover:scale-105 disabled:opacity-40 lg:h-10 lg:w-10"
             aria-label="Lecture aléatoire de l'album"
           >
             <Shuffle className="size-4" />
@@ -221,27 +221,23 @@ export function ArtistDetail({ artisthash }: { artisthash: string }) {
               artisthash={artist.artisthash}
               image={artist.image}
               size={176}
-              rounded={13}
+              rounded={999}
               colors={colors}
               fluid
               className="w-[min(52vw,200px)] aspect-square lg:size-44"
             />
           ) : (
             <div
-              className="cover-fallback relative flex w-[min(52vw,200px)] aspect-square shrink-0 items-end overflow-hidden rounded-[13px] border border-[var(--line)] p-4 lg:size-44"
+              className="cover-fallback relative grid w-[min(52vw,200px)] aspect-square shrink-0 place-items-center overflow-hidden rounded-full shadow-[0_8px_32px_rgba(0,0,0,0.4)] border border-white/5 p-4 lg:size-44"
               style={{ backgroundColor: colors[0] }}
             >
               <span className="text-[18vw] font-black leading-none text-white/82 lg:text-[64px]">
                 {artist.name.slice(0, 1).toUpperCase()}
               </span>
-              <span
-                className="absolute inset-x-0 bottom-0 h-3"
-                style={{ background: colors[1] }}
-              />
             </div>
           )}
           <div className="mt-4 min-w-0 lg:mt-0 lg:pb-1">
-            <p className="text-[10px] font-black uppercase tracking-[0.18em] text-[var(--brass)]">
+            <p className="text-[10px] font-semibold uppercase tracking-[0.08em] text-[var(--brass)]">
               Artiste
             </p>
             <h1 className="mt-1 text-[clamp(24px,7vw,32px)] font-black leading-tight tracking-tight text-foreground lg:text-[clamp(30px,4.5vw,56px)] lg:leading-none">
@@ -264,7 +260,7 @@ export function ArtistDetail({ artisthash }: { artisthash: string }) {
           <button
             onClick={() => topTracks.length && playList(topTracks, 0)}
             disabled={topTracks.length === 0}
-            className="signal-button tap-press flex h-12 flex-1 items-center justify-center gap-2 rounded-[11px] px-5 text-[14px] font-black transition-colors disabled:opacity-40 lg:h-auto lg:flex-none lg:justify-start lg:py-2.5 lg:text-[13px]"
+            className="signal-button tap-press flex h-12 flex-1 items-center justify-center gap-2 rounded-full px-5 text-[14px] font-black transition-all duration-200 hover:scale-105 shadow-[0_4px_12px_rgba(0,0,0,0.2)] disabled:opacity-40 lg:h-auto lg:flex-none lg:justify-start lg:py-2.5 lg:text-[13px]"
           >
             <Play className="size-4 fill-current" /> Lire
           </button>
@@ -274,7 +270,7 @@ export function ArtistDetail({ artisthash }: { artisthash: string }) {
               if (all.length) playList(shuffleArray(all), 0);
             }}
             disabled={topTracks.length === 0}
-            className="ghost-button tap-press grid h-12 w-12 shrink-0 place-items-center rounded-[11px] transition-colors disabled:opacity-40 lg:h-10 lg:w-10"
+            className="ghost-button tap-press grid h-12 w-12 shrink-0 place-items-center rounded-full transition-all duration-200 hover:scale-105 disabled:opacity-40 lg:h-10 lg:w-10"
             aria-label="Lecture aléatoire de l'artiste"
           >
             <Shuffle className="size-4" />
@@ -376,7 +372,7 @@ export function PlaylistDetail({ id }: { id: string }) {
               name={playlist.name}
               image={coverImage}
               size={208}
-              rounded={13}
+              rounded={12}
               colors={colors}
               showInitials={false}
               fluid
@@ -384,20 +380,16 @@ export function PlaylistDetail({ id }: { id: string }) {
             />
           ) : (
             <div
-              className="cover-fallback relative flex w-[min(56vw,240px)] aspect-square shrink-0 items-end overflow-hidden rounded-[13px] border border-[var(--line)] p-4 lg:size-[208px]"
+              className="cover-fallback relative flex w-[min(56vw,240px)] aspect-square shrink-0 items-end overflow-hidden rounded-lg border border-[var(--line)] p-4 lg:size-[208px]"
               style={{ backgroundColor: colors[0] }}
             >
-              <span
-                className="absolute inset-x-0 top-0 h-3"
-                style={{ background: colors[1] }}
-              />
               <span className="relative text-[18px] font-black leading-tight text-white">
                 {playlist.name}
               </span>
             </div>
           )}
           <div className="mt-4 w-full min-w-0 lg:mt-0 lg:w-auto lg:pb-2">
-            <p className="text-[10px] font-black uppercase tracking-[0.18em] text-[var(--brass)]">
+            <p className="text-[10px] font-semibold uppercase tracking-[0.08em] text-[var(--brass)]">
               {isCustom ? "Playlist locale" : "Playlist catalogue"}
             </p>
             {editing && isCustom ? (
@@ -412,7 +404,7 @@ export function PlaylistDetail({ id }: { id: string }) {
                     setEditing(false);
                   }
                 }}
-                className="mt-1 w-full rounded-[11px] border border-[var(--line-strong)] bg-black/20 px-3 py-2 text-center text-[22px] font-black leading-tight tracking-tight text-foreground outline-none lg:text-left lg:text-[clamp(30px,4.5vw,56px)] lg:leading-none"
+                className="mt-1 w-full rounded-md border border-[var(--line-strong)] bg-black/20 px-3 py-2 text-center text-[22px] font-black leading-tight tracking-tight text-foreground outline-none lg:text-left lg:text-[clamp(30px,4.5vw,56px)] lg:leading-none"
               />
             ) : (
               <h1 className="mt-1 text-[clamp(24px,7vw,32px)] font-black leading-tight tracking-tight text-foreground lg:text-[clamp(30px,4.5vw,56px)] lg:leading-none">
@@ -437,7 +429,7 @@ export function PlaylistDetail({ id }: { id: string }) {
               else playList(tracks, 0);
             }}
             disabled={tracks.length === 0}
-            className="signal-button tap-press flex h-12 flex-1 items-center justify-center gap-2 rounded-[11px] px-5 text-[14px] font-black transition-colors disabled:opacity-40 lg:h-auto lg:flex-none lg:justify-start lg:py-2.5 lg:text-[13px]"
+            className="signal-button tap-press flex h-12 flex-1 items-center justify-center gap-2 rounded-full px-5 text-[14px] font-black transition-all duration-200 hover:scale-105 shadow-[0_4px_12px_rgba(0,0,0,0.2)] disabled:opacity-40 lg:h-auto lg:flex-none lg:justify-start lg:py-2.5 lg:text-[13px]"
           >
             {isPlayingThis ? (
               <Pause className="size-4 fill-current" />
@@ -450,13 +442,13 @@ export function PlaylistDetail({ id }: { id: string }) {
             <>
               <button
                 onClick={() => { setName(playlist.name); setEditing(true); }}
-                className="ghost-button tap-press flex h-12 items-center gap-2 rounded-[11px] px-4 text-[13px] font-bold transition-colors lg:h-10 lg:px-3 lg:text-[12px]"
+                className="ghost-button tap-press flex h-12 items-center gap-2 rounded-full px-4 text-[13px] font-bold transition-all duration-200 hover:scale-105 lg:h-10 lg:px-3 lg:text-[12px]"
               >
                 <PencilLine className="size-4" /> Renommer
               </button>
               <button
                 onClick={deleteCurrentPlaylist}
-                className="ghost-button tap-press flex h-12 items-center gap-2 rounded-[11px] px-4 text-[13px] font-bold text-destructive transition-colors lg:h-10 lg:px-3 lg:text-[12px]"
+                className="ghost-button tap-press flex h-12 items-center gap-2 rounded-full px-4 text-[13px] font-bold text-destructive transition-all duration-200 hover:scale-105 hover:bg-destructive/10 lg:h-10 lg:px-3 lg:text-[12px]"
               >
                 <Trash2 className="size-4" /> Supprimer
               </button>
@@ -481,14 +473,14 @@ export function PlaylistDetail({ id }: { id: string }) {
                       <button
                         onClick={() => removeFromPlaylist(id, track.trackhash)}
                         aria-label={`Retirer ${track.title}`}
-                        className="tap-press grid h-11 w-11 shrink-0 place-items-center rounded-[11px] border border-destructive/20 bg-destructive/10 text-destructive lg:hidden"
+                        className="tap-press grid h-11 w-11 shrink-0 place-items-center rounded-full border border-destructive/20 bg-destructive/10 text-destructive lg:hidden"
                       >
                         <Trash2 className="size-4" />
                       </button>
                       {/* Desktop: hover-only inline pill */}
                       <button
                         onClick={() => removeFromPlaylist(id, track.trackhash)}
-                        className="absolute right-1 top-1/2 hidden -translate-y-1/2 rounded-[9px] border border-destructive/20 bg-destructive/10 px-2 py-1 text-[10px] font-bold text-destructive lg:group-hover/playlist:block"
+                        className="absolute right-1 top-1/2 hidden -translate-y-1/2 rounded-full border border-destructive/20 bg-destructive/10 px-2 py-1 text-[10px] font-bold text-destructive transition-all duration-200 hover:bg-destructive/20 hover:scale-105 lg:group-hover/playlist:block"
                       >
                         Retirer
                       </button>
@@ -499,7 +491,7 @@ export function PlaylistDetail({ id }: { id: string }) {
             </div>
           </>
         ) : (
-          <div className="matte-panel rounded-[13px] p-8 text-center">
+          <div className="matte-panel rounded-lg p-8 text-center">
             <ListMusic className="mx-auto mb-3 size-8 text-muted-foreground/45" />
             <p className="text-[13px] font-bold text-foreground">
               Playlist vide
@@ -631,6 +623,17 @@ export function SettingsView() {
     } catch {
       notify("Dossier invalide ou inaccessible");
     }
+  };
+
+  // Desktop only: forget the saved source (URL vs local folder) and relaunch into
+  // the first-run chooser. Lets the user switch between a remote server and local.
+  const desktopBridge = (typeof window !== "undefined"
+    ? (window as unknown as { auralisDesktop?: { reconfigure?: () => void } }).auralisDesktop
+    : undefined);
+  const reconfigureSource = () => {
+    if (!desktopBridge?.reconfigure) return;
+    if (!window.confirm("Changer la source d'Auralis (URL d'un serveur distant ou dossier local) ? L'application va redémarrer.")) return;
+    desktopBridge.reconfigure();
   };
 
   const settingsSections: {
@@ -779,6 +782,14 @@ export function SettingsView() {
       type: "action",
       onAction: () => void rescan(),
     },
+    ...(desktopBridge?.reconfigure
+      ? [{
+          label: "Changer la source",
+          value: "URL ou dossier…",
+          type: "action" as const,
+          onAction: reconfigureSource,
+        }]
+      : []),
   ];
 
   const lyricsRows: SettingsRow[] = [
@@ -895,10 +906,10 @@ export function SettingsView() {
                 onClick={() => setSection(item.id)}
                 aria-pressed={isActive}
                 className={cn(
-                  "tap-press flex h-11 shrink-0 snap-start items-center gap-2 rounded-[11px] border px-3.5 text-[13px] font-bold transition-colors",
+                  "tap-press flex h-11 shrink-0 snap-start items-center gap-2 rounded-full border border-transparent px-4 text-[13px] font-bold transition-all duration-200",
                   isActive
-                    ? "border-primary/30 bg-primary/15 text-foreground"
-                    : "border-[var(--line)] bg-white/[0.04] text-muted-foreground",
+                    ? "bg-white/10 text-white shadow-[inset_0_1px_0_rgba(255,255,255,0.1)]"
+                    : "bg-white/5 text-muted-foreground hover:bg-white/[0.07]",
                 )}
               >
                 <Icon
@@ -920,8 +931,8 @@ export function SettingsView() {
       </div>
 
       <div className="grid gap-5 xl:grid-cols-[300px_1fr]">
-        <aside className="matte-panel hidden rounded-[13px] p-3 xl:sticky xl:top-5 xl:block xl:self-start">
-          <p className="mb-1.5 px-2 text-[10px] font-black uppercase tracking-[0.16em] text-muted-foreground/75">
+        <aside className="matte-panel hidden rounded-lg p-3 xl:sticky xl:top-5 xl:block xl:self-start">
+          <p className="mb-1.5 px-2 text-[10px] font-semibold uppercase tracking-[0.07em] text-muted-foreground/75">
             Sections
           </p>
           <div className="space-y-1">
@@ -970,9 +981,9 @@ export function SettingsView() {
           )}
           {section === "about" && (
             <>
-              <div className="matte-panel rounded-[13px] p-5">
+              <div className="matte-panel rounded-lg p-5">
                 <div className="flex items-start gap-4">
-                  <span className="grid size-11 shrink-0 place-items-center rounded-[13px] bg-primary/15 text-primary-soft">
+                  <span className="grid size-11 shrink-0 place-items-center rounded-lg bg-primary/15 text-primary-soft">
                     <Heart className="size-5" />
                   </span>
                   <div className="min-w-0">
@@ -1013,10 +1024,10 @@ function SettingsNavItem({
     <button
       onClick={onClick}
       className={cn(
-        "flex w-full items-center gap-2.5 rounded-[11px] px-2.5 py-2 text-left transition-colors",
+        "flex w-full items-center gap-2.5 rounded-lg px-2.5 py-2 text-left transition-all duration-200",
         active
-          ? "bg-primary/15 text-foreground"
-          : "text-muted-foreground hover:bg-white/[0.045] hover:text-foreground",
+          ? "bg-white/10 text-foreground shadow-[inset_0_1px_0_rgba(255,255,255,0.05)]"
+          : "text-muted-foreground hover:bg-white/[0.04] hover:text-foreground",
       )}
     >
       <Icon
@@ -1037,8 +1048,8 @@ function SettingsNavItem({
 
 function SettingsCard({ title, rows }: { title: string; rows: SettingsRow[] }) {
   return (
-    <div className="matte-panel rounded-[13px] p-4">
-      <p className="mb-3 text-[10px] font-black uppercase tracking-[0.14em] text-muted-foreground/80">
+    <div className="matte-panel rounded-lg p-4">
+      <p className="mb-3 text-[10px] font-semibold uppercase tracking-[0.06em] text-muted-foreground/80">
         {title}
       </p>
       <div className="space-y-1">
@@ -1056,7 +1067,7 @@ function SettingsCard({ title, rows }: { title: string; rows: SettingsRow[] }) {
           return (
             <div
               key={row.label}
-              className="flex min-h-[44px] items-center justify-between gap-4 border-b border-white/[0.04] py-2 last:border-0 lg:min-h-0"
+              className="flex min-h-[44px] items-center justify-between gap-4 border-b border-[var(--line)] py-2 last:border-0 lg:min-h-0"
             >
               <span className="min-w-0 text-[13px] text-foreground/90">
                 {row.label}
@@ -1065,24 +1076,24 @@ function SettingsCard({ title, rows }: { title: string; rows: SettingsRow[] }) {
                 <button
                   onClick={row.onAction}
                   className={cn(
-                    "tap-press flex h-7 w-12 shrink-0 items-center rounded-[9px] px-0.5 transition-colors lg:h-5 lg:w-9",
+                    "tap-press flex h-7 w-12 shrink-0 items-center rounded-full px-0.5 transition-all duration-300 lg:h-5 lg:w-9",
                     row.active
-                      ? "justify-end bg-primary"
+                      ? "justify-end bg-primary shadow-[0_0_12px_rgba(217,95,69,0.4)]"
                       : "justify-start bg-white/10",
                   )}
                   aria-label={row.label}
                   aria-pressed={row.active}
                 >
-                  <span className="size-6 rounded-[7px] bg-[var(--paper)] lg:size-4" />
+                  <span className="size-6 rounded-full bg-white shadow-sm lg:size-4" />
                 </button>
               ) : row.type === "action" && row.onAction ? (
                 <button
                   onClick={row.onAction}
                   className={cn(
-                    "tap-press flex min-h-[40px] shrink-0 items-center rounded-[11px] border px-3.5 text-[13px] font-bold transition-colors lg:min-h-0 lg:px-3 lg:py-1 lg:text-[12px]",
+                    "tap-press flex min-h-[40px] shrink-0 items-center rounded-full border border-transparent shadow-[inset_0_1px_0_rgba(255,255,255,0.05)] px-4 text-[13px] font-bold transition-all duration-200 hover:scale-105 lg:min-h-0 lg:px-3 lg:py-1 lg:text-[12px]",
                     row.tone === "danger"
-                      ? "border-destructive/25 bg-destructive/10 text-destructive hover:bg-destructive/15"
-                      : "border-primary/20 bg-primary/10 text-primary-soft hover:bg-primary/15",
+                      ? "bg-destructive/10 text-destructive hover:bg-destructive/20"
+                      : "bg-white/5 text-foreground hover:bg-white/10",
                   )}
                 >
                   {row.value}
@@ -1099,16 +1110,13 @@ function SettingsCard({ title, rows }: { title: string; rows: SettingsRow[] }) {
 }
 
 // --- Theme gallery (appearance settings) -----------------------------------
-const TILE_STARS =
-  "radial-gradient(1px 1px at 18% 32%, #fff, transparent), radial-gradient(1px 1px at 68% 58%, #fff, transparent), radial-gradient(1.4px 1.4px at 44% 78%, #fff, transparent), radial-gradient(1px 1px at 84% 24%, rgba(255,255,255,0.8), transparent), radial-gradient(1px 1px at 30% 66%, rgba(255,255,255,0.7), transparent)";
-
 function ThemeGallery({ theme, setTheme }: { theme: string; setTheme: (id: string) => void }) {
   const current = THEMES[theme] ?? THEME_LIST[0];
   return (
-    <div className="matte-panel rounded-[13px] p-4">
+    <div className="matte-panel rounded-lg p-4">
       <div className="mb-4 flex items-start justify-between gap-3">
         <div className="min-w-0">
-          <p className="text-[10px] font-extrabold uppercase tracking-[0.14em] text-[var(--brass)]">
+          <p className="text-[10px] font-semibold uppercase tracking-[0.06em] text-[var(--brass)]">
             Thème
           </p>
           <h2 className="mt-0.5 text-[18px] font-black leading-tight text-foreground">
@@ -1118,7 +1126,7 @@ function ThemeGallery({ theme, setTheme }: { theme: string; setTheme: (id: strin
             {current.blurb}
           </p>
         </div>
-        <span className="shrink-0 rounded-[11px] border border-[var(--line)] bg-white/[0.04] px-2.5 py-1 text-[10.5px] font-bold text-muted-foreground">
+        <span className="shrink-0 rounded-full border border-transparent bg-white/5 shadow-[inset_0_1px_0_rgba(255,255,255,0.05)] px-3 py-1 text-[10.5px] font-bold text-muted-foreground">
           {THEME_LIST.length} thèmes
         </span>
       </div>
@@ -1129,7 +1137,7 @@ function ThemeGallery({ theme, setTheme }: { theme: string; setTheme: (id: strin
           if (themes.length === 0) return null;
           return (
             <div key={group.id}>
-              <p className="mb-2 text-[10px] font-black uppercase tracking-[0.16em] text-muted-foreground/65">
+              <p className="mb-2 text-[10px] font-semibold uppercase tracking-[0.07em] text-muted-foreground/65">
                 {group.label}
               </p>
               <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-3 lg:grid-cols-4">
@@ -1151,7 +1159,7 @@ function ThemeGallery({ theme, setTheme }: { theme: string; setTheme: (id: strin
 }
 
 function ThemePreview({ theme, active, onPick }: { theme: Theme; active: boolean; onPick: () => void }) {
-  const animated = theme.group !== "classic";
+  const glassy = theme.group !== "classic";
   const [c0, c1, c2] = theme.swatch;
   const primary = theme.vars.primary;
   return (
@@ -1160,24 +1168,18 @@ function ThemePreview({ theme, active, onPick }: { theme: Theme; active: boolean
       aria-pressed={active}
       aria-label={theme.label}
       className={cn(
-        "group relative flex flex-col gap-1.5 rounded-[9px] border p-1.5 text-left transition-all",
+        "group relative flex flex-col gap-1.5 rounded-xl border border-transparent p-2 text-left transition-all duration-200",
         active
-          ? "border-white/35 bg-white/[0.06]"
-          : "border-white/[0.07] hover:border-white/20 hover:bg-white/[0.03]",
+          ? "bg-white/10 shadow-[inset_0_0_0_1px_rgba(255,255,255,0.1)]"
+          : "hover:bg-white/[0.04]",
       )}
     >
       <div
-        className="relative h-16 w-full overflow-hidden rounded-[13px] lg:h-[72px]"
+        className="relative h-16 w-full overflow-hidden rounded-lg lg:h-[72px]"
         style={{
           background: `radial-gradient(120% 90% at 24% 18%, ${c1}66, transparent 55%), linear-gradient(150deg, ${c0}, ${c2})`,
         }}
       >
-        {animated && (
-          <span
-            className="pointer-events-none absolute inset-0 opacity-55"
-            style={{ backgroundImage: TILE_STARS, backgroundSize: "100% 100%" }}
-          />
-        )}
         {/* signal dot — the theme's primary action colour */}
         <span
           className="absolute bottom-1.5 left-1.5 h-3.5 w-3.5 rounded-full ring-1 ring-black/30"
@@ -1188,9 +1190,9 @@ function ThemePreview({ theme, active, onPick }: { theme: Theme; active: boolean
             <CheckCircle2 className="size-3.5" />
           </span>
         )}
-        {animated && (
-          <span className="absolute right-1.5 bottom-1.5 rounded-[7px] bg-black/45 px-1.5 py-0.5 text-[8.5px] font-black uppercase tracking-wide text-white/90">
-            Animé
+        {glassy && (
+          <span className="absolute right-1.5 bottom-1.5 rounded-sm bg-black/45 px-1.5 py-0.5 text-[8.5px] font-semibold uppercase tracking-[0.04em] text-white/90">
+            Verre
           </span>
         )}
       </div>
@@ -1209,7 +1211,7 @@ function ThemePreview({ theme, active, onPick }: { theme: Theme; active: boolean
 function EmptyDetail({ label }: { label: string }) {
   return (
     <div className="flex h-full min-h-[60vh] flex-col items-center justify-center gap-3 text-center">
-      <div className="grid h-16 w-16 place-items-center rounded-[13px] border border-dashed border-[var(--line-strong)]">
+      <div className="grid h-16 w-16 place-items-center rounded-lg border border-dashed border-[var(--line-strong)]">
         <Disc3 className="size-7 text-muted-foreground/60" />
       </div>
       <p className="text-sm font-bold text-muted-foreground">{label}</p>
@@ -1256,7 +1258,7 @@ function AccountSettings() {
     window.location.reload();
   };
 
-  const inputClass = "h-12 w-full rounded-[13px] border border-[var(--line)] bg-[var(--panel-2)] px-3 text-[16px] text-foreground outline-none focus:border-[var(--line-strong)] lg:h-auto lg:py-2.5 lg:text-[14px]";
+  const inputClass = "h-12 w-full rounded-xl border border-transparent bg-white/5 shadow-[inset_0_1px_0_rgba(255,255,255,0.05)] px-4 text-[16px] text-foreground outline-none transition-all duration-200 focus:bg-white/10 focus:ring-2 focus:ring-white/10 lg:h-auto lg:py-2.5 lg:text-[14px]";
 
   return (
     <div className="space-y-6">
@@ -1264,8 +1266,8 @@ function AccountSettings() {
         <h3 className="mb-1 text-[14px] font-black text-foreground">Mot de passe admin</h3>
         <p className="mb-4 text-[12px] text-muted-foreground/70">
           Le mot de passe initial est généré aléatoirement au premier démarrage (écrit dans
-          {" "}<code className="rounded bg-white/[0.06] px-1">INITIAL_ADMIN_PASSWORD.txt</code> du dossier de données),
-          ou défini via <code className="rounded bg-white/[0.06] px-1">AURALIS_ADMIN_PASSWORD</code>. Change-le ici pour le personnaliser.
+          {" "}<code className="rounded bg-[var(--panel-2)] px-1">INITIAL_ADMIN_PASSWORD.txt</code> du dossier de données),
+          ou défini via <code className="rounded bg-[var(--panel-2)] px-1">AURALIS_ADMIN_PASSWORD</code>. Change-le ici pour le personnaliser.
         </p>
         <div className="space-y-2.5 lg:max-w-sm">
           <input type="password" autoComplete="current-password" value={current} onChange={(e) => setCurrent(e.target.value)} placeholder="Mot de passe actuel" className={inputClass} />
@@ -1274,7 +1276,7 @@ function AccountSettings() {
           <button
             onClick={changePassword}
             disabled={busy}
-            className="signal-button tap-press mt-1 h-12 w-full rounded-[13px] px-4 text-[14px] font-black transition-colors disabled:opacity-40 lg:h-auto lg:w-auto lg:py-2.5 lg:text-[13px]"
+            className="signal-button tap-press mt-1 h-12 w-full rounded-full px-5 text-[14px] font-black transition-all duration-200 hover:scale-105 shadow-[0_4px_12px_rgba(0,0,0,0.2)] disabled:opacity-40 lg:h-auto lg:w-auto lg:py-2.5 lg:text-[13px]"
           >
             {busy ? "Mise à jour…" : "Changer le mot de passe"}
           </button>
@@ -1286,7 +1288,7 @@ function AccountSettings() {
       <div className="border-t border-[var(--line)] pt-5">
         <button
           onClick={logout}
-          className="ghost-button tap-press flex h-12 w-full items-center justify-center gap-2 rounded-[13px] px-4 text-[14px] font-bold lg:h-auto lg:w-auto lg:justify-start lg:py-2.5 lg:text-[13px]"
+          className="ghost-button tap-press flex h-12 w-full items-center justify-center gap-2 rounded-full px-5 text-[14px] font-bold transition-all duration-200 hover:bg-white/[0.04] hover:scale-105 lg:h-auto lg:w-auto lg:justify-start lg:py-2.5 lg:text-[13px]"
         >
           <LogOut className="size-4" /> Se déconnecter
         </button>
@@ -1390,7 +1392,7 @@ function AccountManager() {
 
   if (!isAdmin) return null;
 
-  const inputClass = "h-12 w-full rounded-[13px] border border-[var(--line)] bg-[var(--panel-2)] px-3 text-[16px] text-foreground outline-none focus:border-[var(--line-strong)] lg:h-auto lg:py-2.5 lg:text-[14px]";
+  const inputClass = "h-12 w-full rounded-xl border border-transparent bg-white/5 shadow-[inset_0_1px_0_rgba(255,255,255,0.05)] px-4 text-[16px] text-foreground outline-none transition-all duration-200 focus:bg-white/10 focus:ring-2 focus:ring-white/10 lg:h-auto lg:py-2.5 lg:text-[14px]";
 
   return (
     <div className="border-t border-[var(--line)] pt-5">
@@ -1403,17 +1405,17 @@ function AccountManager() {
 
       <div className="mb-4 space-y-1.5">
         {(users ?? []).map((u) => (
-          <div key={u.id} className="flex items-center gap-2 rounded-[13px] border border-[var(--line)] bg-black/20 px-3 py-2.5">
+          <div key={u.id} className="flex items-center gap-2 rounded-xl border border-transparent bg-white/5 shadow-[inset_0_1px_0_rgba(255,255,255,0.05)] px-4 py-2.5">
             <span className="min-w-0 flex-1 truncate text-[13.5px] font-bold text-foreground">
               {u.username}
-              {u.isAdmin && <span className="ml-2 rounded-[7px] bg-primary/15 px-1.5 py-0.5 text-[9.5px] font-black uppercase tracking-wide text-primary">Admin</span>}
+              {u.isAdmin && <span className="ml-2 rounded-sm bg-primary/15 px-1.5 py-0.5 text-[9.5px] font-semibold uppercase tracking-[0.04em] text-primary">Admin</span>}
               {u.id === me && <span className="ml-2 text-[11px] font-medium text-muted-foreground/60">(vous)</span>}
             </span>
-            <button onClick={() => resetPassword(u)} className="ghost-button shrink-0 rounded-[11px] px-2.5 py-1.5 text-[11.5px] font-bold" aria-label="Réinitialiser le mot de passe">
+            <button onClick={() => resetPassword(u)} className="ghost-button shrink-0 rounded-full px-3 py-1.5 text-[11.5px] font-bold transition-all duration-200 hover:scale-105 hover:bg-white/10" aria-label="Réinitialiser le mot de passe">
               Mot de passe
             </button>
             {u.id !== me && (
-              <button onClick={() => remove(u)} className="tap-press grid h-8 w-8 shrink-0 place-items-center rounded-[11px] text-muted-foreground/70 hover:bg-[var(--destructive)]/15 hover:text-[var(--destructive)]" aria-label="Supprimer le compte">
+              <button onClick={() => remove(u)} className="tap-press grid h-8 w-8 shrink-0 place-items-center rounded-full text-muted-foreground/70 transition-all duration-200 hover:scale-110 hover:bg-destructive/15 hover:text-[var(--destructive)]" aria-label="Supprimer le compte">
                 <Trash2 className="size-4" />
               </button>
             )}
@@ -1428,7 +1430,7 @@ function AccountManager() {
           <input type="checkbox" checked={makeAdmin} onChange={(e) => setMakeAdmin(e.target.checked)} className="size-4 accent-[var(--primary)]" />
           Administrateur (peut gérer les comptes)
         </label>
-        <button type="submit" disabled={busy} className="signal-button tap-press flex h-12 w-full items-center justify-center gap-2 rounded-[13px] px-4 text-[14px] font-black disabled:opacity-40 lg:h-auto lg:w-auto lg:py-2.5 lg:text-[13px]">
+        <button type="submit" disabled={busy} className="signal-button tap-press flex h-12 w-full items-center justify-center gap-2 rounded-full px-5 text-[14px] font-black transition-all duration-200 hover:scale-105 shadow-[0_4px_12px_rgba(0,0,0,0.2)] disabled:opacity-40 lg:h-auto lg:w-auto lg:py-2.5 lg:text-[13px]">
           <UserPlus className="size-4" /> {busy ? "Création…" : "Créer un compte"}
         </button>
       </form>

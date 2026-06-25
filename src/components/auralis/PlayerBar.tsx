@@ -88,7 +88,7 @@ export function PlayerBar() {
                 title={currentTrack.title}
                 trackhash={currentTrack.trackhash}
                 size={44}
-                rounded={9}
+                rounded={10}
                 colors={currentTrack.color}
                 image={currentTrack.image}
               />
@@ -107,7 +107,7 @@ export function PlayerBar() {
             <button
               onClick={() => toggleFavorite(currentTrack.trackhash)}
               aria-label={fav ? "Retirer des favoris" : "Ajouter aux favoris"}
-              className={cn("ml-1 grid h-9 w-9 shrink-0 place-items-center rounded-[11px] transition-colors", fav ? "bg-primary/15 text-primary" : "text-muted-foreground/45 hover:bg-white/[0.06] hover:text-foreground")}
+              className={cn("ml-1 grid h-9 w-9 shrink-0 place-items-center rounded-md transition-colors", fav ? "bg-primary/15 text-primary" : "text-muted-foreground/45 hover:bg-[var(--panel-2)] hover:text-foreground")}
             >
               <Heart className={cn("size-4", fav && "fill-primary")} />
             </button>
@@ -123,7 +123,7 @@ export function PlayerBar() {
           <button
             onClick={toggleShuffle}
             aria-label="Lecture aléatoire"
-            className={cn("grid h-9 w-9 place-items-center rounded-[11px] transition-colors", shuffle ? "bg-primary/15 text-primary" : "text-muted-foreground/45 hover:bg-white/[0.06] hover:text-foreground")}
+            className={cn("grid h-9 w-9 place-items-center rounded-md transition-colors", shuffle ? "bg-primary/15 text-primary" : "text-muted-foreground/45 hover:bg-[var(--panel-2)] hover:text-foreground")}
           >
             <Shuffle className="size-4" />
           </button>
@@ -131,7 +131,7 @@ export function PlayerBar() {
             onClick={playPrev}
             disabled={!currentTrack}
             aria-label="Précédent"
-            className="grid h-9 w-9 place-items-center rounded-[11px] text-foreground/70 transition-colors hover:bg-white/[0.06] hover:text-foreground disabled:opacity-30"
+            className="grid h-9 w-9 place-items-center rounded-md text-foreground/70 transition-colors hover:bg-[var(--panel-2)] hover:text-foreground disabled:opacity-30"
           >
             <SkipBack className="size-[18px] fill-current" />
           </button>
@@ -139,7 +139,7 @@ export function PlayerBar() {
             onClick={togglePlay}
             disabled={!currentTrack}
             aria-label={isPlaying ? "Pause" : "Lecture"}
-            className="signal-button grid h-10 w-10 place-items-center rounded-[12px] transition-[filter,transform] active:translate-y-px disabled:opacity-30"
+            className="signal-button grid h-10 w-10 place-items-center rounded-md transition-[filter,transform] active:translate-y-px disabled:opacity-30"
           >
             {isPlaying
               ? <Pause className="size-[18px] fill-current" />
@@ -149,14 +149,14 @@ export function PlayerBar() {
             onClick={playNext}
             disabled={!currentTrack}
             aria-label="Suivant"
-            className="grid h-9 w-9 place-items-center rounded-[11px] text-foreground/70 transition-colors hover:bg-white/[0.06] hover:text-foreground disabled:opacity-30"
+            className="grid h-9 w-9 place-items-center rounded-md text-foreground/70 transition-colors hover:bg-[var(--panel-2)] hover:text-foreground disabled:opacity-30"
           >
             <SkipForward className="size-[18px] fill-current" />
           </button>
           <button
             onClick={cycleRepeat}
             aria-label="Répéter"
-            className={cn("grid h-9 w-9 place-items-center rounded-[11px] transition-colors", repeat !== "off" ? "bg-primary/15 text-primary" : "text-muted-foreground/45 hover:bg-white/[0.06] hover:text-foreground")}
+            className={cn("grid h-9 w-9 place-items-center rounded-md transition-colors", repeat !== "off" ? "bg-primary/15 text-primary" : "text-muted-foreground/45 hover:bg-[var(--panel-2)] hover:text-foreground")}
           >
             {repeat === "one" ? <Repeat1 className="size-4" /> : <Repeat className="size-4" />}
           </button>
@@ -170,7 +170,7 @@ export function PlayerBar() {
           <button
             onClick={() => setSleepOpen((v) => !v)}
             aria-label="Minuteur de veille"
-            className={cn("grid h-9 w-9 place-items-center rounded-[11px] transition-colors hover:bg-white/[0.06]", sleepTimer.active ? "bg-primary/15 text-primary" : "text-muted-foreground/45 hover:text-foreground")}
+            className={cn("grid h-9 w-9 place-items-center rounded-md transition-colors hover:bg-[var(--panel-2)]", sleepTimer.active ? "bg-primary/15 text-primary" : "text-muted-foreground/45 hover:text-foreground")}
           >
             <Moon className="size-4" />
           </button>
@@ -191,7 +191,7 @@ export function PlayerBar() {
         <button
           onClick={toggleQueue}
           aria-label="File d'attente"
-          className={cn("grid h-9 w-9 place-items-center rounded-[11px] transition-colors hover:bg-white/[0.06]", queueOpen ? "bg-primary/15 text-primary" : "text-muted-foreground/45 hover:text-foreground")}
+          className={cn("grid h-9 w-9 place-items-center rounded-md transition-colors hover:bg-[var(--panel-2)]", queueOpen ? "bg-primary/15 text-primary" : "text-muted-foreground/45 hover:text-foreground")}
         >
           <ListMusic className="size-4" />
         </button>
@@ -201,7 +201,7 @@ export function PlayerBar() {
           <button
             onClick={toggleMute}
             aria-label={muted ? "Rétablir le son" : "Couper le son"}
-            className="grid h-9 w-9 place-items-center rounded-[11px] text-muted-foreground/45 transition-colors hover:bg-white/[0.06] hover:text-foreground"
+            className="grid h-9 w-9 place-items-center rounded-md text-muted-foreground/45 transition-colors hover:bg-[var(--panel-2)] hover:text-foreground"
           >
             {muted || vol === 0 ? <VolumeX className="size-4" /> : <Volume2 className="size-4" />}
           </button>
@@ -211,7 +211,7 @@ export function PlayerBar() {
         <button
           onClick={toggleFullscreenPlayer}
           aria-label="Agrandir le lecteur"
-          className="grid h-9 w-9 place-items-center rounded-[11px] text-muted-foreground/45 transition-colors hover:bg-white/[0.06] hover:text-foreground"
+          className="grid h-9 w-9 place-items-center rounded-md text-muted-foreground/45 transition-colors hover:bg-[var(--panel-2)] hover:text-foreground"
         >
           <Maximize2 className="size-4" />
         </button>
@@ -313,16 +313,23 @@ function ProgressBar({
       aria-valuenow={Math.round(value)}
     >
       {/* Track */}
-      <div className={cn("relative w-full rounded-[2px]", !dragging && "transition-all", active ? "h-1" : "h-[3px]", "bg-white/[0.09]")}>
+      <div className={cn("relative w-full rounded-xs", !dragging && "transition-all", active ? "h-1" : "h-[3px]", "bg-[var(--panel-3)]")}>
         {/* Fill — no transition while dragging so it tracks the finger exactly */}
         <div
-          className={cn("absolute inset-y-0 left-0 rounded-[2px]", !dragging && "transition-all")}
+          className={cn("absolute inset-y-0 left-0 rounded-xs", !dragging && "transition-all")}
           style={{ width: `${value}%`, background: active ? "var(--paper)" : "rgba(237,227,207,0.58)" }}
         />
         {/* Thumb */}
         <div
-          className={cn("pointer-events-none absolute top-1/2 h-3 w-2 -translate-y-1/2 rounded-[2px] bg-[var(--paper)]", !dragging && "transition-opacity")}
-          style={{ left: `calc(${value}% - 6px)`, opacity: active ? 1 : 0 }}
+          className={cn(
+            "pointer-events-none absolute top-1/2 -translate-y-1/2 aspect-square rounded-full bg-[var(--foreground)] shadow-[0_2px_8px_rgba(0,0,0,0.5)] transition-all duration-200 ease-out", 
+            !dragging && "transition-transform"
+          )}
+          style={{ 
+            left: `calc(${value}% - 5px)`, 
+            height: active ? "10px" : "0px",
+            opacity: active ? 1 : 0 
+          }}
         />
       </div>
     </div>
@@ -376,7 +383,7 @@ function VolumeSlider({ value, onChange }: { value: number; onChange: (v: number
       onKeyDown={onKeyDown}
       onMouseEnter={() => setHover(true)}
       onMouseLeave={() => setHover(false)}
-      className="group relative h-[3px] w-20 cursor-pointer rounded-[2px] bg-white/[0.09] focus-auralis"
+      className="group relative h-[3px] w-20 cursor-pointer rounded-xs bg-[var(--panel-3)] focus-auralis"
       role="slider"
       tabIndex={0}
       aria-label="Volume"
@@ -386,12 +393,19 @@ function VolumeSlider({ value, onChange }: { value: number; onChange: (v: number
       aria-valuetext={`Volume ${Math.round(value * 100)} %`}
     >
       <div
-        className="absolute inset-y-0 left-0 rounded-[2px]"
+        className="absolute inset-y-0 left-0 rounded-xs"
         style={{ width: `${value * 100}%`, background: hover ? "var(--paper)" : "rgba(237,227,207,0.5)" }}
       />
       <div
-        className="pointer-events-none absolute top-1/2 h-2.5 w-1.5 -translate-y-1/2 rounded-[2px] bg-[var(--paper)]"
-        style={{ left: `calc(${value * 100}% - 5px)`, opacity: hover ? 1 : 0 }}
+        className={cn(
+          "pointer-events-none absolute top-1/2 -translate-y-1/2 aspect-square rounded-full bg-[var(--foreground)] shadow-[0_2px_8px_rgba(0,0,0,0.5)] transition-all duration-200 ease-out",
+          !dragging && "transition-transform"
+        )}
+        style={{ 
+          left: `calc(${value * 100}% - 5px)`, 
+          height: hover || dragging ? "10px" : "0px",
+          opacity: hover || dragging ? 1 : 0 
+        }}
       />
     </div>
   );
@@ -413,12 +427,12 @@ function SleepPopover({ active, minutes, remaining, afterTrackActive, onPick, on
   return (
     <div
       ref={ref}
-      className="matte-panel absolute bottom-10 right-0 z-40 w-[208px] overflow-hidden rounded-[13px] p-2"
+      className="matte-panel absolute bottom-10 right-0 z-40 w-[208px] overflow-hidden rounded-lg p-2"
     >
       <div className="flex items-center justify-between px-1.5 py-1 mb-1">
         <p className="text-[11px] font-semibold text-muted-foreground">Minuteur de veille</p>
         {active && remaining && (
-          <span className="rounded-[9px] bg-primary/15 px-2 py-0.5 text-[10px] font-bold tabular-nums text-primary-soft">
+          <span className="rounded-sm bg-primary/15 px-2 py-0.5 text-[10px] font-bold tabular-nums text-primary-soft">
             {remaining}
           </span>
         )}
@@ -429,8 +443,8 @@ function SleepPopover({ active, minutes, remaining, afterTrackActive, onPick, on
             key={m}
             onClick={() => onPick(m)}
             className={cn(
-              "rounded-[9px] py-1.5 text-[12px] font-semibold transition-colors",
-              active && !afterTrackActive && minutes === m ? "bg-primary text-primary-foreground" : "bg-white/[0.05] text-foreground hover:bg-white/[0.09]",
+              "rounded-sm py-1.5 text-[12px] font-semibold transition-colors",
+              active && !afterTrackActive && minutes === m ? "bg-primary text-primary-foreground" : "bg-[var(--panel-2)] text-foreground hover:bg-[var(--panel-3)]",
             )}
           >
             {m}m
@@ -440,8 +454,8 @@ function SleepPopover({ active, minutes, remaining, afterTrackActive, onPick, on
       <button
         onClick={onAfterTrack}
         className={cn(
-          "mt-1 w-full rounded-[9px] py-1.5 text-[11.5px] font-semibold transition-colors",
-          afterTrackActive ? "bg-primary text-primary-foreground" : "bg-white/[0.05] text-foreground hover:bg-white/[0.09]",
+          "mt-1 w-full rounded-sm py-1.5 text-[11.5px] font-semibold transition-colors",
+          afterTrackActive ? "bg-primary text-primary-foreground" : "bg-[var(--panel-2)] text-foreground hover:bg-[var(--panel-3)]",
         )}
       >
         Fin du titre
@@ -449,7 +463,7 @@ function SleepPopover({ active, minutes, remaining, afterTrackActive, onPick, on
       {active && (
         <button
           onClick={onCancel}
-          className="mt-1.5 flex w-full items-center justify-center gap-1.5 rounded-[9px] bg-white/[0.04] py-1.5 text-[11.5px] text-muted-foreground transition-colors hover:bg-white/[0.08] hover:text-foreground"
+          className="mt-1.5 flex w-full items-center justify-center gap-1.5 rounded-sm bg-[var(--panel-2)] py-1.5 text-[11.5px] text-muted-foreground transition-colors hover:bg-[var(--panel-3)] hover:text-foreground"
         >
           <X className="size-3" /> Annuler
         </button>

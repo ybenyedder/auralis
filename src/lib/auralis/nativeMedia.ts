@@ -13,9 +13,27 @@
 // Both paths share the same call sites in the app shell; this module hides the
 // branch so page.tsx stays platform-agnostic.
 
-import { Capacitor } from "@capacitor/core";
+import { Capacitor, registerPlugin } from "@capacitor/core";
 
 type PlaybackState = "none" | "paused" | "playing";
+
+// Native partial-CPU-wake-lock bridge (Android only — see AudioWakeLockPlugin.java).
+// The @jofr media-session plugin runs a foreground service (keeps the PROCESS alive),
+// but on devices that deep-sleep the CPU with the screen off (notably MIUI/HyperOS)
+// the WebView's audio decode can still stall mid-track — which both cut playback and
+// stopped the "ended" event that advances the queue. Holding a PARTIAL_WAKE_LOCK
+// while audio is actually playing keeps playback alive and the queue moving with the
+// screen off. Acquired on play, released on pause/stop so it never drains idle.
+interface AudioWakeLockPlugin {
+  acquire(): Promise<void>;
+  release(): Promise<void>;
+}
+const AudioWakeLock = registerPlugin<AudioWakeLockPlugin>("AudioWakeLock");
+
+function setNativeWakeLock(active: boolean) {
+  if (!isNative()) return;
+  void (active ? AudioWakeLock.acquire() : AudioWakeLock.release()).catch(() => {});
+}
 
 export interface MediaMeta {
   title: string;
@@ -107,6 +125,9 @@ export function setMediaMetadata(meta: MediaMeta | null) {
 }
 
 export function setMediaPlaybackState(state: PlaybackState) {
+  // Hold the CPU awake exactly while playing so background playback (screen off)
+  // can't stall — release the moment we pause/stop.
+  setNativeWakeLock(state === "playing");
   if (isNative()) {
     void nativePlugin().then((p) => p?.setPlaybackState({ playbackState: state }).catch(() => {}));
     return;

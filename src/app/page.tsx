@@ -12,6 +12,7 @@ import { CommandPalette } from "@/components/auralis/CommandPalette";
 import { ContextMenuHost } from "@/components/auralis/ContextMenu";
 import { ToastHost } from "@/components/auralis/Toast";
 import { KeyboardHelp } from "@/components/auralis/KeyboardHelp";
+import { DonateModal } from "@/components/auralis/DonateReminder";
 import { StickyViewHeader } from "@/components/auralis/StickyViewHeader";
 import { VisualizerOverlay } from "@/components/auralis/VisualizerOverlay";
 import { ThemeBackdrop } from "@/components/auralis/ThemeBackdrop";
@@ -310,6 +311,22 @@ function AuralisShell() {
       usePlayer.getState().notify("Flux audio indisponible", { tone: "error" });
     };
 
+    // Background-suspend recovery: a mobile WebView (esp. MIUI/HyperOS) can freeze
+    // while backgrounded — the OS pauses the <audio> element and may swallow the
+    // "ended" event so the queue never advances. When we come back to the
+    // foreground, reconcile: if the track finished while we were away, advance;
+    // otherwise resume if our intent is still "playing" but the element got paused.
+    const onVisibility = () => {
+      if (document.visibilityState !== "visible") return;
+      const state = usePlayer.getState();
+      if (!state.currentTrack || !state.isPlaying) return;
+      if (audio.ended) {
+        onEnded();
+      } else if (audio.paused) {
+        audio.play().catch(() => {});
+      }
+    };
+
     // Session resume: when a restored track's metadata loads, seek to the saved
     // position once (best-effort — a miss just starts from 0). Only ever set after
     // restoreLastSession(), so normal track changes pass through untouched.
@@ -328,12 +345,14 @@ function AuralisShell() {
     audio.addEventListener("ended", onEnded);
     audio.addEventListener("error", onError);
     audio.addEventListener("loadedmetadata", onLoadedMeta);
+    document.addEventListener("visibilitychange", onVisibility);
     return () => {
       audio.removeEventListener("timeupdate", onTimeUpdate);
       audio.removeEventListener("durationchange", onDurationChange);
       audio.removeEventListener("ended", onEnded);
       audio.removeEventListener("error", onError);
       audio.removeEventListener("loadedmetadata", onLoadedMeta);
+      document.removeEventListener("visibilitychange", onVisibility);
     };
   }, []);
 
@@ -520,6 +539,7 @@ function AuralisShell() {
       <ContextMenuHost />
       <ToastHost />
       <KeyboardHelp />
+      <DonateModal />
       </div>
     </>
   );

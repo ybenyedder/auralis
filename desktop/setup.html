@@ -1,0 +1,215 @@
+<!doctype html>
+<html lang="fr">
+  <head>
+    <meta charset="utf-8" />
+    <meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'; img-src data:; script-src 'unsafe-inline'" />
+    <title>Configurer Auralis</title>
+    <style>
+      :root {
+        --bg: #0f0f0d;
+        --surface: #17170f;
+        --surface-2: #1f1f16;
+        --border: #2c2c20;
+        --text: #f3efe6;
+        --muted: #a8a294;
+        --accent: #c8a86a;
+      }
+      * { box-sizing: border-box; margin: 0; padding: 0; }
+      html, body { height: 100%; }
+      body {
+        background: var(--bg);
+        color: var(--text);
+        font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+        -webkit-user-select: none;
+        user-select: none;
+        display: flex;
+        flex-direction: column;
+        overflow: hidden;
+      }
+      .titlebar {
+        height: 38px;
+        flex: 0 0 38px;
+        -webkit-app-region: drag;
+        display: flex;
+        align-items: center;
+        justify-content: flex-end;
+        padding: 0 8px;
+      }
+      .close {
+        -webkit-app-region: no-drag;
+        width: 30px; height: 30px;
+        border: none; background: transparent; color: var(--muted);
+        border-radius: 8px; cursor: pointer; font-size: 16px; line-height: 1;
+      }
+      .close:hover { background: var(--surface-2); color: var(--text); }
+      main {
+        flex: 1 1 auto;
+        overflow-y: auto;
+        padding: 8px 40px 40px;
+        display: flex;
+        flex-direction: column;
+        gap: 22px;
+      }
+      .brand { display: flex; align-items: center; gap: 12px; }
+      .brand .logo {
+        width: 40px; height: 40px; border-radius: 11px;
+        background: linear-gradient(140deg, var(--accent), #8a6f3c);
+        display: flex; align-items: center; justify-content: center;
+        font-weight: 700; font-size: 20px; color: #1a1509;
+      }
+      .brand h1 { font-size: 20px; font-weight: 650; letter-spacing: -0.01em; }
+      .lead { color: var(--muted); font-size: 14px; line-height: 1.5; }
+      .lead strong { color: var(--text); font-weight: 600; }
+      .card {
+        background: var(--surface);
+        border: 1px solid var(--border);
+        border-radius: 16px;
+        padding: 20px;
+        display: flex;
+        flex-direction: column;
+        gap: 14px;
+      }
+      .card-head { display: flex; flex-direction: column; gap: 4px; }
+      .card-head .t { font-size: 15px; font-weight: 600; }
+      .card-head .d { font-size: 13px; color: var(--muted); line-height: 1.45; }
+      .row { display: flex; gap: 10px; }
+      input[type="text"] {
+        flex: 1 1 auto;
+        -webkit-user-select: text; user-select: text;
+        background: var(--surface-2);
+        border: 1px solid var(--border);
+        border-radius: 10px;
+        color: var(--text);
+        padding: 11px 13px;
+        font-size: 14px;
+        outline: none;
+      }
+      input[type="text"]:focus { border-color: var(--accent); }
+      input[type="text"]::placeholder { color: #6f6a5c; }
+      button.btn {
+        -webkit-app-region: no-drag;
+        border: 1px solid var(--border);
+        background: var(--surface-2);
+        color: var(--text);
+        border-radius: 10px;
+        padding: 11px 16px;
+        font-size: 14px;
+        font-weight: 600;
+        cursor: pointer;
+        white-space: nowrap;
+      }
+      button.btn:hover { background: #29291d; }
+      button.btn.primary {
+        background: var(--accent);
+        border-color: var(--accent);
+        color: #1a1509;
+      }
+      button.btn.primary:hover { background: #d6b878; }
+      button.btn:disabled { opacity: 0.5; cursor: default; }
+      .picked {
+        font-size: 13px;
+        color: var(--muted);
+        word-break: break-all;
+        min-height: 18px;
+      }
+      .picked.has { color: var(--text); }
+      .sep {
+        display: flex; align-items: center; gap: 12px;
+        color: var(--muted); font-size: 12px; text-transform: uppercase;
+        letter-spacing: 0.08em;
+      }
+      .sep::before, .sep::after { content: ""; flex: 1; height: 1px; background: var(--border); }
+      .error { color: #e0775f; font-size: 13px; min-height: 16px; }
+    </style>
+  </head>
+  <body>
+    <div class="titlebar">
+      <button class="close" id="close" title="Quitter">×</button>
+    </div>
+    <main>
+      <div class="brand">
+        <div class="logo">A</div>
+        <h1>Bienvenue dans Auralis</h1>
+      </div>
+      <p class="lead">
+        Choisis comment écouter ta musique. Tu peux te <strong>connecter à un serveur Auralis</strong>
+        que tu héberges déjà (via son URL), ou <strong>démarrer en local</strong> sur ce PC en pointant un dossier de musique.
+      </p>
+
+      <section class="card">
+        <div class="card-head">
+          <div class="t">Se connecter à une URL</div>
+          <div class="d">Pointe l'app vers un serveur Auralis distant (NAS, autre PC, VPS…). Idéal pour partager une seule bibliothèque.</div>
+        </div>
+        <div class="row">
+          <input type="text" id="url" placeholder="http://192.168.1.20:4237 ou https://auralis.mondomaine.fr" autocomplete="off" spellcheck="false" />
+          <button class="btn primary" id="connect">Se connecter</button>
+        </div>
+      </section>
+
+      <div class="sep">ou</div>
+
+      <section class="card">
+        <div class="card-head">
+          <div class="t">Démarrer en local</div>
+          <div class="d">Auralis lance son propre serveur sur ce PC et indexe le dossier que tu choisis. Laisse vide pour utiliser ~/Music.</div>
+        </div>
+        <button class="btn" id="pick">Choisir un dossier…</button>
+        <div class="picked" id="picked">Aucun dossier choisi — ~/Music sera utilisé</div>
+        <button class="btn primary" id="start">Démarrer en local</button>
+      </section>
+
+      <div class="error" id="error"></div>
+    </main>
+
+    <script>
+      const api = window.auralisDesktop || {};
+      const $ = (id) => document.getElementById(id);
+      const errEl = $("error");
+      let pickedDir = null;
+      let busy = false;
+
+      const showError = (msg) => { errEl.textContent = msg || ""; };
+
+      async function submit(cfg) {
+        if (busy) return;
+        busy = true;
+        showError("");
+        try {
+          const res = await api.submitSetup(cfg);
+          if (!res || !res.ok) {
+            showError((res && res.error) || "Configuration invalide.");
+            busy = false;
+          }
+          // On success the main process closes this window.
+        } catch (e) {
+          showError("Erreur : " + (e && e.message ? e.message : e));
+          busy = false;
+        }
+      }
+
+      $("connect").addEventListener("click", () => {
+        const url = $("url").value.trim();
+        if (!url) { showError("Saisis l'URL de ton serveur Auralis."); return; }
+        submit({ mode: "remote", url });
+      });
+      $("url").addEventListener("keydown", (e) => { if (e.key === "Enter") $("connect").click(); });
+
+      $("pick").addEventListener("click", async () => {
+        const dir = await api.pickFolder();
+        if (dir) {
+          pickedDir = dir;
+          const el = $("picked");
+          el.textContent = dir;
+          el.classList.add("has");
+        }
+      });
+
+      $("start").addEventListener("click", () => {
+        submit({ mode: "local", musicDir: pickedDir });
+      });
+
+      $("close").addEventListener("click", () => api.cancelSetup && api.cancelSetup());
+    </script>
+  </body>
+</html>

@@ -91,13 +91,13 @@ function LoginScreen({ onUnlock }: { onUnlock: () => void }) {
   return (
     <div className="app-chrome grid h-screen w-screen place-items-center px-6 text-foreground">
       <form onSubmit={submit} className="w-full max-w-[340px]">
-        <div className="mx-auto mb-5 grid h-14 w-14 place-items-center rounded-[14px] border border-[var(--line-strong)] bg-white/[0.04] text-[var(--primary)]">
+        <div className="mx-auto mb-5 grid h-14 w-14 place-items-center rounded-full bg-white/5 border-none shadow-[0_4px_24px_rgba(0,0,0,0.2)] backdrop-blur-md text-[var(--primary)]">
           <AuralisGlyph className="h-8 w-8" />
         </div>
         <h1 className="text-center text-[20px] font-black tracking-tight">Auralis</h1>
         <p className="mb-6 mt-1 text-center text-[12.5px] text-muted-foreground/70">Connecte-toi pour accéder à ta bibliothèque.</p>
 
-        <label className="mb-2 block text-[10.5px] font-bold uppercase tracking-[0.1em] text-muted-foreground/45">Compte</label>
+        <label className="mb-2 block text-[10.5px] font-semibold uppercase tracking-[0.06em] text-muted-foreground/45">Compte</label>
         {accounts.length > 0 ? (
           <div className="mb-4 flex flex-wrap gap-2">
             {accounts.map((name) => (
@@ -106,10 +106,10 @@ function LoginScreen({ onUnlock }: { onUnlock: () => void }) {
                 type="button"
                 onClick={() => setUsername(name)}
                 className={
-                  "min-h-[44px] rounded-[13px] border px-4 text-[14px] font-bold transition-colors " +
+                  "min-h-[44px] rounded-full border px-4 text-[14px] font-bold shadow-[0_2px_8px_rgba(0,0,0,0.15)] transition-all duration-200 hover:scale-105 " +
                   (username === name
                     ? "border-[var(--primary)] bg-primary/15 text-foreground"
-                    : "border-[var(--line)] bg-[var(--panel-2)] text-muted-foreground hover:text-foreground")
+                    : "border-transparent bg-white/5 text-muted-foreground hover:bg-white/10 hover:text-foreground")
                 }
               >
                 {name}
@@ -125,24 +125,24 @@ function LoginScreen({ onUnlock }: { onUnlock: () => void }) {
             autoComplete="username"
             value={username}
             onChange={(e) => setUsername(e.target.value)}
-            className="mb-4 w-full rounded-[13px] border border-[var(--line)] bg-[var(--panel-2)] px-3.5 py-3 text-[15px] text-foreground outline-none focus:border-[var(--line-strong)]"
+            className="mb-4 w-full rounded-full border border-transparent bg-white/5 shadow-[inset_0_1px_0_rgba(255,255,255,0.05)] px-4 py-3 text-[15px] text-foreground outline-none focus:ring-2 focus:ring-white/10 transition-all"
             placeholder="admin"
           />
         )}
-        <label htmlFor="pw" className="mb-2 block text-[10.5px] font-bold uppercase tracking-[0.1em] text-muted-foreground/45">Mot de passe</label>
+        <label htmlFor="pw" className="mb-2 block text-[10.5px] font-semibold uppercase tracking-[0.06em] text-muted-foreground/45">Mot de passe</label>
         <input
           id="pw"
           type="password"
           autoComplete="current-password"
           value={password}
           onChange={(e) => setPassword(e.target.value)}
-          className="w-full rounded-[13px] border border-[var(--line)] bg-[var(--panel-2)] px-3.5 py-3 text-[15px] text-foreground outline-none focus:border-[var(--line-strong)]"
+          className="w-full rounded-full border border-transparent bg-white/5 shadow-[inset_0_1px_0_rgba(255,255,255,0.05)] px-4 py-3 text-[15px] text-foreground outline-none focus:ring-2 focus:ring-white/10 transition-all"
           placeholder="••••••••"
         />
         <button
           type="submit"
           disabled={busy || !password}
-          className="signal-button mt-4 w-full rounded-[13px] py-3 text-[14px] font-black transition-colors disabled:opacity-40"
+          className="signal-button mt-4 w-full rounded-full py-3.5 text-[14px] font-black shadow-[0_4px_16px_rgba(0,0,0,0.25)] transition-all duration-200 hover:scale-[1.02] disabled:opacity-40"
         >
           {busy ? "Connexion…" : "Se connecter"}
         </button>
