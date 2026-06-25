@@ -54,7 +54,7 @@ export function Artwork({
         {/* eslint-disable-next-line @next/next/no-img-element */}
         <img
           src={src}
-          alt={title || name || "cover"}
+          alt={title || name || "Pochette"}
           width={fluid ? undefined : size}
           height={fluid ? undefined : size}
           loading="lazy"

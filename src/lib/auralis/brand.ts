@@ -97,23 +97,23 @@ export function formatCount(n?: number): string {
 }
 
 export function trackArtist(t?: Partial<Track> | null): string {
-  if (!t) return "Unknown artist";
+  if (!t) return "Artiste inconnu";
   if (t.artist) return t.artist;
   if (Array.isArray(t.artists) && t.artists.length > 0) return t.artists.map((a) => a.name).filter(Boolean).join(", ");
   if (Array.isArray(t.albumartists) && t.albumartists.length > 0) return t.albumartists.map((a) => a.name).filter(Boolean).join(", ");
-  return "Unknown artist";
+  return "Artiste inconnu";
 }
 
 export function trackTitle(t?: Partial<Track> | null): string {
-  return t?.title || "Untitled track";
+  return t?.title || "Titre inconnu";
 }
 
 export function albumArtist(a?: Partial<Album> | null): string {
-  if (!a) return "Unknown artist";
+  if (!a) return "Artiste inconnu";
   if (Array.isArray(a.albumartists) && a.albumartists.length > 0) return a.albumartists.map((x) => x.name).filter(Boolean).join(", ");
-  return "Unknown artist";
+  return "Artiste inconnu";
 }
 
 export function artistLabel(a?: Partial<Artist> | null): string {
-  return a?.name || "Unknown artist";
+  return a?.name || "Artiste inconnu";
 }
