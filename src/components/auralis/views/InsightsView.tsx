@@ -34,6 +34,25 @@ export function InsightsView() {
     [artists],
   );
 
+  // Personalised: YOUR most-played artists (by your play counts, not catalogue size).
+  const topPlayedArtists = useMemo(() => {
+    const byArtist = new Map<string, { name: string; plays: number }>();
+    for (const t of tracks) {
+      const plays = playCounts[t.trackhash] ?? t.playcount ?? 0;
+      if (plays <= 0) continue;
+      for (const a of t.artists ?? []) {
+        if (!a.artisthash) continue;
+        const cur = byArtist.get(a.artisthash) ?? { name: a.name, plays: 0 };
+        cur.plays += plays;
+        byArtist.set(a.artisthash, cur);
+      }
+    }
+    return [...byArtist.entries()]
+      .map(([id, v]) => ({ id, label: v.name, value: v.plays }))
+      .sort((a, b) => b.value - a.value)
+      .slice(0, 8);
+  }, [tracks, playCounts]);
+
   const genreData = useMemo(() => {
     const map = new Map<string, number>();
     tracksWithCounts.forEach((track) => {
@@ -100,6 +119,12 @@ export function InsightsView() {
       )}
 
       <div className="grid gap-5 lg:grid-cols-2">
+        {topPlayedArtists.length > 0 && (
+          <MetricPanel title="Tes artistes les plus écoutés" eyebrow="Tes écoutes">
+            <BarList rows={topPlayedArtists} />
+          </MetricPanel>
+        )}
+
         <MetricPanel title="Titres par artiste" eyebrow="Index local">
           <BarList
             rows={artistTrackData.map((artist) => ({ id: artist.artisthash, label: artist.name, value: artist.trackcount || 0 }))}
