@@ -86,3 +86,19 @@ test("serializeLrc round-trips through the parser", () => {
   assert.equal(reparsed[0].text, "Hello, it's me");
   assert.ok(Math.abs(reparsed[0].time - 18.2) < 0.02);
 });
+
+test("serializeLrc preserves enhanced per-word timing on round-trip", () => {
+  const original = parseSyncedLyrics("[00:12.30]<00:12.30>Hello <00:12.90>world <00:13.50>now");
+  const text = serializeLrc(original);
+  assert.ok(/<00:12\.90>world/.test(text), `expected word stamps, got: ${text}`);
+  const reparsed = parseSyncedLyrics(text);
+  assert.ok(reparsed[0].words, "expected per-word timing to survive");
+  assert.equal(reparsed[0].words.length, 3);
+  assert.deepEqual(reparsed[0].words.map((w) => w.text), ["Hello", "world", "now"]);
+  assert.ok(Math.abs(reparsed[0].words[1].time - 12.9) < 0.02, `w1 ${reparsed[0].words[1].time}`);
+});
+
+test("serializeLrc rolls 100 centiseconds into the next second", () => {
+  const text = serializeLrc([{ time: 12.999, text: "x" }]);
+  assert.equal(text, "[00:13.00]x");
+});

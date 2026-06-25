@@ -101,15 +101,30 @@ function two(n: number): string {
   return String(Math.floor(n)).padStart(2, "0");
 }
 
-/** Serialise parsed lines back to canonical LRC text for sidecar writing. */
+/** Format a time (seconds) as mm:ss.cc, rolling 100 centiseconds over into the
+ *  next second (Math.round could otherwise emit an invalid ".100"). */
+function stamp(total: number): string {
+  const t = Math.max(0, total);
+  let minutes = Math.floor(t / 60);
+  let seconds = Math.floor(t % 60);
+  let centi = Math.round((t - Math.floor(t)) * 100);
+  if (centi >= 100) { centi -= 100; seconds += 1; }
+  if (seconds >= 60) { seconds -= 60; minutes += 1; }
+  return `${two(minutes)}:${two(seconds)}.${two(centi)}`;
+}
+
+/** Serialise parsed lines back to canonical LRC text for sidecar writing. When a
+ *  line carries per-word timing (enhanced/word-synced LRC) the word stamps are
+ *  preserved as `<mm:ss.cc>` segments so the karaoke cadence survives a
+ *  parse → serialise → parse round-trip instead of degrading to line level. */
 export function serializeLrc(lines: SyncedLine[]): string {
   return lines
     .map((line) => {
-      const total = Math.max(0, line.time);
-      const minutes = Math.floor(total / 60);
-      const seconds = Math.floor(total % 60);
-      const centi = Math.round((total - Math.floor(total)) * 100);
-      return `[${two(minutes)}:${two(seconds)}.${two(centi)}]${line.text}`;
+      const head = `[${stamp(line.time)}]`;
+      if (line.words && line.words.length > 0) {
+        return head + line.words.map((w) => `<${stamp(w.time)}>${w.text}`).join(" ");
+      }
+      return head + line.text;
     })
     .join("\n");
 }
