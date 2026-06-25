@@ -20,6 +20,7 @@ const GROUPS: ShortcutGroup[] = [
       { keys: ["Maj", "→"], desc: "Titre suivant" },
       { keys: ["↑", "↓"], desc: "Volume + / −" },
       { keys: ["M"], desc: "Couper / rétablir le son" },
+      { keys: ["L"], desc: "Ajouter / retirer des favoris" },
       { keys: ["S"], desc: "Lecture aléatoire" },
       { keys: ["R"], desc: "Répétition (off → tout → un)" },
     ],

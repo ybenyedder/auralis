@@ -357,6 +357,14 @@ function AuralisShell() {
         case "R":
           cycleRepeat();
           break;
+        case "l":
+        case "L": {
+          // Like / unlike the current track (read via getState so this listener
+          // doesn't re-bind on every track change).
+          const liked = usePlayer.getState().currentTrack;
+          if (liked) usePlayer.getState().toggleFavorite(liked.trackhash);
+          break;
+        }
         case "Escape":
           if (usePlayer.getState().fullscreenPlayer) toggleFullscreenPlayer();
           break;
