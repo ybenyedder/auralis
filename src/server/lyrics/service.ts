@@ -176,6 +176,43 @@ function namePenalty(want: string, got: string, mild: number, miss: number, diff
   return different;
 }
 
+/** Choose the best LRCLIB search candidate for a track, or null when none is a
+ *  trustworthy match. Pure + exported so the wrong-song guard is unit-testable.
+ *  Scores by duration closeness, synced-preference and title/artist similarity, then
+ *  rejects wildly-off durations and clearly-different titles UNLESS a tight duration
+ *  (≤4s) corroborates (handles "(Album Version)"/remaster/transliteration decoration). */
+export function pickBestLrclibHit(
+  results: LrclibHit[],
+  target: { title: string; artist: string; duration: number },
+): LrclibHit | null {
+  if (!Array.isArray(results) || results.length === 0) return null;
+  const wantTitle = normalizeName(target.title);
+  const wantArtist = normalizeName(target.artist);
+  const scored = results
+    .map((hit) => {
+      const durDelta = typeof hit.duration === "number" && target.duration ? Math.abs(hit.duration - target.duration) : 999;
+      const syncedBonus = hit.syncedLyrics ? -100 : 0;
+      const titleP = namePenalty(wantTitle, normalizeName(hit.trackName), 25, 40, 250);
+      const artistP = namePenalty(wantArtist, normalizeName(hit.artistName), 15, 25, 130);
+      return { hit, score: durDelta + syncedBonus + titleP + artistP, titleP };
+    })
+    .sort((a, b) => a.score - b.score);
+
+  const top = scored[0];
+  if (!top) return null;
+  const best = top.hit;
+  const durKnown = typeof best.duration === "number" && !!target.duration;
+  const durDelta = durKnown ? Math.abs((best.duration as number) - target.duration) : Infinity;
+  // Reject wildly mismatched durations to avoid pairing the wrong song.
+  if (durKnown && durDelta > 15) return null;
+  // A clearly-different title is dropped ONLY when the duration also fails to
+  // corroborate. A tight duration match (≤4s) trusts the candidate even if the local
+  // title carries different decoration; a different title with loose/unknown duration
+  // is a genuinely different song that merely matched the loose search → drop it.
+  if (top.titleP >= 250 && durDelta > 4) return null;
+  return best;
+}
+
 async function lrclibRequest(pathname: string): Promise<unknown | null> {
   const { lyricsEndpoint } = getConfig();
   const url = `${lyricsEndpoint.replace(/\/+$/, "")}${pathname}`;
@@ -200,36 +237,13 @@ async function fetchFromLrclib(track: TrackMeta): Promise<LrclibHit | null> {
   const results = (await lrclibRequest(
     `/api/search?${qs({ track_name: track.title, artist_name: track.albumartist || track.artist })}`,
   )) as LrclibHit[] | null;
-  if (!Array.isArray(results) || results.length === 0) return null;
-
   // Score candidates by duration closeness AND title/artist similarity (the old
   // duration-only scoring happily attached a wrong song whose length was close).
-  const wantTitle = normalizeName(track.title);
-  const wantArtist = normalizeName(track.albumartist || track.artist);
-  const scored = results
-    .map((hit) => {
-      const durDelta = typeof hit.duration === "number" && track.duration ? Math.abs(hit.duration - track.duration) : 999;
-      const syncedBonus = hit.syncedLyrics ? -100 : 0;
-      const titleP = namePenalty(wantTitle, normalizeName(hit.trackName), 25, 40, 250);
-      const artistP = namePenalty(wantArtist, normalizeName(hit.artistName), 15, 25, 130);
-      return { hit, score: durDelta + syncedBonus + titleP + artistP, titleP, artistP };
-    })
-    .sort((a, b) => a.score - b.score);
-
-  const top = scored[0];
-  if (!top) return null;
-  const best = top.hit;
-  const durKnown = typeof best.duration === "number" && !!track.duration;
-  const durDelta = durKnown ? Math.abs((best.duration as number) - track.duration) : Infinity;
-  // Reject wildly mismatched durations to avoid pairing the wrong song.
-  if (durKnown && durDelta > 15) return null;
-  // A clearly-different title is dropped ONLY when the duration also fails to
-  // corroborate. A tight duration match (≤4s) trusts the candidate even if the
-  // local title carries different decoration ("(Album Version)" vs "- Single Edit",
-  // a remaster, a transliteration); a different title with loose/unknown duration
-  // is a genuinely different song that merely matched the loose search → drop it.
-  if (top.titleP >= 250 && durDelta > 4) return null;
-  return best;
+  return pickBestLrclibHit(results ?? [], {
+    title: track.title,
+    artist: track.albumartist || track.artist,
+    duration: track.duration,
+  });
 }
 
 // Keyless plain-lyrics fallback (lyrics.ovh) for when LRCLIB has no match. Returns
