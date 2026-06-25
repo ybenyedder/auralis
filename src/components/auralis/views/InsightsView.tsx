@@ -19,6 +19,7 @@ export function InsightsView() {
   const todayPlays = useStats((s) => s.todayPlays);
   const playsByDay = useStats((s) => s.playsByDay);
   const weekListeningSeconds = useStats((s) => s.weekListeningSeconds);
+  const totalListeningSeconds = useStats((s) => s.totalListeningSeconds);
   const statsLoaded = useStats((s) => s.loaded);
   const fetchStats = useStats((s) => s.fetchStats);
   useEffect(() => {
@@ -92,7 +93,7 @@ export function InsightsView() {
         </p>
       </div>
 
-      <WeeklyRecap streak={streak} weekPlays={weekPlays} todayPlays={todayPlays} playsByDay={playsByDay} weekListeningSeconds={weekListeningSeconds} />
+      <WeeklyRecap streak={streak} weekPlays={weekPlays} todayPlays={todayPlays} playsByDay={playsByDay} weekListeningSeconds={weekListeningSeconds} totalListeningSeconds={totalListeningSeconds} />
 
       <div className="mb-6 grid grid-cols-2 gap-3 md:grid-cols-4">
         {kpis.map((kpi) => {
@@ -150,8 +151,8 @@ export function InsightsView() {
   );
 }
 
-function WeeklyRecap({ streak, weekPlays, todayPlays, playsByDay, weekListeningSeconds }: {
-  streak: number; weekPlays: number; todayPlays: number; playsByDay: { day: string; count: number }[]; weekListeningSeconds: number;
+function WeeklyRecap({ streak, weekPlays, todayPlays, playsByDay, weekListeningSeconds, totalListeningSeconds }: {
+  streak: number; weekPlays: number; todayPlays: number; playsByDay: { day: string; count: number }[]; weekListeningSeconds: number; totalListeningSeconds: number;
 }) {
   const max = Math.max(1, ...playsByDay.map((d) => d.count));
   return (
@@ -165,6 +166,9 @@ function WeeklyRecap({ streak, weekPlays, todayPlays, playsByDay, weekListeningS
           <p className="mt-1 text-[11px] font-bold uppercase tracking-[0.12em] text-muted-foreground/80">
             {streak > 0 ? `jour${streak > 1 ? "s" : ""} d’affilée` : "Commence ta série"}
           </p>
+          {totalListeningSeconds > 0 && (
+            <p className="mt-1.5 text-[11.5px] text-muted-foreground/70">{formatLongDuration(totalListeningSeconds)} d’écoute au total</p>
+          )}
         </div>
       </div>
       <div className="matte-panel rounded-[13px] p-4">
