@@ -1,14 +1,5 @@
-User-agent: Googlebot
-Allow: /
-
-User-agent: Bingbot
-Allow: /
-
-User-agent: Twitterbot
-Allow: /
-
-User-agent: facebookexternalhit
-Allow: /
-
+# Auralis is a private, self-hosted personal music vault — not a public website.
+# Never invite search engines to crawl or index an instance (one accidentally
+# exposed to the internet should stay out of search results).
 User-agent: *
-Allow: /
+Disallow: /
