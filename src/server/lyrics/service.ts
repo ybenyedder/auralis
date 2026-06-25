@@ -8,6 +8,7 @@ import { getDb } from "../db";
 import { getConfig } from "../config";
 import { createLogger } from "../logger";
 import { resolveLibraryPath } from "../paths";
+import { normalizeName } from "../library/ids";
 import { parseSyncedLyrics, isSynced, type SyncedLine } from "./lrc";
 
 const log = createLogger("lyrics");
@@ -158,10 +159,21 @@ function writeSidecar(filepath: string, synced: string | null, plain: string | n
 }
 
 interface LrclibHit {
+  trackName?: string | null;
+  artistName?: string | null;
   syncedLyrics?: string | null;
   plainLyrics?: string | null;
   instrumental?: boolean;
   duration?: number | null;
+}
+
+/** Name-match penalty for LRCLIB candidate scoring: 0 = exact, mild = one
+ *  contains the other, miss = candidate has no name, high = clearly different. */
+function namePenalty(want: string, got: string, mild: number, miss: number, different: number): number {
+  if (!got) return miss;
+  if (got === want) return 0;
+  if (want && (got.includes(want) || want.includes(got))) return mild;
+  return different;
 }
 
 async function lrclibRequest(pathname: string): Promise<unknown | null> {
@@ -190,18 +202,28 @@ async function fetchFromLrclib(track: TrackMeta): Promise<LrclibHit | null> {
   )) as LrclibHit[] | null;
   if (!Array.isArray(results) || results.length === 0) return null;
 
+  // Score candidates by duration closeness AND title/artist similarity (the old
+  // duration-only scoring happily attached a wrong song whose length was close).
+  const wantTitle = normalizeName(track.title);
+  const wantArtist = normalizeName(track.albumartist || track.artist);
   const scored = results
     .map((hit) => {
       const durDelta = typeof hit.duration === "number" && track.duration ? Math.abs(hit.duration - track.duration) : 999;
       const syncedBonus = hit.syncedLyrics ? -100 : 0;
-      return { hit, score: durDelta + syncedBonus };
+      const titleP = namePenalty(wantTitle, normalizeName(hit.trackName), 25, 40, 250);
+      const artistP = namePenalty(wantArtist, normalizeName(hit.artistName), 15, 25, 130);
+      return { hit, score: durDelta + syncedBonus + titleP + artistP, titleP, artistP };
     })
     .sort((a, b) => a.score - b.score);
 
-  const best = scored[0]?.hit;
-  if (!best) return null;
+  const top = scored[0];
+  if (!top) return null;
+  const best = top.hit;
   // Reject wildly mismatched durations to avoid pairing the wrong song.
   if (typeof best.duration === "number" && track.duration && Math.abs(best.duration - track.duration) > 15) return null;
+  // A clearly-different title means a different song that merely matched the loose
+  // search — never attach it, even if the duration was close.
+  if (top.titleP >= 250) return null;
   return best;
 }
 
