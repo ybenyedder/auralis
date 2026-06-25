@@ -91,6 +91,8 @@ interface PlayerState {
   muted: boolean;
   repeat: RepeatMode;
   shuffle: boolean;
+  /** Endless listening: when the queue ends, auto-append similar tracks and keep going. */
+  autoplay: boolean;
   favorites: Set<string>;
   recentTrackhashes: string[];
   playCounts: Record<string, number>;
@@ -134,6 +136,7 @@ interface PlayerState {
   toggleMute: () => void;
   toggleShuffle: () => void;
   cycleRepeat: () => void;
+  toggleAutoplay: () => void;
   addToQueueNext: (track: Track) => void;
   addToQueueEnd: (track: Track) => void;
   removeFromQueue: (index: number) => void;
@@ -213,6 +216,23 @@ function reorderWithFirst<T>(list: T[], firstIndex: number): T[] {
   return [first, ...rest];
 }
 
+/** Build an "autoplay/radio" continuation when the queue runs out: tracks by the
+ *  same artist(s) or genre as the current one (so it feels related), shuffled, and
+ *  excluding anything already queued. Falls back to a fresh library shuffle. */
+function buildContinuation(current: Track | null, queued: Track[], library: Track[]): Track[] {
+  if (library.length === 0) return [];
+  const inQueue = new Set(queued.map((t) => t.trackhash));
+  const curArtists = new Set((current?.artists ?? []).map((a) => a.artisthash).filter(Boolean));
+  const curGenre = current?.genre;
+  const similar = library.filter(
+    (t) =>
+      !inQueue.has(t.trackhash) &&
+      ((t.artists ?? []).some((a) => curArtists.has(a.artisthash)) || (!!curGenre && t.genre === curGenre)),
+  );
+  const pool = similar.length >= 5 ? similar : library.filter((t) => !inQueue.has(t.trackhash));
+  return shuffleArray(pool).slice(0, 20);
+}
+
 const LS_KEY = "auralis.vault.v1";
 
 interface Persisted {
@@ -221,6 +241,7 @@ interface Persisted {
   muted: boolean;
   repeat: RepeatMode;
   shuffle: boolean;
+  autoplay: boolean;
   customPlaylists: Playlist[];
   recentTrackhashes: string[];
   theme: ThemeId;
@@ -260,6 +281,7 @@ function writePersist(state: PlayerState) {
       muted: state.muted,
       repeat: state.repeat,
       shuffle: state.shuffle,
+      autoplay: state.autoplay,
       customPlaylists: state.customPlaylists,
       recentTrackhashes: state.recentTrackhashes.slice(0, 40),
       theme: state.theme,
@@ -349,6 +371,7 @@ export const usePlayer = create<PlayerState>((set, get) => {
     muted: false,
     repeat: "off",
     shuffle: false,
+    autoplay: true,
     favorites: new Set<string>(),
     recentTrackhashes: [],
     playCounts: {},
@@ -447,17 +470,26 @@ export const usePlayer = create<PlayerState>((set, get) => {
     },
 
     playNext: () => {
-      const { shuffledQueue, currentIndex, repeat } = get();
+      const { currentIndex, repeat } = get();
+      let shuffledQueue = get().shuffledQueue;
       if (shuffledQueue.length === 0) return;
       let nextIndex = currentIndex + 1;
       if (nextIndex >= shuffledQueue.length) {
-        if (repeat === "all") nextIndex = 0;
-        else {
+        if (repeat === "all") {
+          nextIndex = 0;
+        } else if (get().autoplay) {
+          // Endless listening: append a continuation of similar tracks and keep going.
+          const cont = buildContinuation(get().currentTrack, get().queue, useLibraryStore.getState().tracks);
+          if (cont.length === 0) { set({ isPlaying: false }); return; }
+          set((s) => ({ queue: [...s.queue, ...cont], shuffledQueue: [...s.shuffledQueue, ...cont] }));
+          shuffledQueue = get().shuffledQueue;
+        } else {
           set({ isPlaying: false });
           return;
         }
       }
       const next = shuffledQueue[nextIndex];
+      if (!next) { set({ isPlaying: false }); return; }
       usePlayhead.getState().reset(next.duration || 0);
       set(() => {
         const upd = {
@@ -545,6 +577,13 @@ export const usePlayer = create<PlayerState>((set, get) => {
       const next = order[(order.indexOf(repeat) + 1) % order.length];
       set({ repeat: next });
       persist({ ...get(), repeat: next });
+    },
+
+    toggleAutoplay: () => {
+      const autoplay = !get().autoplay;
+      set({ autoplay });
+      persist({ ...get(), autoplay });
+      get().notify(autoplay ? "Lecture continue activée" : "Lecture continue désactivée");
     },
 
 
@@ -847,6 +886,7 @@ export const usePlayer = create<PlayerState>((set, get) => {
         muted: p.muted ?? false,
         repeat: p.repeat ?? "off",
         shuffle: p.shuffle ?? false,
+        autoplay: p.autoplay ?? true,
         favorites: new Set(p.favorites ?? []),
         recentTrackhashes: p.recentTrackhashes ?? [],
         playCounts: p.playCounts ?? {},

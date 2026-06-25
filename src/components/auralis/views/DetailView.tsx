@@ -523,6 +523,8 @@ export function SettingsView() {
   const toggleMute = usePlayer((s) => s.toggleMute);
   const toggleShuffle = usePlayer((s) => s.toggleShuffle);
   const cycleRepeat = usePlayer((s) => s.cycleRepeat);
+  const autoplay = usePlayer((s) => s.autoplay);
+  const toggleAutoplay = usePlayer((s) => s.toggleAutoplay);
   const startSleepTimer = usePlayer((s) => s.startSleepTimer);
   const cancelSleepTimer = usePlayer((s) => s.cancelSleepTimer);
   const theme = usePlayer((s) => s.theme);
@@ -693,6 +695,13 @@ export function SettingsView() {
       onAction: toggleShuffle,
     },
     { label: "Repeat", value: repeat, type: "action", onAction: cycleRepeat },
+    {
+      label: "Lecture continue",
+      value: autoplay ? "Activée" : "Désactivée",
+      type: "toggle",
+      active: autoplay,
+      onAction: toggleAutoplay,
+    },
     sleepTimer.active
       ? {
           label: "Sleep timer",
