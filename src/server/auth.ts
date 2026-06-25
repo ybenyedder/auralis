@@ -277,6 +277,32 @@ export function getRequestUser(request: Request): UserRow | null {
   return null;
 }
 
+/** Resolve the authenticated user from a request's bearer / ?token= ONLY — the
+ *  session cookie is deliberately ignored. Used by the CSRF guard: a cookie is
+ *  auto-attached by the browser (the CSRF vector), whereas a bearer / ?token= is
+ *  never sent automatically, so a request that authenticates *purely* via a valid
+ *  token can be safely exempted. A merely *present* (but forged/expired/stale)
+ *  token returns null here. */
+export function getTokenUser(request: Request): UserRow | null {
+  ensureAuth();
+  const header = request.headers.get("authorization");
+  const bearer = header?.toLowerCase().startsWith("bearer ") ? header.slice(7).trim() : null;
+  const queryToken = new URL(request.url).searchParams.get("token");
+
+  const decoded = decodeSessionToken(bearer) ?? decodeSessionToken(queryToken);
+  if (decoded) {
+    const user = getUserById(decoded.uid);
+    // Reject tokens whose embedded version is stale (issued before a password change).
+    if (user && getTokenVersion(user.id) === decoded.tv) return user;
+  }
+
+  const { authToken } = getConfig();
+  if (authToken && (bearer === authToken || queryToken === authToken)) {
+    return (getDb().prepare("SELECT id, username, is_admin, is_default, created_at FROM users WHERE is_admin = 1 ORDER BY id ASC LIMIT 1").get() as UserRow | undefined) ?? null;
+  }
+  return null;
+}
+
 export function isAuthenticated(request: Request): boolean {
   return getRequestUser(request) !== null;
 }

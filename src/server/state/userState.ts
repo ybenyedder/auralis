@@ -126,9 +126,15 @@ export function upsertPlaylist(userId: number, input: PlaylistInput): string {
     `).run({ id, userId, name: input.name, description: input.description ?? null, pinned: input.pinned ? 1 : 0, position, now });
 
     if (input.trackhashes) {
-      db.prepare("DELETE FROM playlist_tracks WHERE playlist_id = ?").run(id);
-      const ins = db.prepare("INSERT INTO playlist_tracks (playlist_id, trackhash, position, added_at) VALUES (?, ?, ?, ?)");
-      input.trackhashes.forEach((h, i) => ins.run(id, h, i, now));
+      // Re-check ownership AFTER the metadata upsert: a row just created above is owned
+      // by the caller (so it passes), but an existing id belonging to another user must
+      // NOT have its tracks rewritten (IDOR). Only mutate tracks for an owned playlist.
+      const owned = db.prepare("SELECT 1 FROM playlists WHERE id = ? AND user_id = ?").get(id, userId);
+      if (owned) {
+        db.prepare("DELETE FROM playlist_tracks WHERE playlist_id = ?").run(id);
+        const ins = db.prepare("INSERT INTO playlist_tracks (playlist_id, trackhash, position, added_at) VALUES (?, ?, ?, ?)");
+        input.trackhashes.forEach((h, i) => ins.run(id, h, i, now));
+      }
     }
   });
   tx();
@@ -160,7 +166,7 @@ const MAX_PLAYCOUNTS = 100_000;
 const MAX_PLAYLISTS = 500;
 const MAX_TRACKS_PER_PLAYLIST = 50_000;
 const MAX_SETTINGS = 200;
-const isHash = (h: unknown): h is string => typeof h === "string" && h.length > 0 && h.length <= 64;
+export const isHash = (h: unknown): h is string => typeof h === "string" && h.length > 0 && h.length <= 64;
 
 /** Replace the whole user state in one shot (used by import / first-sync). */
 export function replaceUserState(userId: number, state: Partial<UserState>): void {

@@ -21,9 +21,9 @@ export const metadata = {
 };
 
 export const viewport = {
-  // Matches the default theme so the OS chrome doesn't pop a different colour on
-  // first paint (applyTheme overrides this at runtime per selected theme).
-  themeColor: "#100b0a",
+  // Matches the default theme (Spotify) so the OS chrome doesn't pop a different
+  // colour on first paint (applyTheme overrides this at runtime per selected theme).
+  themeColor: "#000000",
   width: "device-width",
   initialScale: 1,
   // Cover the notch / home-indicator so the mobile chrome can paint into the

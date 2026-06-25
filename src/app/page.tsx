@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef } from "react";
+import { useEffect, useMemo, useRef } from "react";
 import { usePlayer, bindAudio, consumeResumeSeek, type ViewId } from "@/store/player";
 import { usePlayhead } from "@/store/playhead";
 import { TitleBar } from "@/components/auralis/TitleBar";
@@ -15,7 +15,6 @@ import { KeyboardHelp } from "@/components/auralis/KeyboardHelp";
 import { DonateModal } from "@/components/auralis/DonateReminder";
 import { StickyViewHeader } from "@/components/auralis/StickyViewHeader";
 import { VisualizerOverlay } from "@/components/auralis/VisualizerOverlay";
-import { ThemeBackdrop } from "@/components/auralis/ThemeBackdrop";
 import { HomeView } from "@/components/auralis/views/HomeView";
 import { ExploreView } from "@/components/auralis/views/ExploreView";
 import { LibraryView } from "@/components/auralis/views/LibraryView";
@@ -205,9 +204,14 @@ function AuralisShell() {
 
     if (isPlaying) {
       // Rapid track switches abort the previous play() — that rejection is
-      // expected, not a real failure, so don't toast on AbortError.
+      // expected, not a real failure, so don't toast on AbortError. Any other
+      // rejection (autoplay blocked, decode failure) means we are NOT playing, so
+      // flip the store back to paused to keep the UI honest with the element.
       audio.play().catch((err: unknown) => {
-        if (!(err instanceof DOMException) || err.name !== "AbortError") notify("Lecture audio indisponible", { tone: "error" });
+        if (!(err instanceof DOMException) || err.name !== "AbortError") {
+          usePlayer.setState({ isPlaying: false });
+          notify("Lecture audio indisponible", { tone: "error" });
+        }
       });
     } else {
       audio.pause();
@@ -239,6 +243,9 @@ function AuralisShell() {
     let listened = 0;
     let lastClock = 0;
     let scrobbledHash = "";
+    // Counts back-to-back media errors (dead/moved files) so a skip-on-error can't
+    // spin forever on a wholly broken library. Reset the moment a track plays.
+    let consecutiveErrors = 0;
     const onTimeUpdate = () => {
       usePlayhead.getState().setPosition(audio.currentTime);
 
@@ -251,7 +258,7 @@ function AuralisShell() {
           lastClock = cur;
         } else {
           const dt = cur - lastClock;
-          if (dt > 0 && dt < 2) listened += dt;
+          if (dt > 0 && dt < 2) { listened += dt; consecutiveErrors = 0; }
           lastClock = cur;
         }
         if (scrobbledHash !== ct.trackhash) {
@@ -294,9 +301,17 @@ function AuralisShell() {
         state.notify("Minuteur terminé — lecture en pause");
         return;
       }
-      if (state.repeat === "one") {
+      // Repeat-one, OR repeat-all on a single-track queue: restart the element in
+      // place. Routing the latter through playNext() would re-select the very same
+      // track object — its ref and isPlaying are unchanged, so the audio effect
+      // wouldn't re-fire and playback would simply stop at the end.
+      if (state.repeat === "one" || (state.repeat === "all" && state.shuffledQueue.length <= 1)) {
         audio.currentTime = 0;
         usePlayhead.getState().setPosition(0);
+        // Reset the scrobble gate so each repeat counts as its own listen.
+        accumHash = "";
+        listened = 0;
+        scrobbledHash = "";
         usePlayer.setState({ isPlaying: true });
         audio.play().catch(() => state.notify("Lecture audio indisponible", { tone: "error" }));
         return;
@@ -305,10 +320,21 @@ function AuralisShell() {
     };
     const onError = () => {
       // Clearing src on teardown and aborted loads fire a synthetic error — only
-      // surface a toast for a genuine media failure on a real source.
+      // act on a genuine media failure on a real source.
       if (!audio.getAttribute("src")) return;
       if (audio.error && audio.error.code === audio.error.MEDIA_ERR_ABORTED) return;
-      usePlayer.getState().notify("Flux audio indisponible", { tone: "error" });
+      const state = usePlayer.getState();
+      consecutiveErrors += 1;
+      // A dead source (moved/deleted file, 404) must not freeze the queue: skip to
+      // the next track. Stop after roughly a full lap of failures so a wholly
+      // broken library can't spin the queue forever.
+      if (consecutiveErrors === 1) state.notify("Piste illisible — passage à la suivante", { tone: "error" });
+      if (consecutiveErrors >= Math.max(3, state.shuffledQueue.length)) {
+        usePlayer.setState({ isPlaying: false });
+        state.notify("Lecture impossible — fichiers introuvables", { tone: "error" });
+        return;
+      }
+      state.playNext();
     };
 
     // Background-suspend recovery: a mobile WebView (esp. MIUI/HyperOS) can freeze
@@ -323,7 +349,7 @@ function AuralisShell() {
       if (audio.ended) {
         onEnded();
       } else if (audio.paused) {
-        audio.play().catch(() => {});
+        audio.play().catch(() => usePlayer.setState({ isPlaying: false }));
       }
     };
 
@@ -381,6 +407,13 @@ function AuralisShell() {
       }
 
       if (typing) return;
+
+      // Space/Enter on a focused button, link or slider is already handled by that
+      // control — don't also fire the global transport shortcut (double-activation,
+      // e.g. tabbing to a card then pressing Space would both open it and play/pause).
+      if ((e.key === " " || e.key === "Enter") && target.closest("button, a, [role='button'], [role='slider']")) {
+        return;
+      }
 
       switch (e.key) {
         case " ":
@@ -459,7 +492,13 @@ function AuralisShell() {
     // listener binds ONCE instead of re-binding on every track change.
   }, [togglePlay, playNext, playPrev, seekRelative, setVolume, toggleMute, toggleShuffle, cycleRepeat, toggleFullscreenPlayer, setCommandOpen, setHelpOpen, toggleVisualizer]);
 
-  const renderView = () => {
+  // Memoise the active view element on the navigation target alone. The shell
+  // re-renders on every play/pause, volume tick and mute (it subscribes to those),
+  // and an inline renderView() would hand React a fresh element each time, forcing
+  // the whole active view + its list to reconcile on transport changes. Keyed on
+  // view.view/view.id, the element ref stays stable across those churns, so the
+  // view subtree only re-renders when navigation changes or its own store slices do.
+  const viewEl = useMemo(() => {
     switch (view.view) {
       case "home":
         return <HomeView />;
@@ -486,51 +525,52 @@ function AuralisShell() {
       default:
         return <HomeView />;
     }
-  };
+  }, [view.view, view.id]);
 
   return (
-    <>
-      <ThemeBackdrop paused={fullscreenPlayer || visualizerOpen} />
-      <div className="app-chrome relative z-[1] flex h-[100dvh] w-screen flex-col overflow-hidden text-foreground">
+    <div className="app-chrome relative z-[1] flex h-[100dvh] w-screen flex-col overflow-hidden bg-black text-foreground">
       <audio ref={audioRef} preload="metadata" />
 
-      {/* Announce track changes to screen readers (the visual now-playing surfaces
-          are scattered across the chrome; this gives AT a single spoken cue). */}
+      {/* Announce track changes to screen readers */}
       <div className="sr-only" aria-live="polite" aria-atomic="true">
         {currentTrack ? `En lecture : ${trackTitle(currentTrack)} — ${trackArtist(currentTrack)}` : ""}
       </div>
 
-      {/* Desktop chrome — collapsed on phones in favour of the mobile shell. */}
-      <div className="hidden md:block">
+      {/* Desktop top bar. Hosts the OS window drag region + min/max/close controls
+          (the Electron window is frameless, so without this it can't be moved or
+          closed), plus the global search field and back navigation. */}
+      <div className="hidden md:block shrink-0">
         <TitleBar />
       </div>
+
       <MobileHeader />
 
-      <div className="flex min-h-0 flex-1">
-        <div className="hidden shrink-0 md:block">
+      <div className="flex min-h-0 flex-1 md:gap-2 md:px-2 md:pt-2 pb-2 md:pb-0">
+        <div className="hidden shrink-0 md:flex flex-col gap-2 w-[280px] lg:w-[320px] max-w-[420px] min-h-0">
           <Sidebar />
         </div>
         <main
           ref={mainRef}
           className={cn(
-            "relative min-h-0 flex-1 overflow-y-auto scroll-auralis bg-background md:pb-0",
+            "relative min-h-0 flex-1 overflow-y-auto scroll-auralis md:rounded-lg bg-[#121212]",
             // Clear the fixed mobile dock (tab bar, plus the mini-player when active).
             currentTrack
-              ? "pb-[calc(var(--miniplayer-h)+var(--tabbar-h)+var(--safe-bottom))]"
-              : "pb-[calc(var(--tabbar-h)+var(--safe-bottom))]",
+              ? "pb-[calc(var(--miniplayer-h)+var(--tabbar-h)+var(--safe-bottom))] md:pb-0"
+              : "pb-[calc(var(--tabbar-h)+var(--safe-bottom))] md:pb-0",
           )}
         >
           <div className="hidden md:block">
             <StickyViewHeader scrollRef={mainRef} />
           </div>
-          <div key={`${view.view}-${view.id ?? ""}`} className="relative fade-up">{renderView()}</div>
+          <div key={`${view.view}-${view.id ?? ""}`} className="relative fade-up h-full">{viewEl}</div>
         </main>
         <NowPlayingPanel />
       </div>
 
-      <div className="hidden md:block">
+      <div className="hidden md:block h-[90px] w-full bg-black">
         <PlayerBar />
       </div>
+
       <MobileDock />
 
       {fullscreenPlayer && <FullscreenPlayer />}
@@ -540,8 +580,7 @@ function AuralisShell() {
       <ToastHost />
       <KeyboardHelp />
       <DonateModal />
-      </div>
-    </>
+    </div>
   );
 }
 

@@ -52,14 +52,14 @@ export const AlbumCard = memo(function AlbumCard({ album, onOpen }: AlbumCardPro
         }
       }}
       onContextMenu={(e) => onContext(e, album)}
-      className="group matte-panel relative flex cursor-pointer flex-col gap-2.5 rounded-2xl p-2.5 text-left transition-all hover:bg-white/[0.04] focus-auralis card-lift active:scale-[0.98]"
+      className="group matte-panel relative flex cursor-pointer flex-col gap-2.5 rounded-lg p-3 text-left transition-colors hover:bg-[var(--panel-2)] focus-auralis"
     >
       <div className="relative">
         <Artwork
           title={album.title}
           albumhash={album.albumhash}
           size={156}
-          rounded={10}
+          rounded={6}
           colors={colors}
           image={album.image}
           fluid
@@ -69,7 +69,7 @@ export const AlbumCard = memo(function AlbumCard({ album, onOpen }: AlbumCardPro
           onClick={handlePlay}
           aria-label={`Lire ${album.title}`}
           className={cn(
-            "signal-button absolute bottom-2 right-2 grid h-10 w-10 place-items-center rounded-full shadow-[0_4px_12px_rgba(0,0,0,0.3)] transition-all hover:scale-110 lg:h-10 lg:w-10",
+            "signal-button absolute bottom-2 right-2 grid h-10 w-10 place-items-center rounded-full shadow-[0_8px_16px_rgba(0,0,0,0.4)] transition-all duration-200 lg:translate-y-2 lg:group-hover:translate-y-0 lg:h-10 lg:w-10",
             "opacity-100 lg:opacity-0 lg:group-hover:opacity-100",
             isPlaying && "lg:opacity-100",
           )}
@@ -85,8 +85,8 @@ export const AlbumCard = memo(function AlbumCard({ album, onOpen }: AlbumCardPro
         </button>
       </div>
       <div className="min-w-0">
-        <p className="truncate text-[13px] font-black leading-tight text-foreground">{album.title}</p>
-        <p className="mt-1 truncate text-[11.5px] leading-tight text-muted-foreground">
+        <p className="truncate text-[15px] font-bold leading-tight text-foreground">{album.title}</p>
+        <p className="mt-1 truncate text-[13px] leading-snug text-muted-foreground">
           {albumArtist(album)} · {album.year}
         </p>
       </div>
@@ -111,7 +111,7 @@ export const ArtistCard = memo(function ArtistCard({ artist }: { artist: Artist 
         }
       }}
       onContextMenu={(e) => onContext(e, artist)}
-      className="group matte-panel relative flex cursor-pointer flex-col gap-2.5 rounded-2xl p-2.5 text-left transition-all hover:bg-white/[0.04] focus-auralis card-lift active:scale-[0.98]"
+      className="group matte-panel relative flex cursor-pointer flex-col gap-2.5 rounded-lg p-3 text-left transition-colors hover:bg-[var(--panel-2)] focus-auralis"
     >
       <div className="relative">
         {artist.image ? (
@@ -120,7 +120,7 @@ export const ArtistCard = memo(function ArtistCard({ artist }: { artist: Artist 
             artisthash={artist.artisthash}
             image={artist.image}
             size={156}
-            rounded={10}
+            rounded={9999}
             colors={colors}
             fluid
             className="w-full aspect-square"
@@ -146,9 +146,9 @@ export const ArtistCard = memo(function ArtistCard({ artist }: { artist: Artist 
         </button>
       </div>
       <div className="min-w-0">
-        <p className="truncate text-[13px] font-black leading-tight text-foreground">{artist.name}</p>
-        <p className="mt-1 text-[11.5px] leading-tight text-muted-foreground">
-          {formatCount(artist.playcount)} écoutes · Artiste
+        <p className="truncate text-[15px] font-bold leading-tight text-foreground">{artist.name}</p>
+        <p className="mt-1 text-[13px] leading-snug text-muted-foreground">
+          {artist.playcount ? `${formatCount(artist.playcount)} écoutes · Artiste` : "Artiste"}
         </p>
       </div>
     </div>
@@ -177,7 +177,7 @@ export const PlaylistTile = memo(function PlaylistTile({ playlist }: { playlist:
           navigate("playlist", String(playlist.id));
         }
       }}
-      className="group matte-panel relative flex cursor-pointer flex-col gap-2.5 rounded-2xl p-2.5 text-left transition-all hover:bg-white/[0.04] focus-auralis card-lift active:scale-[0.98]"
+      className="group matte-panel relative flex cursor-pointer flex-col gap-2.5 rounded-lg p-3 text-left transition-colors hover:bg-[var(--panel-2)] focus-auralis"
     >
       <div className="relative">
         {coverImage ? (
@@ -185,7 +185,7 @@ export const PlaylistTile = memo(function PlaylistTile({ playlist }: { playlist:
             name={playlist.name}
             image={coverImage}
             size={156}
-            rounded={10}
+            rounded={6}
             colors={colors}
             showInitials={false}
             fluid
@@ -193,7 +193,7 @@ export const PlaylistTile = memo(function PlaylistTile({ playlist }: { playlist:
           />
         ) : (
           <div
-            className="cover-fallback flex aspect-square w-full items-center justify-center overflow-hidden rounded-2xl border-none shadow-[0_4px_16px_rgba(0,0,0,0.2)]"
+            className="cover-fallback flex aspect-square w-full items-center justify-center overflow-hidden rounded-md border-none shadow-[0_4px_16px_rgba(0,0,0,0.2)]"
             style={{ background: `linear-gradient(135deg, ${colors[0]}, ${colors[1] || '#1a1a1a'})` }}
           >
             <span className="relative p-4 text-center text-[18px] font-black tracking-tight leading-tight text-white/95 drop-shadow-md line-clamp-3">
@@ -208,14 +208,14 @@ export const PlaylistTile = memo(function PlaylistTile({ playlist }: { playlist:
             if (list.length) playList(list, 0);
           }}
           aria-label={`Lire ${playlist.name}`}
-          className="signal-button absolute bottom-2 right-2 grid h-10 w-10 place-items-center rounded-full opacity-100 shadow-[0_4px_12px_rgba(0,0,0,0.3)] transition-all hover:scale-110 lg:h-10 lg:w-10 lg:opacity-0 lg:group-hover:opacity-100"
+          className="signal-button absolute bottom-2 right-2 grid h-10 w-10 place-items-center rounded-full opacity-100 shadow-[0_8px_16px_rgba(0,0,0,0.4)] transition-all duration-200 lg:translate-y-2 lg:group-hover:translate-y-0 lg:h-10 lg:w-10 lg:opacity-0 lg:group-hover:opacity-100"
         >
           <Play className="size-4 fill-current ml-0.5" />
         </button>
       </div>
       <div className="min-w-0">
-        <p className="truncate text-[13px] font-black leading-tight text-foreground">{playlist.name}</p>
-        <p className="mt-1 truncate text-[11.5px] leading-tight text-muted-foreground">
+        <p className="truncate text-[15px] font-bold leading-tight text-foreground">{playlist.name}</p>
+        <p className="mt-1 truncate text-[13px] leading-snug text-muted-foreground">
           {playlist.trackcount} titres
         </p>
       </div>

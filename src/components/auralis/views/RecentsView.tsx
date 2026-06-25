@@ -20,8 +20,8 @@ export function RecentsView() {
   const groups = useMemo(() => {
     if (recent.length === 0) return [];
     return [
-      { label: "Dernières lectures", items: recent.slice(0, 6) },
-      { label: "Plus ancien", items: recent.slice(6) },
+      { label: "Dernières lectures", items: recent.slice(4, 10) },
+      { label: "Plus ancien", items: recent.slice(10) },
     ].filter((group) => group.items.length > 0);
   }, [recent]);
 

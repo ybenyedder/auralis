@@ -5,6 +5,7 @@
 
 import crypto from "crypto";
 import fs from "fs";
+import { readFile } from "fs/promises";
 import path from "path";
 import { getConfig } from "../config";
 
@@ -58,12 +59,12 @@ export interface CachedArt {
 }
 
 /** Read a cached art file and detect its content type from magic bytes. */
-export function readCachedArt(hash: string): CachedArt | null {
+export async function readCachedArt(hash: string): Promise<CachedArt | null> {
   if (!/^[a-f0-9]{40}$/.test(hash)) return null;
   const file = artPathFor(hash);
   let buffer: Buffer;
   try {
-    buffer = fs.readFileSync(file);
+    buffer = await readFile(file);
   } catch {
     return null;
   }

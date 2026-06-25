@@ -500,6 +500,7 @@ function PlaylistSubmenu({
     return (
       <div className="p-2">
         <button
+          role="menuitem"
           onClick={() => setSubmenu(null)}
           className="tap-press mb-1 flex min-h-[48px] w-full items-center gap-3 rounded-md px-3 text-left text-[15px] font-semibold text-foreground active:bg-[var(--panel-2)]"
         >
@@ -508,6 +509,7 @@ function PlaylistSubmenu({
         </button>
         <div className="my-1 h-px bg-[var(--panel-2)]" />
         <button
+          role="menuitem"
           onClick={() => run(onCreate)}
           className="tap-press flex min-h-[48px] w-full items-center gap-3 rounded-md px-3 text-left text-[15px] font-semibold text-primary-soft active:bg-[var(--panel-2)]"
         >
@@ -519,6 +521,7 @@ function PlaylistSubmenu({
           customPlaylists.map((pl) => (
             <button
               key={pl.id}
+              role="menuitem"
               onClick={() => run(() => onAdd(String(pl.id)))}
               className="tap-press flex min-h-[48px] w-full items-center gap-3 rounded-md px-3 text-left text-[15px] font-medium text-foreground/90 active:bg-[var(--panel-2)]"
             >
@@ -548,6 +551,7 @@ function PlaylistSubmenu({
       {open && (
         <div className="scale-in matte-panel mb-1 ml-2 overflow-hidden rounded-md">
           <button
+            role="menuitem"
             onClick={() => run(onCreate)}
             className="flex w-full items-center gap-2.5 px-2.5 py-2 text-left text-[12px] font-semibold text-primary-soft hover:bg-[var(--panel-2)]"
           >
@@ -559,6 +563,7 @@ function PlaylistSubmenu({
             customPlaylists.map((pl) => (
               <button
                 key={pl.id}
+                role="menuitem"
                 onClick={() => run(() => onAdd(String(pl.id)))}
                 className="flex w-full items-center gap-2.5 px-2.5 py-2 text-left text-[12px] font-medium text-foreground/90 hover:bg-[var(--panel-2)]"
               >

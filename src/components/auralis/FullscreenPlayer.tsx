@@ -22,16 +22,11 @@ import { useFocusTrap } from "@/lib/auralis/useFocusTrap";
 import { usePlayhead } from "@/store/playhead";
 import { Artwork } from "./Artwork";
 import { LyricsView } from "./LyricsView";
-import { EqualizerBars } from "./SectionHeader";
 import { QueueList } from "./QueueList";
 import { formatDuration, trackArtist, trackTitle } from "@/lib/auralis/brand";
-import { ThemeBackdrop } from "./ThemeBackdrop";
 import { cn } from "@/lib/utils";
 
 export function FullscreenPlayer() {
-  // NOTE: position/duration are intentionally NOT read here — they tick ~4×/s and
-  // would re-render this whole heavy surface (artwork, lyrics, transport) every
-  // frame. The live progress is isolated in <FullscreenScrubber> below.
   const currentTrack = usePlayer((s) => s.currentTrack);
   const isPlaying = usePlayer((s) => s.isPlaying);
   const repeat = usePlayer((s) => s.repeat);
@@ -43,7 +38,9 @@ export function FullscreenPlayer() {
   const toggleShuffle = usePlayer((s) => s.toggleShuffle);
   const cycleRepeat = usePlayer((s) => s.cycleRepeat);
   const toggleFavorite = usePlayer((s) => s.toggleFavorite);
-  const isFavorite = usePlayer((s) => s.isFavorite);
+  // Atomic reactive favorite read (subscribed to the set), valid before the early
+  // return below. The old stable isFavorite fn ref never re-rendered on un-favorite.
+  const fav = usePlayer((s) => (currentTrack ? s.favorites.has(currentTrack.trackhash) : false));
   const closeFullscreenPlayer = usePlayer((s) => s.closeFullscreenPlayer);
   const lyricsOpen = usePlayer((s) => s.lyricsOpen);
   const toggleLyrics = usePlayer((s) => s.toggleLyrics);
@@ -51,17 +48,12 @@ export function FullscreenPlayer() {
   const queueOpen = usePlayer((s) => s.queueOpen);
   const openContextMenu = usePlayer((s) => s.openContextMenu);
   const notify = usePlayer((s) => s.notify);
-  // The next track (if any) for an "À suivre" anticipation peek. These change only
-  // on track/queue edits, not per frame, so subscribing is cheap.
-  const nextTrack = usePlayer((s) => s.shuffledQueue[s.currentIndex + 1] ?? null);
 
   const [favPop, setFavPop] = useState(false);
-  // Drag-down-to-close gesture on the mobile top region.
   const [dragY, setDragY] = useState(0);
   const [dragging, setDragging] = useState(false);
   const dragStart = useRef<number | null>(null);
-  // The fullscreen player is a modal takeover: trap focus while open and restore
-  // it to the opener on close (it's conditionally mounted, so active is always true).
+  
   const rootRef = useRef<HTMLDivElement>(null);
   useFocusTrap(true, rootRef);
 
@@ -71,8 +63,7 @@ export function FullscreenPlayer() {
 
   if (!currentTrack) return null;
 
-  const colors = currentTrack.color ?? ["#2A2821", "#D95F45", "#E5A184"];
-  const fav = isFavorite(currentTrack.trackhash);
+  const colors = currentTrack.color ?? ["#2a2a2a", "#121212", "#000000"];
   const onFav = () => { if (!fav) setFavPop(true); toggleFavorite(currentTrack.trackhash); };
 
   const openMore = (event: MouseEvent<HTMLButtonElement>) => {
@@ -80,7 +71,6 @@ export function FullscreenPlayer() {
     openContextMenu(rect.left, rect.top - 8, currentTrack);
   };
 
-  // Drag-down to dismiss (mobile only — desktop never starts the gesture).
   const onDragPointerDown = (e: ReactPointerEvent<HTMLDivElement>) => {
     if (e.pointerType === "mouse") return;
     dragStart.current = e.clientY;
@@ -100,7 +90,6 @@ export function FullscreenPlayer() {
     setDragY(0);
   };
 
-  // What occupies the mobile stage: lyrics, queue, or artwork + meta.
   const showLyrics = lyricsOpen;
   const showQueue = queueOpen && !lyricsOpen;
 
@@ -110,56 +99,53 @@ export function FullscreenPlayer() {
       role="dialog"
       aria-modal="true"
       aria-label="Lecteur plein écran"
-      className="rise-in fixed inset-0 z-[60] bg-[var(--bg-solid)]"
-      style={dragY ? { transform: `translateY(${dragY}px)`, transition: dragging ? "none" : "transform 0.2s ease" } : undefined}
+      className="fixed inset-0 z-[60] bg-[var(--background)]"
+      style={{
+        transform: dragY ? `translateY(${dragY}px)` : undefined,
+        transition: dragging ? "none" : "transform 0.2s ease"
+      }}
     >
-      {/* The fullscreen sheet carries its OWN backdrop wash so it fully
-          occludes the app shell underneath (with glass themes a transparent
-          shell would otherwise bleed through). */}
-      <ThemeBackdrop />
-      <div className="app-chrome safe-top safe-bottom relative z-[1] flex h-full flex-col">
+      {/* Background Gradient */}
+      <div 
+        className="absolute inset-0 pointer-events-none opacity-80" 
+        style={{ background: `linear-gradient(to bottom, ${colors[0] || '#535353'}, var(--background))` }} 
+      />
 
-      {/* Top bar — only the centre label is the drag-to-dismiss handle so the
-          Réduire / options buttons always receive clean taps (the old full-width
-          pointer handlers could swallow the close button's click). */}
-      <div className="flex items-center justify-between gap-2 border-b border-[var(--line)] px-4 py-3 lg:px-6 lg:py-4">
+      <div className="relative z-10 flex h-full flex-col pt-[env(safe-area-inset-top)] pb-[env(safe-area-inset-bottom)]">
+
+      {/* Top bar */}
+      <div className="flex h-16 items-center justify-between px-4">
         <button
           onClick={closeFullscreenPlayer}
           aria-label="Réduire le lecteur"
-          title="Réduire (Échap)"
-          className="tap-press z-[1] flex h-11 items-center gap-2 rounded-full px-3 transition-all duration-200 text-white/70 hover:text-white hover:bg-white/10 lg:h-9"
+          className="grid h-10 w-10 place-items-center text-white"
         >
-          <ChevronDown className="size-6 lg:size-5" />
-          <span className="hidden text-[12.5px] font-bold lg:inline">Réduire</span>
+          <ChevronDown className="size-8" />
         </button>
-        <p
-          className="flex-1 cursor-grab select-none text-center text-[10px] font-semibold uppercase tracking-[0.08em] text-muted-foreground active:cursor-grabbing"
+        <div
+          className="flex-1 cursor-grab select-none text-center active:cursor-grabbing px-2"
           onPointerDown={onDragPointerDown}
           onPointerMove={onDragPointerMove}
           onPointerUp={onDragPointerEnd}
           onPointerCancel={onDragPointerEnd}
-        >En lecture</p>
-        {/* Mobile: a "more" button (matches native now-playing). Desktop keeps the queue toggle. */}
+        >
+          <p className="text-[10px] font-medium uppercase tracking-[0.08em] text-white/80">
+            LECTURE DE L&apos;ALBUM
+          </p>
+          <p className="text-[12px] font-bold text-white truncate">
+            {currentTrack.album || "Titre"}
+          </p>
+        </div>
         <button
           onClick={openMore}
           aria-label="Options du titre"
-          className="tap-press grid h-11 w-11 place-items-center rounded-full transition-all duration-200 text-white/70 hover:text-white hover:bg-white/10 lg:hidden"
+          className="grid h-10 w-10 place-items-center text-white"
         >
           <MoreHorizontal className="size-6" />
         </button>
-        <button
-          onClick={toggleQueue}
-          className={cn("hidden h-9 w-9 place-items-center rounded-full transition-all duration-200 lg:grid", queueOpen ? "bg-white/20 text-white shadow-[0_0_12px_rgba(255,255,255,0.1)]" : "text-white/70 hover:text-white hover:bg-white/10")}
-          aria-label="File d'attente"
-        >
-          <ListMusic className="size-5" />
-        </button>
       </div>
 
-      {/* ===== Mobile stage (below lg): single vertical centered column ===== */}
-      <div className="flex flex-1 min-h-0 flex-col px-5 lg:hidden">
-
-        {/* Lyrics fill the stage when open */}
+      <div className="flex flex-1 min-h-0 flex-col px-6">
         {showLyrics ? (
           <div className="min-h-0 flex-1 pt-2">
             <LyricsView variant="stage" />
@@ -169,191 +155,110 @@ export function FullscreenPlayer() {
             <QueueList />
           </div>
         ) : (
-          /* Artwork + meta, stacked and centered */
-          <div className="flex min-h-0 flex-1 flex-col items-center justify-center gap-6">
-            <div className="relative">
+          /* Mobile Stage: Artwork + Meta */
+          <div className="flex min-h-0 flex-1 flex-col justify-center gap-8">
+            <div className="w-full flex justify-center">
               <Artwork
                 fluid
                 title={currentTrack.title}
                 trackhash={currentTrack.trackhash}
-                size={360}
-                rounded={12}
+                size={400}
+                rounded={8}
                 colors={colors}
                 image={currentTrack.image}
-                className={cn("w-[min(74vw,360px)] aspect-square transition-transform duration-500", isPlaying ? "scale-100" : "scale-[0.97]")}
+                className="w-full aspect-square max-w-[400px] shadow-2xl"
               />
-              {isPlaying && (
-                <div className="matte-panel absolute -bottom-2 left-1/2 flex -translate-x-1/2 items-center gap-1.5 rounded-md px-3 py-1">
-                  <EqualizerBars className="h-2.5" />
-                  <span className="text-[9px] font-semibold uppercase tracking-[0.06em] text-primary-soft">En lecture</span>
-                </div>
-              )}
             </div>
-            <div className="w-full text-center">
-              <h1 className="text-[24px] font-black leading-tight tracking-tight text-foreground sm:text-[28px]">{trackTitle(currentTrack)}</h1>
-              <p className="mt-1.5 text-[15px] text-muted-foreground">{trackArtist(currentTrack)}</p>
-              {currentTrack.album && <p className="mt-1 text-[12px] text-muted-foreground/65">{currentTrack.album} · {currentTrack.year}</p>}
-              {nextTrack && (
-                <button onClick={toggleQueue} className="mt-3 inline-flex max-w-full items-center gap-1.5 truncate text-[11px] text-muted-foreground/60 transition-colors hover:text-foreground/80">
-                  <span className="shrink-0 font-semibold uppercase tracking-[0.06em] text-[var(--brass)]">À suivre</span>
-                  <span className="truncate">{trackTitle(nextTrack)} — {trackArtist(nextTrack)}</span>
-                </button>
-              )}
+            
+            <div className="flex items-center justify-between">
+              <div className="flex flex-col min-w-0 pr-4">
+                <h1 className="truncate text-[24px] font-bold text-white">{trackTitle(currentTrack)}</h1>
+                <p className="truncate text-[16px] font-medium text-[var(--text-muted)]">{trackArtist(currentTrack)}</p>
+              </div>
+              <button
+                onClick={onFav}
+                aria-label={fav ? "Retirer des favoris" : "Ajouter aux favoris"}
+                className="shrink-0 transition-transform active:scale-90"
+              >
+                <Heart
+                  className={cn("size-[26px]", favPop && "heart-pop", fav ? "fill-[var(--primary)] text-[var(--primary)]" : "text-white")}
+                  onAnimationEnd={() => setFavPop(false)}
+                />
+              </button>
             </div>
           </div>
         )}
       </div>
 
-      {/* ===== Desktop stage (lg+): artwork + lyrics split — preserved ===== */}
-      <div className="hidden flex-1 min-h-0 items-center justify-center gap-10 px-10 pb-6 lg:flex">
-        <div className="flex flex-col items-center gap-6">
-          <div className="relative">
-            <Artwork
-              title={currentTrack.title}
-              trackhash={currentTrack.trackhash}
-              size={340}
-              rounded={12}
-              colors={colors}
-              image={currentTrack.image}
-              className={cn("transition-transform duration-500", isPlaying && "scale-100", !isPlaying && "scale-95")}
-            />
-            {isPlaying && (
-              <div className="matte-panel absolute -bottom-2 left-1/2 flex -translate-x-1/2 items-center gap-1.5 rounded-md px-3 py-1">
-                <EqualizerBars className="h-2.5" />
-                <span className="text-[9px] font-semibold uppercase tracking-[0.06em] text-primary-soft">En lecture</span>
-              </div>
-            )}
-          </div>
-          <div className="text-center max-w-md">
-            <h1 className="text-[30px] font-black leading-tight tracking-tight text-foreground">{trackTitle(currentTrack)}</h1>
-            <p className="mt-1 text-[15px] text-muted-foreground">{trackArtist(currentTrack)}</p>
-            {currentTrack.album && <p className="mt-0.5 text-[12px] text-muted-foreground/65">{currentTrack.album} · {currentTrack.year}</p>}
-            {nextTrack && (
-              <button onClick={toggleQueue} className="mt-3 inline-flex max-w-full items-center gap-1.5 truncate text-[11px] text-muted-foreground/55 transition-colors hover:text-foreground/80">
-                <span className="shrink-0 font-semibold uppercase tracking-[0.06em] text-[var(--brass)]">À suivre</span>
-                <span className="truncate">{trackTitle(nextTrack)} — {trackArtist(nextTrack)}</span>
-              </button>
-            )}
-          </div>
-        </div>
-
-        {/* Lyrics panel (desktop) */}
-        <div className="hidden h-[460px] w-[380px] flex-col lg:flex">
-          <div className="mb-3 flex items-center justify-center">
-            <button
-              onClick={toggleLyrics}
-              className={cn(
-                "flex items-center gap-1.5 rounded-md px-3.5 py-1.5 text-[11.5px] font-bold transition-colors",
-                lyricsOpen ? "signal-button" : "ghost-button",
-              )}
-            >
-              <Mic2 className="size-3.5" /> {lyricsOpen ? "Paroles" : "Afficher les paroles"}
-            </button>
-          </div>
-          {lyricsOpen ? (
-            <div className="min-h-0 flex-1">
-              <LyricsView variant="stage" />
-            </div>
-          ) : (
-            <div className="flex flex-1 flex-col items-center justify-center gap-2 text-center text-muted-foreground/45">
-              <Mic2 className="size-9" />
-              <p className="max-w-[220px] text-[12px]">Affiche les paroles synchronisées pendant la lecture.</p>
-            </div>
-          )}
-        </div>
+      {/* Scrubber */}
+      <div className="px-6 pt-2 pb-2">
+        <FullscreenScrubber seek={seek} />
       </div>
 
-      {/* Scrubber — isolated so the ~4×/s playhead tick only re-renders this row. */}
-      <FullscreenScrubber seek={seek} />
-
       {/* Transport */}
-      <div className="mx-auto flex w-full items-center justify-between px-6 pb-5 lg:max-w-2xl lg:justify-center lg:gap-6 lg:px-10 lg:pb-8">
+      <div className="flex items-center justify-between px-6 pb-4">
         <button
           onClick={toggleShuffle}
-          className={cn("tap-press grid h-11 w-11 place-items-center rounded-full transition-all duration-200 lg:h-10 lg:w-10", shuffle ? "text-primary drop-shadow-[0_0_8px_rgba(217,95,69,0.4)] scale-105" : "text-white/50 hover:text-white/90 hover:scale-105")}
+          className={cn("grid h-12 w-12 place-items-center rounded-full transition-transform active:scale-90", shuffle ? "text-[var(--primary)]" : "text-white")}
           aria-label="Lecture aléatoire"
         >
-          <Shuffle className="size-5" />
+          <Shuffle className="size-6" />
         </button>
-        <button onClick={playPrev} className="tap-press grid h-12 w-12 place-items-center rounded-full text-white/70 transition-all duration-200 hover:text-white hover:scale-110 lg:h-10 lg:w-10" aria-label="Précédent">
-          <SkipBack className="size-7 fill-current" />
+        <button onClick={playPrev} className="grid h-12 w-12 place-items-center rounded-full text-white transition-transform active:scale-90" aria-label="Précédent">
+          <SkipBack className="size-10 fill-current" />
         </button>
         <button
           onClick={togglePlay}
           aria-label={isPlaying ? "Pause" : "Lecture"}
-          className="signal-button tap-press grid h-16 w-16 place-items-center rounded-xl transition-[filter,transform] active:translate-y-px lg:h-14 lg:w-14"
+          className="grid h-16 w-16 place-items-center rounded-full bg-white text-black transition-transform active:scale-90 hover:scale-105"
         >
-          {isPlaying ? <Pause className="size-7 fill-current" /> : <Play className="size-7 fill-current ml-1" />}
+          {isPlaying ? <Pause className="size-8 fill-current" /> : <Play className="size-8 fill-current ml-1" />}
         </button>
-        <button onClick={playNext} className="tap-press grid h-12 w-12 place-items-center rounded-full text-white/70 transition-all duration-200 hover:text-white hover:scale-110 lg:h-10 lg:w-10" aria-label="Suivant">
-          <SkipForward className="size-7 fill-current" />
+        <button onClick={playNext} className="grid h-12 w-12 place-items-center rounded-full text-white transition-transform active:scale-90" aria-label="Suivant">
+          <SkipForward className="size-10 fill-current" />
         </button>
         <button
           onClick={cycleRepeat}
-          className={cn("tap-press grid h-11 w-11 place-items-center rounded-full transition-all duration-200 lg:h-10 lg:w-10", repeat !== "off" ? "text-primary drop-shadow-[0_0_8px_rgba(217,95,69,0.4)] scale-105" : "text-white/50 hover:text-white/90 hover:scale-105")}
+          className={cn("grid h-12 w-12 place-items-center rounded-full transition-transform active:scale-90", repeat !== "off" ? "text-[var(--primary)]" : "text-white")}
           aria-label="Répéter"
         >
-          {repeat === "one" ? <Repeat1 className="size-5" /> : <Repeat className="size-5" />}
+          {repeat === "one" ? <Repeat1 className="size-6" /> : <Repeat className="size-6" />}
         </button>
       </div>
 
-      {/* Secondary actions */}
-      {/* Mobile: Favorite + Paroles toggle + File toggle, evenly spaced. */}
-      <div className="flex w-full items-center justify-around px-6 pb-4 lg:hidden">
-        <button
-          onClick={onFav}
-          aria-label={fav ? "Retirer des favoris" : "Ajouter aux favoris"}
-          className={cn("tap-press grid h-11 w-11 place-items-center rounded-full transition-all duration-200 hover:scale-110", fav ? "text-primary drop-shadow-[0_0_8px_rgba(217,95,69,0.5)]" : "text-white/60 hover:text-white")}
-        >
-          <Heart className={cn("size-6", fav && "fill-primary", favPop && "heart-pop")} onAnimationEnd={() => setFavPop(false)} />
-        </button>
+      {/* Bottom Actions */}
+      <div className="flex items-center justify-between px-6 pb-6">
         <button
           onClick={toggleLyrics}
-          className={cn("tap-press flex h-11 items-center gap-2 rounded-full px-4 text-[12px] font-bold transition-all duration-200", lyricsOpen ? "bg-white/20 text-white shadow-[0_0_12px_rgba(255,255,255,0.1)]" : "text-white/60 hover:text-white hover:bg-white/10")}
+          aria-label="Paroles"
+          aria-pressed={lyricsOpen}
+          className={cn("grid h-10 w-10 place-items-center transition-colors", lyricsOpen ? "text-[var(--primary)]" : "text-white/70 hover:text-white")}
         >
-          <Mic2 className="size-5" /> Paroles
+          <Mic2 className="size-5" />
         </button>
-        <button
-          onClick={toggleQueue}
-          className={cn("tap-press flex h-11 items-center gap-2 rounded-full px-4 text-[12px] font-bold transition-all duration-200", queueOpen ? "bg-white/20 text-white shadow-[0_0_12px_rgba(255,255,255,0.1)]" : "text-white/60 hover:text-white hover:bg-white/10")}
-        >
-          <ListMusic className="size-5" /> File
-        </button>
-        <button
-          onClick={() => void shareTrack(currentTrack, notify)}
-          aria-label="Partager le titre"
-          className="tap-press grid h-11 w-11 place-items-center rounded-full text-white/60 transition-all duration-200 hover:text-white hover:bg-white/10 hover:scale-110"
-        >
-          <Share2 className="size-5" />
-        </button>
-      </div>
-
-      {/* Desktop footer actions — preserved */}
-      <div className="mx-auto hidden w-full max-w-2xl items-center justify-between px-10 pb-6 lg:flex">
-        <button
-          onClick={onFav}
-          className={cn("flex items-center gap-2 rounded-md px-3 py-1.5 text-[12px] font-bold transition-colors", fav ? "bg-primary/15 text-primary" : "ghost-button")}
-        >
-          <Heart className={cn("size-4", fav && "fill-primary", favPop && "heart-pop")} onAnimationEnd={() => setFavPop(false)} />
-          {fav ? "Aimé" : "Aimer"}
-        </button>
-        {isPlaying && (
-          <span className="flex items-center gap-2 text-[11px] font-semibold uppercase tracking-[0.06em] text-muted-foreground">
-            <EqualizerBars active className="h-3" /> En lecture
-          </span>
-        )}
-        <button onClick={openMore} className="ghost-button grid h-8 w-8 place-items-center rounded-md transition-colors" aria-label="Options du titre">
-          <MoreHorizontal className="size-4" />
-        </button>
+        <div className="flex gap-4">
+          <button
+            onClick={() => void shareTrack(currentTrack, notify)}
+            aria-label="Partager"
+            className="grid h-10 w-10 place-items-center text-white/70 hover:text-white"
+          >
+            <Share2 className="size-5" />
+          </button>
+          <button
+            onClick={toggleQueue}
+            aria-label="File d'attente"
+            aria-pressed={queueOpen}
+            className={cn("grid h-10 w-10 place-items-center transition-colors", queueOpen ? "text-[var(--primary)]" : "text-white/70 hover:text-white")}
+          >
+            <ListMusic className="size-5" />
+          </button>
+        </div>
       </div>
       </div>
     </div>
   );
 }
 
-/** Live progress row, isolated from the parent. It alone subscribes to the playhead
- *  store (position/duration tick ~4×/s), so the heavy FullscreenPlayer surface above
- *  doesn't re-render on every frame — only this thin scrubber does. */
 function FullscreenScrubber({ seek }: { seek: (time: number) => void }) {
   const position = usePlayhead((s) => s.position);
   const duration = usePlayhead((s) => s.duration);
@@ -362,38 +267,56 @@ function FullscreenScrubber({ seek }: { seek: (time: number) => void }) {
   const progress = duration > 0 ? Math.min(100, (position / duration) * 100) : 0;
   const pct = scrubPct ?? progress;
 
+  const onKeyDown = (e: React.KeyboardEvent) => {
+    let target: number | null = null;
+    if (e.key === "ArrowRight" || e.key === "ArrowUp") target = Math.min(duration || 0, position + 5);
+    else if (e.key === "ArrowLeft" || e.key === "ArrowDown") target = Math.max(0, position - 5);
+    else if (e.key === "Home") target = 0;
+    else if (e.key === "End") target = duration || 0;
+    if (target === null) return;
+    e.preventDefault();
+    e.stopPropagation();
+    seek(target);
+  };
+
   return (
-    <div className="mx-auto w-full px-5 pb-2 lg:max-w-2xl lg:px-10 lg:pb-3">
-      <div className="flex items-center gap-3">
-        <span className="w-10 text-right text-[11px] tabular-nums text-muted-foreground">{formatDuration(position)}</span>
-        <div
-          className="group relative flex-1 cursor-pointer touch-none py-3 lg:py-2"
-          onPointerDown={(e) => {
-            (e.target as HTMLElement).setPointerCapture(e.pointerId);
-            const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
-            setScrubPct(Math.max(0, Math.min(100, ((e.clientX - rect.left) / rect.width) * 100)));
-          }}
-          onPointerMove={(e) => {
-            if (scrubPct === null) return;
-            const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
-            setScrubPct(Math.max(0, Math.min(100, ((e.clientX - rect.left) / rect.width) * 100)));
-          }}
-          onPointerUp={() => {
-            if (scrubPct === null) return;
-            seek((scrubPct / 100) * (duration || 0));
-            setScrubPct(null);
-          }}
-        >
-          <div className="h-1.5 w-full overflow-hidden rounded-xs bg-[var(--line-strong)]">
-            <div className="h-full rounded-xs bg-[var(--paper)]" style={{ width: `${pct}%` }} />
-          </div>
-          {/* Thumb: always visible on mobile, hover/scrub-only on desktop. */}
-          <div
-            className="pointer-events-none absolute top-1/2 h-4 w-2 -translate-y-1/2 rounded-xs bg-[var(--paper)] transition-opacity lg:opacity-0"
-            style={{ left: `calc(${pct}% - 4px)`, opacity: scrubPct !== null ? 1 : undefined }}
-          />
+    <div className="w-full">
+      <div
+        className="group relative flex cursor-pointer touch-none py-2 focus-auralis rounded-full"
+        role="slider"
+        aria-label="Position de lecture"
+        aria-valuemin={0}
+        aria-valuemax={100}
+        aria-valuenow={Math.round(pct)}
+        tabIndex={0}
+        onKeyDown={onKeyDown}
+        onPointerDown={(e) => {
+          (e.target as HTMLElement).setPointerCapture(e.pointerId);
+          const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
+          setScrubPct(Math.max(0, Math.min(100, ((e.clientX - rect.left) / rect.width) * 100)));
+        }}
+        onPointerMove={(e) => {
+          if (scrubPct === null) return;
+          const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
+          setScrubPct(Math.max(0, Math.min(100, ((e.clientX - rect.left) / rect.width) * 100)));
+        }}
+        onPointerUp={() => {
+          if (scrubPct === null) return;
+          seek((scrubPct / 100) * (duration || 0));
+          setScrubPct(null);
+        }}
+      >
+        <div className="h-1 w-full overflow-hidden rounded-full bg-white/20">
+          <div className="h-full rounded-full bg-white group-hover:bg-[var(--primary)]" style={{ width: `${pct}%` }} />
         </div>
-        <span className="w-10 text-[11px] tabular-nums text-muted-foreground">{formatDuration(duration)}</span>
+        <div
+          className="pointer-events-none absolute top-1/2 h-3 w-3 -translate-y-1/2 rounded-full bg-white opacity-0 transition-opacity group-hover:opacity-100 group-active:opacity-100 shadow-md"
+          style={{ left: `calc(${pct}% - 6px)` }}
+        />
+      </div>
+      <div className="flex items-center justify-between mt-1">
+        <span className="text-[12px] font-medium text-[var(--text-muted)]">{formatDuration(position)}</span>
+        <span className="text-[12px] font-medium text-[var(--text-muted)]">{formatDuration(duration)}</span>
       </div>
     </div>
   );

@@ -1,6 +1,5 @@
 "use client";
 
-import { ChevronRight } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 interface SectionHeaderProps {
@@ -12,24 +11,21 @@ interface SectionHeaderProps {
   icon?: React.ReactNode;
 }
 
-export function SectionHeader({ title, eyebrow, action, onAction, className, icon }: SectionHeaderProps) {
+export function SectionHeader({ title, action, onAction, className }: SectionHeaderProps) {
+  // Spotify shelf header: just a big bold title (hover-underlines) on the left and
+  // a muted "Tout afficher" link on the right. No eyebrow, no accent icon — those
+  // props are still accepted for call-site stability but intentionally not rendered.
   return (
     <div className={cn("flex items-end justify-between gap-3", className)}>
-      <div className="min-w-0">
-        {eyebrow && (
-          <p className="mb-0.5 text-[11px] font-semibold uppercase tracking-[0.06em] text-muted-foreground/65">{eyebrow}</p>
-        )}
-        <h2 className="flex min-w-0 items-center gap-2 text-[19px] font-bold tracking-[-0.01em] text-foreground">
-          {icon}
-          <span className="truncate">{title}</span>
-        </h2>
-      </div>
+      <h2 className="min-w-0 truncate text-[20px] font-black tracking-[-0.02em] text-foreground hover:underline lg:text-[24px]">
+        {title}
+      </h2>
       {action && (
         <button
           onClick={onAction}
-          className="no-drag inline-flex shrink-0 items-center gap-0.5 rounded-full px-2 py-1 text-[12.5px] font-semibold text-primary-soft transition-all duration-200 hover:bg-white/[0.04] hover:scale-105"
+          className="no-drag shrink-0 text-[11px] font-bold uppercase tracking-[0.08em] text-muted-foreground transition-colors hover:text-foreground"
         >
-          {action} <ChevronRight className="size-3.5" />
+          {action}
         </button>
       )}
     </div>

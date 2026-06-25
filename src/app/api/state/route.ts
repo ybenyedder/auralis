@@ -1,6 +1,6 @@
 import {
   getUserState, setFavorite, recordPlay, setSetting,
-  upsertPlaylist, deletePlaylist, reorderPlaylists, replaceUserState, resetUserStats,
+  upsertPlaylist, deletePlaylist, reorderPlaylists, replaceUserState, resetUserStats, isHash,
 } from "@/server/state/userState";
 import { getRequestUser } from "@/server/auth";
 import { json, checkCsrf } from "@/server/http";
@@ -43,11 +43,11 @@ export async function PUT(request: Request) {
 
   switch (body.action) {
     case "favorite":
-      if (!body.trackhash) return json({ error: "trackhash required" }, { status: 400 });
+      if (!isHash(body.trackhash)) return json({ error: "valid trackhash required" }, { status: 400 });
       setFavorite(uid, body.trackhash, Boolean(body.value));
       return json({ ok: true });
     case "play": {
-      if (!body.trackhash) return json({ error: "trackhash required" }, { status: 400 });
+      if (!isHash(body.trackhash)) return json({ error: "valid trackhash required" }, { status: 400 });
       const count = recordPlay(uid, body.trackhash);
       return json({ ok: true, count });
     }

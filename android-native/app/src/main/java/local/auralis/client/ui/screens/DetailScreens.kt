@@ -52,9 +52,11 @@ import local.auralis.client.ui.theme.LocalAuralis
 @Composable
 fun AlbumDetail(vm: AppViewModel, ui: UiState, albumhash: String) {
     val colors = LocalAuralis.current
-    val album = ui.albums.find { it.albumhash == albumhash }
-    val tracks = ui.tracks.filter { it.albumhash == albumhash }
-        .sortedWith(compareBy({ it.disc ?: 1 }, { it.track ?: 0 }))
+    val album = remember(ui.albums, albumhash) { ui.albums.find { it.albumhash == albumhash } }
+    val tracks = remember(ui.tracks, albumhash) {
+        ui.tracks.filter { it.albumhash == albumhash }
+            .sortedWith(compareBy({ it.disc ?: 1 }, { it.track ?: 0 }))
+    }
     val current = vm.playback.value.currentId
     LazyColumn(contentPadding = PaddingValues(start = 16.dp, end = 16.dp, bottom = 170.dp)) {
         item {
@@ -77,7 +79,8 @@ fun AlbumDetail(vm: AppViewModel, ui: UiState, albumhash: String) {
                 Spacer(Modifier.height(10.dp))
             }
         }
-        itemsIndexed(tracks) { idx, t ->
+        items(tracks, key = { it.trackhash }) { t ->
+            val idx = tracks.indexOf(t)
             TrackRow(
                 t, isCurrent = t.trackhash == current, isFavorite = ui.favorites.contains(t.trackhash),
                 onClick = { vm.playTrack(t, tracks, idx) },
@@ -90,10 +93,16 @@ fun AlbumDetail(vm: AppViewModel, ui: UiState, albumhash: String) {
 @Composable
 fun ArtistDetail(vm: AppViewModel, ui: UiState, artisthash: String) {
     val colors = LocalAuralis.current
-    val artist = ui.artists.find { it.artisthash == artisthash }
-    val tracks = ui.tracks.filter { it.primaryArtistHash == artisthash || it.artists.any { a -> a.artisthash == artisthash } }
-    val albums = ui.albums.filter { it.albumartists.any { a -> a.artisthash == artisthash } }
-    val top = tracks.sortedByDescending { ui.playCounts[it.trackhash] ?: it.playcount }.take(8)
+    val artist = remember(ui.artists, artisthash) { ui.artists.find { it.artisthash == artisthash } }
+    val tracks = remember(ui.tracks, artisthash) {
+        ui.tracks.filter { it.primaryArtistHash == artisthash || it.artists.any { a -> a.artisthash == artisthash } }
+    }
+    val albums = remember(ui.albums, artisthash) {
+        ui.albums.filter { it.albumartists.any { a -> a.artisthash == artisthash } }
+    }
+    val top = remember(tracks, ui.playCounts) {
+        tracks.sortedByDescending { ui.playCounts[it.trackhash] ?: it.playcount }.take(8)
+    }
     val current = vm.playback.value.currentId
     LazyColumn(contentPadding = PaddingValues(start = 16.dp, end = 16.dp, bottom = 170.dp)) {
         item {
@@ -112,7 +121,8 @@ fun ArtistDetail(vm: AppViewModel, ui: UiState, artisthash: String) {
         }
         if (top.isNotEmpty()) {
             item { local.auralis.client.ui.components.SectionHeader("Populaire") }
-            itemsIndexed(top) { idx, t ->
+            items(top, key = { it.trackhash }) { t ->
+                val idx = top.indexOf(t)
                 TrackRow(
                     t, isCurrent = t.trackhash == current, isFavorite = ui.favorites.contains(t.trackhash),
                     onClick = { vm.playTrack(t, top, idx) },
@@ -125,7 +135,7 @@ fun ArtistDetail(vm: AppViewModel, ui: UiState, artisthash: String) {
                 Spacer(Modifier.height(16.dp))
                 local.auralis.client.ui.components.SectionHeader("Discographie")
                 LazyRow(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                    items(albums) { a -> AlbumCard(a) { vm.navigate(ViewId.ALBUM, a.albumhash) } }
+                    items(albums, key = { it.albumhash }) { a -> AlbumCard(a) { vm.navigate(ViewId.ALBUM, a.albumhash) } }
                 }
             }
         }
@@ -135,8 +145,8 @@ fun ArtistDetail(vm: AppViewModel, ui: UiState, artisthash: String) {
 @Composable
 fun PlaylistDetail(vm: AppViewModel, ui: UiState, playlistId: String) {
     val colors = LocalAuralis.current
-    val pl = ui.playlists.find { it.id == playlistId }
-    val tracks = pl?.trackhashes?.mapNotNull { ui.trackByHash[it] } ?: emptyList()
+    val pl = remember(ui.playlists, playlistId) { ui.playlists.find { it.id == playlistId } }
+    val tracks = remember(pl, ui.trackByHash) { pl?.trackhashes?.mapNotNull { ui.trackByHash[it] } ?: emptyList() }
     val current = vm.playback.value.currentId
     var renaming by remember { mutableStateOf(false) }
     var newName by remember { mutableStateOf(pl?.name ?: "") }
@@ -171,7 +181,8 @@ fun PlaylistDetail(vm: AppViewModel, ui: UiState, playlistId: String) {
                 Spacer(Modifier.height(10.dp))
             }
         }
-        itemsIndexed(tracks) { idx, t ->
+        items(tracks, key = { it.trackhash }) { t ->
+            val idx = tracks.indexOf(t)
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Box(Modifier.weight(1f)) {
                     TrackRow(

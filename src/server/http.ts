@@ -2,7 +2,7 @@
 // hardening, consistent JSON responses and baseline security headers.
 
 import { NextResponse } from "next/server";
-import { isAuthenticated, getRequestUser } from "./auth";
+import { isAuthenticated, getRequestUser, getTokenUser } from "./auth";
 
 const SECURITY_HEADERS: Record<string, string> = {
   "X-Content-Type-Options": "nosniff",
@@ -47,11 +47,12 @@ export function checkCsrf(request: Request): NextResponse | null {
   const method = request.method.toUpperCase();
   if (method === "GET" || method === "HEAD" || method === "OPTIONS") return null;
 
-  // Token-bearing clients aren't cookie-driven → not subject to CSRF.
-  const authz = request.headers.get("authorization");
-  const hasBearer = !!authz && authz.toLowerCase().startsWith("bearer ");
-  const hasQueryToken = new URL(request.url).searchParams.has("token");
-  if (hasBearer || hasQueryToken) return null;
+  // Token-bearing clients aren't cookie-driven → not subject to CSRF. But the mere
+  // PRESENCE of a token is forgeable: a cross-site page can append ?token=anything
+  // to slip past the guard. So we exempt only when the token actually AUTHENTICATES
+  // a user (cookie ignored — getTokenUser validates bearer/?token= alone). A forged
+  // or stale token returns null and falls through to the Origin/Referer check.
+  if (getTokenUser(request)) return null;
 
   const source = request.headers.get("origin") ?? request.headers.get("referer");
   if (!source) {

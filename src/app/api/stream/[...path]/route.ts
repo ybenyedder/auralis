@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import fs from "fs";
 import { stat as fsStat } from "fs/promises";
 import { Readable } from "stream";
-import { contentTypeFor, isSupportedAudioPath, resolveLibraryPath } from "@/server/paths";
+import { contentTypeFor, isSupportedAudioPath, resolveLibraryPath, resolveRealLibraryPath } from "@/server/paths";
 import { checkAuth } from "@/server/http";
 
 export const runtime = "nodejs";
@@ -53,10 +53,16 @@ async function streamAudio(request: NextRequest, context: RouteContext, headOnly
 
   const params = await context.params;
   const relativePath = params.path.map(decodePathSegment).join("/");
-  const filePath = resolveLibraryPath(relativePath);
+  const lexicalPath = resolveLibraryPath(relativePath);
 
-  if (!filePath) return new NextResponse("Forbidden", { status: 403 });
-  if (!isSupportedAudioPath(filePath)) return new NextResponse("Unsupported Media Type", { status: 415 });
+  if (!lexicalPath) return new NextResponse("Forbidden", { status: 403 });
+  if (!isSupportedAudioPath(lexicalPath)) return new NextResponse("Unsupported Media Type", { status: 415 });
+
+  // Re-resolve through realpath so a symlink inside the library that points outside
+  // the music root can't be used to exfiltrate arbitrary files. A missing file or a
+  // symlink that escapes the root both resolve to null here, surfacing as a 404.
+  const filePath = await resolveRealLibraryPath(relativePath);
+  if (!filePath) return new NextResponse("Not Found", { status: 404 });
 
   // One async stat instead of existsSync + statSync — keeps the blocking sync I/O
   // off the event loop on every range request (a seek storms this route). ENOENT
@@ -70,7 +76,9 @@ async function streamAudio(request: NextRequest, context: RouteContext, headOnly
   if (!stat.isFile()) return new NextResponse("Not Found", { status: 404 });
 
   const fileSize = stat.size;
-  const contentType = contentTypeFor(filePath);
+  // Content type is derived from the request-derived path so the served MIME matches
+  // the URL extension regardless of any in-library symlink target name.
+  const contentType = contentTypeFor(lexicalPath);
   const range = parseRange(request.headers.get("range"), fileSize);
 
   if (range === "invalid") {

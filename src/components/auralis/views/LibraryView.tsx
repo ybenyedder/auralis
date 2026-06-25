@@ -39,13 +39,15 @@ export function LibraryView() {
     return next;
   }, [albums, sort]);
 
+  const playsKey = sort === "plays" ? playCounts : null;
   const sortedTracks = useMemo(() => {
     const next = [...tracks];
     if (sort === "az") next.sort((a, b) => a.title.localeCompare(b.title, undefined, { numeric: true }));
     if (sort === "za") next.sort((a, b) => b.title.localeCompare(a.title, undefined, { numeric: true }));
     if (sort === "plays") next.sort((a, b) => (playCounts[b.trackhash] ?? b.playcount ?? 0) - (playCounts[a.trackhash] ?? a.playcount ?? 0));
     return next;
-  }, [sort, tracks, playCounts]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [sort, tracks, playsKey]);
 
   const sortedArtists = useMemo(() => {
     const next = [...artists];
@@ -82,10 +84,10 @@ export function LibraryView() {
               className="h-9 cursor-pointer bg-transparent px-2 text-[13px] font-semibold text-muted-foreground outline-none transition-colors hover:text-foreground lg:h-auto lg:py-1 lg:text-[11.5px]"
               aria-label="Trier"
             >
-              <option value="az" className="bg-[#1b1a16]">A → Z</option>
-              <option value="za" className="bg-[#1b1a16]">Z → A</option>
-              <option value="year" className="bg-[#1b1a16]">Plus récents</option>
-              <option value="plays" className="bg-[#1b1a16]">Plus joués</option>
+              <option value="az" className="bg-[var(--panel-2)]">A → Z</option>
+              <option value="za" className="bg-[var(--panel-2)]">Z → A</option>
+              <option value="year" className="bg-[var(--panel-2)]">Plus récents</option>
+              <option value="plays" className="bg-[var(--panel-2)]">Plus joués</option>
             </select>
             <ArrowDownUp className="size-3 text-muted-foreground/70" />
           </div>

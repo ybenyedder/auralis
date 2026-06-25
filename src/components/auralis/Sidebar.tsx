@@ -2,37 +2,35 @@
 
 import {
   Home,
-  Compass,
+  Search,
   Library,
   Heart,
   History,
   FolderTree,
   BarChart3,
-  Settings,
   Plus,
   ListMusic,
   Pin,
-  ChevronUp,
-  ChevronDown,
-  Flame,
+  Settings,
+  type LucideIcon,
 } from "lucide-react";
 import { usePlayer } from "@/store/player";
 import { useLibraryStore } from "@/store/library";
-import { useStats } from "@/store/stats";
-import { BrandMark } from "./BrandMark";
 import { cn } from "@/lib/utils";
 import type { ViewId } from "@/lib/auralis/types";
 
 interface NavItem {
   id: ViewId;
   label: string;
-  icon: React.ComponentType<{ className?: string }>;
+  icon: LucideIcon;
 }
 
-const NAV_ITEMS: NavItem[] = [
+const TOP_ITEMS: NavItem[] = [
   { id: "home", label: "Accueil", icon: Home },
-  { id: "explore", label: "Recherche", icon: Compass },
-  { id: "library", label: "Bibliothèque", icon: Library },
+  { id: "explore", label: "Recherche", icon: Search },
+];
+
+const LIBRARY_FILTERS: NavItem[] = [
   { id: "favorites", label: "Favoris", icon: Heart },
   { id: "recents", label: "Historique", icon: History },
   { id: "folders", label: "Dossiers", icon: FolderTree },
@@ -44,9 +42,7 @@ export function Sidebar() {
   const navigate = usePlayer((s) => s.navigate);
   const customPlaylists = usePlayer((s) => s.customPlaylists);
   const createPlaylist = usePlayer((s) => s.createPlaylist);
-  const reorderCustomPlaylists = usePlayer((s) => s.reorderCustomPlaylists);
   const libraryPlaylists = useLibraryStore((state) => state.playlists);
-  const streak = useStats((s) => s.streak);
 
   const onNewPlaylist = () => {
     const id = createPlaylist(`Playlist ${customPlaylists.length + 1}`);
@@ -54,24 +50,10 @@ export function Sidebar() {
   };
 
   return (
-    <nav aria-label="Primary" className="glass-chrome keyline-right flex h-full w-[72px] shrink-0 flex-col bg-[var(--sidebar)] lg:w-[230px]">
-      <div className="flex items-center justify-center gap-2.5 px-3 pb-4 pt-5 lg:justify-start lg:px-5">
-        <BrandMark />
-        <span className="hidden text-[17px] font-black tracking-tight text-foreground lg:inline">Auralis</span>
-        {streak > 0 && (
-          <button
-            onClick={() => navigate("insights")}
-            title={`Série d'écoute : ${streak} jours d'affilée`}
-            aria-label={`Série d'écoute : ${streak} jours`}
-            className="ml-auto hidden items-center gap-1 rounded-full bg-primary/15 px-2 py-1 text-[11px] font-black text-primary-soft transition-colors hover:bg-primary/25 lg:flex"
-          >
-            <Flame className="size-3.5" /> {streak}
-          </button>
-        )}
-      </div>
-
-      <div className="flex flex-col gap-1 px-2">
-        {NAV_ITEMS.map((item) => {
+    <nav aria-label="Primary" className="flex h-full w-full flex-col gap-2 bg-[var(--sidebar)] select-none">
+      {/* Top Box: Home & Search */}
+      <div className="flex flex-col gap-5 rounded-lg bg-[var(--panel)] px-6 py-5">
+        {TOP_ITEMS.map((item) => {
           const Icon = item.icon;
           const active = view.view === item.id;
           return (
@@ -81,69 +63,107 @@ export function Sidebar() {
               title={item.label}
               aria-current={active ? "page" : undefined}
               className={cn(
-                "group flex w-full items-center justify-center gap-2.5 rounded-md px-2.5 py-2.5 text-left transition-all duration-200 lg:justify-start lg:py-2",
-                active ? "bg-white/10 text-white shadow-[inset_2px_0_0_var(--primary)]" : "text-white/60 hover:bg-white/[0.03] hover:text-white",
+                "group flex w-full items-center gap-5 text-left transition-colors duration-200",
+                active ? "text-white" : "text-[var(--text-muted)] hover:text-white"
               )}
             >
-              <Icon className="size-[18px] shrink-0 lg:size-4" />
-              <span className="hidden flex-1 text-[13px] font-semibold tracking-tight lg:inline">{item.label}</span>
-              {active && <span className="hidden h-5 w-[3px] bg-[var(--signal)] lg:block" />}
+              <Icon className="size-6 shrink-0" fill={active ? "currentColor" : "none"} strokeWidth={active ? 2.5 : 2} />
+              <span className="hidden flex-1 text-[16px] font-bold tracking-tight lg:inline">{item.label}</span>
             </button>
           );
         })}
       </div>
 
-      <div className="mx-4 my-4 h-px bg-[var(--line)]" />
-
-      <div className="flex min-h-0 flex-1 flex-col px-2 pb-2">
-        <div className="mb-2 hidden items-center justify-between px-2.5 lg:flex">
-          <span className="text-[10px] font-semibold uppercase tracking-[0.08em] text-muted-foreground/55">Playlists</span>
-          <button
-            onClick={onNewPlaylist}
-            className="grid h-6 w-6 place-items-center rounded-sm text-muted-foreground/60 transition-colors hover:bg-[var(--panel-2)] hover:text-foreground"
-            aria-label="Nouvelle playlist"
+      {/* Bottom Box: Library */}
+      <div className="flex min-h-0 flex-1 flex-col rounded-lg bg-[var(--panel)]">
+        {/* Library Header */}
+        <div className="flex items-center justify-between px-4 py-2 mt-2 text-[var(--text-muted)]">
+          <button 
+            onClick={() => navigate("library")} 
+            className="group flex items-center gap-3 transition-colors hover:text-white px-2 py-2"
+            aria-current={view.view === "library" ? "page" : undefined}
           >
-            <Plus className="size-3.5" />
+            <Library className="size-6 shrink-0 transition-colors group-hover:text-white" fill={view.view === "library" ? "currentColor" : "none"} />
+            <span className={cn("hidden text-[16px] font-bold lg:inline transition-colors group-hover:text-white", view.view === "library" && "text-white")}>
+              Bibliothèque
+            </span>
           </button>
+          <div className="hidden lg:flex items-center gap-2">
+            <button
+              onClick={onNewPlaylist}
+              className="grid h-8 w-8 place-items-center rounded-full text-[var(--text-muted)] transition-colors hover:bg-[#1a1a1a] hover:text-white"
+              aria-label="Nouvelle playlist"
+            >
+              <Plus className="size-5" />
+            </button>
+          </div>
         </div>
-        <div className="hidden min-h-0 flex-1 overflow-y-auto scroll-auralis lg:block">
-          {customPlaylists.map((playlist, index) => {
-            const active = view.view === "playlist" && view.id === String(playlist.id);
+
+        {/* Filters */}
+        <div className="mt-2 hidden lg:flex gap-2 px-4 overflow-x-auto scroll-hidden pb-2">
+          {LIBRARY_FILTERS.map((item) => {
+            const active = view.view === item.id;
             return (
-              <div
-                key={`cp-${playlist.id}`}
+              <button
+                key={item.id}
+                onClick={() => navigate(item.id)}
                 className={cn(
-                  "group flex w-full items-center gap-1 rounded-md py-1.5 pr-2 text-left transition-all duration-200",
-                  active ? "bg-white/5 text-foreground shadow-[inset_2px_0_0_var(--primary)]" : "text-muted-foreground/75 hover:bg-white/[0.03] hover:text-foreground",
+                  "rounded-full px-3 py-1.5 text-[13.5px] font-medium transition-colors whitespace-nowrap",
+                  active ? "bg-white text-black" : "bg-[var(--panel-2)] text-white hover:bg-[var(--panel-3)]"
                 )}
               >
-                <button onClick={() => navigate("playlist", String(playlist.id))} className="flex min-w-0 flex-1 items-center gap-2.5 px-2 text-left">
-                  <ListMusic className="size-3.5 shrink-0 text-muted-foreground/40" />
-                  <span className="block truncate text-[12.5px] font-medium leading-tight">{playlist.name}</span>
-                </button>
-                <div className="hidden items-center gap-0.5 group-hover:flex">
-                  <button
-                    onClick={() => reorderCustomPlaylists(index, index - 1)}
-                    disabled={index === 0}
-                    className="grid size-5 place-items-center rounded-sm text-muted-foreground/60 hover:bg-[var(--panel-2)] hover:text-foreground disabled:opacity-25"
-                    aria-label="Monter la playlist"
-                  >
-                    <ChevronUp className="size-3" />
-                  </button>
-                  <button
-                    onClick={() => reorderCustomPlaylists(index, index + 1)}
-                    disabled={index === customPlaylists.length - 1}
-                    className="grid size-5 place-items-center rounded-sm text-muted-foreground/60 hover:bg-[var(--panel-2)] hover:text-foreground disabled:opacity-25"
-                    aria-label="Descendre la playlist"
-                  >
-                    <ChevronDown className="size-3" />
-                  </button>
-                </div>
-              </div>
+                {item.label}
+              </button>
             );
           })}
+        </div>
 
-          {customPlaylists.length > 0 && libraryPlaylists.length > 0 && <div className="mx-3 my-1.5 h-px bg-[var(--panel-2)]" />}
+        {/* Mobile Icons Fallback */}
+        <div className="mt-3 flex flex-col gap-3 px-2 lg:hidden">
+          {LIBRARY_FILTERS.map((item) => {
+            const Icon = item.icon;
+            const active = view.view === item.id;
+            return (
+              <button
+                key={item.id}
+                onClick={() => navigate(item.id)}
+                title={item.label}
+                className={cn(
+                  "flex items-center justify-center p-2 rounded-lg",
+                  active ? "bg-[#1a1a1a] text-white" : "text-[var(--text-muted)] hover:text-white"
+                )}
+              >
+                <Icon className="size-6 shrink-0" fill={active ? "currentColor" : "none"} />
+              </button>
+            );
+          })}
+        </div>
+
+        {/* Playlists List */}
+        <div className="min-h-0 flex-1 overflow-y-auto scroll-auralis px-2 mt-1 pb-4">
+          {customPlaylists.map((playlist) => {
+            const active = view.view === "playlist" && view.id === String(playlist.id);
+            return (
+              <button
+                key={`cp-${playlist.id}`}
+                onClick={() => navigate("playlist", String(playlist.id))}
+                className={cn(
+                  "group flex w-full items-center gap-3 rounded-md p-2 text-left transition-colors duration-200",
+                  active ? "bg-[#1a1a1a]" : "hover:bg-[#1a1a1a]"
+                )}
+              >
+                <div className="grid h-12 w-12 shrink-0 place-items-center rounded-md bg-[var(--panel-2)] shadow-md">
+                  <ListMusic className="size-6 text-[var(--text-muted)]" />
+                </div>
+                <div className="hidden flex-1 min-w-0 lg:flex flex-col justify-center">
+                  <span className={cn("block w-full truncate text-[16px] font-medium", active ? "text-white" : "text-white group-hover:text-white")}>
+                    {playlist.name}
+                  </span>
+                  <span className="text-[14px] text-[var(--text-muted)] group-hover:text-white transition-colors">Playlist</span>
+                </div>
+              </button>
+            );
+          })}
 
           {libraryPlaylists.map((playlist) => {
             const active = view.view === "playlist" && view.id === String(playlist.id);
@@ -152,32 +172,41 @@ export function Sidebar() {
                 key={playlist.id}
                 onClick={() => navigate("playlist", String(playlist.id))}
                 className={cn(
-                  "group flex w-full items-center gap-2.5 rounded-md px-2.5 py-1.5 text-left transition-all duration-200",
-                  active ? "bg-white/5 text-foreground shadow-[inset_2px_0_0_var(--primary)]" : "text-muted-foreground/75 hover:bg-white/[0.03] hover:text-foreground",
+                  "group flex w-full items-center gap-3 rounded-md p-2 text-left transition-colors duration-200",
+                  active ? "bg-[#1a1a1a]" : "hover:bg-[#1a1a1a]"
                 )}
               >
-                <ListMusic className="size-3.5 shrink-0 text-muted-foreground/40" />
-                <span className="min-w-0">
-                  <span className="block truncate text-[12.5px] font-medium leading-tight">{playlist.name}</span>
-                </span>
-                {playlist.pinned && <Pin className="ml-auto size-2.5 shrink-0 text-[var(--brass)]" />}
+                <div className="grid h-12 w-12 shrink-0 place-items-center rounded-md bg-[var(--panel-2)] shadow-md">
+                  <ListMusic className="size-6 text-[var(--text-muted)]" />
+                </div>
+                <div className="hidden flex-1 min-w-0 lg:flex flex-col justify-center">
+                  <div className="flex items-center gap-2">
+                    <span className={cn("truncate text-[16px] font-medium", active ? "text-[var(--primary)]" : "text-white group-hover:text-white")}>
+                      {playlist.name}
+                    </span>
+                    {playlist.pinned && <Pin className="size-3.5 shrink-0 text-[var(--primary)]" fill="currentColor" />}
+                  </div>
+                  <span className="text-[14px] text-[var(--text-muted)] group-hover:text-white transition-colors">Playlist</span>
+                </div>
               </button>
             );
           })}
         </div>
       </div>
 
-      <div className="px-2 pb-4">
+      {/* Réglages */}
+      <div className="rounded-lg bg-[var(--panel)] px-6 py-4">
         <button
           onClick={() => navigate("settings")}
           title="Réglages"
+          aria-current={view.view === "settings" ? "page" : undefined}
           className={cn(
-            "flex w-full items-center justify-center gap-3 rounded-md px-2.5 py-2.5 text-left transition-all duration-200 lg:justify-start lg:py-2",
-            view.view === "settings" ? "bg-white/5 text-foreground shadow-[inset_2px_0_0_var(--primary)]" : "text-muted-foreground/60 hover:bg-white/[0.03] hover:text-foreground",
+            "group flex w-full items-center gap-5 text-left transition-colors duration-200",
+            view.view === "settings" ? "text-white" : "text-[var(--text-muted)] hover:text-white"
           )}
         >
-          <Settings className="size-[18px] shrink-0 lg:size-4" />
-          <span className="hidden text-[13px] font-semibold lg:inline">Réglages</span>
+          <Settings className="size-6 shrink-0" strokeWidth={view.view === "settings" ? 2.5 : 2} />
+          <span className="hidden flex-1 text-[16px] font-bold tracking-tight lg:inline">Réglages</span>
         </button>
       </div>
     </nav>

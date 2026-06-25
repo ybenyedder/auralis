@@ -130,12 +130,12 @@ function persist(
   });
 }
 
-function readSidecar(filepath: string): { synced: string | null; plain: string | null } | null {
+async function readSidecar(filepath: string): Promise<{ synced: string | null; plain: string | null } | null> {
   const abs = resolveLibraryPath(filepath);
   if (!abs) return null;
   const lrcPath = abs.slice(0, abs.length - path.extname(abs).length) + ".lrc";
   try {
-    const content = fs.readFileSync(lrcPath, "utf8");
+    const content = await fs.promises.readFile(lrcPath, "utf8");
     if (!content.trim()) return null;
     if (isSynced(content)) return { synced: content, plain: null };
     return { synced: null, plain: content.trim() };
@@ -144,16 +144,19 @@ function readSidecar(filepath: string): { synced: string | null; plain: string |
   }
 }
 
-function writeSidecar(filepath: string, synced: string | null, plain: string | null): void {
+async function writeSidecar(filepath: string, synced: string | null, plain: string | null): Promise<void> {
   if (!getConfig().lyricsWriteSidecar) return;
   const abs = resolveLibraryPath(filepath);
   if (!abs) return;
   const lrcPath = abs.slice(0, abs.length - path.extname(abs).length) + ".lrc";
+  const body = synced ?? plain;
+  if (!body) return;
   try {
-    if (fs.existsSync(lrcPath)) return; // never clobber user-authored lyrics
-    const body = synced ?? plain;
-    if (body) fs.writeFileSync(lrcPath, body, "utf8");
+    // `wx` = exclusive create: atomically writes only when no file exists, so we
+    // never clobber user-authored lyrics without a separate (racy) existence check.
+    await fs.promises.writeFile(lrcPath, body, { encoding: "utf8", flag: "wx" });
   } catch (error) {
+    if ((error as NodeJS.ErrnoException).code === "EEXIST") return; // sidecar already present
     log.warn("sidecar write failed", { lrcPath, error: String(error) });
   }
 }
@@ -291,7 +294,7 @@ async function resolveLyrics(trackhash: string, opts: { forceRefetch?: boolean }
   if (cached && !opts.forceRefetch && isFresh(cached)) return rowToResult(cached);
 
   // On-disk sidecar wins — it is the user's self-hosted source of truth.
-  const sidecar = readSidecar(track.filepath);
+  const sidecar = await readSidecar(track.filepath);
   if (sidecar) {
     return persist(trackhash, {
       synced: sidecar.synced, plain: sidecar.plain, source: "sidecar",
@@ -306,7 +309,7 @@ async function resolveLyrics(trackhash: string, opts: { forceRefetch?: boolean }
       const synced = hit.syncedLyrics?.trim() || null;
       const plain = hit.plainLyrics?.trim() || null;
       if (synced || plain) {
-        writeSidecar(track.filepath, synced, plain);
+        await writeSidecar(track.filepath, synced, plain);
         return persist(trackhash, { synced, plain, source: "lrclib", status: "found" });
       }
     }
@@ -314,7 +317,7 @@ async function resolveLyrics(trackhash: string, opts: { forceRefetch?: boolean }
     // LRCLIB had nothing usable — try the keyless plain-lyrics fallback.
     const ovh = await fetchFromLyricsOvh(track);
     if (ovh) {
-      writeSidecar(track.filepath, null, ovh);
+      await writeSidecar(track.filepath, null, ovh);
       return persist(trackhash, { plain: ovh, source: "lyricsovh", status: "found" });
     }
   }

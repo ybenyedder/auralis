@@ -113,13 +113,14 @@ fun CoverArt(
     cornerRadius: Int = 12,
 ) {
     val (bg, c1, c2) = paletteFor(seed)
+    val resolveUrl = local.auralis.client.ui.theme.LocalApiUrl.current
     Box(
         modifier
             .clip(RoundedCornerShape(cornerRadius.dp))
             .background(Brush.linearGradient(listOf(bg, c1.copy(alpha = 0.55f)))),
     ) {
         NetworkImage(
-            url = image,
+            url = resolveUrl(image),
             modifier = Modifier.fillMaxSize(),
             fallback = {
                 Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {

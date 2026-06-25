@@ -84,7 +84,7 @@ export function FavoritesView() {
                 aria-label="Trier les favoris"
               >
                 {Object.entries(SORT_LABELS).map(([value, label]) => (
-                  <option key={value} value={value} className="bg-[#1b1a16]">{label}</option>
+                  <option key={value} value={value} className="bg-[var(--panel-2)]">{label}</option>
                 ))}
               </select>
             </div>

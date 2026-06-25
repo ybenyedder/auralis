@@ -13,6 +13,7 @@ import {
   Settings,
   Play,
   Disc3,
+  ListMusic,
   UserRound,
   CornerDownLeft,
   Clock3,
@@ -103,7 +104,7 @@ export function CommandPalette() {
       id: `p-${p.id}`,
       label: p.name,
       sub: `${p.trackcount} titres`,
-      icon: ListMusicIcon,
+      icon: ListMusic,
       group: "Playlists",
       action: () => navigate("playlist", String(p.id)),
     }));
@@ -190,6 +191,7 @@ export function CommandPalette() {
             aria-expanded
             aria-controls="cmd-listbox"
             aria-autocomplete="list"
+            aria-activedescendant={filtered.length > 0 ? `cmd-opt-${active}` : undefined}
           />
           <kbd className="rounded-full bg-white/5 px-2 py-0.5 text-[9px] font-bold text-muted-foreground shadow-[inset_0_1px_0_rgba(255,255,255,0.05)]">ESC</kbd>
         </div>
@@ -213,6 +215,7 @@ export function CommandPalette() {
                   return (
                     <button
                       key={it.id}
+                      id={`cmd-opt-${idx}`}
                       data-cmd-item
                       role="option"
                       aria-selected={isActive}
@@ -260,8 +263,4 @@ export function CommandPalette() {
       </div>
     </div>
   );
-}
-
-function ListMusicIcon({ className }: { className?: string }) {
-  return <Disc3 className={className} />;
 }

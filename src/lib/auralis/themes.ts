@@ -14,7 +14,7 @@
 // globals.css and <ThemeBackdrop/> key off of.
 // ============================================================================
 
-export type ThemeGroup = "classic" | "cosmic" | "vivid";
+export type ThemeGroup = "streaming" | "classic" | "cosmic" | "vivid";
 
 export type BackdropKind =
   | "none"
@@ -96,7 +96,12 @@ function build(spec: ThemeSpec): Theme {
   const ink = spec.ink ?? "#151411";
   const vars: Record<string, string> = {
     foreground: spec.foreground,
-    background: spec.background,
+    // The animated backdrop is retired (de-AI design pass), so a "transparent"
+    // stage would fall through to bare black on glass themes. Resolve it to the
+    // theme's own solid base instead: chrome reads --background everywhere and
+    // stays opaque on every theme, while glass themes' translucent panels now
+    // tint coherently over this solid stage rather than over a dead backdrop.
+    background: spec.background === "transparent" ? spec.bgSolid : spec.background,
     "bg-solid": spec.bgSolid,
     paper,
     ink,
@@ -154,6 +159,26 @@ function build(spec: ThemeSpec): Theme {
 // ---------------------------------------------------------------------------
 // Catalogue
 // ---------------------------------------------------------------------------
+// ---------------------------------------------------------------------------
+// STREAMING — a faithful Spotify-style skin: near-black sidebar, #121212 stage,
+// #181818 cards (→ #282828 on hover), the Spotify green (#1ED760) as the lone
+// accent on play FABs, progress fills and active nav. The flagship default.
+// ---------------------------------------------------------------------------
+const STREAMING: ThemeSpec[] = [
+  {
+    id: "spotify", label: "Spotify", group: "streaming",
+    blurb: "Vert sur charbon — la signature streaming, sidebar noire et cartes #181818.",
+    themeColor: "#000000", swatch: ["#181818", "#1ED760", "#ffffff"],
+    foreground: "#ffffff", background: "#121212", bgSolid: "#121212",
+    panel: "#181818", panel2: "#282828", panel3: "#333333", sidebar: "#000000",
+    popover: "#282828", line: "rgba(255,255,255,0.10)", lineStrong: "rgba(255,255,255,0.20)",
+    primary: "#1ED760", soft: "#1FDF64", deep: "#1DB954", ring: "rgba(30,215,96,0.55)",
+    eyebrow: "#b3b3b3",
+    paper: "#ffffff", ink: "#000000",
+    textMuted: "#b3b3b3", textFaint: "#6a6a6a",
+  },
+];
+
 const CLASSIC: ThemeSpec[] = [
   {
     id: "oxide", label: "Oxide", group: "classic",
@@ -334,11 +359,11 @@ const VIVID: ThemeSpec[] = [
 ];
 
 export const THEMES: Record<string, Theme> = Object.fromEntries(
-  [...CLASSIC, ...COSMIC, ...VIVID].map((s) => [s.id, build(s)]),
+  [...STREAMING, ...CLASSIC, ...COSMIC, ...VIVID].map((s) => [s.id, build(s)]),
 );
 
 export const THEME_LIST: Theme[] = Object.values(THEMES);
-export const DEFAULT_THEME_ID = "oxide";
+export const DEFAULT_THEME_ID = "spotify";
 export type ThemeId = string;
 
 export function normalizeTheme(id?: string | null): ThemeId {
@@ -346,6 +371,7 @@ export function normalizeTheme(id?: string | null): ThemeId {
 }
 
 export const THEME_GROUPS: { id: ThemeGroup; label: string }[] = [
+  { id: "streaming", label: "Streaming" },
   { id: "classic", label: "Classiques" },
   { id: "cosmic", label: "Cosmiques" },
   { id: "vivid", label: "Vibrants" },

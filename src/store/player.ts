@@ -492,6 +492,9 @@ export const usePlayer = create<PlayerState>((set, get) => {
         persist({ ...get(), ...next });
         return next;
       });
+      // Re-selecting the track already loaded in the element keeps the same src,
+      // so the audio effect would merely resume it — force a restart from 0.
+      if (audioEl && audioEl.dataset.trackhash === first.trackhash) audioEl.currentTime = 0;
     },
 
     playList: (list, startIndex = 0) => {
@@ -516,6 +519,7 @@ export const usePlayer = create<PlayerState>((set, get) => {
         persist({ ...get(), ...next });
         return next;
       });
+      if (audioEl && audioEl.dataset.trackhash === first.trackhash) audioEl.currentTime = 0;
     },
 
     togglePlay: () => {
@@ -741,9 +745,18 @@ export const usePlayer = create<PlayerState>((set, get) => {
 
     jumpToQueueIndex: (index) => {
       clearResumeSeek();
-      const { shuffledQueue } = get();
+      const { shuffledQueue, currentTrack, currentIndex } = get();
       const t = shuffledQueue[index];
       if (!t) return;
+      // Re-selecting the track that is already current restarts it from 0: neither
+      // the currentTrack reference nor isPlaying changes, so the shell's audio
+      // effect wouldn't otherwise re-fire (the element keeps playing where it was).
+      if (currentTrack && index === currentIndex && t.trackhash === currentTrack.trackhash) {
+        usePlayhead.getState().setPosition(0);
+        if (audioEl) audioEl.currentTime = 0;
+        set({ isPlaying: true });
+        return;
+      }
       usePlayhead.getState().reset(t.duration || 0);
       set(() => {
         const upd = {
@@ -888,13 +901,31 @@ export const usePlayer = create<PlayerState>((set, get) => {
     toggleFullscreenPlayer: () => set((s) => ({ fullscreenPlayer: !s.fullscreenPlayer, lyricsOpen: false, visualizerOpen: false })),
     toggleLyrics: () => {
       const willOpen = !get().lyricsOpen;
-      set({ lyricsOpen: willOpen });
+      // Reveal the lyrics surface reliably: the desktop pane lives inside
+      // NowPlayingPanel, which is hidden when the right panel is closed and shows
+      // the queue when queueOpen — so opening lyrics must claim the right panel and
+      // drop the queue, otherwise the toggle silently does nothing.
+      set({
+        lyricsOpen: willOpen,
+        queueOpen: willOpen ? false : get().queueOpen,
+        rightPanelOpen: willOpen ? true : get().rightPanelOpen,
+      });
       // Auto-resolve lyrics (cache → sidecar → online) the first time the pane opens.
       if (willOpen && !get().currentTrack?.lyrics?.length && get().lyricsStatus === "idle") {
         void get().fetchLyrics(false);
       }
     },
-    toggleQueue: () => set((s) => ({ queueOpen: !s.queueOpen })),
+    toggleQueue: () =>
+      set((s) => {
+        const willOpen = !s.queueOpen;
+        // Same coordination as lyrics: queue + lyrics share the right panel, so
+        // opening the queue must claim the panel and drop lyrics.
+        return {
+          queueOpen: willOpen,
+          lyricsOpen: willOpen ? false : s.lyricsOpen,
+          rightPanelOpen: willOpen ? true : s.rightPanelOpen,
+        };
+      }),
     setHelpOpen: (v) => set({ helpOpen: v }),
     toggleMiniPlayer: () => set((s) => ({ miniPlayer: !s.miniPlayer })),
     toggleKaraoke: () =>

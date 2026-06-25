@@ -43,35 +43,36 @@
 }
 
 :root {
-  --radius: 0.75rem;
-  --font-geist-sans: "Aptos", "Segoe UI", ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
+  --radius: 0.5rem;
+  --font-geist-sans: "Circular Std", "CircularSp", "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Oxygen, Ubuntu, Cantarell, "Open Sans", "Helvetica Neue", sans-serif;
   --font-geist-mono: "Cascadia Code", "SFMono-Regular", Consolas, "Liberation Mono", monospace;
 
-  /* Signal Nocturne: matte, editorial, library-first. */
-  --background: #0f0f0d;
-  --foreground: #f3efe6;
-  --paper: #ede3cf;
-  --ink: #151411;
-  --panel: #151512;
-  --panel-2: #1b1a16;
-  --panel-3: #232119;
-  --line: rgba(237, 227, 207, 0.11);
-  --line-strong: rgba(237, 227, 207, 0.18);
-  --text-muted: #a49b8d;
-  --text-faint: #70695f;
-  --signal: #d95f45;
-  --verdigris: #6eb29e;
-  --brass: #c6a15b;
-  --plum: #7f6a7c;
+  /* Spotify-style: charcoal stage, near-black sidebar, green accent. SSR fallback
+     values so the first paint already reads as Spotify; themes.ts re-applies them. */
+  --background: #121212;
+  --foreground: #ffffff;
+  --paper: #ffffff;
+  --ink: #000000;
+  --panel: #181818;
+  --panel-2: #282828;
+  --panel-3: #333333;
+  --line: rgba(255, 255, 255, 0.10);
+  --line-strong: rgba(255, 255, 255, 0.20);
+  --text-muted: #b3b3b3;
+  --text-faint: #6a6a6a;
+  --signal: #1ED760;
+  --verdigris: #1DB954;
+  --brass: #b3b3b3;
+  --plum: #b3b3b3;
 
   --card: var(--panel);
   --card-foreground: var(--foreground);
-  --popover: #191814;
+  --popover: #282828;
   --popover-foreground: var(--foreground);
   --primary: var(--signal);
-  --primary-foreground: #130f0d;
-  --primary-soft: #e5a184;
-  --primary-deep: #923725;
+  --primary-foreground: #000000;
+  --primary-soft: #1FDF64;
+  --primary-deep: #1DB954;
   --secondary: var(--panel-2);
   --secondary-foreground: var(--foreground);
   --muted: var(--panel-2);
@@ -81,21 +82,21 @@
   --destructive: #e25b50;
   --border: var(--line);
   --input: var(--line);
-  --ring: rgba(217, 95, 69, 0.5);
+  --ring: rgba(30, 215, 96, 0.5);
   /* Opaque keyboard-focus ring (themes override per-accent). The translucent
      --ring is kept for soft glows; focus uses a solid colour for WCAG contrast. */
   --focus-ring: var(--signal);
   --emerald: var(--verdigris);
   --amber: var(--brass);
 
-  --sidebar: #11110f;
+  --sidebar: #000000;
   --sidebar-foreground: var(--foreground);
   --sidebar-primary: var(--signal);
-  --sidebar-primary-foreground: #130f0d;
-  --sidebar-accent: rgba(237, 227, 207, 0.06);
+  --sidebar-primary-foreground: #000000;
+  --sidebar-accent: rgba(255, 255, 255, 0.07);
   --sidebar-accent-foreground: var(--foreground);
   --sidebar-border: var(--line);
-  --sidebar-ring: rgba(217, 95, 69, 0.5);
+  --sidebar-ring: rgba(30, 215, 96, 0.5);
 }
 
 @layer base {
@@ -125,16 +126,18 @@
 /* Scrollbars */
 .scroll-auralis {
   scrollbar-width: thin;
-  scrollbar-color: rgba(237, 227, 207, 0.16) transparent;
+  scrollbar-color: rgba(255, 255, 255, 0.30) transparent;
 }
-.scroll-auralis::-webkit-scrollbar { width: 6px; height: 6px; }
+.scroll-auralis::-webkit-scrollbar { width: 12px; height: 12px; }
 .scroll-auralis::-webkit-scrollbar-track { background: transparent; }
 .scroll-auralis::-webkit-scrollbar-thumb {
-  background-color: rgba(237, 227, 207, 0.12);
-  border-radius: 3px;
+  background-color: rgba(255, 255, 255, 0.15);
+  border-radius: 6px;
+  border: 3px solid transparent;
+  background-clip: content-box;
 }
 .scroll-auralis::-webkit-scrollbar-thumb:hover {
-  background-color: rgba(237, 227, 207, 0.24);
+  background-color: rgba(255, 255, 255, 0.3);
 }
 .scroll-auralis::-webkit-scrollbar-corner { background: transparent; }
 
@@ -181,7 +184,7 @@
   100% { background-position: 200% 0; }
 }
 .shimmer {
-  background: linear-gradient(90deg, rgba(237, 227, 207, 0.04) 25%, rgba(198, 161, 91, 0.12) 37%, rgba(237, 227, 207, 0.04) 63%);
+  background: linear-gradient(90deg, rgba(255, 255, 255, 0.04) 25%, rgba(255, 255, 255, 0.10) 37%, rgba(255, 255, 255, 0.04) 63%);
   background-size: 200% 100%;
   animation: auralis-shimmer 1.4s ease-in-out infinite;
 }
@@ -191,69 +194,64 @@
   background: var(--background);
 }
 
-/* Elevated surface. Definition comes from a crisp hairline border + one soft,
-   diffuse shadow — realistic light, not a heavy opaque slab floating off the
-   page. No inset highlight, no dramatic drop. */
+/* Spotify card: #181818 base, #282828 hover. Soft shadow on hover. */
 .matte-panel {
   background: var(--panel);
-  border: 1px solid rgba(255, 255, 255, 0.03);
-  box-shadow: 0 8px 32px -8px rgba(0, 0, 0, 0.6), inset 0 1px 0 rgba(255, 255, 255, 0.06);
+  border: none;
+  box-shadow: none;
+  transition: background-color 0.3s ease;
+}
+.matte-panel:hover {
+  background: var(--panel-2);
 }
 
 .matte-panel-2 {
   background: var(--panel-2);
-  border: 1px solid var(--line);
+  border: none;
 }
 
 .keyline-top {
-  border-top: 1px solid rgba(255, 255, 255, 0.015);
-  box-shadow: 0 -4px 20px rgba(0, 0, 0, 0.15);
+  border-top: none;
 }
 
 .keyline-right {
-  border-right: 1px solid rgba(255, 255, 255, 0.015);
+  border-right: none;
 }
 
 .keyline-left {
-  border-left: 1px solid rgba(255, 255, 255, 0.015);
+  border-left: none;
 }
 
 .section-band {
-  background:
-    radial-gradient(120% 140% at 0% 0%, rgba(255, 255, 255, 0.04), transparent 52%),
-    var(--panel);
-  border-block: 1px solid var(--line);
+  background: var(--panel);
 }
-/* Cover-derived hero wash: set --cover-1/2 inline from the artwork palette and
-   the hero glows in the track's own colours — content driving the chrome, not
-   decoration. */
+
+/* Spotify playlist/album hero header */
 .hero-cover {
-  background:
-    radial-gradient(120% 90% at 12% -10%, var(--cover-1, rgba(255, 255, 255, 0.05)), transparent 55%),
-    linear-gradient(180deg, var(--cover-2, rgba(255, 255, 255, 0.02)), transparent 62%),
-    var(--panel);
+  background: linear-gradient(transparent 0, rgba(0,0,0,0.5) 100%), var(--cover-1, #535353);
 }
 
 /* Primary action: a flat, FULL-colour fill in the theme accent — a confident
    solid block, NOT a washed pastel→accent gradient and NOT a coloured glow bloom
    (that "AI" look). Just the colour, crisp, with a tight neutral shadow for
    grounding on glass themes. Hover/active shift brightness only. */
+/* Spotify-style primary: a flat green fill with bold black glyph/label. On hover
+   it SCALES UP (Spotify's signature play-button grow) and brightens slightly —
+   no coloured glow, no drop shadow. Press settles back to rest. */
 .signal-button {
   background: var(--primary);
   color: var(--ink);
   border: none;
-  box-shadow: 0 4px 12px -4px color-mix(in srgb, var(--primary), transparent 50%), 0 2px 4px -2px rgba(0, 0, 0, 0.2);
-  transition: transform 0.15s cubic-bezier(0.34, 1.56, 0.64, 1), box-shadow 0.15s ease, filter 0.15s ease;
+  box-shadow: none;
+  transition: transform 0.12s ease, filter 0.12s ease;
 }
 .signal-button:hover {
-  filter: brightness(1.08);
-  transform: translateY(-1.5px);
-  box-shadow: 0 6px 16px -4px color-mix(in srgb, var(--primary), transparent 40%), 0 4px 8px -2px rgba(0, 0, 0, 0.2);
+  filter: brightness(1.04);
+  transform: scale(1.04);
 }
 .signal-button:active {
-  filter: brightness(0.93);
-  transform: translateY(0.5px);
-  box-shadow: 0 2px 4px -2px color-mix(in srgb, var(--primary), transparent 60%);
+  filter: brightness(0.96);
+  transform: scale(1);
 }
 
 /* Secondary action: a solid, semantic surface tint (not a stack of barely-there
@@ -466,9 +464,12 @@ kbd {
   --safe-top: env(safe-area-inset-top, 0px);
   --safe-bottom: env(safe-area-inset-bottom, 0px);
   /* Heights of the mobile bottom chrome, consumed as scroll padding so content
-     never hides behind the mini-player + tab bar. */
-  --tabbar-h: 56px;
-  --miniplayer-h: 60px;
+     never hides behind the mini-player + tab bar. These MUST match MobileDock's
+     real geometry: TabBar nav is h-[64px]; the mini-player card is h-14 (56px) +
+     a 2px progress bar, wrapped with pb-2 (8px) → 66px. Underestimating them lets
+     the last rows slide under the dock. */
+  --tabbar-h: 64px;
+  --miniplayer-h: 66px;
 }
 
 .safe-top { padding-top: var(--safe-top); }
@@ -516,83 +517,8 @@ kbd {
 }
 .snap-x > * { scroll-snap-align: start; }
 
-/* ============================================================================
-   THEME ENGINE — static colour wash + glass surfaces
-   ----------------------------------------------------------------------------
-   A theme writes --bd-1..4 + data-backdrop + data-glass on :root (see
-   themes.ts/applyTheme). <ThemeBackdrop/> mounts the fixed layer below; it
-   paints ONE quiet static gradient from the theme palette — no canvas, no
-   particles, no drifting nebulae, no shooting stars. The product puts the music
-   (artwork, text) first; the background stays out of the way. Classic themes set
-   data-glass="0" and render no backdrop at all.
-   ========================================================================== */
-
 .theme-backdrop {
-  position: fixed;
-  inset: 0;
-  z-index: 0;
-  overflow: hidden;
-  pointer-events: none;
-  background: var(--bg-solid);
-  contain: strict;
-}
-
-/* The static wash — three faint, large radial tints from the theme palette.
-   Subtle enough to never compete with album art or fight body text. */
-.theme-backdrop-wash {
-  position: absolute;
-  inset: 0;
-  background:
-    radial-gradient(80% 60% at 12% -6%, color-mix(in srgb, var(--bd-1, transparent), transparent 80%), transparent 60%),
-    radial-gradient(72% 58% at 88% 8%, color-mix(in srgb, var(--bd-2, transparent), transparent 84%), transparent 60%),
-    radial-gradient(96% 72% at 50% 108%, color-mix(in srgb, var(--bd-3, transparent), transparent 88%), transparent 66%);
-}
-
-/* A gentle readability veil so chrome/text stay legible over the wash. */
-.theme-backdrop-scrim {
-  position: absolute;
-  inset: 0;
-  background:
-    radial-gradient(130% 90% at 50% -10%, transparent 52%, rgba(0, 0, 0, 0.14) 100%),
-    linear-gradient(180deg, rgba(0, 0, 0, 0.10) 0%, transparent 32%, transparent 78%, rgba(0, 0, 0, 0.16) 100%);
-}
-
-/* When a glass theme is active, let the fixed wash show through the chrome +
-   cards. A hairline text-shadow keeps body copy legible over the tint. */
-:root[data-glass="1"] body {
-  background: var(--bg-solid);
-  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.22);
-}
-:root[data-glass="1"] .app-chrome {
-  background: transparent;
-}
-/* Clear glass, not muddy soup: a moderate blur with near-neutral saturation.
-   Pumping saturation is what made the old glass read as a dark oversaturated
-   smear over the moving backdrop. */
-:root[data-glass="1"] .matte-panel,
-:root[data-glass="1"] .matte-panel-2,
-:root[data-glass="1"] .section-band,
-:root[data-glass="1"] .hero-cover {
-  backdrop-filter: blur(18px) saturate(1.05);
-  -webkit-backdrop-filter: blur(18px) saturate(1.05);
-}
-/* Chrome bars (sidebar, player bar, header, dock, titlebar) opt into a heavier
-   blur via .glass-chrome; inert when not glass. */
-:root[data-glass="1"] .glass-chrome {
-  backdrop-filter: blur(24px) saturate(1.06);
-  -webkit-backdrop-filter: blur(24px) saturate(1.06);
-}
-/* Keep glass cards grounded with one soft, restrained shadow. */
-:root[data-glass="1"] .matte-panel {
-  box-shadow: 0 4px 16px -12px rgba(0, 0, 0, 0.5);
-}
-/* The mobile chrome bars (bottom dock + top header) stay OPAQUE even on glass
-   themes — a translucent bottom bar over the wash hurt the legibility of the
-   now-playing strip and the nav buttons (user request). */
-:root[data-glass="1"] .mobile-bar {
-  background: var(--bg-solid);
-  backdrop-filter: none;
-  -webkit-backdrop-filter: none;
+  display: none !important;
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -601,24 +527,5 @@ kbd {
     animation-iteration-count: 1 !important;
     transition-duration: 0.01ms !important;
     scroll-behavior: auto !important;
-  }
-}
-
-/* Reduced-transparency / data-saver: drop the stacked backdrop-filter blur (a
-   real GPU + battery cost on the low-end Android WebViews this app targets) and
-   fall back to opaque surfaces so glass themes stay legible without the work. */
-@media (prefers-reduced-transparency: reduce) {
-  :root[data-glass="1"] .matte-panel,
-  :root[data-glass="1"] .matte-panel-2,
-  :root[data-glass="1"] .section-band,
-  :root[data-glass="1"] .hero-cover {
-    backdrop-filter: none;
-    -webkit-backdrop-filter: none;
-    background-color: color-mix(in srgb, var(--bg-solid), #ffffff 6%);
-  }
-  :root[data-glass="1"] .glass-chrome {
-    backdrop-filter: none;
-    -webkit-backdrop-filter: none;
-    background-color: var(--bg-solid);
   }
 }

@@ -97,19 +97,19 @@ function QueueRow({
   return (
     <div
       className={cn(
-        "group flex items-center gap-2 rounded-sm px-2 py-1.5 transition-all duration-200 lg:py-2",
-        active ? "bg-gradient-to-r from-primary/10 to-transparent text-foreground shadow-[inset_2px_0_0_var(--primary)]" : "hover:bg-white/[0.02]",
+        "group flex items-center gap-2 rounded-sm px-2 py-1.5 transition-all duration-200 lg:py-2 hover:bg-white/[0.10]",
+        active && "text-foreground"
       )}
     >
-      <span className="w-5 text-right text-[11px] tabular-nums text-muted-foreground/55 lg:text-[10px]">{index + 1}</span>
+      <span className="w-5 text-right text-[11px] tabular-nums text-muted-foreground lg:text-[10px]">{index + 1}</span>
       <button onClick={onPlay} className="flex min-w-0 flex-1 items-center gap-2.5 text-left">
-        <Artwork title={track.title} trackhash={track.trackhash} size={32} rounded={10} colors={track.color} image={track.image} fluid className="size-9 lg:size-8" />
+        <Artwork title={track.title} trackhash={track.trackhash} size={32} rounded={4} colors={track.color} image={track.image} fluid className="size-9 lg:size-8" />
         <div className="min-w-0">
           <p className={cn("truncate text-[13px] font-bold leading-tight lg:text-[12px]", active ? "text-primary-soft" : "text-foreground")}>{trackTitle(track)}</p>
           <p className="mt-0.5 truncate text-[11.5px] leading-tight text-muted-foreground lg:text-[10.5px]">{trackArtist(track)}</p>
         </div>
       </button>
-      {active ? <EqualizerBars active={isPlaying} className="h-3" /> : <span className="hidden text-[10px] tabular-nums text-muted-foreground/70 lg:inline">{formatDuration(track.duration)}</span>}
+      {active ? <EqualizerBars active={isPlaying} className="h-3" /> : <span className="hidden text-[10px] tabular-nums text-muted-foreground lg:inline">{formatDuration(track.duration)}</span>}
       <div className="flex items-center gap-0.5 lg:hidden lg:group-hover:flex">
         <button onClick={onMoveUp} disabled={!canMoveUp} className="tap-press grid size-10 place-items-center rounded-full text-muted-foreground transition-all duration-200 hover:scale-110 hover:text-foreground disabled:opacity-25 lg:size-6" aria-label="Monter dans la file">
           <ArrowUp className="size-4 lg:size-3" />

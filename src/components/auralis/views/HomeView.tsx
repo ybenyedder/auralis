@@ -1,46 +1,26 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { Play, TrendingUp, Flame, Sparkles, RotateCcw, Clock3, Settings, Compass } from "lucide-react";
+import { Play, Settings, Heart } from "lucide-react";
 import { usePlayer } from "@/store/player";
 import { useLibraryStore, tracksForHashesFrom } from "@/store/library";
 import { useStats } from "@/store/stats";
 import { SectionHeader } from "../SectionHeader";
-import { TrackRow } from "../TrackRow";
 import { AlbumCard, ArtistCard } from "../Cards";
 import { Artwork } from "../Artwork";
-import { coverVars, trackArtist, trackTitle } from "@/lib/auralis/brand";
-
-/** Deterministic per-day shuffle (LCG) so the "Mix du jour" is stable across a
- *  day and reshuffles at midnight — no Math.random, so SSR and reloads agree. */
-function seededShuffle<T>(arr: T[], seed: number): T[] {
-  const a = [...arr];
-  let s = (seed || 1) >>> 0;
-  const rand = () => {
-    s = (s * 1664525 + 1013904223) >>> 0;
-    return s / 0x100000000;
-  };
-  for (let i = a.length - 1; i > 0; i--) {
-    const j = Math.floor(rand() * (i + 1));
-    [a[i], a[j]] = [a[j], a[i]];
-  }
-  return a;
-}
+import { trackTitle } from "@/lib/auralis/brand";
 
 export function HomeView() {
   const playList = usePlayer((s) => s.playList);
   const navigate = usePlayer((s) => s.navigate);
-  const currentTrack = usePlayer((s) => s.currentTrack);
-  const playCounts = usePlayer((s) => s.playCounts);
   const recentTrackhashes = usePlayer((s) => s.recentTrackhashes);
+  const playCounts = usePlayer((s) => s.playCounts);
   const favorites = usePlayer((s) => s.favorites);
   const tracks = useLibraryStore((s) => s.tracks);
   const albums = useLibraryStore((s) => s.albums);
   const artists = useLibraryStore((s) => s.artists);
   const error = useLibraryStore((s) => s.error);
 
-  const streak = useStats((s) => s.streak);
-  const weekPlays = useStats((s) => s.weekPlays);
   const statsLoaded = useStats((s) => s.loaded);
   const fetchStats = useStats((s) => s.fetchStats);
   useEffect(() => {
@@ -48,7 +28,7 @@ export function HomeView() {
   }, [statsLoaded, fetchStats]);
 
   // Read the wall clock once after mount (never during render — that's impure and
-  // would also risk an SSR/CSR mismatch). Drives the daily-mix seed + the greeting.
+  // would also risk an SSR/CSR mismatch). Drives the greeting.
   const [now, setNow] = useState<number | null>(null);
   useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect
@@ -61,50 +41,49 @@ export function HomeView() {
     [tracks, recentTrackhashes],
   );
 
-  // Daily Mix: a stable-for-the-day shuffle drawn from what you actually like /
-  // play, falling back to the whole library on a fresh account.
-  const dailyMix = useMemo(() => {
-    const liked = tracks.filter((t) => favorites.has(t.trackhash) || (playCounts[t.trackhash] ?? t.playcount ?? 0) > 0);
-    const pool = liked.length >= 8 ? liked : tracks;
-    const daySeed = now != null ? Math.floor(now / 86_400_000) : 0;
-    return seededShuffle(pool, daySeed).slice(0, 30);
-  }, [tracks, favorites, playCounts, now]);
-
-  // Rediscover: favourited but not played recently — pull people back to old loves.
-  const rediscover = useMemo(() => {
-    const recentSet = new Set(recentTrackhashes.slice(0, 30));
-    return tracks.filter((t) => favorites.has(t.trackhash) && !recentSet.has(t.trackhash)).slice(0, 6);
-  }, [tracks, favorites, recentTrackhashes]);
-
-  // Discover: tracks you own but have never played — surfaces forgotten music.
-  // Daily-seeded so the picks rotate, and only when there's a real backlog.
-  const neverPlayed = useMemo(() => {
-    if (now == null) return [];
-    const unplayed = tracks.filter((t) => (playCounts[t.trackhash] ?? t.playcount ?? 0) === 0);
-    if (unplayed.length < 4) return [];
-    return seededShuffle(unplayed, (Math.floor(now / 86_400_000) ^ 0x9e3779b1) >>> 0).slice(0, 6);
-  }, [tracks, playCounts, now]);
-
-  // Recently added: files indexed in the last ~30 days, newest first. On a fresh
-  // scan everything qualifies (shows your newest tracks); on an established library
-  // it surfaces only genuinely new additions.
-  const recentlyAdded = useMemo(() => {
-    if (now == null) return [];
-    const cutoff = now - 30 * 86_400_000;
-    return [...tracks]
-      .filter((t) => (t.addedAt ?? 0) >= cutoff)
-      .sort((a, b) => (b.addedAt ?? 0) - (a.addedAt ?? 0))
-      .slice(0, 6);
-  }, [tracks, now]);
-
   const featuredAlbums = albums.slice(0, 6);
-  const featuredArtists = artists.slice(0, 6);
-  const topTracks = useMemo(
-    () => [...tracks].sort((a, b) => (playCounts[b.trackhash] ?? b.playcount ?? 0) - (playCounts[a.trackhash] ?? a.playcount ?? 0)).slice(0, 5),
-    [tracks, playCounts],
-  );
-  const leadTrack = currentTrack ?? recent[0] ?? tracks[0];
-  const mixLead = dailyMix[0];
+  // "Préférés" must reflect what the user ACTUALLY listens to. Artist.playcount from
+  // the library snapshot is always 0 (a per-file field we don't populate), so ranking
+  // on it is a no-op (arbitrary alphabetical order, every card "0 écoutes"). Instead
+  // tally the user's real per-track plays onto each artist, rank by that, and override
+  // each card's displayed count with the derived total so the shelf is truthful.
+  const featuredArtists = useMemo(() => {
+    const tally = new Map<string, number>();
+    for (const t of tracks) {
+      const c = playCounts[t.trackhash] ?? 0;
+      if (!c) continue;
+      for (const a of t.artists ?? []) {
+        if (a.artisthash) tally.set(a.artisthash, (tally.get(a.artisthash) ?? 0) + c);
+      }
+    }
+    return [...artists]
+      .map((a) => ({ ...a, playcount: tally.get(a.artisthash) ?? 0 }))
+      .sort((a, b) => b.playcount - a.playcount)
+      .slice(0, 6);
+  }, [artists, tracks, playCounts]);
+
+  // Spotify "quick access" grid: the row of horizontal cards under the greeting.
+  // Liked Songs first (the iconic purple tile), then your recently played tracks.
+  const quickTiles = useMemo(() => {
+    const tiles: {
+      key: string; title: string; image?: string; colors?: [string, string, string];
+      liked?: boolean; onPlay: () => void; onOpen: () => void;
+    }[] = [];
+    if (favorites.size > 0) {
+      const favTracks = tracks.filter((t) => favorites.has(t.trackhash));
+      tiles.push({
+        key: "liked", title: "Titres likés", liked: true,
+        onPlay: () => { if (favTracks.length) playList(favTracks, 0); },
+        onOpen: () => navigate("favorites"),
+      });
+    }
+    recent.forEach((t, i) => tiles.push({
+      key: t.trackhash, title: trackTitle(t), image: t.image, colors: t.color,
+      onPlay: () => playList(recent, i),
+      onOpen: () => playList(recent, i),
+    }));
+    return tiles.slice(0, 8);
+  }, [favorites, tracks, recent, playList, navigate]);
 
   const greeting = (() => {
     if (now == null) return "Bienvenue";
@@ -116,181 +95,138 @@ export function HomeView() {
   })();
 
   return (
-    <div className="fade-up space-y-6 px-4 py-4 lg:space-y-8 lg:px-6 lg:py-6">
-      <section className="hero-cover grid gap-4 rounded-xl border border-[var(--line)] px-4 py-5 shadow-[0_8px_22px_-16px_rgba(0,0,0,0.4)] lg:gap-5 lg:px-6 lg:py-7" style={coverVars(leadTrack?.color)}>
-        <div className="flex min-w-0 items-end gap-4 lg:gap-6">
-          <Artwork
-            title={leadTrack?.title}
-            trackhash={leadTrack?.trackhash}
-            size={128}
-            rounded={12}
-            colors={leadTrack?.color}
-            image={leadTrack?.image}
-            className="hidden shadow-[0_8px_24px_-18px_rgba(0,0,0,0.4)] sm:block"
-          />
-          <div className="min-w-0 flex-1">
-            <div className="flex flex-wrap items-center gap-2">
-              <p className="text-[10px] font-semibold uppercase tracking-[0.08em] text-[var(--brass)]">
-                {currentTrack ? "En lecture" : greeting}
-              </p>
-              {streak > 0 && (
-                <span className="inline-flex items-center gap-1 rounded-full bg-primary/15 px-2 py-0.5 text-[10.5px] font-black text-primary-soft">
-                  <Flame className="size-3" /> {streak} jour{streak > 1 ? "s" : ""} d’affilée
-                </span>
-              )}
-              {weekPlays > 0 && (
-                <span className="text-[10.5px] font-bold text-muted-foreground/70">{weekPlays} écoutes cette semaine</span>
-              )}
-            </div>
-            <h1 className="mt-2 max-w-3xl text-[26px] font-black leading-[1.02] tracking-tight text-foreground lg:text-[clamp(30px,5vw,58px)] lg:leading-[0.92]">
-              {leadTrack ? trackTitle(leadTrack) : "Aucune musique indexée"}
-            </h1>
-            <p className="mt-2 truncate text-[13px] font-semibold text-muted-foreground lg:mt-3 lg:text-[14px]">{leadTrack ? trackArtist(leadTrack) : "Configure AURALIS_MUSIC_DIR puis relance le scan"}</p>
-            {error && <p className="mt-2 max-w-xl text-[12px] text-amber">{error}</p>}
-            <div className="mt-4 flex flex-wrap items-center gap-2 lg:mt-5">
-              {tracks.length === 0 ? (
-                <button
-                  onClick={() => navigate("settings")}
-                  className="signal-button tap-press flex h-11 items-center gap-2 rounded-full px-5 text-[13px] font-black transition-all duration-200 hover:scale-105 lg:h-auto lg:px-4 lg:py-2 lg:text-[12px]"
-                >
-                  <Settings className="size-4" />
-                  Configurer la bibliothèque
-                </button>
-              ) : (
-                <>
-                  <button
-                    onClick={() => {
-                      const queue = recent.length ? recent : dailyMix.length ? dailyMix : tracks.slice(0, 30);
-                      if (queue.length) playList(queue, leadTrack ? Math.max(0, queue.findIndex((t) => t.trackhash === leadTrack.trackhash)) : 0);
-                    }}
-                    className="signal-button tap-press flex h-11 items-center gap-2 rounded-full px-5 text-[13px] font-black transition-all duration-200 hover:scale-105 shadow-[0_4px_12px_rgba(0,0,0,0.2)] lg:h-auto lg:px-4 lg:py-2 lg:text-[12px]"
-                  >
-                    <Play className="size-4 fill-current" />
-                    Lire
-                  </button>
-                  <button onClick={() => navigate("library")} className="ghost-button tap-press flex h-11 items-center rounded-full px-5 text-[13px] font-black transition-all duration-200 hover:scale-105 lg:h-auto lg:px-4 lg:py-2 lg:text-[12px]">
-                    Bibliothèque
-                  </button>
-                </>
-              )}
-            </div>
-          </div>
-        </div>
-      </section>
-
-      {dailyMix.length > 0 && (
+    <div className="relative fade-up min-h-full pb-8">
+      {/* Spotify Home Gradient */}
+      <div 
+        className="absolute inset-0 h-[332px] pointer-events-none opacity-40 z-0 transition-colors duration-1000" 
+        style={{ background: "linear-gradient(to bottom, #535353, transparent)" }} 
+      />
+      
+      <div className="relative z-10 px-4 py-4 lg:px-6 lg:py-6 space-y-8 lg:space-y-10">
+        {/* Spotify-style greeting + quick-access grid */}
         <section>
-          <SectionHeader title="Mix du jour" eyebrow="Rien que pour toi" icon={<Sparkles className="size-4 text-primary-soft" />} />
-          <div className="mt-3 grid gap-3 lg:grid-cols-[300px_1fr] lg:gap-5">
+          <h1 className="text-[24px] font-bold tracking-tight text-white lg:text-[32px] mb-4">{greeting}</h1>
+          {error && <p className="mt-2 max-w-xl text-[12px] text-amber">{error}</p>}
+
+          {tracks.length === 0 ? (
             <button
-              onClick={() => playList(dailyMix, 0)}
-              className="hero-cover card-lift group relative flex min-h-[150px] flex-col justify-between overflow-hidden rounded-2xl border border-transparent shadow-[0_4px_24px_rgba(0,0,0,0.15)] p-4 text-left"
-              style={{ ...coverVars(mixLead?.color), border: "1px solid rgba(255,255,255,0.05)" }}
-              aria-label="Lire le mix du jour"
+              onClick={() => navigate("settings")}
+              className="signal-button mt-4 inline-flex items-center gap-2 rounded-full px-5 py-3 text-[14px] font-bold"
             >
-              <div className="flex items-center justify-between">
-                <span className="text-[10px] font-semibold uppercase tracking-[0.08em] text-[var(--brass)]">
-                  {now != null ? new Date(now).toLocaleDateString("fr-FR", { weekday: "long", day: "numeric", month: "long" }) : ""}
-                </span>
-                <Sparkles className="size-4 text-primary-soft" />
-              </div>
-              <div>
-                <p className="text-[22px] font-black leading-none tracking-tight text-foreground">Mix du jour</p>
-                <p className="mt-1.5 text-[12px] text-muted-foreground">{dailyMix.length} titres · renouvelé chaque jour</p>
-              </div>
-              <span className="signal-button tap-press inline-flex w-fit items-center gap-2 rounded-full px-4 py-2 text-[12px] font-black shadow-[0_4px_12px_rgba(0,0,0,0.2)] transition-transform duration-200 group-hover:scale-105">
-                <Play className="size-4 fill-current" /> Lire le mix
-              </span>
+              <Settings className="size-4" />
+              Configurer la bibliothèque
             </button>
-            <div className="space-y-px">
-              {dailyMix.slice(0, 5).map((track, index) => (
-                <TrackRow key={track.trackhash} track={track} index={index} list={dailyMix} showAlbum />
+          ) : quickTiles.length > 0 ? (
+            <div className="grid grid-cols-2 gap-3 xl:grid-cols-4">
+              {quickTiles.map(({ key, ...rest }) => (
+                <QuickTile key={key} {...rest} />
               ))}
             </div>
-          </div>
+          ) : null}
         </section>
-      )}
 
-      {recent.length > 0 && (
-        <section>
-          <SectionHeader title="Reprendre l’écoute" eyebrow="Récemment" action="Historique" onAction={() => navigate("recents")} />
-          <div className="mt-3 space-y-px">
-            {recent.map((track, index) => (
-              <TrackRow key={track.trackhash} track={track} index={index} list={recent} showAlbum />
-            ))}
-          </div>
-        </section>
-      )}
+        {featuredAlbums.length > 0 && (
+          <section>
+            <SectionHeader title="Albums de votre bibliothèque" />
+            <div className="snap-x -mx-4 mt-4 flex gap-4 overflow-x-auto px-4 pb-1 lg:mx-0 lg:grid lg:grid-cols-6 lg:gap-4 lg:overflow-visible lg:px-0 lg:pb-0">
+              {featuredAlbums.map((album) => (
+                <div key={album.albumhash} className="w-[160px] shrink-0 lg:w-auto lg:shrink">
+                  <AlbumCard album={album} />
+                </div>
+              ))}
+            </div>
+          </section>
+        )}
 
-      {recentlyAdded.length > 0 && (
-        <section>
-          <SectionHeader title="Récemment ajoutés" eyebrow="Nouveautés" icon={<Clock3 className="size-4 text-primary-soft" />} action="Lire" onAction={() => playList(recentlyAdded, 0)} />
-          <div className="mt-3 space-y-px">
-            {recentlyAdded.map((track, index) => (
-              <TrackRow key={track.trackhash} track={track} index={index} list={recentlyAdded} showAlbum />
-            ))}
-          </div>
-        </section>
-      )}
+        {featuredArtists.length > 0 && (
+          <section>
+            <SectionHeader title="Vos artistes préférés" />
+            <div className="snap-x -mx-4 mt-4 flex gap-4 overflow-x-auto px-4 pb-1 lg:mx-0 lg:grid lg:grid-cols-6 lg:gap-4 lg:overflow-visible lg:px-0 lg:pb-0">
+              {featuredArtists.map((artist) => (
+                <div key={artist.artisthash} className="w-[160px] shrink-0 lg:w-auto lg:shrink">
+                  <ArtistCard artist={artist} />
+                </div>
+              ))}
+            </div>
+          </section>
+        )}
 
-      {rediscover.length > 0 && (
-        <section>
-          <SectionHeader title="À redécouvrir" eyebrow="Tes favoris oubliés" icon={<RotateCcw className="size-4 text-primary-soft" />} action="Favoris" onAction={() => navigate("favorites")} />
-          <div className="mt-3 space-y-px">
-            {rediscover.map((track, index) => (
-              <TrackRow key={track.trackhash} track={track} index={index} list={rediscover} showAlbum />
-            ))}
-          </div>
-        </section>
-      )}
+        {albums.length > 6 && (
+          <section>
+            <SectionHeader title="Plus d'albums" />
+            <div className="snap-x -mx-4 mt-4 flex gap-4 overflow-x-auto px-4 pb-1 lg:mx-0 lg:grid lg:grid-cols-6 lg:gap-4 lg:overflow-visible lg:px-0 lg:pb-0">
+              {albums.slice(6, 12).map((album) => (
+                <div key={album.albumhash} className="w-[160px] shrink-0 lg:w-auto lg:shrink">
+                  <AlbumCard album={album} />
+                </div>
+              ))}
+            </div>
+          </section>
+        )}
 
-      {neverPlayed.length > 0 && (
-        <section>
-          <SectionHeader title="Découvertes" eyebrow="Jamais écouté" icon={<Compass className="size-4 text-primary-soft" />} action="Lire" onAction={() => playList(neverPlayed, 0)} />
-          <div className="mt-3 space-y-px">
-            {neverPlayed.map((track, index) => (
-              <TrackRow key={track.trackhash} track={track} index={index} list={neverPlayed} showAlbum />
-            ))}
-          </div>
-        </section>
-      )}
+        {albums.length > 12 && (
+          <section>
+            <SectionHeader title="Albums recommandés" />
+            <div className="snap-x -mx-4 mt-4 flex gap-4 overflow-x-auto px-4 pb-1 lg:mx-0 lg:grid lg:grid-cols-6 lg:gap-4 lg:overflow-visible lg:px-0 lg:pb-0">
+              {albums.slice(12, 18).map((album) => (
+                <div key={album.albumhash} className="w-[160px] shrink-0 lg:w-auto lg:shrink">
+                  <AlbumCard album={album} />
+                </div>
+              ))}
+            </div>
+          </section>
+        )}
+      </div>
+    </div>
+  );
+}
 
-      {featuredAlbums.length > 0 && (
-        <section>
-          <SectionHeader title="Albums" eyebrow="Classement artiste" action="Tout voir" onAction={() => navigate("library")} />
-          <div className="snap-x -mx-4 mt-3 flex gap-3 overflow-x-auto px-4 pb-1 lg:mx-0 lg:grid lg:grid-cols-6 lg:gap-2 lg:overflow-visible lg:px-0 lg:pb-0">
-            {featuredAlbums.map((album) => (
-              <div key={album.albumhash} className="w-[150px] shrink-0 lg:w-auto lg:shrink">
-                <AlbumCard album={album} />
-              </div>
-            ))}
-          </div>
-        </section>
+/** Spotify "quick access" card: a squat horizontal tile (art flush-left, bold
+ *  title) that lightens on hover and reveals a green circular play FAB sliding up
+ *  from the bottom-right — the home screen's most recognisable element. */
+function QuickTile({
+  title, image, colors, liked, onPlay, onOpen,
+}: {
+  title: string;
+  image?: string;
+  colors?: [string, string, string];
+  liked?: boolean;
+  onPlay: () => void;
+  onOpen: () => void;
+}) {
+  return (
+    <div
+      role="button"
+      tabIndex={0}
+      onClick={onOpen}
+      onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); onOpen(); } }}
+      className="group relative flex h-[64px] cursor-pointer items-center gap-3 overflow-hidden rounded-[4px] bg-white/[0.08] transition-colors duration-200 hover:bg-white/20"
+    >
+      {liked ? (
+        <span
+          className="grid h-full w-[64px] shrink-0 place-items-center"
+          style={{ background: "linear-gradient(135deg, #450af5, #8e8ee5 60%, #c4b9e8)" }}
+        >
+          <Heart className="size-6 fill-white text-white" />
+        </span>
+      ) : (
+        <Artwork
+          title={title}
+          image={image}
+          colors={colors}
+          size={64}
+          rounded={0}
+          className="h-full w-[64px]"
+        />
       )}
-
-      {topTracks.length > 0 && (
-        <section>
-          <SectionHeader title="Titres forts" eyebrow="Les plus écoutés" icon={<TrendingUp className="size-4 text-primary-soft" />} />
-          <div className="mt-3 space-y-px">
-            {topTracks.map((track, index) => (
-              <TrackRow key={track.trackhash} track={track} index={index} list={topTracks} />
-            ))}
-          </div>
-        </section>
-      )}
-
-      {featuredArtists.length > 0 && (
-        <section>
-          <SectionHeader title="Artistes" eyebrow="Bibliothèque" action="Tout voir" onAction={() => navigate("library")} />
-          <div className="snap-x -mx-4 mt-3 flex gap-3 overflow-x-auto px-4 pb-1 lg:mx-0 lg:grid lg:grid-cols-6 lg:gap-2 lg:overflow-visible lg:px-0 lg:pb-0">
-            {featuredArtists.map((artist) => (
-              <div key={artist.artisthash} className="w-[150px] shrink-0 lg:w-auto lg:shrink">
-                <ArtistCard artist={artist} />
-              </div>
-            ))}
-          </div>
-        </section>
-      )}
+      <span className="min-w-0 flex-1 truncate pr-2 text-[14px] font-bold text-white">{title}</span>
+      <button
+        onClick={(e) => { e.stopPropagation(); onPlay(); }}
+        aria-label={`Lire ${title}`}
+        className="signal-button mr-3 grid h-10 w-10 shrink-0 translate-y-2 place-items-center rounded-full opacity-0 shadow-[0_8px_16px_rgba(0,0,0,0.4)] transition-all duration-200 group-hover:translate-y-0 group-hover:opacity-100"
+      >
+        <Play className="size-4 fill-current ml-0.5" />
+      </button>
     </div>
   );
 }

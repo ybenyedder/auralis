@@ -195,6 +195,13 @@ const MIGRATIONS: string[] = [
   `
   ALTER TABLE users ADD COLUMN token_version INTEGER NOT NULL DEFAULT 0;
   `,
+  // v5 — composite index for the per-user recent-plays read. The history query is
+  // `WHERE user_id = ? ORDER BY played_at DESC`; the v2 `idx_recents_time` only
+  // covers the ordering, forcing a per-user filter+sort. This serves both the
+  // equality predicate and the descending order from a single index.
+  `
+  CREATE INDEX IF NOT EXISTS idx_recents_user_time ON recents(user_id, played_at DESC);
+  `,
 ];
 
 function migrate(db: DB) {

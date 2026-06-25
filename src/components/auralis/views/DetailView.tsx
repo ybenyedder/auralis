@@ -128,29 +128,29 @@ export function AlbumDetail({ albumhash }: { albumhash: string }) {
           </div>
         </div>
 
-        <div className="mt-5 flex items-center gap-2">
+        <div className="mt-6 flex items-center gap-5">
           <button
             onClick={() => {
               if (currentTrack?.albumhash === album.albumhash) togglePlay();
               else playList(albumTracks, 0);
             }}
             disabled={albumTracks.length === 0}
-            className="signal-button tap-press flex h-12 flex-1 items-center justify-center gap-2 rounded-full px-5 text-[14px] font-black transition-all duration-200 hover:scale-105 shadow-[0_4px_12px_rgba(0,0,0,0.2)] disabled:opacity-40 lg:h-auto lg:flex-none lg:justify-start lg:py-2.5 lg:text-[13px]"
+            aria-label={isPlayingThis ? "Pause" : "Lire l'album"}
+            className="signal-button grid h-14 w-14 shrink-0 place-items-center rounded-full disabled:opacity-40"
           >
             {isPlayingThis ? (
-              <Pause className="size-4 fill-current" />
+              <Pause className="size-6 fill-current" />
             ) : (
-              <Play className="size-4 fill-current" />
+              <Play className="size-6 fill-current ml-0.5" />
             )}
-            {isPlayingThis ? "Pause" : "Lire"}
           </button>
           <button
             onClick={() => albumTracks.length && playList(shuffleArray(albumTracks), 0)}
             disabled={albumTracks.length === 0}
-            className="ghost-button tap-press grid h-12 w-12 shrink-0 place-items-center rounded-full transition-all duration-200 hover:scale-105 disabled:opacity-40 lg:h-10 lg:w-10"
+            className="grid h-9 w-9 shrink-0 place-items-center rounded-full text-[#b3b3b3] transition-colors hover:text-white disabled:opacity-40"
             aria-label="Lecture aléatoire de l'album"
           >
-            <Shuffle className="size-4" />
+            <Shuffle className="size-6" />
           </button>
         </div>
       </section>
@@ -256,13 +256,14 @@ export function ArtistDetail({ artisthash }: { artisthash: string }) {
             </p>
           </div>
         </div>
-        <div className="mt-5 flex items-center gap-2">
+        <div className="mt-6 flex items-center gap-5">
           <button
             onClick={() => topTracks.length && playList(topTracks, 0)}
             disabled={topTracks.length === 0}
-            className="signal-button tap-press flex h-12 flex-1 items-center justify-center gap-2 rounded-full px-5 text-[14px] font-black transition-all duration-200 hover:scale-105 shadow-[0_4px_12px_rgba(0,0,0,0.2)] disabled:opacity-40 lg:h-auto lg:flex-none lg:justify-start lg:py-2.5 lg:text-[13px]"
+            aria-label="Lire l'artiste"
+            className="signal-button grid h-14 w-14 shrink-0 place-items-center rounded-full disabled:opacity-40"
           >
-            <Play className="size-4 fill-current" /> Lire
+            <Play className="size-6 fill-current ml-0.5" />
           </button>
           <button
             onClick={() => {
@@ -270,10 +271,10 @@ export function ArtistDetail({ artisthash }: { artisthash: string }) {
               if (all.length) playList(shuffleArray(all), 0);
             }}
             disabled={topTracks.length === 0}
-            className="ghost-button tap-press grid h-12 w-12 shrink-0 place-items-center rounded-full transition-all duration-200 hover:scale-105 disabled:opacity-40 lg:h-10 lg:w-10"
+            className="grid h-9 w-9 shrink-0 place-items-center rounded-full text-[#b3b3b3] transition-colors hover:text-white disabled:opacity-40"
             aria-label="Lecture aléatoire de l'artiste"
           >
-            <Shuffle className="size-4" />
+            <Shuffle className="size-6" />
           </button>
         </div>
       </section>
@@ -422,35 +423,35 @@ export function PlaylistDetail({ id }: { id: string }) {
           </div>
         </div>
 
-        <div className="mt-5 flex flex-wrap items-center gap-2">
+        <div className="mt-6 flex flex-wrap items-center gap-5">
           <button
             onClick={() => {
               if (isPlayingThis) togglePlay();
               else playList(tracks, 0);
             }}
             disabled={tracks.length === 0}
-            className="signal-button tap-press flex h-12 flex-1 items-center justify-center gap-2 rounded-full px-5 text-[14px] font-black transition-all duration-200 hover:scale-105 shadow-[0_4px_12px_rgba(0,0,0,0.2)] disabled:opacity-40 lg:h-auto lg:flex-none lg:justify-start lg:py-2.5 lg:text-[13px]"
+            aria-label={isPlayingThis ? "Pause" : "Lire la playlist"}
+            className="signal-button grid h-14 w-14 shrink-0 place-items-center rounded-full disabled:opacity-40"
           >
             {isPlayingThis ? (
-              <Pause className="size-4 fill-current" />
+              <Pause className="size-6 fill-current" />
             ) : (
-              <Play className="size-4 fill-current" />
-            )}{" "}
-            {isPlayingThis ? "Pause" : "Lire"}
+              <Play className="size-6 fill-current ml-0.5" />
+            )}
           </button>
           {isCustom && (
             <>
               <button
                 onClick={() => { setName(playlist.name); setEditing(true); }}
-                className="ghost-button tap-press flex h-12 items-center gap-2 rounded-full px-4 text-[13px] font-bold transition-all duration-200 hover:scale-105 lg:h-10 lg:px-3 lg:text-[12px]"
+                className="flex items-center gap-2 text-[13px] font-bold text-[#b3b3b3] transition-colors hover:text-white"
               >
-                <PencilLine className="size-4" /> Renommer
+                <PencilLine className="size-5" /> Renommer
               </button>
               <button
                 onClick={deleteCurrentPlaylist}
-                className="ghost-button tap-press flex h-12 items-center gap-2 rounded-full px-4 text-[13px] font-bold text-destructive transition-all duration-200 hover:scale-105 hover:bg-destructive/10 lg:h-10 lg:px-3 lg:text-[12px]"
+                className="flex items-center gap-2 text-[13px] font-bold text-[#b3b3b3] transition-colors hover:text-destructive"
               >
-                <Trash2 className="size-4" /> Supprimer
+                <Trash2 className="size-5" /> Supprimer
               </button>
             </>
           )}

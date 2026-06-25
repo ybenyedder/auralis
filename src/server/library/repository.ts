@@ -215,6 +215,45 @@ export function getSnapshot(userId: number): LibrarySnapshot {
   };
 }
 
+// Cheap cache validator for GET /api/library. Rather than materialising the whole
+// snapshot, it fingerprints the few signals that actually move the response body
+// using aggregate/indexed-only queries: the global track count + last scan stamp,
+// plus the requesting user's favorites and playcounts (which drive the per-account
+// is_favorite / playcount fields). Returned as a WEAK ETag — it only needs to
+// change when the body would, and these aggregates do exactly that.
+export function getSnapshotEtag(userId: number): string {
+  const db = getDb();
+  const uid = Math.trunc(Number(userId)) || 0;
+
+  const { n: trackCount } = db.prepare("SELECT COUNT(*) AS n FROM tracks").get() as { n: number };
+  const scannedAtRow = db.prepare("SELECT value FROM settings WHERE key = 'scannedAt'").get() as { value: string } | undefined;
+  const stamp = (scannedAtRow?.value ?? "0").replace(/[^0-9A-Za-z]/g, "");
+
+  // favorites/playcounts both have a (user_id, trackhash) primary key, so these
+  // touch only the requesting user's slice via the PK index. COUNT(*) catches
+  // inserts/removals; MAX(...) catches in-place bumps (a re-favourite / a replay).
+  const fav = db.prepare(
+    "SELECT COUNT(*) AS n, COALESCE(MAX(created_at), 0) AS mx FROM favorites WHERE user_id = ?"
+  ).get(uid) as { n: number; mx: number };
+  const pc = db.prepare(
+    "SELECT COUNT(*) AS n, COALESCE(MAX(last_played), 0) AS mx FROM playcounts WHERE user_id = ?"
+  ).get(uid) as { n: number; mx: number };
+
+  const userhash = etagFingerprint(`${uid}|${fav.n}|${fav.mx}|${pc.n}|${pc.mx}`);
+  return `W/"${trackCount}-${stamp}-${userhash}"`;
+}
+
+// FNV-1a 32-bit → base36. A deterministic, dependency-free fingerprint of the
+// per-user ETag inputs; it only needs to be stable, not cryptographically strong.
+function etagFingerprint(input: string): string {
+  let h = 0x811c9dc5;
+  for (let i = 0; i < input.length; i++) {
+    h ^= input.charCodeAt(i);
+    h = Math.imul(h, 0x01000193);
+  }
+  return (h >>> 0).toString(36);
+}
+
 function escapeFts(query: string): string {
   // Build a prefix MATCH expression, quoting each token to neutralise FTS operators.
   const tokens = query.trim().split(/\s+/).filter(Boolean).slice(0, 12);

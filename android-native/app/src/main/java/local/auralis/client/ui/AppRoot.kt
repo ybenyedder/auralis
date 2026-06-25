@@ -33,14 +33,18 @@ import local.auralis.client.ui.theme.ThemeBackdrop
 fun AppRoot(vm: AppViewModel) {
     val ui by vm.ui.collectAsState()
     AuralisTheme(themeId = ui.theme) {
-        Box(Modifier.fillMaxSize().background(LocalAuralis.current.background)) {
-            ThemeBackdrop()
-            when (ui.phase) {
-                Phase.BOOT, Phase.LOADING -> LoadingScreen()
-                Phase.CONNECT -> ConnectScreen(ui.connecting, ui.message, ui.serverBase, vm::connect)
-                Phase.LOGIN -> LoginScreen(ui.serverBase, ui.connecting, ui.message, vm::login, vm::changeServer)
-                Phase.READY -> Shell(vm, ui)
-                Phase.ERROR -> ErrorScreen(ui.message, onRetry = { vm.loadAll() }, onChangeServer = { vm.changeServer() })
+        androidx.compose.runtime.CompositionLocalProvider(
+            local.auralis.client.ui.theme.LocalApiUrl provides { url -> vm.api.assetUrl(url) }
+        ) {
+            Box(Modifier.fillMaxSize().background(LocalAuralis.current.background)) {
+                ThemeBackdrop()
+                when (ui.phase) {
+                    Phase.BOOT, Phase.LOADING -> LoadingScreen()
+                    Phase.CONNECT -> ConnectScreen(ui.connecting, ui.message, ui.serverBase, vm::connect)
+                    Phase.LOGIN -> LoginScreen(ui.serverBase, ui.connecting, ui.message, vm::login, vm::changeServer)
+                    Phase.READY -> Shell(vm, ui)
+                    Phase.ERROR -> ErrorScreen(ui.message, onRetry = { vm.loadAll() }, onChangeServer = { vm.changeServer() })
+                }
             }
         }
     }

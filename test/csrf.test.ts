@@ -16,9 +16,14 @@ test("safe methods are never blocked", () => {
   assert.ok(allow(new Request(URL_STATE, { method: "OPTIONS", headers: { origin: "http://evil.test" } })));
 });
 
-test("bearer / token clients are exempt (not cookie-driven, not a CSRF vector)", () => {
-  assert.ok(allow(req("PUT", { authorization: "Bearer abc.def", origin: "http://evil.test", host: "localhost:4237" })));
-  assert.ok(allow(new Request(URL_STATE + "?token=abc", { method: "PUT", headers: { origin: "http://evil.test", host: "localhost:4237" } })));
+test("a forged bearer / ?token does NOT exempt — only a token that truly authenticates is (CSRF-safe)", () => {
+  // The mere PRESENCE of a token is forgeable: a cross-site page could append
+  // ?token=anything to slip a cookie-authed mutation past the guard. So a token
+  // that doesn't actually authenticate falls through to the Origin/Referer check.
+  assert.ok(blocked(req("PUT", { authorization: "Bearer abc.def", origin: "http://evil.test", host: "localhost:4237" })));
+  assert.ok(blocked(new Request(URL_STATE + "?token=abc", { method: "PUT", headers: { origin: "http://evil.test", host: "localhost:4237" } })));
+  // Same-origin still passes regardless of the (forged) token — Origin governs.
+  assert.ok(allow(req("PUT", { authorization: "Bearer abc.def", origin: "http://localhost:4237", host: "localhost:4237" })));
 });
 
 test("cookie-authed mutation with no Origin/Referer is rejected", () => {

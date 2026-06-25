@@ -74,19 +74,28 @@ fun HomeScreen(vm: AppViewModel, ui: UiState) {
     val hour = Calendar.getInstance().get(Calendar.HOUR_OF_DAY)
     val greeting = if (hour in 5..17) "Bonjour" else "Bonsoir"
 
-    val recentsTracks = ui.recents.mapNotNull { ui.trackByHash[it] }
+    val recentsTracks = remember(ui.recents, ui.trackByHash) { ui.recents.mapNotNull { ui.trackByHash[it] } }
     val daySeed = System.currentTimeMillis() / 86_400_000L
-    val pool = ui.tracks.filter { it.isFavorite || (ui.playCounts[it.trackhash] ?: 0) > 0 }
-        .ifEmpty { ui.tracks }
-    val mix = seededShuffle(pool, daySeed).take(30)
-    val recentlyAdded = ui.tracks.filter { it.addedAt != null }
-        .sortedByDescending { it.addedAt }.take(12)
-    val topTracks = ui.tracks.sortedByDescending { ui.playCounts[it.trackhash] ?: 0 }
-        .filter { (ui.playCounts[it.trackhash] ?: 0) > 0 }.take(5)
-    val recentSet = ui.recents.take(30).toSet()
-    val rediscover = ui.tracks.filter { ui.favorites.contains(it.trackhash) && it.trackhash !in recentSet }.take(12)
-    val neverPlayed = ui.tracks.filter { (ui.playCounts[it.trackhash] ?: 0) == 0 }
-    val discoveries = if (neverPlayed.size >= 4) seededShuffle(neverPlayed, daySeed + 7).take(12) else emptyList()
+    val pool = remember(ui.tracks, ui.favorites, ui.playCounts) {
+        ui.tracks.filter { it.isFavorite || (ui.playCounts[it.trackhash] ?: 0) > 0 }.ifEmpty { ui.tracks }
+    }
+    val mix = remember(pool, daySeed) { seededShuffle(pool, daySeed).take(30) }
+    val recentlyAdded = remember(ui.tracks) {
+        ui.tracks.filter { it.addedAt != null }.sortedByDescending { it.addedAt }.take(12)
+    }
+    val topTracks = remember(ui.tracks, ui.playCounts) {
+        ui.tracks.sortedByDescending { ui.playCounts[it.trackhash] ?: 0 }.filter { (ui.playCounts[it.trackhash] ?: 0) > 0 }.take(5)
+    }
+    val recentSet = remember(ui.recents) { ui.recents.take(30).toSet() }
+    val rediscover = remember(ui.tracks, ui.favorites, recentSet) {
+        ui.tracks.filter { ui.favorites.contains(it.trackhash) && it.trackhash !in recentSet }.take(12)
+    }
+    val neverPlayed = remember(ui.tracks, ui.playCounts) {
+        ui.tracks.filter { (ui.playCounts[it.trackhash] ?: 0) == 0 }
+    }
+    val discoveries = remember(neverPlayed, daySeed) {
+        if (neverPlayed.size >= 4) seededShuffle(neverPlayed, daySeed + 7).take(12) else emptyList()
+    }
     val current = currentTrackOf(vm)
 
     LazyColumn(contentPadding = bottomPad) {
@@ -126,7 +135,7 @@ fun HomeScreen(vm: AppViewModel, ui: UiState) {
                 PlayPill("Lire le mix") { vm.playList(mix) }
                 Spacer(Modifier.height(10.dp))
             }
-            items(mix.take(5)) { t ->
+            items(mix.take(5), key = { it.trackhash }) { t ->
                 TrackRow(
                     t, isCurrent = t.trackhash == current, isFavorite = ui.favorites.contains(t.trackhash),
                     onClick = { vm.playTrack(t, mix, mix.indexOf(t)) },
@@ -140,7 +149,7 @@ fun HomeScreen(vm: AppViewModel, ui: UiState) {
                 Spacer(Modifier.height(20.dp))
                 SectionHeader("Reprendre l'écoute", "Tout voir") { vm.navigate(ViewId.RECENTS) }
                 LazyRow(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                    items(recentsTracks.take(10)) { t ->
+                    items(recentsTracks.take(10), key = { it.trackhash }) { t ->
                         MiniTrackCard(t, t.trackhash == current) { vm.playTrack(t, recentsTracks, recentsTracks.indexOf(t)) }
                     }
                 }
@@ -152,7 +161,7 @@ fun HomeScreen(vm: AppViewModel, ui: UiState) {
                 Spacer(Modifier.height(20.dp))
                 SectionHeader("Récemment ajoutés")
                 LazyRow(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                    items(recentlyAdded) { t ->
+                    items(recentlyAdded, key = { it.trackhash }) { t ->
                         MiniTrackCard(t, t.trackhash == current) { vm.playTrack(t, recentlyAdded, recentlyAdded.indexOf(t)) }
                     }
                 }
@@ -164,7 +173,7 @@ fun HomeScreen(vm: AppViewModel, ui: UiState) {
                 Spacer(Modifier.height(20.dp))
                 SectionHeader("À redécouvrir")
                 LazyRow(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                    items(rediscover) { t ->
+                    items(rediscover, key = { it.trackhash }) { t ->
                         MiniTrackCard(t, t.trackhash == current) { vm.playTrack(t, rediscover, rediscover.indexOf(t)) }
                     }
                 }
@@ -176,7 +185,7 @@ fun HomeScreen(vm: AppViewModel, ui: UiState) {
                 Spacer(Modifier.height(20.dp))
                 SectionHeader("Découvertes")
                 LazyRow(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                    items(discoveries) { t ->
+                    items(discoveries, key = { it.trackhash }) { t ->
                         MiniTrackCard(t, t.trackhash == current) { vm.playTrack(t, discoveries, discoveries.indexOf(t)) }
                     }
                 }
@@ -188,7 +197,7 @@ fun HomeScreen(vm: AppViewModel, ui: UiState) {
                 Spacer(Modifier.height(20.dp))
                 SectionHeader("Albums", "Tout voir") { vm.navigate(ViewId.LIBRARY) }
                 LazyRow(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                    items(ui.albums.take(12)) { a ->
+                    items(ui.albums.take(12), key = { it.albumhash }) { a ->
                         AlbumCard(a) { vm.navigate(ViewId.ALBUM, a.albumhash) }
                     }
                 }
@@ -200,7 +209,7 @@ fun HomeScreen(vm: AppViewModel, ui: UiState) {
                 Spacer(Modifier.height(20.dp))
                 SectionHeader("Titres forts")
             }
-            items(topTracks) { t ->
+            items(topTracks, key = { it.trackhash }) { t ->
                 TrackRow(
                     t, isCurrent = t.trackhash == current, isFavorite = ui.favorites.contains(t.trackhash),
                     onClick = { vm.playTrack(t, topTracks, topTracks.indexOf(t)) },
@@ -214,7 +223,7 @@ fun HomeScreen(vm: AppViewModel, ui: UiState) {
                 Spacer(Modifier.height(20.dp))
                 SectionHeader("Artistes")
                 LazyRow(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                    items(ui.artists.take(12)) { a ->
+                    items(ui.artists.take(12), key = { it.artisthash }) { a ->
                         ArtistCard(a) { vm.navigate(ViewId.ARTIST, a.artisthash) }
                     }
                 }
@@ -300,11 +309,13 @@ fun SearchScreen(vm: AppViewModel, ui: UiState) {
         Spacer(Modifier.height(8.dp))
         val res = ui.searchResult
         if (ui.searchQuery.isBlank()) {
-            val catalogue = ui.tracks.take(40)
-            val genres = ui.tracks.filter { !it.genre.isNullOrBlank() }
-                .groupBy { it.genre!! }.filter { it.value.size >= 5 }
-                .entries.sortedByDescending { it.value.size }.take(12)
-            val history = ui.recents.mapNotNull { ui.trackByHash[it] }.take(12)
+            val catalogue = remember(ui.tracks) { ui.tracks.take(40) }
+            val genres = remember(ui.tracks) {
+                ui.tracks.filter { !it.genre.isNullOrBlank() }
+                    .groupBy { it.genre!! }.filter { it.value.size >= 5 }
+                    .entries.sortedByDescending { it.value.size }.take(12)
+            }
+            val history = remember(ui.recents, ui.trackByHash) { ui.recents.mapNotNull { ui.trackByHash[it] }.take(12) }
             LazyColumn(contentPadding = PaddingValues(bottom = 170.dp)) {
                 if (genres.isNotEmpty()) {
                     item { SectionHeader("Tes mix par genre") }
@@ -415,20 +426,26 @@ fun LibraryScreen(vm: AppViewModel, ui: UiState) {
         )
     }
 
-    val sortedAlbums = when (sort) {
-        1 -> ui.albums.sortedByDescending { it.title.lowercase() }
-        2 -> ui.albums.sortedByDescending { it.year ?: 0 }
-        else -> ui.albums.sortedBy { it.title.lowercase() }
+    val sortedAlbums = remember(ui.albums, sort) {
+        when (sort) {
+            1 -> ui.albums.sortedByDescending { it.title.lowercase() }
+            2 -> ui.albums.sortedByDescending { it.year ?: 0 }
+            else -> ui.albums.sortedBy { it.title.lowercase() }
+        }
     }
-    val sortedArtists = when (sort) {
-        1 -> ui.artists.sortedByDescending { it.name.lowercase() }
-        2 -> ui.artists.sortedByDescending { it.playcount ?: 0 }
-        else -> ui.artists.sortedBy { it.name.lowercase() }
+    val sortedArtists = remember(ui.artists, sort) {
+        when (sort) {
+            1 -> ui.artists.sortedByDescending { it.name.lowercase() }
+            2 -> ui.artists.sortedByDescending { it.playcount ?: 0 }
+            else -> ui.artists.sortedBy { it.name.lowercase() }
+        }
     }
-    val sortedTracks = when (sort) {
-        1 -> ui.tracks.sortedByDescending { it.title.lowercase() }
-        2 -> ui.tracks.sortedByDescending { ui.playCounts[it.trackhash] ?: 0 }
-        else -> ui.tracks.sortedBy { it.title.lowercase() }
+    val sortedTracks = remember(ui.tracks, sort, ui.playCounts) {
+        when (sort) {
+            1 -> ui.tracks.sortedByDescending { it.title.lowercase() }
+            2 -> ui.tracks.sortedByDescending { ui.playCounts[it.trackhash] ?: 0 }
+            else -> ui.tracks.sortedBy { it.title.lowercase() }
+        }
     }
 
     Column(Modifier.fillMaxWidth()) {
@@ -462,14 +479,15 @@ fun LibraryScreen(vm: AppViewModel, ui: UiState) {
         when (tab) {
             0 -> LazyColumn(contentPadding = bottomPad) {
                 if (grid) item { GridOfAlbums(sortedAlbums, vm) }
-                else items(sortedAlbums) { a -> AlbumRow(a) { vm.navigate(ViewId.ALBUM, a.albumhash) } }
+                else items(sortedAlbums, key = { it.albumhash }) { a -> AlbumRow(a) { vm.navigate(ViewId.ALBUM, a.albumhash) } }
             }
             1 -> LazyColumn(contentPadding = bottomPad) {
                 if (grid) item { GridOfArtists(sortedArtists, vm) }
-                else items(sortedArtists) { a -> ArtistRow(a) { vm.navigate(ViewId.ARTIST, a.artisthash) } }
+                else items(sortedArtists, key = { it.artisthash }) { a -> ArtistRow(a) { vm.navigate(ViewId.ARTIST, a.artisthash) } }
             }
             2 -> LazyColumn(contentPadding = bottomPad) {
-                itemsIndexed(sortedTracks) { idx, t ->
+                items(sortedTracks, key = { it.trackhash }) { t ->
+                    val idx = sortedTracks.indexOf(t)
                     TrackRow(
                         t, isCurrent = t.trackhash == current, isFavorite = ui.favorites.contains(t.trackhash),
                         onClick = { vm.playTrack(t, sortedTracks, idx) },
@@ -477,18 +495,19 @@ fun LibraryScreen(vm: AppViewModel, ui: UiState) {
                     )
                 }
             }
-            3 -> LazyColumn(contentPadding = bottomPad) {
-                item {
-                    Row(Modifier.fillMaxWidth().padding(bottom = 8.dp), verticalAlignment = Alignment.CenterVertically) {
-                        Text("Playlists", fontSize = 18.sp, fontWeight = FontWeight.Black, color = colors.foreground, modifier = Modifier.weight(1f))
-                        Box(
-                            Modifier.clip(CircleShape).background(colors.accent).clickable { showCreate = true }
-                                .padding(horizontal = 14.dp, vertical = 8.dp),
-                        ) { Text("+ Nouvelle", color = colors.ink, fontSize = 13.sp, fontWeight = FontWeight.Bold) }
+            3 -> {
+                val ordered = remember(ui.playlists) { ui.playlists.sortedWith(compareByDescending { it.pinned }) }
+                LazyColumn(contentPadding = bottomPad) {
+                    item {
+                        Row(Modifier.fillMaxWidth().padding(bottom = 8.dp), verticalAlignment = Alignment.CenterVertically) {
+                            Text("Playlists", fontSize = 18.sp, fontWeight = FontWeight.Black, color = colors.foreground, modifier = Modifier.weight(1f))
+                            Box(
+                                Modifier.clip(CircleShape).background(colors.accent).clickable { showCreate = true }
+                                    .padding(horizontal = 14.dp, vertical = 8.dp),
+                            ) { Text("+ Nouvelle", color = colors.ink, fontSize = 13.sp, fontWeight = FontWeight.Bold) }
+                        }
                     }
-                }
-                val ordered = ui.playlists.sortedWith(compareByDescending { it.pinned })
-                items(ordered) { pl ->
+                    items(ordered, key = { it.id }) { pl ->
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Box(Modifier.weight(1f)) {
                             PlaylistTile(if (pl.pinned) "📌 ${pl.name}" else pl.name, pl.trackhashes.size, pl.id) { vm.navigate(ViewId.PLAYLIST, pl.id) }
@@ -499,6 +518,7 @@ fun LibraryScreen(vm: AppViewModel, ui: UiState) {
                     }
                 }
                 if (ui.playlists.isEmpty()) item { EmptyHint("Aucune playlist", "Touche « + Nouvelle », ou ⋮ sur un titre pour l'ajouter à une playlist.") }
+                }
             }
         }
     }
@@ -577,14 +597,16 @@ private fun ArtistRow(artist: local.auralis.client.model.Artist, onClick: () -> 
 fun FavoritesScreen(vm: AppViewModel, ui: UiState) {
     val colors = LocalAuralis.current
     var sort by remember { mutableStateOf(0) }
-    val base = ui.tracks.filter { ui.favorites.contains(it.trackhash) }
-    val orderIndex = ui.favoritesOrder.withIndex().associate { (i, h) -> h to i }
-    val favTracks = when (sort) {
-        1 -> base.sortedBy { it.title.lowercase() }
-        2 -> base.sortedByDescending { it.title.lowercase() }
-        3 -> base.sortedBy { it.displayArtist.lowercase() }
-        4 -> base.sortedByDescending { ui.playCounts[it.trackhash] ?: 0 }
-        else -> base.sortedBy { orderIndex[it.trackhash] ?: Int.MAX_VALUE }
+    val base = remember(ui.tracks, ui.favorites) { ui.tracks.filter { ui.favorites.contains(it.trackhash) } }
+    val orderIndex = remember(ui.favoritesOrder) { ui.favoritesOrder.withIndex().associate { (i, h) -> h to i } }
+    val favTracks = remember(base, sort, orderIndex, ui.playCounts) {
+        when (sort) {
+            1 -> base.sortedBy { it.title.lowercase() }
+            2 -> base.sortedByDescending { it.title.lowercase() }
+            3 -> base.sortedBy { it.displayArtist.lowercase() }
+            4 -> base.sortedByDescending { ui.playCounts[it.trackhash] ?: 0 }
+            else -> base.sortedBy { orderIndex[it.trackhash] ?: Int.MAX_VALUE }
+        }
     }
     val sortLabel = when (sort) { 1 -> "A→Z"; 2 -> "Z→A"; 3 -> "Artiste"; 4 -> "Écoutes"; else -> "Récents" }
     val current = currentTrackOf(vm)
@@ -604,7 +626,8 @@ fun FavoritesScreen(vm: AppViewModel, ui: UiState) {
                 }
             }
         }
-        itemsIndexed(favTracks) { idx, t ->
+        items(favTracks, key = { it.trackhash }) { t ->
+            val idx = favTracks.indexOf(t)
             TrackRow(
                 t, isCurrent = t.trackhash == current, isFavorite = true,
                 onClick = { vm.playTrack(t, favTracks, idx) },
@@ -620,7 +643,7 @@ fun FavoritesScreen(vm: AppViewModel, ui: UiState) {
 @Composable
 fun RecentsScreen(vm: AppViewModel, ui: UiState) {
     val colors = LocalAuralis.current
-    val recents = ui.recents.mapNotNull { ui.trackByHash[it] }
+    val recents = remember(ui.recents, ui.trackByHash) { ui.recents.mapNotNull { ui.trackByHash[it] } }
     val current = currentTrackOf(vm)
     LazyColumn(contentPadding = bottomPad) {
         item {
@@ -630,7 +653,8 @@ fun RecentsScreen(vm: AppViewModel, ui: UiState) {
                 Text("${recents.size} lus", color = colors.textMuted, fontSize = 13.sp)
             }
         }
-        itemsIndexed(recents) { idx, t ->
+        items(recents, key = { it.trackhash }) { t ->
+            val idx = recents.indexOf(t)
             TrackRow(
                 t, isCurrent = t.trackhash == current, isFavorite = ui.favorites.contains(t.trackhash),
                 onClick = { vm.playTrack(t, recents, idx) },
@@ -656,13 +680,16 @@ fun FoldersScreen(vm: AppViewModel, ui: UiState) {
         ui.folders.forEach { walk(it) }
         return out
     }
-    val nodes = allNodes()
+    val nodes = remember(ui.folders) { allNodes() }
     val rootPath = ui.folders.firstOrNull()?.path
     val activePath = path ?: rootPath
     val activeNode = nodes.find { it.path == activePath }
     val subfolders = activeNode?.children ?: ui.folders
-    val tracksHere = if (activePath != null)
-        ui.tracks.filter { it.folder != null && it.folder.startsWith(activePath) } else emptyList()
+    val tracksHere = remember(ui.tracks, activePath) {
+        if (activePath != null) ui.tracks.filter { it.folder != null && it.folder.startsWith(activePath) } else emptyList()
+    }
+
+    val directTracks = remember(ui.tracks, activePath) { ui.tracks.filter { it.folder == activePath } }
 
     LazyColumn(contentPadding = bottomPad) {
         item {
@@ -701,8 +728,8 @@ fun FoldersScreen(vm: AppViewModel, ui: UiState) {
                 }
             }
         }
-        val directTracks = ui.tracks.filter { it.folder == activePath }
-        itemsIndexed(directTracks) { idx, t ->
+        items(directTracks, key = { it.trackhash }) { t ->
+            val idx = directTracks.indexOf(t)
             TrackRow(
                 t, isCurrent = t.trackhash == current, isFavorite = ui.favorites.contains(t.trackhash),
                 onClick = { vm.playTrack(t, directTracks, idx) },

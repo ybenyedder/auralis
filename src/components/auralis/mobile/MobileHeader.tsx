@@ -35,7 +35,7 @@ export function MobileHeader() {
   const label = VIEW_LABEL[view.view];
 
   return (
-    <header className="glass-chrome mobile-bar safe-top safe-px z-30 flex shrink-0 items-center gap-1 border-b border-[var(--line)] px-2 md:hidden">
+    <header className="mobile-bar safe-top safe-px z-30 flex shrink-0 items-center gap-1 border-b border-[var(--line)] px-2 md:hidden">
       <div className="flex h-14 items-center gap-1">
         {isRoot ? (
           <span className="flex items-center gap-2 pl-2">

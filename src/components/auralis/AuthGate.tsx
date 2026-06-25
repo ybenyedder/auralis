@@ -1,8 +1,9 @@
 "use client";
 
-import { useEffect, useState, type ReactNode } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import { api } from "@/lib/auralis/api";
 import { AuralisGlyph } from "./BrandMark";
+import { paletteForName } from "@/lib/auralis/brand";
 
 type Phase = "checking" | "locked" | "unlocked";
 
@@ -40,23 +41,37 @@ export function AuthGate({ children }: { children: ReactNode }) {
 
 function LoginScreen({ onUnlock }: { onUnlock: () => void }) {
   const [accounts, setAccounts] = useState<string[]>([]);
-  const [username, setUsername] = useState("admin");
+  const [accountsLoaded, setAccountsLoaded] = useState(false);
+  // The profile the user picked. null = still on the Netflix-style profile grid.
+  const [selected, setSelected] = useState<string | null>(null);
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
+  const pwRef = useRef<HTMLInputElement>(null);
 
-  // Load the list of accounts so the user can pick who they are instead of typing.
+  // Load the list of accounts so the user picks a profile instead of typing.
   useEffect(() => {
     let alive = true;
     api.get<{ usernames: string[] }>("/api/auth/accounts")
       .then((d) => {
-        if (!alive || !d.usernames?.length) return;
-        setAccounts(d.usernames);
-        setUsername(d.usernames[0]);
+        if (!alive) return;
+        setAccounts(d.usernames ?? []);
       })
-      .catch(() => { /* fall back to the text field */ });
+      .catch(() => { /* fall back to the manual profile */ })
+      .finally(() => { if (alive) setAccountsLoaded(true); });
     return () => { alive = false; };
   }, []);
+
+  // Focus the password field as soon as a profile is chosen (Netflix flow).
+  useEffect(() => {
+    if (selected !== null) pwRef.current?.focus();
+  }, [selected]);
+
+  const pick = (name: string) => {
+    setError("");
+    setPassword("");
+    setSelected(name);
+  };
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -67,11 +82,12 @@ function LoginScreen({ onUnlock }: { onUnlock: () => void }) {
       const res = await fetch(api.url("/api/auth/login"), {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ username: username.trim() || "admin", password }),
+        body: JSON.stringify({ username: (selected ?? "admin").trim() || "admin", password }),
       });
       if (!res.ok) {
-        setError("Identifiant ou mot de passe incorrect");
+        setError("Mot de passe incorrect");
         setBusy(false);
+        pwRef.current?.focus();
         return;
       }
       // Persist the session token so the app stays logged in across restarts
@@ -88,66 +104,114 @@ function LoginScreen({ onUnlock }: { onUnlock: () => void }) {
     }
   };
 
-  return (
-    <div className="app-chrome grid h-screen w-screen place-items-center px-6 text-foreground">
-      <form onSubmit={submit} className="w-full max-w-[340px]">
-        <div className="mx-auto mb-5 grid h-14 w-14 place-items-center rounded-full bg-white/5 border-none shadow-[0_4px_24px_rgba(0,0,0,0.2)] backdrop-blur-md text-[var(--primary)]">
-          <AuralisGlyph className="h-8 w-8" />
-        </div>
-        <h1 className="text-center text-[20px] font-black tracking-tight">Auralis</h1>
-        <p className="mb-6 mt-1 text-center text-[12.5px] text-muted-foreground/70">Connecte-toi pour accéder à ta bibliothèque.</p>
+  // The selectable profiles. With no accounts endpoint (older server / empty), we
+  // still offer a single default "admin" profile so the flow is identical.
+  const profiles = accounts.length > 0 ? accounts : ["admin"];
 
-        <label className="mb-2 block text-[10.5px] font-semibold uppercase tracking-[0.06em] text-muted-foreground/45">Compte</label>
-        {accounts.length > 0 ? (
-          <div className="mb-4 flex flex-wrap gap-2">
-            {accounts.map((name) => (
-              <button
-                key={name}
-                type="button"
-                onClick={() => setUsername(name)}
-                className={
-                  "min-h-[44px] rounded-full border px-4 text-[14px] font-bold shadow-[0_2px_8px_rgba(0,0,0,0.15)] transition-all duration-200 hover:scale-105 " +
-                  (username === name
-                    ? "border-[var(--primary)] bg-primary/15 text-foreground"
-                    : "border-transparent bg-white/5 text-muted-foreground hover:bg-white/10 hover:text-foreground")
-                }
-              >
-                {name}
-              </button>
-            ))}
+  return (
+    <div className="relative grid h-screen w-screen place-items-center overflow-hidden bg-[#101010] px-6 text-foreground">
+      {/* A quiet top wash so the black canvas isn't dead-flat, like Netflix. */}
+      <div
+        className="pointer-events-none absolute inset-0"
+        style={{ background: "radial-gradient(120% 80% at 50% -10%, rgba(30,215,96,0.10), transparent 60%)" }}
+      />
+
+      {/* Brand, top-left. */}
+      <div className="absolute left-6 top-6 flex items-center gap-2.5 lg:left-10 lg:top-8">
+        <span className="grid h-8 w-8 place-items-center text-[var(--primary)]">
+          <AuralisGlyph className="h-7 w-7" />
+        </span>
+        <span className="text-[18px] font-black tracking-tight">Auralis</span>
+      </div>
+
+      {selected === null ? (
+        /* ===== Step 1 — Netflix profile grid ===== */
+        <div className="relative flex w-full max-w-3xl flex-col items-center">
+          <h1 className="mb-10 text-center text-[32px] font-medium tracking-tight text-foreground lg:text-[44px]">
+            Qui écoute ?
+          </h1>
+          <div className="flex flex-wrap items-start justify-center gap-6 lg:gap-9">
+            {!accountsLoaded ? (
+              <div className="h-32 w-28 animate-pulse rounded-md bg-white/5 lg:h-40 lg:w-36" />
+            ) : (
+              profiles.map((name) => <ProfileTile key={name} name={name} onClick={() => pick(name)} />)
+            )}
           </div>
-        ) : (
+        </div>
+      ) : (
+        /* ===== Step 2 — password for the chosen profile ===== */
+        <form onSubmit={submit} className="relative flex w-full max-w-[360px] flex-col items-center">
+          <ProfileAvatar name={selected} size={88} />
+          <p className="mt-4 text-[22px] font-bold tracking-tight">{selected}</p>
+          <p className="mb-7 mt-1 text-[13px] text-muted-foreground/80">Saisis ton mot de passe</p>
+
           <input
-            id="user"
-            type="text"
-            autoCapitalize="off"
-            autoCorrect="off"
-            autoComplete="username"
-            value={username}
-            onChange={(e) => setUsername(e.target.value)}
-            className="mb-4 w-full rounded-full border border-transparent bg-white/5 shadow-[inset_0_1px_0_rgba(255,255,255,0.05)] px-4 py-3 text-[15px] text-foreground outline-none focus:ring-2 focus:ring-white/10 transition-all"
-            placeholder="admin"
+            ref={pwRef}
+            id="pw"
+            type="password"
+            aria-label="Mot de passe"
+            autoComplete="current-password"
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+            className="w-full rounded-[4px] border border-white/15 bg-[var(--panel)] px-4 py-3.5 text-center text-[16px] tracking-[0.3em] text-foreground outline-none transition-colors placeholder:tracking-normal placeholder:text-muted-foreground/40 focus:border-white/50"
+            placeholder="Mot de passe"
           />
-        )}
-        <label htmlFor="pw" className="mb-2 block text-[10.5px] font-semibold uppercase tracking-[0.06em] text-muted-foreground/45">Mot de passe</label>
-        <input
-          id="pw"
-          type="password"
-          autoComplete="current-password"
-          value={password}
-          onChange={(e) => setPassword(e.target.value)}
-          className="w-full rounded-full border border-transparent bg-white/5 shadow-[inset_0_1px_0_rgba(255,255,255,0.05)] px-4 py-3 text-[15px] text-foreground outline-none focus:ring-2 focus:ring-white/10 transition-all"
-          placeholder="••••••••"
-        />
-        <button
-          type="submit"
-          disabled={busy || !password}
-          className="signal-button mt-4 w-full rounded-full py-3.5 text-[14px] font-black shadow-[0_4px_16px_rgba(0,0,0,0.25)] transition-all duration-200 hover:scale-[1.02] disabled:opacity-40"
-        >
-          {busy ? "Connexion…" : "Se connecter"}
-        </button>
-        <div className="mt-3 min-h-[18px] text-center text-[12px] text-[var(--destructive)]">{error}</div>
-      </form>
+          <div role="alert" className="min-h-[20px] py-2 text-center text-[13px] text-[var(--destructive)]">{error}</div>
+
+          <button
+            type="submit"
+            disabled={busy || !password}
+            className="signal-button w-full rounded-full py-3.5 text-[15px] font-black transition-transform duration-150 hover:scale-[1.02] disabled:opacity-40"
+          >
+            {busy ? "Connexion…" : "Se connecter"}
+          </button>
+          <button
+            type="button"
+            onClick={() => { setSelected(null); setError(""); setPassword(""); }}
+            className="mt-5 text-[13px] font-bold uppercase tracking-[0.08em] text-muted-foreground transition-colors hover:text-foreground"
+          >
+            ← Changer de profil
+          </button>
+        </form>
+      )}
     </div>
+  );
+}
+
+/** A Netflix-style profile tile: a big rounded avatar that brightens + lifts on
+ *  hover, with the name underneath turning white. */
+function ProfileTile({ name, onClick }: { name: string; onClick: () => void }) {
+  return (
+    <button type="button" onClick={onClick} className="group flex flex-col items-center gap-3">
+      <ProfileAvatar name={name} interactive />
+      <span className="text-[14px] font-medium text-muted-foreground transition-colors group-hover:text-foreground lg:text-[16px]">
+        {name}
+      </span>
+    </button>
+  );
+}
+
+/** The avatar square itself — a deterministic colour block with the initial.
+ *  `interactive` adds the hover ring + scale used on the selection grid. */
+function ProfileAvatar({ name, size, interactive = false }: { name: string; size?: number; interactive?: boolean }) {
+  const [c0, c1] = paletteForName(name);
+  const initial = (name || "?").charAt(0).toUpperCase();
+  return (
+    <span
+      className={
+        "grid shrink-0 place-items-center overflow-hidden rounded-md font-black text-white/95 " +
+        (interactive
+          ? "h-28 w-28 ring-0 ring-white transition-all duration-200 group-hover:scale-105 group-hover:ring-4 lg:h-36 lg:w-36"
+          : "")
+      }
+      style={{
+        background: `linear-gradient(150deg, ${c0}, ${c1})`,
+        width: size, height: size,
+        fontSize: size ? size * 0.42 : undefined,
+      }}
+    >
+      {!size && <span className="text-[44px] lg:text-[56px]">{initial}</span>}
+      {size && initial}
+    </span>
   );
 }

@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { Search, ChevronLeft, PanelRight } from "lucide-react";
+import { Search, ChevronLeft, ChevronRight, PanelRight, User } from "lucide-react";
 import { usePlayer } from "@/store/player";
 import { WindowControls } from "./WindowControls";
 import { BrandMark } from "./BrandMark";
@@ -29,7 +29,7 @@ export function TitleBar() {
   return (
     <header
       onDoubleClick={() => (window as unknown as { auralisDesktop?: { maximize?: () => void } }).auralisDesktop?.maximize?.()}
-      className="glass-chrome relative z-40 flex h-12 items-center gap-3 border-b border-[var(--line)] bg-[var(--panel)] px-3 select-none"
+      className="relative z-40 flex h-12 items-center gap-3 border-b border-[var(--line)] bg-[var(--panel)] px-3 select-none"
     >
       {/* Brand — draggable (no interactive children). */}
       <div className="drag-region flex items-center gap-2 pr-2">
@@ -37,16 +37,24 @@ export function TitleBar() {
         <p className="hidden text-[13px] font-black tracking-tight text-foreground sm:block">Auralis</p>
       </div>
 
-      {/* Nav — interactive, NOT draggable. */}
-      <div className="flex items-center gap-0.5">
+      {/* Nav — Spotify back/forward as dark circles. NOT draggable. */}
+      <div className="flex items-center gap-2">
         <button
           onClick={back}
           disabled={!canBack}
           aria-label="Retour"
           title="Retour"
-          className={cn("grid h-7 w-7 place-items-center rounded-full transition-all duration-200", canBack ? "text-muted-foreground hover:bg-white/[0.04] hover:text-white hover:scale-105" : "text-muted-foreground/20 cursor-default")}
+          className={cn("grid h-8 w-8 place-items-center rounded-full bg-black/40 transition-colors duration-200", canBack ? "text-white hover:bg-black/60" : "text-white/30 cursor-default")}
         >
-          <ChevronLeft className="size-4" />
+          <ChevronLeft className="size-5" />
+        </button>
+        <button
+          disabled
+          aria-label="Suivant"
+          title="Suivant"
+          className="hidden h-8 w-8 place-items-center rounded-full bg-black/40 text-white/30 cursor-default sm:grid"
+        >
+          <ChevronRight className="size-5" />
         </button>
       </div>
 
@@ -86,6 +94,15 @@ export function TitleBar() {
           className={cn("hidden xl:grid h-8 w-8 place-items-center rounded-full transition-all duration-200 hover:bg-white/[0.04] hover:scale-105", rightPanelOpen ? "text-white" : "text-muted-foreground/40 hover:text-white")}
         >
           <PanelRight className="size-3.5" />
+        </button>
+        {/* Profile chip — Spotify's circular avatar at the top-right. */}
+        <button
+          onClick={() => navigate("settings")}
+          aria-label="Profil et réglages"
+          title="Profil"
+          className="mr-1 grid h-8 w-8 place-items-center rounded-full bg-black/50 text-white transition-colors hover:bg-black/70"
+        >
+          <User className="size-4" />
         </button>
         <WindowControls />
       </div>

@@ -11,7 +11,7 @@ interface Ctx {
 
 export async function GET(_request: Request, context: Ctx) {
   const { hash } = await context.params;
-  const art = readCachedArt(hash);
+  const art = await readCachedArt(hash);
   if (!art) return new NextResponse("Not Found", { status: 404 });
 
   // Content-addressed: the hash IS the validator, so cache aggressively & forever.

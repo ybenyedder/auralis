@@ -59,6 +59,7 @@ data class ThemeDef(
 val LocalAuralis = staticCompositionLocalOf { THEMES.getValue("oxide").colors }
 val LocalBackdrop = staticCompositionLocalOf { THEMES.getValue("oxide").backdrop }
 val LocalGlass = staticCompositionLocalOf { false }
+val LocalApiUrl = staticCompositionLocalOf<((String?) -> String?)> { { it } }
 
 // ---- color parsing ---------------------------------------------------------
 
