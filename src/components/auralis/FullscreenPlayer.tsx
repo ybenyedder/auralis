@@ -50,6 +50,9 @@ export function FullscreenPlayer() {
   const queueOpen = usePlayer((s) => s.queueOpen);
   const openContextMenu = usePlayer((s) => s.openContextMenu);
   const notify = usePlayer((s) => s.notify);
+  // The next track (if any) for an "À suivre" anticipation peek. These change only
+  // on track/queue edits, not per frame, so subscribing is cheap.
+  const nextTrack = usePlayer((s) => s.shuffledQueue[s.currentIndex + 1] ?? null);
 
   const [favPop, setFavPop] = useState(false);
   // Drag-down-to-close gesture on the mobile top region.
@@ -185,6 +188,12 @@ export function FullscreenPlayer() {
               <h1 className="text-[24px] font-black leading-tight tracking-tight text-foreground sm:text-[28px]">{trackTitle(currentTrack)}</h1>
               <p className="mt-1.5 text-[15px] text-muted-foreground">{trackArtist(currentTrack)}</p>
               {currentTrack.album && <p className="mt-1 text-[12px] text-muted-foreground/65">{currentTrack.album} · {currentTrack.year}</p>}
+              {nextTrack && (
+                <button onClick={toggleQueue} className="mt-3 inline-flex max-w-full items-center gap-1.5 truncate text-[11px] text-muted-foreground/60 transition-colors hover:text-foreground/80">
+                  <span className="shrink-0 font-black uppercase tracking-wider text-[var(--brass)]">À suivre</span>
+                  <span className="truncate">{trackTitle(nextTrack)} — {trackArtist(nextTrack)}</span>
+                </button>
+              )}
             </div>
           </div>
         )}
@@ -218,6 +227,12 @@ export function FullscreenPlayer() {
             <h1 className="text-[30px] font-black leading-tight tracking-tight text-foreground">{trackTitle(currentTrack)}</h1>
             <p className="mt-1 text-[15px] text-muted-foreground">{trackArtist(currentTrack)}</p>
             {currentTrack.album && <p className="mt-0.5 text-[12px] text-muted-foreground/65">{currentTrack.album} · {currentTrack.year}</p>}
+            {nextTrack && (
+              <button onClick={toggleQueue} className="mt-3 inline-flex max-w-full items-center gap-1.5 truncate text-[11px] text-muted-foreground/55 transition-colors hover:text-foreground/80">
+                <span className="shrink-0 font-black uppercase tracking-wider text-[var(--brass)]">À suivre</span>
+                <span className="truncate">{trackTitle(nextTrack)} — {trackArtist(nextTrack)}</span>
+              </button>
+            )}
           </div>
         </div>
 
