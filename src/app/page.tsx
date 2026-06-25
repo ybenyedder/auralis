@@ -93,6 +93,20 @@ function AuralisShell() {
     if (libStatus === "ready") usePlayer.getState().restoreLastSession();
   }, [libStatus]);
 
+  // Nudge to personalise the auto-generated admin password (flagged by AuthGate).
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    try {
+      if (sessionStorage.getItem("auralis.pwNudge")) {
+        sessionStorage.removeItem("auralis.pwNudge");
+        usePlayer.getState().notify("Tu utilises le mot de passe initial — personnalise-le dans Réglages.", {
+          tone: "info",
+          action: { label: "Réglages", run: () => usePlayer.getState().navigate("settings") },
+        });
+      }
+    } catch { /* sessionStorage unavailable */ }
+  }, []);
+
   // Deep-link support: a PWA shortcut / shared link can open a specific view via
   // ?view= (navigation is client-side state, so we resolve it here on load).
   useEffect(() => {

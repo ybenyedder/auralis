@@ -12,12 +12,17 @@ export function AuthGate({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     let alive = true;
-    api.get<{ authenticated: boolean; token?: string | null }>("/api/auth/status")
+    api.get<{ authenticated: boolean; token?: string | null; defaultPassword?: boolean }>("/api/auth/status")
       .then((s) => {
         if (!alive) return;
         // Persist the (re-issued) token even when we were authenticated via cookie,
         // so every later write request carries a valid token and actually saves.
         if (s.authenticated && s.token) api.setToken(s.token);
+        // Flag the still-default (auto-generated) admin password so the shell can
+        // nudge the user to personalise it and delete the initial-password file.
+        if (s.authenticated && s.defaultPassword) {
+          try { sessionStorage.setItem("auralis.pwNudge", "1"); } catch { /* unavailable */ }
+        }
         setPhase(s.authenticated ? "unlocked" : "locked");
       })
       .catch(() => alive && setPhase("locked"));
