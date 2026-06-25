@@ -16,8 +16,19 @@ migration (v3 `play_events`, v4 `users.token_version`); no manual data migration
   play counts and a 7-day sparkline. The Home view gains a **“Mix du jour”** (a
   deterministic per-day shuffle of what you like/play, stable until midnight), a
   **“Reprendre l’écoute”** shelf, an **“À redécouvrir”** shelf (favourites you
-  haven’t played lately) and a time-of-day greeting. A streak chip sits in the
-  sidebar / mobile header and links to a weekly recap in Insights.
+  haven’t played lately), a **“Récemment ajoutés”** shelf (new files, from the
+  scanner’s `added_at`) and a time-of-day greeting. A streak chip sits in the
+  sidebar / mobile header and links to a weekly recap in Insights, and crossing a
+  streak milestone (3/7/14/30…) is celebrated once.
+- **Continuous playback (autoplay / radio).** When the queue runs out, the player
+  now auto-appends a continuation of similar tracks (same artist/genre, else a
+  library shuffle) instead of stopping — endless listening, with a Settings toggle
+  (on by default).
+- **PWA shortcuts + deep links.** The installed icon offers Recherche / Favoris /
+  Bibliothèque shortcuts, and the shell resolves `?view=` on load so views are
+  shareable and bookmarkable.
+- **Onboarding.** An empty library now shows a “Configurer la bibliothèque” CTA on
+  the hero instead of a disabled Play button.
 - **Share.** A Share action (native share sheet → clipboard fallback) on the track
   context menu, Now-Playing panel and full-screen player.
 - **Empty states are now actionable** — empty queue → shuffle-all, empty
@@ -54,8 +65,14 @@ migration (v3 `play_events`, v4 `users.token_version`); no manual data migration
   shuffle in Favourites and Album detail.
 - **Karaoke timing round-trips** — `serializeLrc` preserves per-word stamps and
   rolls 100 centiseconds into the next second.
+- **Wrong-song lyrics** — LRCLIB candidate scoring now weighs title/artist
+  similarity (not just duration), so a different track of similar length is no
+  longer attached.
+- **Admin self password-reset** via the accounts list no longer logs the admin out
+  (the session is re-issued, mirroring the self-change endpoint).
 - Visualizer canvas no longer tears down ~4×/s; the global keyboard listener binds
-  once instead of on every track change.
+  once instead of on every track change; the audio stream route uses one async
+  `stat` instead of two blocking sync calls per range request.
 
 ### Changed
 - **Homogeneity.** A single per-theme `--primary-foreground` (theme `ink`) fixes
@@ -67,6 +84,9 @@ migration (v3 `play_events`, v4 `users.token_version`); no manual data migration
   (success/error/info) with an assertive live region for errors and an optional
   **Annuler** action (clearing the queue is undoable).
 - Reduced-transparency users get an opaque, blur-free fallback for glass themes.
+- **Fully French UI.** The context menu, command palette and keyboard-help modal
+  (previously English) plus stray English labels/aria are now French throughout,
+  and login/password forms carry the right `autoComplete` hints.
 
 ## [1.1.0] — 2026-06-24
 
