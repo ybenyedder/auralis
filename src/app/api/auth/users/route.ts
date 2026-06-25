@@ -1,7 +1,7 @@
 // Admin-only account management. List, create and delete user accounts; each
 // account carries its own favorites / playlists / history (see userState).
 import { getRequestUser, listUsers, createUser, deleteUser, setUserPassword } from "@/server/auth";
-import { json } from "@/server/http";
+import { json, checkCsrf } from "@/server/http";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -17,6 +17,8 @@ export async function GET(request: Request) {
 }
 
 export async function POST(request: Request) {
+  const csrf = checkCsrf(request);
+  if (csrf) return csrf;
   const user = getRequestUser(request);
   if (!user) return json({ error: "Unauthorized" }, { status: 401 });
   if (user.is_admin !== 1) return json({ error: "Réservé à l'administrateur" }, { status: 403 });
@@ -34,6 +36,8 @@ export async function POST(request: Request) {
 
 export async function PUT(request: Request) {
   // Admin password reset for another account.
+  const csrf = checkCsrf(request);
+  if (csrf) return csrf;
   const user = getRequestUser(request);
   if (!user) return json({ error: "Unauthorized" }, { status: 401 });
   if (user.is_admin !== 1) return json({ error: "Réservé à l'administrateur" }, { status: 403 });
@@ -51,6 +55,8 @@ export async function PUT(request: Request) {
 }
 
 export async function DELETE(request: Request) {
+  const csrf = checkCsrf(request);
+  if (csrf) return csrf;
   const user = getRequestUser(request);
   if (!user) return json({ error: "Unauthorized" }, { status: 401 });
   if (user.is_admin !== 1) return json({ error: "Réservé à l'administrateur" }, { status: 403 });

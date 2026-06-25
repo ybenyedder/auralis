@@ -48,6 +48,25 @@ export function rateLimitReset(key: string): void {
   buckets.delete(key);
 }
 
+// --- Sliding-window limiter (for throttling outbound work like lyric refetches) ---
+const windows = new Map<string, number[]>();
+
+/** Record a hit for `key`; returns true when it EXCEEDS `max` within `windowMs`
+ *  (i.e. the caller should reject with 429). In-memory, per-process — enough for a
+ *  self-hosted server to stop one account hammering a third-party endpoint. */
+export function rateLimitWindow(key: string, max: number, windowMs: number): boolean {
+  const now = Date.now();
+  const hits = (windows.get(key) ?? []).filter((t) => now - t < windowMs);
+  hits.push(now);
+  windows.set(key, hits);
+  if (windows.size > 5_000) {
+    for (const [k, v] of windows) {
+      if (v.every((t) => now - t >= windowMs)) windows.delete(k);
+    }
+  }
+  return hits.length > max;
+}
+
 /** Best-effort client IP from common proxy headers, falling back to a constant.
  *  X-Forwarded-For / X-Real-IP are CLIENT-CONTROLLED and trivially spoofable, so we
  *  only honour them when the operator explicitly declares a trusted reverse proxy

@@ -14,7 +14,38 @@ const log = createLogger("lyrics");
 
 const NEGATIVE_TTL_MS = 7 * 24 * 60 * 60 * 1000; // retry "not found" weekly
 const FETCH_TIMEOUT_MS = 9000;
+const MAX_LYRICS_BYTES = 512 * 1024; // bound memory: a lyrics doc is never this big
 const USER_AGENT = "Auralis/1.1.0 (self-hosted music server; https://github.com/ybenyedder/auralis)";
+
+/** Fetch JSON from a (operator-configured) lyrics endpoint with three guards the
+ *  raw fetch lacked: a hard timeout, `redirect: "error"` so a poisoned endpoint
+ *  can't bounce us to an internal host (SSRF), and a response-size ceiling. Any
+ *  non-ok / oversize / malformed response resolves to null (= "no match"). */
+async function fetchJsonCapped(url: string): Promise<unknown | null> {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS);
+  try {
+    const res = await fetch(url, {
+      headers: { "User-Agent": USER_AGENT, Accept: "application/json" },
+      signal: controller.signal,
+      redirect: "error",
+    });
+    if (!res.ok) return null; // 404 / 5xx → no usable match
+    const declared = Number(res.headers.get("content-length") ?? 0);
+    if (declared > MAX_LYRICS_BYTES) {
+      log.warn("lyrics response too large", { declared });
+      return null;
+    }
+    const text = await res.text();
+    if (text.length > MAX_LYRICS_BYTES) return null;
+    return JSON.parse(text);
+  } catch (error) {
+    log.warn("lyrics fetch failed", { error: String(error) });
+    return null;
+  } finally {
+    clearTimeout(timer);
+  }
+}
 
 export type LyricsStatus = "found" | "instrumental" | "notfound";
 export type LyricsSource = "sidecar" | "lrclib" | "lyricsovh" | "manual" | "cache" | null;
@@ -136,22 +167,7 @@ interface LrclibHit {
 async function lrclibRequest(pathname: string): Promise<unknown | null> {
   const { lyricsEndpoint } = getConfig();
   const url = `${lyricsEndpoint.replace(/\/+$/, "")}${pathname}`;
-  const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS);
-  try {
-    const res = await fetch(url, { headers: { "User-Agent": USER_AGENT, Accept: "application/json" }, signal: controller.signal });
-    if (res.status === 404) return null;
-    if (!res.ok) {
-      log.warn("lrclib non-ok", { status: res.status });
-      return null;
-    }
-    return await res.json();
-  } catch (error) {
-    log.warn("lrclib request failed", { error: String(error) });
-    return null;
-  } finally {
-    clearTimeout(timer);
-  }
+  return fetchJsonCapped(url);
 }
 
 function qs(params: Record<string, string | number>): string {
@@ -199,20 +215,9 @@ async function fetchFromLyricsOvh(track: TrackMeta): Promise<string | null> {
   if (!artist || !track.title) return null;
   const base = lyricsFallbackEndpoint.replace(/\/+$/, "");
   const url = `${base}/v1/${encodeURIComponent(artist)}/${encodeURIComponent(track.title)}`;
-  const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS);
-  try {
-    const res = await fetch(url, { headers: { "User-Agent": USER_AGENT, Accept: "application/json" }, signal: controller.signal });
-    if (!res.ok) return null; // 404 = no match
-    const data = (await res.json()) as { lyrics?: string } | null;
-    const lyrics = data?.lyrics?.replace(/\r\n/g, "\n").trim();
-    return lyrics ? lyrics : null;
-  } catch (error) {
-    log.warn("lyrics.ovh request failed", { error: String(error) });
-    return null;
-  } finally {
-    clearTimeout(timer);
-  }
+  const data = (await fetchJsonCapped(url)) as { lyrics?: string } | null;
+  const lyrics = data?.lyrics?.replace(/\r\n/g, "\n").trim();
+  return lyrics ? lyrics : null;
 }
 
 function isFresh(row: LyricsRow): boolean {
@@ -220,7 +225,23 @@ function isFresh(row: LyricsRow): boolean {
   return Date.now() - row.fetched_at < NEGATIVE_TTL_MS;
 }
 
-export async function getLyrics(trackhash: string, opts: { forceRefetch?: boolean } = {}): Promise<LyricsResult> {
+// Coalesce concurrent resolves for the same track so N components opening lyrics
+// at once trigger ONE outbound lookup, not N (force-refetch is deliberate, so it
+// opts out and always hits the network).
+const inflight = new Map<string, Promise<LyricsResult>>();
+
+export function getLyrics(trackhash: string, opts: { forceRefetch?: boolean } = {}): Promise<LyricsResult> {
+  if (opts.forceRefetch) return resolveLyrics(trackhash, opts);
+  const existing = inflight.get(trackhash);
+  if (existing) return existing;
+  const p = resolveLyrics(trackhash, opts).finally(() => {
+    if (inflight.get(trackhash) === p) inflight.delete(trackhash);
+  });
+  inflight.set(trackhash, p);
+  return p;
+}
+
+async function resolveLyrics(trackhash: string, opts: { forceRefetch?: boolean } = {}): Promise<LyricsResult> {
   const db = getDb();
   const track = getTrackMeta(trackhash);
   if (!track) return { trackhash, status: "notfound", source: null, lines: [], plain: null, synced: false };

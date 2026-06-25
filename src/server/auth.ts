@@ -185,7 +185,9 @@ export function setUserPassword(userId: number, newPassword: string): { ok: bool
   if (!getUserById(userId)) return { ok: false, error: "Compte introuvable" };
   const salt = crypto.randomBytes(16).toString("hex");
   const hash = hashPassword(newPassword, salt);
-  getDb().prepare("UPDATE users SET password_hash = ?, password_salt = ?, is_default = 0 WHERE id = ?").run(hash, salt, userId);
+  // Bump token_version so every session token issued before this password change
+  // stops validating (a leaked 30-day token can't outlive a password reset).
+  getDb().prepare("UPDATE users SET password_hash = ?, password_salt = ?, is_default = 0, token_version = token_version + 1 WHERE id = ?").run(hash, salt, userId);
   return { ok: true };
 }
 
@@ -205,13 +207,26 @@ function sign(data: string): string {
   return crypto.createHmac("sha256", secret()).update(data).digest("base64url");
 }
 
+/** Current session-token version for a user (bumped on password change to revoke
+ *  every token issued before it). Missing column / row → 0. */
+function getTokenVersion(userId: number): number {
+  try {
+    const row = getDb().prepare("SELECT token_version FROM users WHERE id = ?").get(userId) as { token_version: number } | undefined;
+    return row?.token_version ?? 0;
+  } catch {
+    return 0; // pre-v4 schema
+  }
+}
+
 export function createSessionToken(userId: number): string {
-  const payload = Buffer.from(JSON.stringify({ uid: userId, exp: Date.now() + SESSION_TTL_MS })).toString("base64url");
+  const payload = Buffer.from(
+    JSON.stringify({ uid: userId, tv: getTokenVersion(userId), exp: Date.now() + SESSION_TTL_MS }),
+  ).toString("base64url");
   return `${payload}.${sign(payload)}`;
 }
 
-/** Verify a session token and return the user id it carries, or null. */
-function decodeSessionToken(token: string | undefined | null): number | null {
+/** Verify a session token and return { uid, tv } it carries, or null. */
+function decodeSessionToken(token: string | undefined | null): { uid: number; tv: number } | null {
   if (!token) return null;
   const [payload, signature] = token.split(".");
   if (!payload || !signature) return null;
@@ -220,9 +235,10 @@ function decodeSessionToken(token: string | undefined | null): number | null {
   const b = Buffer.from(expected);
   if (a.length !== b.length || !crypto.timingSafeEqual(a, b)) return null;
   try {
-    const { uid, exp } = JSON.parse(Buffer.from(payload, "base64url").toString()) as { uid?: number; exp: number };
+    const { uid, exp, tv } = JSON.parse(Buffer.from(payload, "base64url").toString()) as { uid?: number; exp: number; tv?: number };
     if (typeof exp !== "number" || Date.now() >= exp || typeof uid !== "number") return null;
-    return uid;
+    // Tokens predating v4 carry no tv → treat as 0 (matches the default column).
+    return { uid, tv: typeof tv === "number" ? tv : 0 };
   } catch {
     return null;
   }
@@ -247,10 +263,11 @@ export function getRequestUser(request: Request): UserRow | null {
   const bearer = header?.toLowerCase().startsWith("bearer ") ? header.slice(7).trim() : null;
   const queryToken = new URL(request.url).searchParams.get("token");
 
-  const uid = decodeSessionToken(cookie) ?? decodeSessionToken(bearer) ?? decodeSessionToken(queryToken);
-  if (uid) {
-    const user = getUserById(uid);
-    if (user) return user;
+  const decoded = decodeSessionToken(cookie) ?? decodeSessionToken(bearer) ?? decodeSessionToken(queryToken);
+  if (decoded) {
+    const user = getUserById(decoded.uid);
+    // Reject tokens whose embedded version is stale (issued before a password change).
+    if (user && getTokenVersion(user.id) === decoded.tv) return user;
   }
 
   const { authToken } = getConfig();

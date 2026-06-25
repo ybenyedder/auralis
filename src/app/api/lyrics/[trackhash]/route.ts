@@ -1,5 +1,7 @@
 import { getLyrics, getCachedLyrics } from "@/server/lyrics/service";
 import { checkAuth, json } from "@/server/http";
+import { getRequestUser } from "@/server/auth";
+import { rateLimitWindow } from "@/server/rateLimit";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -25,8 +27,17 @@ export async function GET(request: Request, context: Ctx) {
 
 // POST forces a fresh online lookup (ignores negative cache).
 export async function POST(request: Request, context: Ctx) {
-  const denied = checkAuth(request);
-  if (denied) return denied;
+  const user = getRequestUser(request);
+  if (!user) return json({ error: "Unauthorized" }, { status: 401 });
+
+  // Throttle deliberate online refetches: one account shouldn't be able to loop
+  // POSTs and hammer LRCLIB/lyrics.ovh (which would get the host IP blocked).
+  if (rateLimitWindow(`lyrics:${user.id}`, 12, 60_000)) {
+    return json(
+      { error: "Trop de requêtes — réessaie dans un instant" },
+      { status: 429, headers: { "Retry-After": "30" } },
+    );
+  }
 
   const { trackhash } = await context.params;
   const result = await getLyrics(trackhash, { forceRefetch: true });

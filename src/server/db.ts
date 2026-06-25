@@ -188,6 +188,13 @@ const MIGRATIONS: string[] = [
   );
   CREATE INDEX IF NOT EXISTS idx_play_events_user_time ON play_events(user_id, played_at DESC);
   `,
+  // v4 — session revocation. Stateless HMAC session tokens embed this counter; a
+  // password change bumps it so previously-issued tokens (which carry the old
+  // value) stop validating. Closes the "a leaked 30-day token still works after a
+  // password reset" gap.
+  `
+  ALTER TABLE users ADD COLUMN token_version INTEGER NOT NULL DEFAULT 0;
+  `,
 ];
 
 function migrate(db: DB) {

@@ -1,5 +1,5 @@
 import { runScan, getScanProgress } from "@/server/library/scanner";
-import { checkAuth, requireAdmin, json } from "@/server/http";
+import { checkAuth, requireAdmin, json, checkCsrf } from "@/server/http";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -14,6 +14,8 @@ export async function GET(request: Request) {
 // Triggering a full library scan is expensive (CPU/IO over the whole tree), so
 // it is reserved for admins — otherwise any account could DoS the host.
 export async function POST(request: Request) {
+  const csrf = checkCsrf(request);
+  if (csrf) return csrf;
   const denied = requireAdmin(request);
   if (denied) return denied;
 

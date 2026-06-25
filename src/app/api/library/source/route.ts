@@ -2,7 +2,7 @@ import fs from "fs";
 import path from "path";
 import { getConfig, setMusicDir } from "@/server/config";
 import { runScan } from "@/server/library/scanner";
-import { requireAdmin, json } from "@/server/http";
+import { requireAdmin, json, checkCsrf } from "@/server/http";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -21,6 +21,8 @@ export async function GET(request: Request) {
 // Admin-only: repointing the root neutralises every per-file path guard, so a
 // non-admin must never reach this (it would expose arbitrary host audio files).
 export async function POST(request: Request) {
+  const csrf = checkCsrf(request);
+  if (csrf) return csrf;
   const denied = requireAdmin(request);
   if (denied) return denied;
 

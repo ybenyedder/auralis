@@ -3,7 +3,7 @@ import {
   upsertPlaylist, deletePlaylist, reorderPlaylists, replaceUserState,
 } from "@/server/state/userState";
 import { getRequestUser } from "@/server/auth";
-import { json } from "@/server/http";
+import { json, checkCsrf } from "@/server/http";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -26,6 +26,10 @@ interface ActionBody {
 }
 
 export async function PUT(request: Request) {
+  // Block cross-site cookie-driven mutations (a malicious page could otherwise
+  // invoke the 'replace' action and wipe a logged-in user's whole library).
+  const csrf = checkCsrf(request);
+  if (csrf) return csrf;
   const user = getRequestUser(request);
   if (!user) return json({ error: "Unauthorized" }, { status: 401 });
   const uid = user.id;

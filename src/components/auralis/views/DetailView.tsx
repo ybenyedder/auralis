@@ -1209,9 +1209,12 @@ function AccountSettings() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ currentPassword: current, newPassword: next }),
       });
-      const data = (await res.json().catch(() => ({}))) as { error?: string };
+      const data = (await res.json().catch(() => ({}))) as { error?: string; token?: string };
       if (!res.ok) notify(data.error ?? "Échec du changement de mot de passe");
       else {
+        // Token clients (Android) must adopt the re-issued token — the change just
+        // invalidated the old one. Cookie clients (web/desktop) update transparently.
+        if (data.token && api.token()) api.setToken(data.token);
         notify("Mot de passe mis à jour");
         setCurrent(""); setNext(""); setConfirm("");
       }
