@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { Play, TrendingUp, Flame, Sparkles, RotateCcw, Clock3 } from "lucide-react";
+import { Play, TrendingUp, Flame, Sparkles, RotateCcw, Clock3, Settings } from "lucide-react";
 import { usePlayer } from "@/store/player";
 import { useLibraryStore, tracksForHashesFrom } from "@/store/library";
 import { useStats } from "@/store/stats";
@@ -139,20 +139,31 @@ export function HomeView() {
             <p className="mt-2 truncate text-[13px] font-semibold text-muted-foreground lg:mt-3 lg:text-[14px]">{leadTrack ? trackArtist(leadTrack) : "Configure AURALIS_MUSIC_DIR puis relance le scan"}</p>
             {error && <p className="mt-2 max-w-xl text-[12px] text-amber">{error}</p>}
             <div className="mt-4 flex flex-wrap items-center gap-2 lg:mt-5">
-              <button
-                onClick={() => {
-                  const queue = recent.length ? recent : dailyMix.length ? dailyMix : tracks.slice(0, 30);
-                  if (queue.length) playList(queue, leadTrack ? Math.max(0, queue.findIndex((t) => t.trackhash === leadTrack.trackhash)) : 0);
-                }}
-                disabled={tracks.length === 0}
-                className="signal-button tap-press flex h-11 items-center gap-2 rounded-[11px] px-5 text-[13px] font-black disabled:opacity-40 lg:h-auto lg:px-4 lg:py-2 lg:text-[12px]"
-              >
-                <Play className="size-4 fill-current" />
-                Lire
-              </button>
-              <button onClick={() => navigate("library")} className="ghost-button tap-press flex h-11 items-center rounded-[11px] px-5 text-[13px] font-black lg:h-auto lg:px-4 lg:py-2 lg:text-[12px]">
-                Bibliothèque
-              </button>
+              {tracks.length === 0 ? (
+                <button
+                  onClick={() => navigate("settings")}
+                  className="signal-button tap-press flex h-11 items-center gap-2 rounded-[11px] px-5 text-[13px] font-black lg:h-auto lg:px-4 lg:py-2 lg:text-[12px]"
+                >
+                  <Settings className="size-4" />
+                  Configurer la bibliothèque
+                </button>
+              ) : (
+                <>
+                  <button
+                    onClick={() => {
+                      const queue = recent.length ? recent : dailyMix.length ? dailyMix : tracks.slice(0, 30);
+                      if (queue.length) playList(queue, leadTrack ? Math.max(0, queue.findIndex((t) => t.trackhash === leadTrack.trackhash)) : 0);
+                    }}
+                    className="signal-button tap-press flex h-11 items-center gap-2 rounded-[11px] px-5 text-[13px] font-black lg:h-auto lg:px-4 lg:py-2 lg:text-[12px]"
+                  >
+                    <Play className="size-4 fill-current" />
+                    Lire
+                  </button>
+                  <button onClick={() => navigate("library")} className="ghost-button tap-press flex h-11 items-center rounded-[11px] px-5 text-[13px] font-black lg:h-auto lg:px-4 lg:py-2 lg:text-[12px]">
+                    Bibliothèque
+                  </button>
+                </>
+              )}
             </div>
           </div>
         </div>
