@@ -48,6 +48,8 @@ export interface Track {
   lossless?: boolean;
   size?: number;
   hasLyrics?: boolean;
+  /** Epoch ms when the file was first indexed (drives the "recently added" shelf). */
+  addedAt?: number;
   color?: [string, string, string];
   lyrics?: { time: number; text: string; words?: { time: number; text: string }[] }[];
 }

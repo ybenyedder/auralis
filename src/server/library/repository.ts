@@ -31,6 +31,7 @@ interface TrackRow {
   arthash: string | null;
   folder: string;
   has_lyrics: number;
+  added_at: number;
   playcount: number;
   is_favorite: number;
   lyrics_present: number;
@@ -87,6 +88,7 @@ function mapTrack(row: TrackRow): Track {
     lossless: row.lossless === 1,
     size: row.size,
     hasLyrics: row.has_lyrics === 1 || row.lyrics_present === 1,
+    addedAt: row.added_at || undefined,
     color: paletteForName(row.trackhash),
   };
 }

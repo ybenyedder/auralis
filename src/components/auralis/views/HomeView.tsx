@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { Play, TrendingUp, Flame, Sparkles, RotateCcw } from "lucide-react";
+import { Play, TrendingUp, Flame, Sparkles, RotateCcw, Clock3 } from "lucide-react";
 import { usePlayer } from "@/store/player";
 import { useLibraryStore, tracksForHashesFrom } from "@/store/library";
 import { useStats } from "@/store/stats";
@@ -75,6 +75,18 @@ export function HomeView() {
     const recentSet = new Set(recentTrackhashes.slice(0, 30));
     return tracks.filter((t) => favorites.has(t.trackhash) && !recentSet.has(t.trackhash)).slice(0, 6);
   }, [tracks, favorites, recentTrackhashes]);
+
+  // Recently added: files indexed in the last ~30 days, newest first. On a fresh
+  // scan everything qualifies (shows your newest tracks); on an established library
+  // it surfaces only genuinely new additions.
+  const recentlyAdded = useMemo(() => {
+    if (now == null) return [];
+    const cutoff = now - 30 * 86_400_000;
+    return [...tracks]
+      .filter((t) => (t.addedAt ?? 0) >= cutoff)
+      .sort((a, b) => (b.addedAt ?? 0) - (a.addedAt ?? 0))
+      .slice(0, 6);
+  }, [tracks, now]);
 
   const featuredAlbums = albums.slice(0, 6);
   const featuredArtists = artists.slice(0, 6);
@@ -175,6 +187,17 @@ export function HomeView() {
                 <TrackRow key={track.trackhash} track={track} index={index} list={dailyMix} showAlbum />
               ))}
             </div>
+          </div>
+        </section>
+      )}
+
+      {recentlyAdded.length > 0 && (
+        <section>
+          <SectionHeader title="Récemment ajoutés" eyebrow="Nouveautés" icon={<Clock3 className="size-4 text-primary-soft" />} action="Lire" onAction={() => playList(recentlyAdded, 0)} />
+          <div className="mt-3 space-y-px">
+            {recentlyAdded.map((track, index) => (
+              <TrackRow key={track.trackhash} track={track} index={index} list={recentlyAdded} showAlbum />
+            ))}
           </div>
         </section>
       )}
