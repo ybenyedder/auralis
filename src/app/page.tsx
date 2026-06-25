@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef } from "react";
-import { usePlayer, bindAudio } from "@/store/player";
+import { usePlayer, bindAudio, type ViewId } from "@/store/player";
 import { usePlayhead } from "@/store/playhead";
 import { TitleBar } from "@/components/auralis/TitleBar";
 import { Sidebar } from "@/components/auralis/Sidebar";
@@ -84,6 +84,17 @@ function AuralisShell() {
     void hydrateFromServer();
     void useStats.getState().fetchStats();
   }, [hydrateLocal, hydrateFromServer]);
+
+  // Deep-link support: a PWA shortcut / shared link can open a specific view via
+  // ?view= (navigation is client-side state, so we resolve it here on load).
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const v = new URLSearchParams(window.location.search).get("view");
+    const valid: ViewId[] = ["explore", "library", "favorites", "recents", "folders", "insights", "settings"];
+    if (v && (valid as string[]).includes(v)) {
+      usePlayer.getState().navigate(v as ViewId);
+    }
+  }, []);
 
   // Desktop (Electron) OS media keys → transport controls.
   useEffect(() => {
