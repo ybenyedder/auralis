@@ -717,7 +717,25 @@ export const usePlayer = create<PlayerState>((set, get) => {
       if (shuffledQueue.length <= (currentTrack ? 1 : 0)) return;
       set({ queue: currentTrack ? [currentTrack] : [], shuffledQueue: currentTrack ? [currentTrack] : [], currentIndex: 0 });
       get().notify("File d'attente vidée", {
-        action: { label: "Annuler", run: () => set({ queue, shuffledQueue, currentIndex }) },
+        action: {
+          label: "Annuler",
+          // Re-anchor on the LIVE current track: during the undo window the track
+          // can advance (autoplay/ended), so blindly restoring the snapshot index
+          // would break shuffledQueue[currentIndex] === currentTrack. If the now-
+          // playing track isn't in the restored queue (a fresh autoplay pick), splice
+          // it in at the snapshot position so the invariant always holds.
+          run: () => {
+            const cur = get().currentTrack;
+            if (!cur) { set({ queue, shuffledQueue, currentIndex }); return; }
+            const idx = shuffledQueue.findIndex((t) => t.trackhash === cur.trackhash);
+            if (idx >= 0) { set({ queue, shuffledQueue, currentIndex: idx }); return; }
+            const sq = [...shuffledQueue];
+            const at = Math.min(currentIndex, sq.length);
+            sq.splice(at, 0, cur);
+            const q = queue.some((t) => t.trackhash === cur.trackhash) ? queue : [...queue, cur];
+            set({ queue: q, shuffledQueue: sq, currentIndex: at });
+          },
+        },
       });
     },
 

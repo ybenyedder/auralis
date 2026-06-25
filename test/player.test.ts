@@ -123,3 +123,35 @@ test("session restore does not clobber an already-playing track", async () => {
   usePlayer.getState().restoreLastSession();
   assert.equal(usePlayer.getState().currentTrack?.trackhash, "t1");
 });
+
+test("clearQueue undo restores cleanly when the track hasn't changed", async () => {
+  const { usePlayer, useLibraryStore } = await stores();
+  const lib = [mk("a"), mk("b"), mk("c")];
+  useLibraryStore.setState({ tracks: lib });
+  usePlayer.setState({ queue: lib, shuffledQueue: lib, currentIndex: 1, currentTrack: lib[1], autoplay: true });
+  usePlayer.getState().clearQueue();
+  assert.equal(usePlayer.getState().shuffledQueue.length, 1, "collapsed to current track");
+  const undo = usePlayer.getState().toast?.action?.run;
+  assert.ok(undo, "undo action present");
+  undo();
+  const s = usePlayer.getState();
+  assert.equal(s.shuffledQueue.length, 3, "full queue restored");
+  assert.equal(s.shuffledQueue[s.currentIndex]?.trackhash, "b", "index still anchors the current track");
+});
+
+test("clearQueue undo re-anchors when the track advanced during the undo window (no desync)", async () => {
+  const { usePlayer, useLibraryStore } = await stores();
+  const lib = [mk("a"), mk("b"), mk("c"), mk("d")];
+  useLibraryStore.setState({ tracks: lib });
+  usePlayer.setState({ queue: [lib[0], lib[1], lib[2]], shuffledQueue: [lib[0], lib[1], lib[2]], currentIndex: 0, currentTrack: lib[0], autoplay: true });
+  usePlayer.getState().clearQueue();
+  const undo = usePlayer.getState().toast?.action?.run;
+  assert.ok(undo, "undo action present");
+  // Autoplay advances to a NEW track "d" (not in the snapshot) during the 5.2s window.
+  usePlayer.setState({ currentTrack: lib[3], shuffledQueue: [lib[0], lib[3]], currentIndex: 1 });
+  undo();
+  const s = usePlayer.getState();
+  // The invariant shuffledQueue[currentIndex] === currentTrack must hold.
+  assert.equal(s.shuffledQueue[s.currentIndex]?.trackhash, "d", "currentIndex follows the live track");
+  assert.ok(s.shuffledQueue.some((t) => t.trackhash === "a"), "the old queue was restored");
+});
