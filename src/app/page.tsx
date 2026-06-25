@@ -265,6 +265,12 @@ function AuralisShell() {
     };
     const onEnded = () => {
       const state = usePlayer.getState();
+      // "Stop at end of track" sleep mode wins over repeat-one and queue advance.
+      if (state.sleepTimer.active && state.sleepTimer.endOfTrack) {
+        usePlayer.setState({ isPlaying: false, sleepTimer: { active: false, endsAt: null, minutes: 0 } });
+        state.notify("Minuteur terminé — lecture en pause");
+        return;
+      }
       if (state.repeat === "one") {
         audio.currentTime = 0;
         usePlayhead.getState().setPosition(0);

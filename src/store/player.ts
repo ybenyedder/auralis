@@ -60,6 +60,8 @@ interface SleepTimer {
   active: boolean;
   endsAt: number | null;
   minutes: number;
+  /** When set, playback stops at the END of the current track (no minute timer). */
+  endOfTrack?: boolean;
 }
 
 export type ToastTone = "success" | "error" | "info";
@@ -157,6 +159,7 @@ interface PlayerState {
   removeFromPlaylist: (id: string, trackhash: string) => void;
 
   startSleepTimer: (minutes: number) => void;
+  sleepAfterTrack: () => void;
   cancelSleepTimer: () => void;
 
   toggleRightPanel: () => void;
@@ -798,6 +801,10 @@ export const usePlayer = create<PlayerState>((set, get) => {
     startSleepTimer: (minutes) => {
       set({ sleepTimer: { active: true, endsAt: Date.now() + minutes * 60_000, minutes } });
       get().notify(`Minuteur réglé sur ${minutes} min`);
+    },
+    sleepAfterTrack: () => {
+      set({ sleepTimer: { active: true, endsAt: null, minutes: 0, endOfTrack: true } });
+      get().notify("Le lecteur s'arrêtera à la fin du titre");
     },
     cancelSleepTimer: () => {
       set({ sleepTimer: { active: false, endsAt: null, minutes: 0 } });

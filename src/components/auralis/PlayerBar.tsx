@@ -47,6 +47,7 @@ export function PlayerBar() {
   const queueOpen = usePlayer((s) => s.queueOpen);
   const sleepTimer = usePlayer((s) => s.sleepTimer);
   const startSleepTimer = usePlayer((s) => s.startSleepTimer);
+  const sleepAfterTrack = usePlayer((s) => s.sleepAfterTrack);
   const cancelSleepTimer = usePlayer((s) => s.cancelSleepTimer);
 
   const [sleepOpen, setSleepOpen] = useState(false);
@@ -178,7 +179,9 @@ export function PlayerBar() {
               active={sleepTimer.active}
               minutes={sleepTimer.minutes}
               remaining={sleepRemaining}
+              afterTrackActive={sleepTimer.endOfTrack ?? false}
               onPick={(m) => { startSleepTimer(m); setSleepOpen(false); }}
+              onAfterTrack={() => { sleepAfterTrack(); setSleepOpen(false); }}
               onCancel={() => { cancelSleepTimer(); setSleepOpen(false); }}
               onClose={() => setSleepOpen(false)}
             />
@@ -394,9 +397,9 @@ function VolumeSlider({ value, onChange }: { value: number; onChange: (v: number
   );
 }
 
-function SleepPopover({ active, minutes, remaining, onPick, onCancel, onClose }: {
-  active: boolean; minutes: number; remaining: string;
-  onPick: (m: number) => void; onCancel: () => void; onClose: () => void;
+function SleepPopover({ active, minutes, remaining, afterTrackActive, onPick, onAfterTrack, onCancel, onClose }: {
+  active: boolean; minutes: number; remaining: string; afterTrackActive: boolean;
+  onPick: (m: number) => void; onAfterTrack: () => void; onCancel: () => void; onClose: () => void;
 }) {
   const ref = useRef<HTMLDivElement>(null);
   useEffect(() => {
@@ -413,7 +416,7 @@ function SleepPopover({ active, minutes, remaining, onPick, onCancel, onClose }:
       className="matte-panel absolute bottom-10 right-0 z-40 w-[208px] overflow-hidden rounded-[13px] p-2"
     >
       <div className="flex items-center justify-between px-1.5 py-1 mb-1">
-        <p className="text-[11px] font-semibold text-muted-foreground">Sleep timer</p>
+        <p className="text-[11px] font-semibold text-muted-foreground">Minuteur de veille</p>
         {active && remaining && (
           <span className="rounded-[9px] bg-primary/15 px-2 py-0.5 text-[10px] font-bold tabular-nums text-primary-soft">
             {remaining}
@@ -427,19 +430,28 @@ function SleepPopover({ active, minutes, remaining, onPick, onCancel, onClose }:
             onClick={() => onPick(m)}
             className={cn(
               "rounded-[9px] py-1.5 text-[12px] font-semibold transition-colors",
-              active && minutes === m ? "bg-primary text-primary-foreground" : "bg-white/[0.05] text-foreground hover:bg-white/[0.09]",
+              active && !afterTrackActive && minutes === m ? "bg-primary text-primary-foreground" : "bg-white/[0.05] text-foreground hover:bg-white/[0.09]",
             )}
           >
             {m}m
           </button>
         ))}
       </div>
+      <button
+        onClick={onAfterTrack}
+        className={cn(
+          "mt-1 w-full rounded-[9px] py-1.5 text-[11.5px] font-semibold transition-colors",
+          afterTrackActive ? "bg-primary text-primary-foreground" : "bg-white/[0.05] text-foreground hover:bg-white/[0.09]",
+        )}
+      >
+        Fin du titre
+      </button>
       {active && (
         <button
           onClick={onCancel}
           className="mt-1.5 flex w-full items-center justify-center gap-1.5 rounded-[9px] bg-white/[0.04] py-1.5 text-[11.5px] text-muted-foreground transition-colors hover:bg-white/[0.08] hover:text-foreground"
         >
-          <X className="size-3" /> Cancel
+          <X className="size-3" /> Annuler
         </button>
       )}
     </div>
