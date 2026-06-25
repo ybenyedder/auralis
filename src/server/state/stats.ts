@@ -18,6 +18,12 @@ export interface ListeningStats {
   streak: number;
   /** Last 7 local days, oldest→newest, for a sparkline. */
   playsByDay: { day: string; count: number }[];
+  /** Approx. listening time (seconds) over the last 7 days, from play_events × track
+   *  durations. A scrobble fired after a real listen, so this slightly over-counts
+   *  half-listens but is a fair estimate. */
+  weekListeningSeconds: number;
+  /** Listening time (seconds) over the retained event window (~400 days). */
+  totalListeningSeconds: number;
 }
 
 function localDayKey(d: Date): string {
@@ -71,5 +77,14 @@ export function getListeningStats(userId: number): ListeningStats {
     playsByDay.push({ day: key, count });
   }
 
-  return { totalPlays, todayPlays, weekPlays, streak, playsByDay };
+  // Listening time = sum of played track durations (joined to the catalogue).
+  const weekSince = Date.now() - 7 * 86_400_000;
+  const weekListeningSeconds = (db
+    .prepare("SELECT COALESCE(SUM(t.duration), 0) AS s FROM play_events pe JOIN tracks t ON t.trackhash = pe.trackhash WHERE pe.user_id = ? AND pe.played_at >= ?")
+    .get(userId, weekSince) as { s: number }).s;
+  const totalListeningSeconds = (db
+    .prepare("SELECT COALESCE(SUM(t.duration), 0) AS s FROM play_events pe JOIN tracks t ON t.trackhash = pe.trackhash WHERE pe.user_id = ?")
+    .get(userId) as { s: number }).s;
+
+  return { totalPlays, todayPlays, weekPlays, streak, playsByDay, weekListeningSeconds, totalListeningSeconds };
 }

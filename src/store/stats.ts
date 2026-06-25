@@ -14,6 +14,8 @@ export interface ListeningStats {
   weekPlays: number;
   streak: number;
   playsByDay: { day: string; count: number }[];
+  weekListeningSeconds: number;
+  totalListeningSeconds: number;
 }
 
 interface StatsState extends ListeningStats {
@@ -48,6 +50,8 @@ export const useStats = create<StatsState>((set) => ({
   weekPlays: 0,
   streak: 0,
   playsByDay: [],
+  weekListeningSeconds: 0,
+  totalListeningSeconds: 0,
   loaded: false,
   fetchStats: async () => {
     try {

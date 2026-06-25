@@ -18,6 +18,7 @@ export function InsightsView() {
   const weekPlays = useStats((s) => s.weekPlays);
   const todayPlays = useStats((s) => s.todayPlays);
   const playsByDay = useStats((s) => s.playsByDay);
+  const weekListeningSeconds = useStats((s) => s.weekListeningSeconds);
   const statsLoaded = useStats((s) => s.loaded);
   const fetchStats = useStats((s) => s.fetchStats);
   useEffect(() => {
@@ -72,7 +73,7 @@ export function InsightsView() {
         </p>
       </div>
 
-      <WeeklyRecap streak={streak} weekPlays={weekPlays} todayPlays={todayPlays} playsByDay={playsByDay} />
+      <WeeklyRecap streak={streak} weekPlays={weekPlays} todayPlays={todayPlays} playsByDay={playsByDay} weekListeningSeconds={weekListeningSeconds} />
 
       <div className="mb-6 grid grid-cols-2 gap-3 md:grid-cols-4">
         {kpis.map((kpi) => {
@@ -124,8 +125,8 @@ export function InsightsView() {
   );
 }
 
-function WeeklyRecap({ streak, weekPlays, todayPlays, playsByDay }: {
-  streak: number; weekPlays: number; todayPlays: number; playsByDay: { day: string; count: number }[];
+function WeeklyRecap({ streak, weekPlays, todayPlays, playsByDay, weekListeningSeconds }: {
+  streak: number; weekPlays: number; todayPlays: number; playsByDay: { day: string; count: number }[]; weekListeningSeconds: number;
 }) {
   const max = Math.max(1, ...playsByDay.map((d) => d.count));
   return (
@@ -142,10 +143,11 @@ function WeeklyRecap({ streak, weekPlays, todayPlays, playsByDay }: {
         </div>
       </div>
       <div className="matte-panel rounded-[13px] p-4">
-        <div className="mb-2 flex items-baseline justify-between gap-2">
+        <div className="mb-2 flex flex-wrap items-baseline justify-between gap-x-2 gap-y-0.5">
           <p className="text-[10px] font-black uppercase tracking-[0.14em] text-muted-foreground/80">7 derniers jours</p>
           <p className="text-[12px] text-muted-foreground">
             <span className="font-black tabular-nums text-foreground">{weekPlays}</span> écoutes ·{" "}
+            {weekListeningSeconds > 0 && (<><span className="font-black tabular-nums text-foreground">{formatLongDuration(weekListeningSeconds)}</span> ·{" "}</>)}
             <span className="font-black tabular-nums text-foreground">{todayPlays}</span> aujourd’hui
           </p>
         </div>
