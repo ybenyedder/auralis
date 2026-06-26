@@ -70,7 +70,13 @@ jobs:
         with:
           node-version: 20
           cache: npm
-      - run: npm ci
+      # package-lock.json (Linux-generated) omits Windows native binaries for
+      # optional deps; npm ci would skip lightningcss.win32-x64-msvc and the
+      # build fails. Resolve fresh for this runner instead.
+      - shell: bash
+        run: |
+          rm -f package-lock.json
+          npm install
       - name: Build Windows installer + portable
         run: npm run desktop:build:win
         env:

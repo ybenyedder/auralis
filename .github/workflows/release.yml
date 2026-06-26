@@ -27,8 +27,16 @@ jobs:
           node-version: 20
           cache: 'npm'
 
+      # The committed package-lock.json is generated on Linux and only records
+      # the Linux native binaries for optional deps (lightningcss, @next/swc,
+      # @tailwindcss/oxide…). On Windows/macOS npm then skips the matching
+      # platform binary and the build fails with "Cannot find module
+      # lightningcss.win32-x64-msvc.node". Resolve per-runner instead.
       - name: Install dependencies
-        run: npm install
+        shell: bash
+        run: |
+          rm -f package-lock.json
+          npm install
 
       - name: Prepare Web App
         run: npm run build
