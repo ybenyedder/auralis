@@ -258,6 +258,7 @@ function PlayerScrubber({ onSeek, disabled }: { onSeek: (seconds: number) => voi
       <span className="w-10 text-right text-[11px] font-medium text-[var(--text-muted)]">{formatDuration(shownPosition)}</span>
       <ProgressBar
         value={value}
+        valueText={`${formatDuration(shownPosition)} sur ${formatDuration(duration)}`}
         onDrag={(pct) => setDrag(pct)}
         onCommit={(pct) => { onSeek((pct / 100) * (duration || 0)); setDrag(null); }}
         disabled={disabled}
@@ -269,11 +270,13 @@ function PlayerScrubber({ onSeek, disabled }: { onSeek: (seconds: number) => voi
 
 function ProgressBar({
   value,
+  valueText,
   onDrag,
   onCommit,
   disabled,
 }: {
   value: number;
+  valueText?: string;
   onDrag: (pct: number) => void;
   onCommit: (pct: number) => void;
   disabled?: boolean;
@@ -334,6 +337,7 @@ function ProgressBar({
       aria-valuemin={0}
       aria-valuemax={100}
       aria-valuenow={Math.round(value)}
+      aria-valuetext={valueText}
       tabIndex={disabled ? -1 : 0}
       className={cn("group relative flex flex-1 items-center justify-center cursor-pointer h-4 touch-none focus-auralis rounded-full", disabled && "pointer-events-none opacity-30")}
     >

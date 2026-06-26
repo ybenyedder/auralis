@@ -266,6 +266,7 @@ function FullscreenScrubber({ seek }: { seek: (time: number) => void }) {
 
   const progress = duration > 0 ? Math.min(100, (position / duration) * 100) : 0;
   const pct = scrubPct ?? progress;
+  const shownTime = scrubPct !== null ? (scrubPct / 100) * (duration || 0) : position;
 
   const onKeyDown = (e: React.KeyboardEvent) => {
     let target: number | null = null;
@@ -288,6 +289,7 @@ function FullscreenScrubber({ seek }: { seek: (time: number) => void }) {
         aria-valuemin={0}
         aria-valuemax={100}
         aria-valuenow={Math.round(pct)}
+        aria-valuetext={`${formatDuration(shownTime)} sur ${formatDuration(duration)}`}
         tabIndex={0}
         onKeyDown={onKeyDown}
         onPointerDown={(e) => {

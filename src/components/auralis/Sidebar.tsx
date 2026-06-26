@@ -68,7 +68,7 @@ export function Sidebar() {
               )}
             >
               <Icon className="size-6 shrink-0" fill={active ? "currentColor" : "none"} strokeWidth={active ? 2.5 : 2} />
-              <span className="hidden flex-1 text-[16px] font-bold tracking-tight lg:inline">{item.label}</span>
+              <span className="hidden flex-1 text-[16px] font-bold tracking-tight md:inline">{item.label}</span>
             </button>
           );
         })}
@@ -84,11 +84,11 @@ export function Sidebar() {
             aria-current={view.view === "library" ? "page" : undefined}
           >
             <Library className="size-6 shrink-0 transition-colors group-hover:text-white" fill={view.view === "library" ? "currentColor" : "none"} />
-            <span className={cn("hidden text-[16px] font-bold lg:inline transition-colors group-hover:text-white", view.view === "library" && "text-white")}>
+            <span className={cn("hidden text-[16px] font-bold md:inline transition-colors group-hover:text-white", view.view === "library" && "text-white")}>
               Bibliothèque
             </span>
           </button>
-          <div className="hidden lg:flex items-center gap-2">
+          <div className="hidden md:flex items-center gap-2">
             <button
               onClick={onNewPlaylist}
               className="grid h-8 w-8 place-items-center rounded-full text-[var(--text-muted)] transition-colors hover:bg-[var(--sidebar-accent)] hover:text-white"
@@ -100,7 +100,7 @@ export function Sidebar() {
         </div>
 
         {/* Filters */}
-        <div className="mt-2 hidden lg:flex flex-wrap gap-2 px-4 pb-2">
+        <div className="mt-2 hidden md:flex flex-wrap gap-2 px-4 pb-2">
           {LIBRARY_FILTERS.map((item) => {
             const active = view.view === item.id;
             return (
@@ -119,7 +119,7 @@ export function Sidebar() {
         </div>
 
         {/* Mobile Icons Fallback */}
-        <div className="mt-3 flex flex-col gap-3 px-2 lg:hidden">
+        <div className="mt-3 flex flex-col gap-3 px-2 md:hidden">
           {LIBRARY_FILTERS.map((item) => {
             const Icon = item.icon;
             const active = view.view === item.id;
@@ -155,7 +155,7 @@ export function Sidebar() {
                 <div className="grid h-12 w-12 shrink-0 place-items-center rounded-md bg-[var(--panel-2)]">
                   <ListMusic className="size-6 text-[var(--text-muted)]" />
                 </div>
-                <div className="hidden flex-1 min-w-0 lg:flex flex-col justify-center">
+                <div className="hidden flex-1 min-w-0 md:flex flex-col justify-center">
                   <span className="block w-full truncate text-[16px] font-medium text-white">
                     {playlist.name}
                   </span>
@@ -179,7 +179,7 @@ export function Sidebar() {
                 <div className="grid h-12 w-12 shrink-0 place-items-center rounded-md bg-[var(--panel-2)]">
                   <ListMusic className="size-6 text-[var(--text-muted)]" />
                 </div>
-                <div className="hidden flex-1 min-w-0 lg:flex flex-col justify-center">
+                <div className="hidden flex-1 min-w-0 md:flex flex-col justify-center">
                   <div className="flex items-center gap-2">
                     <span className="truncate text-[16px] font-medium text-white">
                       {playlist.name}
@@ -206,7 +206,7 @@ export function Sidebar() {
           )}
         >
           <Settings className="size-6 shrink-0" strokeWidth={view.view === "settings" ? 2.5 : 2} />
-          <span className="hidden flex-1 text-[16px] font-bold tracking-tight lg:inline">Réglages</span>
+          <span className="hidden flex-1 text-[16px] font-bold tracking-tight md:inline">Réglages</span>
         </button>
       </div>
     </nav>

@@ -98,15 +98,19 @@ interface WalkedFile {
   dir: string; // absolute directory
 }
 
-function walk(root: string): WalkedFile[] {
+// Async walk: readdir/stat via promises so the directory crawl YIELDS to the event
+// loop between I/O ops instead of blocking it for the whole tree (a 10k-file
+// library used to freeze every concurrent HTTP request for the duration of the
+// sync crawl). Ordering, depth limit and the file cap are preserved exactly.
+async function walk(root: string): Promise<WalkedFile[]> {
   const { maxScanFiles, maxScanDepth } = getConfig();
   const out: WalkedFile[] = [];
 
-  const recurse = (dir: string, depth: number) => {
+  const recurse = async (dir: string, depth: number): Promise<void> => {
     if (out.length >= maxScanFiles || depth > maxScanDepth) return;
     let entries: fs.Dirent[];
     try {
-      entries = fs.readdirSync(dir, { withFileTypes: true });
+      entries = await fs.promises.readdir(dir, { withFileTypes: true });
     } catch {
       return;
     }
@@ -115,7 +119,7 @@ function walk(root: string): WalkedFile[] {
       if (entry.name.startsWith(".")) continue;
       const abs = path.join(dir, entry.name);
       if (entry.isDirectory()) {
-        recurse(abs, depth + 1);
+        await recurse(abs, depth + 1);
         if (out.length >= maxScanFiles) return;
         continue;
       }
@@ -123,7 +127,7 @@ function walk(root: string): WalkedFile[] {
       if (!AUDIO_EXTENSIONS.has(path.extname(entry.name).toLowerCase())) continue;
       let stat: fs.Stats;
       try {
-        stat = fs.statSync(abs);
+        stat = await fs.promises.stat(abs);
       } catch {
         continue;
       }
@@ -138,7 +142,7 @@ function walk(root: string): WalkedFile[] {
     }
   };
 
-  recurse(root, 0);
+  await recurse(root, 0);
   return out;
 }
 
@@ -231,7 +235,7 @@ export async function runScan(): Promise<ScanProgress> {
       return getScanProgress();
     }
 
-    const files = walk(musicDir);
+    const files = await walk(musicDir);
     emit({ phase: "indexing", total: files.length });
 
     const existing = new Map<string, { mtime: number; size: number }>();

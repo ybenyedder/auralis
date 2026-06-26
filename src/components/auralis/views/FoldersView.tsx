@@ -6,6 +6,7 @@ import { usePlayer, shuffleArray } from "@/store/player";
 import { useLibraryStore } from "@/store/library";
 import { TrackRow, TrackListHeader } from "../TrackRow";
 import { VirtualList } from "../Virtualized";
+import { useIsDesktop } from "@/lib/auralis/useMediaQuery";
 import type { FolderNode } from "@/lib/auralis/types";
 import { cn } from "@/lib/utils";
 
@@ -43,6 +44,11 @@ export function FoldersView() {
   const subfolders = currentNode?.children ?? [];
   const subScrollRef = useRef<HTMLDivElement>(null);
   const trackScrollRef = useRef<HTMLDivElement>(null);
+  // Below lg the two panels stack into one column; capping each with its own
+  // overflow scroller traps touch swipes inside the panel. Only make the panels
+  // independent scrollers on desktop — on mobile they flow in the page and the
+  // VirtualLists bind to the page scroller (so the whole view scrolls as one).
+  const isDesktop = useIsDesktop();
   const tracksInFolder = useMemo(() => {
     const prefix = activePath.replace(/\/$/, "");
     return tracks.filter((track) => {
@@ -89,13 +95,13 @@ export function FoldersView() {
           <p className="px-2 py-1.5 text-[10px] font-semibold uppercase tracking-[0.06em] text-muted-foreground/70">
             Sous-dossiers · {subfolders.length}
           </p>
-          <div ref={subScrollRef} className="max-h-[40vh] overflow-y-auto scroll-auralis lg:max-h-[calc(100vh-320px)]">
+          <div ref={subScrollRef} className="scroll-auralis lg:max-h-[calc(100vh-320px)] lg:overflow-y-auto">
             {subfolders.length === 0 ? (
               <div className="flex items-center justify-center gap-2 py-8 text-[12px] text-muted-foreground/70">
                 <Folder className="size-4" /> Aucun sous-dossier
               </div>
             ) : (
-              <VirtualList items={subfolders} itemKey={(f) => f.path} estimateHeight={60} scrollRef={subScrollRef}>
+              <VirtualList items={subfolders} itemKey={(f) => f.path} estimateHeight={60} scrollRef={isDesktop ? subScrollRef : undefined}>
                 {(child) => (
                   <button
                     onClick={() => setCurrentPath(child.path)}
@@ -142,13 +148,13 @@ export function FoldersView() {
             </div>
           </div>
           <TrackListHeader />
-          <div ref={trackScrollRef} className="max-h-[55vh] overflow-y-auto scroll-auralis lg:max-h-[calc(100vh-320px)]">
+          <div ref={trackScrollRef} className="scroll-auralis lg:max-h-[calc(100vh-320px)] lg:overflow-y-auto">
             {tracksInFolder.length === 0 ? (
               <div className="flex items-center justify-center gap-2 py-8 text-[12px] text-muted-foreground/70">
                 <Music2 className="size-4" /> Aucun fichier audio
               </div>
             ) : (
-              <VirtualList items={tracksInFolder} itemKey={(t) => t.trackhash} estimateHeight={56} gap={2} scrollRef={trackScrollRef}>
+              <VirtualList items={tracksInFolder} itemKey={(t) => t.trackhash} estimateHeight={56} gap={2} scrollRef={isDesktop ? trackScrollRef : undefined}>
                 {(track, index) => <TrackRow track={track} index={index} list={tracksInFolder} showAlbum={false} />}
               </VirtualList>
             )}

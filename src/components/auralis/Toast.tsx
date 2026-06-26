@@ -35,7 +35,7 @@ export function ToastHost() {
         <span className={cn("grid size-5 shrink-0 place-items-center", iconClass)}>
           <Icon className="size-3.5" />
         </span>
-        <p className="max-w-xs truncate text-[12.5px] font-semibold text-foreground">
+        <p className="max-w-sm line-clamp-2 text-[12.5px] font-semibold text-foreground">
           {toast.message}
         </p>
         {action && (

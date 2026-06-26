@@ -162,10 +162,11 @@ export function HomeView() {
 
   return (
     <div className="relative fade-up min-h-full pb-8">
-      {/* Spotify Home Gradient */}
-      <div 
-        className="absolute inset-0 h-[332px] pointer-events-none opacity-40 z-0 transition-colors duration-1000" 
-        style={{ background: "linear-gradient(to bottom, #535353, transparent)" }} 
+      {/* Home accent wash — tinted from the active theme's primary so it belongs to
+          the current theme instead of a fixed grey (Spotify-style top fade). */}
+      <div
+        className="absolute inset-0 h-[332px] pointer-events-none opacity-30 z-0"
+        style={{ background: "linear-gradient(to bottom, var(--primary), transparent)" }}
       />
       
       <div className="relative z-10 px-4 py-4 lg:px-6 lg:py-6 space-y-8 lg:space-y-10">

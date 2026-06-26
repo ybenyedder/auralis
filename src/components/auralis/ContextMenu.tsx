@@ -568,7 +568,7 @@ function PlaylistSubmenu({
         active={open}
       />
       {open && (
-        <div className="scale-in matte-panel mb-1 ml-2 overflow-hidden rounded-md">
+        <div className="scale-in matte-panel mb-1 ml-2 max-h-[min(360px,60vh)] overflow-y-auto scroll-auralis rounded-md">
           <button
             role="menuitem"
             onClick={() => run(onCreate)}
