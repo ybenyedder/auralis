@@ -298,6 +298,10 @@ export async function runAnalysis(): Promise<void> {
     db.prepare(
       "INSERT INTO settings (key, value) VALUES ('analyzedAt', ?) ON CONFLICT(key) DO UPDATE SET value=excluded.value",
     ).run(String(Date.now()));
+    // Refresh the catalogue cache: the analysis pass just changed mood/energy/bpm,
+    // bumping the library version, so rebuild it off the request path for the
+    // auto-reload that follows.
+    void import("./repository").then((m) => m.getSnapshot()).catch(() => {/* best effort */});
     log.info("audio analysis complete", { analyzed: done });
   } catch (error) {
     log.error("audio analysis failed", { message: error instanceof Error ? error.message : "unknown" });

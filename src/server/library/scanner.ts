@@ -329,6 +329,11 @@ export async function runScan(): Promise<ScanProgress> {
     });
     log.info("scan complete", { total: files.length, added, updated, removed: toRemove.length });
 
+    // Pre-build the user-independent catalogue cache off the request path, so the
+    // client's post-scan reload hits a warm cache (sub-ms) instead of paying the
+    // one-off build itself. Dynamic import avoids a scanner⇄repository load cycle.
+    void import("./repository").then((m) => m.getSnapshot()).catch(() => {/* best effort */});
+
     // Kick the background audio-analysis pass (mood classifier) for any tracks
     // that still need it. Fire-and-forget + dynamically imported to avoid a load
     // cycle; it no-ops if ffmpeg is missing or nothing is pending.

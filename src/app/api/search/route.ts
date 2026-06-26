@@ -13,5 +13,5 @@ export async function GET(request: Request) {
   const q = url.searchParams.get("q")?.trim() ?? "";
   const limit = Math.min(Math.max(Number.parseInt(url.searchParams.get("limit") ?? "50", 10) || 50, 1), 200);
   if (!q) return json({ tracks: [], albums: [], artists: [], query: "" });
-  return json({ ...search(q, user.id, limit), query: q });
+  return json({ ...search(q, limit), query: q });
 }

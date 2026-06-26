@@ -23,6 +23,7 @@ export function FavoritesView() {
   const playList = usePlayer((s) => s.playList);
   const navigate = usePlayer((s) => s.navigate);
   const favorites = usePlayer((s) => s.favorites);
+  const playCounts = usePlayer((s) => s.playCounts);
   const tracks = useLibraryStore((s) => s.tracks);
   const [sort, setSort] = useState<SortMode>("recent");
 
@@ -40,9 +41,9 @@ export function FavoritesView() {
     if (sort === "az") next.sort((a, b) => compareNames(trackTitle(a), trackTitle(b)));
     else if (sort === "za") next.sort((a, b) => compareNames(trackTitle(b), trackTitle(a)));
     else if (sort === "artist") next.sort((a, b) => compareNames(trackArtist(a), trackArtist(b)));
-    else if (sort === "plays") next.sort((a, b) => (b.playcount || 0) - (a.playcount || 0));
+    else if (sort === "plays") next.sort((a, b) => (playCounts[b.trackhash] ?? 0) - (playCounts[a.trackhash] ?? 0));
     return next;
-  }, [allFavTracks, sort]);
+  }, [allFavTracks, sort, playCounts]);
 
   const totalDuration = favTracks.reduce((sum, track) => sum + (track.duration || 0), 0);
 

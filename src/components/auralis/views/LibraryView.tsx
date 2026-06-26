@@ -3,7 +3,7 @@
 import { useMemo, useState, type ComponentType } from "react";
 import { Music2, Disc3, UserRound, ListMusic, ArrowDownUp, LayoutGrid, List, History, FolderTree, BarChart3, Settings, ChevronRight, Plus, Heart } from "lucide-react";
 import { usePlayer } from "@/store/player";
-import { useLibraryStore } from "@/store/library";
+import { useLibraryStore, artistPlayTotals } from "@/store/library";
 import { TrackRow, TrackListHeader } from "../TrackRow";
 import { AlbumCard, ArtistCard, PlaylistTile } from "../Cards";
 import { VirtualList, VirtualGrid } from "../Virtualized";
@@ -46,7 +46,7 @@ export function LibraryView() {
     const next = [...tracks];
     if (sort === "az") next.sort((a, b) => compareNames(a.title, b.title));
     if (sort === "za") next.sort((a, b) => compareNames(b.title, a.title));
-    if (sort === "plays") next.sort((a, b) => (playCounts[b.trackhash] ?? b.playcount ?? 0) - (playCounts[a.trackhash] ?? a.playcount ?? 0));
+    if (sort === "plays") next.sort((a, b) => (playCounts[b.trackhash] ?? 0) - (playCounts[a.trackhash] ?? 0));
     return next;
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [sort, tracks, playsKey]);
@@ -58,18 +58,21 @@ export function LibraryView() {
     const liked = tracks.filter((t) => favorites.has(t.trackhash));
     if (sort === "az") liked.sort((a, b) => compareNames(trackTitle(a), trackTitle(b)));
     else if (sort === "za") liked.sort((a, b) => compareNames(trackTitle(b), trackTitle(a)));
-    else if (sort === "plays") liked.sort((a, b) => (playCounts[b.trackhash] ?? b.playcount ?? 0) - (playCounts[a.trackhash] ?? a.playcount ?? 0));
+    else if (sort === "plays") liked.sort((a, b) => (playCounts[b.trackhash] ?? 0) - (playCounts[a.trackhash] ?? 0));
     return liked;
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [tracks, favorites, sort, playsKey]);
 
+  // Per-user play totals per artist (the catalogue carries none); feeds both the
+  // displayed "N écoutes" on each card and the "most played" sort.
+  const artistPlays = artistPlayTotals(tracks, playCounts);
   const sortedArtists = useMemo(() => {
-    const next = [...artists];
+    const next = artists.map((a) => ({ ...a, playcount: artistPlays.get(a.artisthash) ?? 0 }));
     if (sort === "az") next.sort((a, b) => compareNames(a.name, b.name));
     if (sort === "za") next.sort((a, b) => compareNames(b.name, a.name));
-    if (sort === "plays") next.sort((a, b) => (b.playcount || 0) - (a.playcount || 0));
+    if (sort === "plays") next.sort((a, b) => b.playcount - a.playcount);
     return next;
-  }, [artists, sort]);
+  }, [artists, sort, artistPlays]);
 
   const tabs: { id: Tab; label: string; icon: ComponentType<{ className?: string }>; count: number }[] = [
     { id: "albums", label: "Albums", icon: Disc3, count: albums.length },
@@ -321,7 +324,7 @@ function AlbumListRow({ album, index }: { album: Album; index: number }) {
     >
       <span className="text-center text-[12px] tabular-nums text-muted-foreground">{index + 1}</span>
       <div className="flex min-w-0 items-center gap-3">
-        <div className="size-10 shrink-0 rounded-md border border-[var(--line)]" style={{ background: album.color?.[0] }} />
+        <div className="size-10 shrink-0 rounded-md border border-[var(--line)]" style={{ background: (album.color ?? paletteForName(album.albumhash))[0] }} />
         <div className="min-w-0">
           <p className="truncate text-[13px] font-bold leading-tight text-foreground">{album.title}</p>
           <p className="mt-0.5 truncate text-[11.5px] leading-tight text-muted-foreground">{album.albumartists[0]?.name}</p>

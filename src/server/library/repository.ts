@@ -1,11 +1,18 @@
 // Read model. Turns the SQLite library into the snapshot shape the web client
-// already consumes (tracks/albums/artists/folders), now carrying real durations,
+// already consumes (tracks/albums/artists/folders), carrying real durations,
 // tags, cover-art URLs and lyric availability. Also powers server-side search.
+//
+// The snapshot is a USER-INDEPENDENT catalogue: per-account signals (favorites,
+// play counts, dislikes) live in /api/state and the client's player store, never
+// here. That keeps this payload identical for every account, so it can be built
+// ONCE per library change and memoised, and its ETag stays stable across likes /
+// plays — turning every app re-open into a cheap 304 instead of a multi-MB
+// re-download. At 10k+ tracks that's the difference between "instant" and a
+// multi-second stall on each launch.
 
 import { getDb } from "../db";
 import { getConfig } from "../config";
 import { getScanProgress } from "./scanner";
-import { paletteForName } from "@/lib/auralis/brand";
 import type { Album, Artist, Track, FolderNode } from "@/lib/auralis/types";
 
 interface TrackRow {
@@ -35,8 +42,6 @@ interface TrackRow {
   mood: string | null;
   energy: number | null;
   bpm: number | null;
-  playcount: number;
-  is_favorite: number;
   lyrics_present: number;
 }
 
@@ -44,25 +49,15 @@ export function artUrl(arthash: string | null | undefined): string | undefined {
   return arthash ? `/api/art/${arthash}` : undefined;
 }
 
-// favorites/playcounts are per-user (multi-account). The JOINs MUST be scoped to
-// the requesting user's id, otherwise is_favorite/playcount leak across accounts
-// (a title shows as favourited if ANY user favourited it, and the playcount is an
-// arbitrary other user's). `uid` is a trusted integer (a DB user id), coerced to a
-// safe integer here, so inlining it is injection-safe and lets search() keep its
-// positional placeholders (better-sqlite3 forbids mixing named + positional).
-function trackSelect(uid: number): string {
-  const safeUid = Math.trunc(Number(uid)) || 0;
-  return `
+// One global lyrics presence flag (the lyrics table is shared, not per-account),
+// folded in so the client can show a "has lyrics" affordance. No per-user JOINs:
+// favorites/playcounts are deliberately NOT part of the catalogue.
+const TRACK_SELECT = `
   SELECT t.*,
-    COALESCE(pc.count, 0) AS playcount,
-    CASE WHEN f.trackhash IS NOT NULL THEN 1 ELSE 0 END AS is_favorite,
     CASE WHEN l.synced IS NOT NULL OR l.plain IS NOT NULL THEN 1 ELSE 0 END AS lyrics_present
   FROM tracks t
-  LEFT JOIN playcounts pc ON pc.trackhash = t.trackhash AND pc.user_id = ${safeUid}
-  LEFT JOIN favorites  f  ON f.trackhash  = t.trackhash AND f.user_id  = ${safeUid}
-  LEFT JOIN lyrics     l  ON l.trackhash  = t.trackhash
+  LEFT JOIN lyrics l ON l.trackhash = t.trackhash
 `;
-}
 
 function mapTrack(row: TrackRow): Track {
   const artistRef: Artist = { artisthash: row.artisthash, name: row.albumartist };
@@ -78,8 +73,6 @@ function mapTrack(row: TrackRow): Track {
     filepath: row.filepath,
     folder: row.folder,
     image: artUrl(row.arthash),
-    is_favorite: row.is_favorite === 1,
-    playcount: row.playcount,
     disc: row.disc_no ?? 1,
     track: row.track_no ?? undefined,
     year: row.year ?? undefined,
@@ -92,7 +85,6 @@ function mapTrack(row: TrackRow): Track {
     size: row.size,
     hasLyrics: row.has_lyrics === 1 || row.lyrics_present === 1,
     addedAt: row.added_at || undefined,
-    color: paletteForName(row.trackhash),
     mood: row.mood ?? undefined,
     energy: row.energy ?? undefined,
     bpm: row.bpm ?? undefined,
@@ -143,19 +135,34 @@ export interface LibrarySnapshot {
   error: string | null;
 }
 
-export function getSnapshot(userId: number): LibrarySnapshot {
-  const db = getDb();
+// --- Catalogue cache --------------------------------------------------------
+// The catalogue only changes when the library itself changes (a scan adds/removes
+// tracks, or the background analysis pass stamps moods). We fingerprint those
+// signals with cheap indexed/aggregate queries and rebuild only on a mismatch, so
+// the common case — every /api/library hit between scans — is a Map-free, SQL-free
+// return of the already-built object.
+let cached: { version: string; snapshot: LibrarySnapshot } | null = null;
+
+/** Cheap fingerprint of everything that can change the catalogue body. */
+function libraryVersion(db: ReturnType<typeof getDb>): string {
+  const { n } = db.prepare("SELECT COUNT(*) AS n FROM tracks").get() as { n: number };
+  const scannedAt = (db.prepare("SELECT value FROM settings WHERE key = 'scannedAt'").get() as { value: string } | undefined)?.value ?? "0";
+  const analyzedAt = (db.prepare("SELECT value FROM settings WHERE key = 'analyzedAt'").get() as { value: string } | undefined)?.value ?? "0";
+  return `${n}-${scannedAt}-${analyzedAt}`;
+}
+
+function buildSnapshot(db: ReturnType<typeof getDb>): LibrarySnapshot {
   const { musicDir } = getConfig();
   const rootName = musicDir.split(/[\\/]+/).filter(Boolean).pop() || "Music";
 
   const trackRows = db.prepare(
-    `${trackSelect(userId)} ORDER BY t.albumhash, t.disc_no, t.track_no, t.title COLLATE NOCASE`
+    `${TRACK_SELECT} ORDER BY t.albumhash, t.disc_no, t.track_no, t.title COLLATE NOCASE`
   ).all() as TrackRow[];
   const tracks = trackRows.map(mapTrack);
 
   // Album + artist aggregates derived from the same rows (counts/durations/genres).
   const albumAgg = new Map<string, { count: number; duration: number; genres: Set<string> }>();
-  const artistAgg = new Map<string, { tracks: number; albums: Set<string>; plays: number; genres: Set<string> }>();
+  const artistAgg = new Map<string, { tracks: number; albums: Set<string>; genres: Set<string> }>();
   for (const row of trackRows) {
     const al = albumAgg.get(row.albumhash) ?? { count: 0, duration: 0, genres: new Set<string>() };
     al.count += 1;
@@ -163,10 +170,9 @@ export function getSnapshot(userId: number): LibrarySnapshot {
     if (row.genre) al.genres.add(row.genre);
     albumAgg.set(row.albumhash, al);
 
-    const ar = artistAgg.get(row.artisthash) ?? { tracks: 0, albums: new Set<string>(), plays: 0, genres: new Set<string>() };
+    const ar = artistAgg.get(row.artisthash) ?? { tracks: 0, albums: new Set<string>(), genres: new Set<string>() };
     ar.tracks += 1;
     ar.albums.add(row.albumhash);
-    ar.plays += row.playcount || 0;
     if (row.genre) ar.genres.add(row.genre);
     artistAgg.set(row.artisthash, ar);
   }
@@ -185,7 +191,6 @@ export function getSnapshot(userId: number): LibrarySnapshot {
       trackcount: agg?.count ?? 0,
       duration: agg?.duration ?? 0,
       genres: agg && agg.genres.size ? Array.from(agg.genres) : undefined,
-      color: paletteForName(row.albumhash),
     };
   }).sort((a, b) => a.title.localeCompare(b.title, undefined, { numeric: true }));
 
@@ -200,7 +205,9 @@ export function getSnapshot(userId: number): LibrarySnapshot {
       image: artUrl(row.arthash),
       trackcount: agg?.tracks ?? 0,
       albumcount: agg?.albums.size ?? 0,
-      playcount: agg?.plays ?? 0,
+      // Per-user play totals are derived client-side from the player store's
+      // authoritative play counts; the shared catalogue carries none.
+      playcount: 0,
       genres: agg && agg.genres.size ? Array.from(agg.genres) : undefined,
     };
   }).sort((a, b) => a.name.localeCompare(b.name, undefined, { numeric: true }));
@@ -221,46 +228,23 @@ export function getSnapshot(userId: number): LibrarySnapshot {
   };
 }
 
-// Cheap cache validator for GET /api/library. Rather than materialising the whole
-// snapshot, it fingerprints the few signals that actually move the response body
-// using aggregate/indexed-only queries: the global track count + last scan stamp,
-// plus the requesting user's favorites and playcounts (which drive the per-account
-// is_favorite / playcount fields). Returned as a WEAK ETag — it only needs to
-// change when the body would, and these aggregates do exactly that.
-export function getSnapshotEtag(userId: number): string {
+/** The shared library catalogue. Memoised on the library version, so repeated
+ *  reads between scans are effectively free. */
+export function getSnapshot(): LibrarySnapshot {
   const db = getDb();
-  const uid = Math.trunc(Number(userId)) || 0;
-
-  const { n: trackCount } = db.prepare("SELECT COUNT(*) AS n FROM tracks").get() as { n: number };
-  const scannedAtRow = db.prepare("SELECT value FROM settings WHERE key = 'scannedAt'").get() as { value: string } | undefined;
-  // Fold in the analysis stamp so the body (which now carries mood/energy/bpm)
-  // revalidates after a background analysis pass updates those fields.
-  const analyzedAtRow = db.prepare("SELECT value FROM settings WHERE key = 'analyzedAt'").get() as { value: string } | undefined;
-  const stamp = (scannedAtRow?.value ?? "0").replace(/[^0-9A-Za-z]/g, "") + "-" + (analyzedAtRow?.value ?? "0");
-
-  // favorites/playcounts both have a (user_id, trackhash) primary key, so these
-  // touch only the requesting user's slice via the PK index. COUNT(*) catches
-  // inserts/removals; MAX(...) catches in-place bumps (a re-favourite / a replay).
-  const fav = db.prepare(
-    "SELECT COUNT(*) AS n, COALESCE(MAX(created_at), 0) AS mx FROM favorites WHERE user_id = ?"
-  ).get(uid) as { n: number; mx: number };
-  const pc = db.prepare(
-    "SELECT COUNT(*) AS n, COALESCE(MAX(last_played), 0) AS mx FROM playcounts WHERE user_id = ?"
-  ).get(uid) as { n: number; mx: number };
-
-  const userhash = etagFingerprint(`${uid}|${fav.n}|${fav.mx}|${pc.n}|${pc.mx}`);
-  return `W/"${trackCount}-${stamp}-${userhash}"`;
+  const version = libraryVersion(db);
+  if (cached && cached.version === version) return cached.snapshot;
+  const snapshot = buildSnapshot(db);
+  cached = { version, snapshot };
+  return snapshot;
 }
 
-// FNV-1a 32-bit → base36. A deterministic, dependency-free fingerprint of the
-// per-user ETag inputs; it only needs to be stable, not cryptographically strong.
-function etagFingerprint(input: string): string {
-  let h = 0x811c9dc5;
-  for (let i = 0; i < input.length; i++) {
-    h ^= input.charCodeAt(i);
-    h = Math.imul(h, 0x01000193);
-  }
-  return (h >>> 0).toString(36);
+// Weak validator for GET /api/library. It mirrors the catalogue cache key, so it
+// only changes when the body would — and crucially it does NOT depend on the
+// requesting user, so favouriting a track or counting a play no longer busts the
+// client's library cache.
+export function getSnapshotEtag(): string {
+  return `W/"${libraryVersion(getDb())}"`;
 }
 
 function escapeFts(query: string): string {
@@ -276,7 +260,7 @@ export interface SearchResults {
   artists: Artist[];
 }
 
-export function search(query: string, userId: number, limit = 50): SearchResults {
+export function search(query: string, limit = 50): SearchResults {
   const db = getDb();
   const expr = escapeFts(query);
   if (!expr) return { tracks: [], albums: [], artists: [] };
@@ -288,7 +272,7 @@ export function search(query: string, userId: number, limit = 50): SearchResults
   if (!hashes.length) return { tracks: [], albums: [], artists: [] };
   const placeholders = hashes.map(() => "?").join(",");
   const rows = db.prepare(
-    `${trackSelect(userId)} WHERE t.trackhash IN (${placeholders})`
+    `${TRACK_SELECT} WHERE t.trackhash IN (${placeholders})`
   ).all(...hashes.map((h) => h.trackhash)) as TrackRow[];
 
   const order = new Map(hashes.map((h, i) => [h.trackhash, i]));
@@ -300,7 +284,7 @@ export function search(query: string, userId: number, limit = 50): SearchResults
     if (t.albumhash && !albumSeen.has(t.albumhash)) {
       albumSeen.set(t.albumhash, {
         albumhash: t.albumhash, title: t.album ?? "", albumartists: t.albumartists ?? [],
-        image: t.image, year: t.year, color: t.color,
+        image: t.image, year: t.year,
       });
     }
     const ar = t.artists?.[0];

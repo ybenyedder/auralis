@@ -24,7 +24,7 @@ export async function GET(request: Request) {
 
   ensureLibraryReady();
   try {
-    const etag = getSnapshotEtag(user.id);
+    const etag = getSnapshotEtag();
     const scan = getScanProgress();
     // While a scan is in flight the snapshot mutates faster than the coarse ETag
     // signals, and the client polls this endpoint for live progress — so only
@@ -36,7 +36,7 @@ export async function GET(request: Request) {
       });
     }
 
-    const snapshot = getSnapshot(user.id);
+    const snapshot = getSnapshot();
     const res = json({ ...snapshot, scan, source: "filesystem" });
     res.headers.set("ETag", etag);
     res.headers.set("Cache-Control", "private, no-cache");

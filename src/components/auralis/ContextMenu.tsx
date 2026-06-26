@@ -16,7 +16,7 @@ import {
 import { usePlayer } from "@/store/player";
 import { shareTrack } from "@/lib/auralis/share";
 import { useFocusTrap } from "@/lib/auralis/useFocusTrap";
-import { albumsOfArtistFrom, tracksOfAlbumFrom, tracksOfArtistFrom, useLibraryStore } from "@/store/library";
+import { albumsOfArtistFrom, artistPlayTotals, tracksOfAlbumFrom, tracksOfArtistFrom, useLibraryStore } from "@/store/library";
 import { trackArtist, trackTitle, albumArtist, formatCount } from "@/lib/auralis/brand";
 import { cn } from "@/lib/utils";
 import type { Track, Album, Artist, ViewId } from "@/lib/auralis/types";
@@ -412,14 +412,16 @@ function ArtistMenu({
 }) {
   const libraryTracks = useLibraryStore((state) => state.tracks);
   const albums = useLibraryStore((state) => state.albums);
-  const topTracks = [...tracksOfArtistFrom(libraryTracks, artist.artisthash)].sort((a, b) => (b.playcount || 0) - (a.playcount || 0)).slice(0, 5);
+  const playCounts = usePlayer((s) => s.playCounts);
+  const topTracks = [...tracksOfArtistFrom(libraryTracks, artist.artisthash)].sort((a, b) => (playCounts[b.trackhash] ?? 0) - (playCounts[a.trackhash] ?? 0)).slice(0, 5);
   const albumCount = albumsOfArtistFrom(albums, artist.artisthash).length;
+  const artistPlays = artistPlayTotals(libraryTracks, playCounts).get(artist.artisthash) ?? 0;
 
   return (
     <>
       <MenuHeader
         title={artist.name}
-        subtitle={`${formatCount(artist.playcount)} écoutes · ${artist.genres?.join(", ") || "Artiste"}`}
+        subtitle={`${artistPlays > 0 ? `${formatCount(artistPlays)} écoutes · ` : ""}${artist.genres?.join(", ") || "Artiste"}`}
         colors={["#282828", "#3E3E3E", "#535353"]}
         initial={artist.name[0] || "A"}
         round

@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { Play, Settings, Heart, Music2 } from "lucide-react";
 import { usePlayer, shuffleArray } from "@/store/player";
-import { useLibraryStore, tracksForHashesFrom } from "@/store/library";
+import { useLibraryStore, tracksForHashesFrom, artistPlayTotals } from "@/store/library";
 import { useStats } from "@/store/stats";
 import { useReco } from "@/store/reco";
 import { SectionHeader } from "../SectionHeader";
@@ -69,14 +69,7 @@ export function HomeView() {
   // tally the user's real per-track plays onto each artist, rank by that, and override
   // each card's displayed count with the derived total so the shelf is truthful.
   const featuredArtists = useMemo(() => {
-    const tally = new Map<string, number>();
-    for (const t of tracks) {
-      const c = playCounts[t.trackhash] ?? 0;
-      if (!c) continue;
-      for (const a of t.artists ?? []) {
-        if (a.artisthash) tally.set(a.artisthash, (tally.get(a.artisthash) ?? 0) + c);
-      }
-    }
+    const tally = artistPlayTotals(tracks, playCounts);
     return [...artists]
       .map((a) => ({ ...a, playcount: tally.get(a.artisthash) ?? 0 }))
       .sort((a, b) => b.playcount - a.playcount)

@@ -180,3 +180,26 @@ export function tracksOfArtistFrom(tracks: Track[], artisthash: string): Track[]
 export function albumsOfArtistFrom(albums: Album[], artisthash: string): Album[] {
   return albums.filter((album) => album.albumartists.some((artist) => artist.artisthash === artisthash));
 }
+
+// Per-artist play totals derived from the user's OWN play counts. The shared
+// library catalogue is user-independent and carries no per-account plays, so any
+// "most played" ranking/label is computed here from the player store's
+// authoritative counts. Memoised on the (tracks, playCounts) identities so the
+// several components that need it (home shelves, library sort, artist page,
+// context menu) share one O(n) pass instead of each rebuilding the map.
+let artistPlaysMemo: { tracks: Track[]; playCounts: Record<string, number>; map: Map<string, number> } | null = null;
+export function artistPlayTotals(tracks: Track[], playCounts: Record<string, number>): Map<string, number> {
+  if (artistPlaysMemo && artistPlaysMemo.tracks === tracks && artistPlaysMemo.playCounts === playCounts) {
+    return artistPlaysMemo.map;
+  }
+  const map = new Map<string, number>();
+  for (const track of tracks) {
+    const count = playCounts[track.trackhash] ?? 0;
+    if (!count) continue;
+    for (const artist of track.artists ?? []) {
+      if (artist.artisthash) map.set(artist.artisthash, (map.get(artist.artisthash) ?? 0) + count);
+    }
+  }
+  artistPlaysMemo = { tracks, playCounts, map };
+  return map;
+}

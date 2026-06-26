@@ -28,6 +28,7 @@ import { THEMES, THEME_LIST, THEME_GROUPS, type Theme } from "@/lib/auralis/them
 import { api } from "@/lib/auralis/api";
 import {
   albumsOfArtistFrom,
+  artistPlayTotals,
   tracksForHashesFrom,
   tracksOfAlbumFrom,
   tracksOfArtistFrom,
@@ -186,6 +187,7 @@ export function AlbumDetail({ albumhash }: { albumhash: string }) {
 
 export function ArtistDetail({ artisthash }: { artisthash: string }) {
   const playList = usePlayer((s) => s.playList);
+  const playCounts = usePlayer((s) => s.playCounts);
   const tracks = useLibraryStore((state) => state.tracks);
   const artists = useLibraryStore((state) => state.artists);
   const albums = useLibraryStore((state) => state.albums);
@@ -204,10 +206,13 @@ export function ArtistDetail({ artisthash }: { artisthash: string }) {
     () => tracksOfArtistFrom(tracks, artisthash),
     [tracks, artisthash],
   );
+  // "Popular" = the user's own most-played, from the player store's authoritative
+  // counts (the catalogue is user-independent and carries no per-account plays).
   const topTracks = useMemo(
-    () => [...artistTracks].sort((a, b) => (b.playcount || 0) - (a.playcount || 0)).slice(0, 8),
-    [artistTracks],
+    () => [...artistTracks].sort((a, b) => (playCounts[b.trackhash] ?? 0) - (playCounts[a.trackhash] ?? 0)).slice(0, 8),
+    [artistTracks, playCounts],
   );
+  const artistPlays = artistPlayTotals(tracks, playCounts).get(artisthash) ?? 0;
 
   if (!artist) return <EmptyDetail label="Artiste introuvable" loading={status !== "ready"} />;
   const colors = paletteForName(artist.name);
@@ -250,7 +255,7 @@ export function ArtistDetail({ artisthash }: { artisthash: string }) {
               </p>
             )}
             <p className="mt-2 text-[12px] text-muted-foreground">
-              {formatCount(artist.playcount)} écoutes ·{" "}
+              {artistPlays > 0 ? `${formatCount(artistPlays)} écoutes · ` : ""}
               {plural(artist.albumcount ?? artistAlbums.length, "album")} ·{" "}
               {plural(artist.trackcount ?? artistTracks.length, "titre")}
               {artist.genres?.length ? ` · ${artist.genres.join(", ")}` : ""}
