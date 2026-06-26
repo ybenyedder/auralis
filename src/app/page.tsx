@@ -15,6 +15,7 @@ import { KeyboardHelp } from "@/components/auralis/KeyboardHelp";
 import { DonateModal } from "@/components/auralis/DonateReminder";
 import { StickyViewHeader } from "@/components/auralis/StickyViewHeader";
 import { VisualizerOverlay } from "@/components/auralis/VisualizerOverlay";
+import { ThemeBackdrop } from "@/components/auralis/ThemeBackdrop";
 import { HomeView } from "@/components/auralis/views/HomeView";
 import { ExploreView } from "@/components/auralis/views/ExploreView";
 import { LibraryView } from "@/components/auralis/views/LibraryView";
@@ -528,7 +529,9 @@ function AuralisShell() {
   }, [view.view, view.id]);
 
   return (
-    <div className="app-chrome relative z-[1] flex h-[100dvh] w-screen flex-col overflow-hidden bg-black text-foreground">
+    <>
+      <ThemeBackdrop />
+      <div className="app-chrome relative z-[1] flex h-[100dvh] w-screen flex-col overflow-hidden bg-black text-foreground">
       <audio ref={audioRef} preload="metadata" />
 
       {/* Announce track changes to screen readers */}
@@ -552,7 +555,7 @@ function AuralisShell() {
         <main
           ref={mainRef}
           className={cn(
-            "relative min-h-0 flex-1 overflow-y-auto scroll-auralis md:rounded-lg bg-[#121212]",
+            "app-stage relative min-h-0 flex-1 overflow-y-auto scroll-auralis md:rounded-lg",
             // Clear the fixed mobile dock (tab bar, plus the mini-player when active).
             currentTrack
               ? "pb-[calc(var(--miniplayer-h)+var(--tabbar-h)+var(--safe-bottom))] md:pb-0"
@@ -567,7 +570,7 @@ function AuralisShell() {
         <NowPlayingPanel />
       </div>
 
-      <div className="hidden md:block h-[90px] w-full bg-black">
+      <div className="app-playerbar-slot hidden md:block h-[90px] w-full">
         <PlayerBar />
       </div>
 
@@ -580,7 +583,8 @@ function AuralisShell() {
       <ToastHost />
       <KeyboardHelp />
       <DonateModal />
-    </div>
+      </div>
+    </>
   );
 }
 

@@ -14,7 +14,7 @@
 // globals.css and <ThemeBackdrop/> key off of.
 // ============================================================================
 
-export type ThemeGroup = "streaming" | "classic" | "cosmic" | "vivid";
+export type ThemeGroup = "streaming" | "classic" | "cosmic" | "vivid" | "ambiance";
 
 export type BackdropKind =
   | "none"
@@ -23,7 +23,11 @@ export type BackdropKind =
   | "aurora"
   | "nebula"
   | "mesh"
-  | "ocean";
+  | "ocean"
+  | "snow"
+  | "fireflies"
+  | "embers"
+  | "rain";
 
 export interface BackdropSpec {
   kind: BackdropKind;
@@ -225,7 +229,7 @@ const CLASSIC: ThemeSpec[] = [
 const COSMIC: ThemeSpec[] = [
   {
     id: "galaxy", label: "Galaxy", group: "cosmic", glass: true,
-    blurb: "Deep space — drifting stars over a violet nebula.",
+    blurb: "Grand large — étoiles filantes qui zèbrent une nébuleuse violette.",
     themeColor: "#070512", swatch: ["#1b1140", "#a855f7", "#22d3ee"],
     foreground: "#efeafd", background: "transparent", bgSolid: "#070512",
     panel: "rgba(26,18,52,0.56)", panel2: "rgba(33,24,64,0.64)", panel3: "rgba(43,31,80,0.72)",
@@ -234,7 +238,33 @@ const COSMIC: ThemeSpec[] = [
     primary: "#a855f7", soft: "#d8b4fe", deep: "#7c3aed", ring: "rgba(168,85,247,0.55)", eyebrow: "#c4b5fd",
     paper: "#ede9fe", ink: "#160a2b",
     textMuted: "rgba(220,214,245,0.66)", textFaint: "rgba(200,194,230,0.42)",
-    backdrop: { kind: "galaxy", colors: ["#a855f7", "#6366f1", "#22d3ee", "#ec4899"], intensity: 1.05, meteors: 3 },
+    backdrop: { kind: "galaxy", colors: ["#a855f7", "#6366f1", "#22d3ee", "#ec4899"], intensity: 1.05, meteors: 10 },
+  },
+  {
+    id: "meteor", label: "Étoiles filantes", group: "cosmic", glass: true,
+    blurb: "Pluie d'étoiles filantes — une averse de météores sur l'indigo profond.",
+    themeColor: "#04060f", swatch: ["#0c1230", "#67e8f9", "#a855f7"],
+    foreground: "#eaf0fd", background: "transparent", bgSolid: "#04050f",
+    panel: "rgba(14,20,46,0.56)", panel2: "rgba(18,26,58,0.64)", panel3: "rgba(26,36,78,0.72)",
+    sidebar: "rgba(8,12,30,0.52)", popover: "rgba(12,18,42,0.92)",
+    line: "rgba(103,232,249,0.16)", lineStrong: "rgba(103,232,249,0.30)",
+    primary: "#22d3ee", soft: "#a5f3fc", deep: "#0891b2", ring: "rgba(34,211,238,0.55)", eyebrow: "#a5b4fc",
+    paper: "#cffafe", ink: "#06121f",
+    textMuted: "rgba(214,224,245,0.66)", textFaint: "rgba(194,206,235,0.42)",
+    backdrop: { kind: "galaxy", colors: ["#67e8f9", "#a855f7", "#818cf8", "#f0abfc"], intensity: 1.1, meteors: 22 },
+  },
+  {
+    id: "comet", label: "Comète", group: "cosmic", glass: true,
+    blurb: "Traînées d'émeraude — des comètes glissent sur un ciel de jade.",
+    themeColor: "#03100c", swatch: ["#082a20", "#34d399", "#a7f3d0"],
+    foreground: "#e9f6f0", background: "transparent", bgSolid: "#03100b",
+    panel: "rgba(8,30,24,0.56)", panel2: "rgba(11,38,30,0.64)", panel3: "rgba(15,50,40,0.72)",
+    sidebar: "rgba(5,20,16,0.52)", popover: "rgba(8,28,22,0.92)",
+    line: "rgba(52,211,153,0.16)", lineStrong: "rgba(52,211,153,0.30)",
+    primary: "#34d399", soft: "#a7f3d0", deep: "#059669", ring: "rgba(52,211,153,0.5)", eyebrow: "#6ee7b7",
+    paper: "#d1fae5", ink: "#05231a",
+    textMuted: "rgba(206,232,222,0.66)", textFaint: "rgba(188,214,204,0.42)",
+    backdrop: { kind: "galaxy", colors: ["#34d399", "#a7f3d0", "#5eead4", "#bbf7d0"], intensity: 1, meteors: 14 },
   },
   {
     id: "nocturne", label: "Nocturne", group: "cosmic", glass: true,
@@ -356,10 +386,96 @@ const VIVID: ThemeSpec[] = [
     textMuted: "rgba(220,214,238,0.64)", textFaint: "rgba(202,196,222,0.40)",
     backdrop: { kind: "nebula", colors: ["#a78bfa", "#6d28d9", "#f0abfc", "#4c1d95"], intensity: 0.7 },
   },
+  {
+    id: "prism", label: "Prisme", group: "vivid", glass: true,
+    blurb: "Spectre liquide — un arc-en-ciel de néons en rotation lente.",
+    themeColor: "#0a0814", swatch: ["#1a1233", "#22d3ee", "#f0abfc"],
+    foreground: "#f1edfb", background: "transparent", bgSolid: "#0a0814",
+    panel: "rgba(24,18,44,0.56)", panel2: "rgba(31,23,56,0.64)", panel3: "rgba(40,30,72,0.72)",
+    sidebar: "rgba(14,10,26,0.52)", popover: "rgba(20,15,38,0.92)",
+    line: "rgba(34,211,238,0.16)", lineStrong: "rgba(34,211,238,0.30)",
+    primary: "#22d3ee", soft: "#a5f3fc", deep: "#7c3aed", ring: "rgba(34,211,238,0.5)", eyebrow: "#f0abfc",
+    paper: "#cffafe", ink: "#120c28",
+    textMuted: "rgba(222,216,240,0.66)", textFaint: "rgba(204,198,224,0.42)",
+    backdrop: { kind: "mesh", colors: ["#22d3ee", "#a855f7", "#f0abfc", "#fb923c"], intensity: 1 },
+  },
+];
+
+// ---------------------------------------------------------------------------
+// AMBIANCE — desktop-only particle moods: real falling snow, drifting petals,
+// wandering fireflies, rising embers, slanting rain. Each is its own canvas
+// engine in <ThemeBackdrop/> (the rich PC cosmetics).
+// ---------------------------------------------------------------------------
+const AMBIANCE: ThemeSpec[] = [
+  {
+    id: "snowfall", label: "Chute de neige", group: "ambiance", glass: true,
+    blurb: "Flocons qui tombent — un ciel d'hiver bleu glacé, calme et feutré.",
+    themeColor: "#060b14", swatch: ["#0c1726", "#bae6fd", "#ffffff"],
+    foreground: "#eaf2fb", background: "transparent", bgSolid: "#060b14",
+    panel: "rgba(13,23,40,0.56)", panel2: "rgba(17,30,52,0.64)", panel3: "rgba(23,40,66,0.72)",
+    sidebar: "rgba(8,15,28,0.52)", popover: "rgba(12,21,38,0.92)",
+    line: "rgba(186,230,253,0.15)", lineStrong: "rgba(186,230,253,0.28)",
+    primary: "#7dd3fc", soft: "#bae6fd", deep: "#0284c7", ring: "rgba(125,211,252,0.5)", eyebrow: "#bae6fd",
+    paper: "#e0f2fe", ink: "#09131f",
+    textMuted: "rgba(208,221,238,0.64)", textFaint: "rgba(190,205,225,0.40)",
+    backdrop: { kind: "snow", colors: ["#ffffff", "#bae6fd", "#e0f2fe"], intensity: 1 },
+  },
+  {
+    id: "petals", label: "Pluie de pétales", group: "ambiance", glass: true,
+    blurb: "Cerisiers en fleur — des pétales roses descendent en tournoyant.",
+    themeColor: "#120610", swatch: ["#2a0f22", "#fb7185", "#fbcfe8"],
+    foreground: "#fbeaf3", background: "transparent", bgSolid: "#120610",
+    panel: "rgba(36,14,30,0.56)", panel2: "rgba(46,18,38,0.64)", panel3: "rgba(58,24,48,0.72)",
+    sidebar: "rgba(22,8,18,0.52)", popover: "rgba(30,12,26,0.92)",
+    line: "rgba(251,113,133,0.16)", lineStrong: "rgba(251,113,133,0.30)",
+    primary: "#fb7185", soft: "#fecdd3", deep: "#be123c", ring: "rgba(251,113,133,0.5)", eyebrow: "#fda4af",
+    paper: "#ffe4e6", ink: "#2a0a16",
+    textMuted: "rgba(238,212,222,0.66)", textFaint: "rgba(220,196,206,0.42)",
+    backdrop: { kind: "snow", colors: ["#fbcfe8", "#fb7185", "#f9a8d4"], intensity: 0.85 },
+  },
+  {
+    id: "fireflies", label: "Lucioles", group: "ambiance", glass: true,
+    blurb: "Nuit d'été — des lucioles dorées dérivent dans un sous-bois sombre.",
+    themeColor: "#06100a", swatch: ["#0c2418", "#bef264", "#fde047"],
+    foreground: "#eef6e6", background: "transparent", bgSolid: "#06100a",
+    panel: "rgba(11,28,18,0.56)", panel2: "rgba(15,36,24,0.64)", panel3: "rgba(20,48,32,0.72)",
+    sidebar: "rgba(6,18,12,0.52)", popover: "rgba(10,26,16,0.92)",
+    line: "rgba(190,242,100,0.15)", lineStrong: "rgba(190,242,100,0.28)",
+    primary: "#a3e635", soft: "#d9f99d", deep: "#4d7c0f", ring: "rgba(163,230,53,0.5)", eyebrow: "#fde047",
+    paper: "#ecfccb", ink: "#11210a",
+    textMuted: "rgba(216,230,200,0.64)", textFaint: "rgba(198,214,182,0.40)",
+    backdrop: { kind: "fireflies", colors: ["#fde047", "#bef264", "#a3e635", "#facc15"], intensity: 1 },
+  },
+  {
+    id: "forge", label: "Braises", group: "ambiance", glass: true,
+    blurb: "Feu de camp — des braises orange montent et scintillent dans le noir.",
+    themeColor: "#100502", swatch: ["#2a0d05", "#fb923c", "#fcd34d"],
+    foreground: "#fbeade", background: "transparent", bgSolid: "#100502",
+    panel: "rgba(40,14,7,0.56)", panel2: "rgba(52,18,9,0.64)", panel3: "rgba(66,24,12,0.72)",
+    sidebar: "rgba(24,9,4,0.52)", popover: "rgba(32,12,6,0.92)",
+    line: "rgba(251,146,60,0.18)", lineStrong: "rgba(251,146,60,0.32)",
+    primary: "#fb923c", soft: "#fed7aa", deep: "#c2410c", ring: "rgba(251,146,60,0.5)", eyebrow: "#fcd34d",
+    paper: "#ffedd5", ink: "#2a0d04",
+    textMuted: "rgba(236,214,200,0.66)", textFaint: "rgba(216,194,180,0.42)",
+    backdrop: { kind: "embers", colors: ["#fb923c", "#f97316", "#fcd34d", "#ef4444"], intensity: 1 },
+  },
+  {
+    id: "downpour", label: "Averse", group: "ambiance", glass: true,
+    blurb: "Pluie battante — des traits argentés zèbrent une ville ardoise.",
+    themeColor: "#070b12", swatch: ["#10192a", "#94a3b8", "#cbd5e1"],
+    foreground: "#e7edf5", background: "transparent", bgSolid: "#070b12",
+    panel: "rgba(15,23,38,0.56)", panel2: "rgba(20,30,48,0.64)", panel3: "rgba(28,40,62,0.72)",
+    sidebar: "rgba(9,14,24,0.52)", popover: "rgba(13,20,34,0.92)",
+    line: "rgba(148,163,184,0.15)", lineStrong: "rgba(148,163,184,0.28)",
+    primary: "#94a3b8", soft: "#cbd5e1", deep: "#475569", ring: "rgba(148,163,184,0.5)", eyebrow: "#cbd5e1",
+    paper: "#e2e8f0", ink: "#0d1320",
+    textMuted: "rgba(206,214,228,0.64)", textFaint: "rgba(188,198,214,0.40)",
+    backdrop: { kind: "rain", colors: ["#cbd5e1", "#94a3b8", "#e2e8f0"], intensity: 1 },
+  },
 ];
 
 export const THEMES: Record<string, Theme> = Object.fromEntries(
-  [...STREAMING, ...CLASSIC, ...COSMIC, ...VIVID].map((s) => [s.id, build(s)]),
+  [...STREAMING, ...CLASSIC, ...COSMIC, ...VIVID, ...AMBIANCE].map((s) => [s.id, build(s)]),
 );
 
 export const THEME_LIST: Theme[] = Object.values(THEMES);
@@ -375,6 +491,7 @@ export const THEME_GROUPS: { id: ThemeGroup; label: string }[] = [
   { id: "classic", label: "Classiques" },
   { id: "cosmic", label: "Cosmiques" },
   { id: "vivid", label: "Vibrants" },
+  { id: "ambiance", label: "Ambiances" },
 ];
 
 /**
