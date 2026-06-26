@@ -1,9 +1,10 @@
 import {
-  getUserState, setFavorite, recordPlay, setSetting,
+  getUserState, setFavorite, setDislike, recordPlay, recordSkip, setSetting,
   upsertPlaylist, deletePlaylist, reorderPlaylists, replaceUserState, resetUserStats, isHash,
 } from "@/server/state/userState";
 import { getRequestUser } from "@/server/auth";
 import { json, checkCsrf } from "@/server/http";
+import { invalidateReco } from "@/server/reco/engine";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -21,6 +22,10 @@ interface ActionBody {
   key?: string;
   id?: string;
   ids?: string[];
+  /** Milliseconds actually heard before a play/skip (taste-engine signal strength). */
+  msPlayed?: number;
+  /** Fraction of the track heard, 0..1 (how "complete" the listen / how early the skip). */
+  ratio?: number;
   playlist?: { id?: string; name: string; description?: string | null; pinned?: boolean; trackhashes?: string[] };
   state?: Parameters<typeof replaceUserState>[1];
 }
@@ -45,12 +50,24 @@ export async function PUT(request: Request) {
     case "favorite":
       if (!isHash(body.trackhash)) return json({ error: "valid trackhash required" }, { status: 400 });
       setFavorite(uid, body.trackhash, Boolean(body.value));
+      invalidateReco(uid);
+      return json({ ok: true });
+    case "dislike":
+      if (!isHash(body.trackhash)) return json({ error: "valid trackhash required" }, { status: 400 });
+      setDislike(uid, body.trackhash, Boolean(body.value));
+      invalidateReco(uid);
       return json({ ok: true });
     case "play": {
       if (!isHash(body.trackhash)) return json({ error: "valid trackhash required" }, { status: 400 });
-      const count = recordPlay(uid, body.trackhash);
+      const count = recordPlay(uid, body.trackhash, body.msPlayed, body.ratio);
+      invalidateReco(uid);
       return json({ ok: true, count });
     }
+    case "skip":
+      if (!isHash(body.trackhash)) return json({ error: "valid trackhash required" }, { status: 400 });
+      recordSkip(uid, body.trackhash, body.msPlayed, body.ratio);
+      invalidateReco(uid);
+      return json({ ok: true });
     case "setting":
       if (!body.key) return json({ error: "key required" }, { status: 400 });
       setSetting(uid, body.key, body.value);
@@ -75,6 +92,7 @@ export async function PUT(request: Request) {
     case "resetStats":
       // Clear this user's play counts / recents / event log (favourites + playlists kept).
       resetUserStats(uid);
+      invalidateReco(uid);
       return json({ ok: true });
     default:
       return json({ error: `Unknown action: ${body.action}` }, { status: 400 });

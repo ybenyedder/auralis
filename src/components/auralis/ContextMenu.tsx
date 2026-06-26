@@ -6,6 +6,7 @@ import {
   ListPlus,
   Plus,
   Heart,
+  ThumbsDown,
   Disc3,
   UserRound,
   ChevronRight,
@@ -32,6 +33,8 @@ export function ContextMenuHost() {
   const addToQueueEnd = usePlayer((s) => s.addToQueueEnd);
   const toggleFavorite = usePlayer((s) => s.toggleFavorite);
   const isFavorite = usePlayer((s) => s.isFavorite);
+  const toggleDislike = usePlayer((s) => s.toggleDislike);
+  const isDisliked = usePlayer((s) => s.isDisliked);
   const navigate = usePlayer((s) => s.navigate);
   const createPlaylist = usePlayer((s) => s.createPlaylist);
   const addToPlaylist = usePlayer((s) => s.addToPlaylist);
@@ -107,6 +110,8 @@ export function ContextMenuHost() {
           addToQueueEnd={addToQueueEnd}
           toggleFavorite={toggleFavorite}
           isFavorite={isFavorite}
+          toggleDislike={toggleDislike}
+          isDisliked={isDisliked}
           navigate={navigate}
           customPlaylists={customPlaylists}
           createPlaylist={createPlaylist}
@@ -191,6 +196,8 @@ function TrackMenu({
   addToQueueEnd,
   toggleFavorite,
   isFavorite,
+  toggleDislike,
+  isDisliked,
   navigate,
   customPlaylists,
   createPlaylist,
@@ -206,6 +213,8 @@ function TrackMenu({
   addToQueueEnd: (track: Track) => void;
   toggleFavorite: (trackhash: string) => void;
   isFavorite: (trackhash: string) => boolean;
+  toggleDislike: (trackhash: string) => void;
+  isDisliked: (trackhash: string) => boolean;
   navigate: (view: ViewId, id?: string) => void;
   customPlaylists: import("@/lib/auralis/types").Playlist[];
   createPlaylist: (name: string) => string;
@@ -214,6 +223,7 @@ function TrackMenu({
   const albums = useLibraryStore((state) => state.albums);
   const artists = useLibraryStore((state) => state.artists);
   const fav = isFavorite(track.trackhash);
+  const disliked = isDisliked(track.trackhash);
   const album = track.albumhash ? albums.find((item) => item.albumhash === track.albumhash) : undefined;
   const artist = track.artists?.[0] ?? artists.find((item) => item.name === track.artist);
 
@@ -260,6 +270,13 @@ function TrackMenu({
               label={fav ? "Retirer des favoris" : "Ajouter aux favoris"}
               onClick={() => run(() => toggleFavorite(track.trackhash))}
               accent={fav ? "primary" : undefined}
+            />
+            <MenuItem
+              sheet={sheet}
+              icon={ThumbsDown}
+              label={disliked ? "Ne plus masquer" : "Je n'aime pas"}
+              onClick={() => run(() => toggleDislike(track.trackhash))}
+              accent={disliked ? "primary" : undefined}
             />
             <MenuItem
               sheet={sheet}

@@ -4,6 +4,7 @@ import { create } from "zustand";
 import type { Track, Album, Artist, RepeatMode, Playlist } from "@/lib/auralis/types";
 import { api } from "@/lib/auralis/api";
 import { useLibraryStore } from "./library";
+import { useReco } from "./reco";
 import { usePlayhead } from "./playhead";
 import {
   THEMES,
@@ -116,6 +117,7 @@ interface PlayerState {
   /** Endless listening: when the queue ends, auto-append similar tracks and keep going. */
   autoplay: boolean;
   favorites: Set<string>;
+  dislikes: Set<string>;
   recentTrackhashes: string[];
   playCounts: Record<string, number>;
 
@@ -168,9 +170,14 @@ interface PlayerState {
   /** Count a *real* listen (fired by the shell after a play threshold, not on
    *  track selection): bumps recents + play count, server stays authoritative. */
   scrobble: (trackhash: string) => void;
+  /** Record a SKIP (fired by the shell when the user advances before the listen
+   *  threshold): a negative taste signal, scaled by how little was heard. */
+  recordSkip: (trackhash: string, msPlayed: number, ratio: number) => void;
 
   toggleFavorite: (trackhash: string) => void;
   isFavorite: (trackhash: string) => boolean;
+  toggleDislike: (trackhash: string) => void;
+  isDisliked: (trackhash: string) => boolean;
 
   createPlaylist: (name: string, description?: string) => string;
   deletePlaylist: (id: string) => void;
@@ -212,6 +219,7 @@ interface PlayerState {
 
 interface ServerState {
   favorites: string[];
+  dislikes: string[];
   playCounts: Record<string, number>;
   recents: string[];
   playlists: { id: string; name: string; description: string | null; pinned: boolean; trackhashes: string[] }[];
@@ -241,27 +249,52 @@ function reorderWithFirst<T>(list: T[], firstIndex: number): T[] {
   return [first, ...rest];
 }
 
+// Trackhashes whose *departure* must NOT be recorded as a skip (going to the
+// PREVIOUS track, a resumed-session track, a programmatic restart). The shell's
+// skip detector consults and one-shot-clears this on each track change — the store
+// owns the navigation intent, the shell owns the listening progress.
+const skipExempt = new Set<string>();
+/** Mark a track so leaving it next isn't counted as a skip (one-shot). */
+export function exemptFromSkip(trackhash: string | undefined | null): void {
+  if (trackhash) skipExempt.add(trackhash);
+}
+/** True if leaving `trackhash` should be exempt; clears the flag (one-shot). */
+export function consumeSkipExempt(trackhash: string): boolean {
+  return skipExempt.delete(trackhash);
+}
+
 /** Build an "autoplay/radio" continuation when the queue runs out: tracks by the
- *  same artist(s) or genre as the current one (so it feels related), shuffled, and
- *  excluding anything already queued. Falls back to a fresh library shuffle. */
+ *  same artist(s) or genre as the current one (so it feels related), then ranked by
+ *  the user's taste score so the radio leans into what they actually love and away
+ *  from what they reject. Disliked tracks are dropped outright; a little jitter
+ *  keeps the radio from being identical every lap. Falls back to the wider library. */
 function buildContinuation(current: Track | null, queued: Track[], library: Track[]): Track[] {
   if (library.length === 0) return [];
   const inQueue = new Set(queued.map((t) => t.trackhash));
+  const { scores, disliked } = useReco.getState();
+  // Exclude dislikes from the AUTHORITATIVE player set (updated synchronously on
+  // toggle, hydrated from localStorage even offline), unioned with the reco mirror
+  // so a dislike synced from another device is honoured too. The reco mirror alone
+  // lags behind a just-made dislike by the refresh debounce and is empty offline.
+  const playerDislikes = usePlayer.getState().dislikes;
+  const isDisliked = (h: string) => playerDislikes.has(h) || disliked.has(h);
   const curArtists = new Set((current?.artists ?? []).map((a) => a.artisthash).filter(Boolean));
   const curGenre = current?.genre;
-  const similar = library.filter(
-    (t) =>
-      !inQueue.has(t.trackhash) &&
-      ((t.artists ?? []).some((a) => curArtists.has(a.artisthash)) || (!!curGenre && t.genre === curGenre)),
+  const available = library.filter((t) => !inQueue.has(t.trackhash) && !isDisliked(t.trackhash));
+  const similar = available.filter(
+    (t) => (t.artists ?? []).some((a) => curArtists.has(a.artisthash)) || (!!curGenre && t.genre === curGenre),
   );
-  const pool = similar.length >= 5 ? similar : library.filter((t) => !inQueue.has(t.trackhash));
-  return shuffleArray(pool).slice(0, 20);
+  const pool = similar.length >= 5 ? similar : available;
+  // Taste score biases the order; the jitter (~score magnitude) preserves variety.
+  const rank = (t: Track) => (scores.get(t.trackhash) ?? 0) + Math.random() * 0.6;
+  return [...pool].sort((a, b) => rank(b) - rank(a)).slice(0, 20);
 }
 
 const LS_KEY = "auralis.vault.v1";
 
 interface Persisted {
   favorites: string[];
+  dislikes: string[];
   volume: number;
   muted: boolean;
   repeat: RepeatMode;
@@ -306,6 +339,7 @@ function writePersist(state: PlayerState) {
   try {
     const data: Persisted = {
       favorites: Array.from(state.favorites),
+      dislikes: Array.from(state.dislikes),
       volume: state.volume,
       muted: state.muted,
       repeat: state.repeat,
@@ -426,6 +460,7 @@ export const usePlayer = create<PlayerState>((set, get) => {
     shuffle: false,
     autoplay: true,
     favorites: new Set<string>(),
+    dislikes: new Set<string>(),
     recentTrackhashes: [],
     playCounts: {},
 
@@ -576,6 +611,10 @@ export const usePlayer = create<PlayerState>((set, get) => {
         prevIndex = repeat === "all" ? shuffledQueue.length - 1 : 0;
       }
       const prev = shuffledQueue[prevIndex];
+      // Going BACK isn't a rejection of the current track — exempt its departure
+      // from skip detection (only when we actually move to a different track).
+      const leaving = get().currentTrack?.trackhash;
+      if (leaving && prev && prev.trackhash !== leaving) exemptFromSkip(leaving);
       usePlayhead.getState().reset(prev.duration || 0);
       set(() => {
         const upd = {
@@ -788,6 +827,15 @@ export const usePlayer = create<PlayerState>((set, get) => {
           }
         })
         .catch(() => {});
+      // A completed listen nudges the taste profile — refresh the recs (debounced).
+      useReco.getState().scheduleRefresh();
+    },
+
+    recordSkip: (trackhash, msPlayed, ratio) => {
+      // Skips don't touch local play counts/recents — they're a negative signal,
+      // not a listen. Just tell the server and let the engine re-weight.
+      void api.put("/api/state", { action: "skip", trackhash, msPlayed, ratio }).catch(() => {});
+      useReco.getState().scheduleRefresh();
     },
 
     toggleFavorite: (trackhash) => {
@@ -796,14 +844,35 @@ export const usePlayer = create<PlayerState>((set, get) => {
         const next = new Set(s.favorites);
         if (next.has(trackhash)) next.delete(trackhash);
         else { next.add(trackhash); nowFavorite = true; }
-        const upd = { favorites: next };
+        // Liking clears any prior dislike (opposite verdicts) — mirror the server.
+        const dislikes = new Set(s.dislikes);
+        if (nowFavorite) dislikes.delete(trackhash);
+        const upd = { favorites: next, dislikes };
         persist({ ...get(), ...upd });
         return upd;
       });
       void api.put("/api/state", { action: "favorite", trackhash, value: nowFavorite }).catch(() => {});
+      useReco.getState().scheduleRefresh();
       get().notify(nowFavorite ? "Ajouté aux favoris" : "Retiré des favoris");
     },
     isFavorite: (trackhash) => get().favorites.has(trackhash),
+
+    toggleDislike: (trackhash) => {
+      let nowDisliked = false;
+      set((s) => {
+        const next = new Set(s.dislikes);
+        const favorites = new Set(s.favorites);
+        if (next.has(trackhash)) next.delete(trackhash);
+        else { next.add(trackhash); nowDisliked = true; favorites.delete(trackhash); }
+        const upd = { dislikes: next, favorites };
+        persist({ ...get(), ...upd });
+        return upd;
+      });
+      void api.put("/api/state", { action: "dislike", trackhash, value: nowDisliked }).catch(() => {});
+      useReco.getState().scheduleRefresh();
+      get().notify(nowDisliked ? "Moins de titres comme celui-ci" : "Préférence retirée");
+    },
+    isDisliked: (trackhash) => get().dislikes.has(trackhash),
 
     createPlaylist: (name, description) => {
       const id = `pl-${Date.now().toString(36)}-${Math.floor(Math.random() * 1e6).toString(36)}`;
@@ -999,6 +1068,7 @@ export const usePlayer = create<PlayerState>((set, get) => {
         shuffle: p.shuffle ?? false,
         autoplay: p.autoplay ?? true,
         favorites: new Set(p.favorites ?? []),
+        dislikes: new Set(p.dislikes ?? []),
         recentTrackhashes: p.recentTrackhashes ?? [],
         playCounts: p.playCounts ?? {},
         customPlaylists: p.customPlaylists ?? [],
@@ -1017,6 +1087,7 @@ export const usePlayer = create<PlayerState>((set, get) => {
       // track and it vanished / didn't save". The server stays the source of
       // truth; we only graft back the user's just-made, not-yet-synced edits.
       const beforeFav = new Set(get().favorites);
+      const beforeDis = new Set(get().dislikes);
       const beforePlaylistIds = new Set(get().customPlaylists.map((p) => String(p.id)));
       try {
         const s = await api.get<ServerState>("/api/state");
@@ -1029,6 +1100,12 @@ export const usePlayer = create<PlayerState>((set, get) => {
         const favorites = new Set(s.favorites);
         addedDuringFetch.forEach((h) => favorites.add(h));
         removedDuringFetch.forEach((h) => favorites.delete(h));
+
+        // Same graft for dislikes made while the GET was in flight.
+        const liveDis = local.dislikes;
+        const dislikes = new Set(s.dislikes ?? []);
+        [...liveDis].filter((h) => !beforeDis.has(h)).forEach((h) => dislikes.add(h));
+        [...beforeDis].filter((h) => !liveDis.has(h)).forEach((h) => dislikes.delete(h));
 
         const serverPlaylists: Playlist[] = s.playlists.map((p) => ({
           id: p.id, name: p.name, description: p.description ?? undefined, pinned: p.pinned,
@@ -1050,6 +1127,7 @@ export const usePlayer = create<PlayerState>((set, get) => {
         );
         set({
           favorites,
+          dislikes,
           playCounts: s.playCounts,
           recentTrackhashes: s.recents,
           customPlaylists,
@@ -1058,6 +1136,8 @@ export const usePlayer = create<PlayerState>((set, get) => {
         });
         applyTheme(theme);
         persist({ ...get() });
+        // Profile is synced — warm up the personalised recommendations.
+        void useReco.getState().fetchForYou();
       } catch {
         set({ syncReady: true }); // offline — keep the local cache
       }
@@ -1087,6 +1167,9 @@ export const usePlayer = create<PlayerState>((set, get) => {
       if (pos > 0) {
         usePlayhead.getState().setPosition(pos); // scrubber shows where you left off
         pendingResumeSeek = { trackhash: order[idx].trackhash, position: pos }; // <audio> seeks here on load
+        // A resumed track was already partly heard last session; leaving it now
+        // isn't a fresh skip (the accumulator can't see the prior listening).
+        exemptFromSkip(order[idx].trackhash);
       } else {
         pendingResumeSeek = null;
       }
@@ -1101,6 +1184,7 @@ export const usePlayer = create<PlayerState>((set, get) => {
       set({ recentTrackhashes: [], playCounts: {} });
       persist({ ...get(), recentTrackhashes: [], playCounts: {} });
       void api.put("/api/state", { action: "resetStats" }).catch(() => {});
+      useReco.getState().scheduleRefresh();
       get().notify("Historique d'écoute réinitialisé");
     },
 

@@ -16,6 +16,7 @@ export interface PlaylistDTO {
 
 export interface UserState {
   favorites: string[];
+  dislikes: string[];
   playCounts: Record<string, number>;
   recents: string[];
   playlists: PlaylistDTO[];
@@ -27,6 +28,7 @@ const RECENTS_LIMIT = 100;
 export function getUserState(userId: number): UserState {
   const db = getDb();
   const favorites = (db.prepare("SELECT trackhash FROM favorites WHERE user_id = ? ORDER BY created_at DESC").all(userId) as { trackhash: string }[]).map((r) => r.trackhash);
+  const dislikes = (db.prepare("SELECT trackhash FROM dislikes WHERE user_id = ? ORDER BY created_at DESC").all(userId) as { trackhash: string }[]).map((r) => r.trackhash);
   const playCounts: Record<string, number> = {};
   for (const r of db.prepare("SELECT trackhash, count FROM playcounts WHERE user_id = ?").all(userId) as { trackhash: string; count: number }[]) {
     playCounts[r.trackhash] = r.count;
@@ -55,21 +57,38 @@ export function getUserState(userId: number): UserState {
     }
   }
 
-  return { favorites, playCounts, recents, playlists, settings };
+  return { favorites, dislikes, playCounts, recents, playlists, settings };
 }
 
 export function setFavorite(userId: number, trackhash: string, favorite: boolean): void {
   const db = getDb();
   if (favorite) {
     db.prepare("INSERT INTO favorites (user_id, trackhash, created_at) VALUES (?, ?, ?) ON CONFLICT(user_id, trackhash) DO NOTHING").run(userId, trackhash, Date.now());
+    // Liking a track clears any prior "not for me" — the two are opposite verdicts.
+    db.prepare("DELETE FROM dislikes WHERE user_id = ? AND trackhash = ?").run(userId, trackhash);
   } else {
     db.prepare("DELETE FROM favorites WHERE user_id = ? AND trackhash = ?").run(userId, trackhash);
   }
 }
 
-export function recordPlay(userId: number, trackhash: string): number {
+/** Explicit "not for me" verdict — a strong negative for the reco engine and a
+ *  hard exclude from every recommendation surface. Disliking also drops the track
+ *  from favourites (opposite verdicts can't both hold). */
+export function setDislike(userId: number, trackhash: string, dislike: boolean): void {
+  const db = getDb();
+  if (dislike) {
+    db.prepare("INSERT INTO dislikes (user_id, trackhash, created_at) VALUES (?, ?, ?) ON CONFLICT(user_id, trackhash) DO NOTHING").run(userId, trackhash, Date.now());
+    db.prepare("DELETE FROM favorites WHERE user_id = ? AND trackhash = ?").run(userId, trackhash);
+  } else {
+    db.prepare("DELETE FROM dislikes WHERE user_id = ? AND trackhash = ?").run(userId, trackhash);
+  }
+}
+
+export function recordPlay(userId: number, trackhash: string, msPlayed?: number, ratio?: number): number {
   const db = getDb();
   const now = Date.now();
+  const ms = Number.isFinite(msPlayed) && (msPlayed as number) > 0 ? Math.round(msPlayed as number) : 0;
+  const r = Number.isFinite(ratio) ? Math.max(0, Math.min(1, ratio as number)) : 1;
   const tx = db.transaction(() => {
     db.prepare(`
       INSERT INTO playcounts (user_id, trackhash, count, last_played) VALUES (?, ?, 1, ?)
@@ -77,16 +96,32 @@ export function recordPlay(userId: number, trackhash: string): number {
     `).run(userId, trackhash, now);
     db.prepare("INSERT INTO recents (user_id, trackhash, played_at) VALUES (?, ?, ?) ON CONFLICT(user_id, trackhash) DO UPDATE SET played_at = excluded.played_at").run(userId, trackhash, now);
     db.prepare("DELETE FROM recents WHERE user_id = ? AND trackhash NOT IN (SELECT trackhash FROM recents WHERE user_id = ? ORDER BY played_at DESC LIMIT ?)").run(userId, userId, RECENTS_LIMIT);
-    // Append to the per-day event log (streaks / weekly recap) and prune the tail.
-    db.prepare("INSERT INTO play_events (user_id, trackhash, played_at) VALUES (?, ?, ?)").run(userId, trackhash, now);
+    // Append to the per-day event log (streaks / weekly recap / taste engine) and prune the tail.
+    db.prepare("INSERT INTO play_events (user_id, trackhash, played_at, kind, ms_played, ratio) VALUES (?, ?, ?, 'complete', ?, ?)").run(userId, trackhash, now, ms, r);
     db.prepare("DELETE FROM play_events WHERE user_id = ? AND played_at < ?").run(userId, now - 400 * 86_400_000);
   });
   tx();
   return (db.prepare("SELECT count FROM playcounts WHERE user_id = ? AND trackhash = ?").get(userId, trackhash) as { count: number } | undefined)?.count ?? 0;
 }
 
-/** Wipe a user's listening history (play counts, recents, per-day event log).
- *  Favourites and playlists are kept — this only clears the "stats" signals. */
+/** Record a SKIP: the user advanced before the listen threshold. Feeds the taste
+ *  engine a negative signal (scaled by how little was heard) without touching play
+ *  counts / recents / streaks — it isn't a listen, just a rejection. */
+export function recordSkip(userId: number, trackhash: string, msPlayed?: number, ratio?: number): void {
+  const db = getDb();
+  const now = Date.now();
+  const ms = Number.isFinite(msPlayed) && (msPlayed as number) > 0 ? Math.round(msPlayed as number) : 0;
+  const r = Number.isFinite(ratio) ? Math.max(0, Math.min(1, ratio as number)) : 0;
+  const tx = db.transaction(() => {
+    db.prepare("INSERT INTO play_events (user_id, trackhash, played_at, kind, ms_played, ratio) VALUES (?, ?, ?, 'skip', ?, ?)").run(userId, trackhash, now, ms, r);
+    db.prepare("DELETE FROM play_events WHERE user_id = ? AND played_at < ?").run(userId, now - 400 * 86_400_000);
+  });
+  tx();
+}
+
+/** Wipe a user's listening history (play counts, recents, per-day event log incl.
+ *  skips). Favourites, dislikes and playlists are kept — those are explicit
+ *  preferences, not the auto-collected "stats" signals this clears. */
 export function resetUserStats(userId: number): void {
   const db = getDb();
   const tx = db.transaction(() => {
@@ -162,6 +197,7 @@ export function reorderPlaylists(userId: number, orderedIds: string[]): void {
 // Hard ceilings so a single authenticated `replace` payload can't blow up the DB
 // (a trivial DoS otherwise — favorites/playCounts/playlists were unbounded).
 const MAX_FAVORITES = 100_000;
+const MAX_DISLIKES = 100_000;
 const MAX_PLAYCOUNTS = 100_000;
 const MAX_PLAYLISTS = 500;
 const MAX_TRACKS_PER_PLAYLIST = 50_000;
@@ -176,6 +212,16 @@ export function replaceUserState(userId: number, state: Partial<UserState>): voi
       db.prepare("DELETE FROM favorites WHERE user_id = ?").run(userId);
       const ins = db.prepare("INSERT INTO favorites (user_id, trackhash, created_at) VALUES (?, ?, ?) ON CONFLICT(user_id, trackhash) DO NOTHING");
       state.favorites.filter(isHash).slice(0, MAX_FAVORITES).forEach((h, i) => ins.run(userId, h, Date.now() - i));
+    }
+    if (state.dislikes) {
+      db.prepare("DELETE FROM dislikes WHERE user_id = ?").run(userId);
+      const ins = db.prepare("INSERT INTO dislikes (user_id, trackhash, created_at) VALUES (?, ?, ?) ON CONFLICT(user_id, trackhash) DO NOTHING");
+      const delFav = db.prepare("DELETE FROM favorites WHERE user_id = ? AND trackhash = ?");
+      const base = Date.now();
+      state.dislikes.filter(isHash).slice(0, MAX_DISLIKES).forEach((h, i) => {
+        ins.run(userId, h, base - i);
+        delFav.run(userId, h); // keep the favourite/dislike mutual exclusion on import
+      });
     }
     if (state.playCounts) {
       db.prepare("DELETE FROM playcounts WHERE user_id = ?").run(userId);

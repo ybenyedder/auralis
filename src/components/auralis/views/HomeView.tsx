@@ -5,6 +5,7 @@ import { Play, Settings, Heart } from "lucide-react";
 import { usePlayer, shuffleArray } from "@/store/player";
 import { useLibraryStore, tracksForHashesFrom } from "@/store/library";
 import { useStats } from "@/store/stats";
+import { useReco } from "@/store/reco";
 import { SectionHeader } from "../SectionHeader";
 import { AlbumCard, ArtistCard } from "../Cards";
 import { Artwork } from "../Artwork";
@@ -17,6 +18,7 @@ export function HomeView() {
   const recentTrackhashes = usePlayer((s) => s.recentTrackhashes);
   const playCounts = usePlayer((s) => s.playCounts);
   const favorites = usePlayer((s) => s.favorites);
+  const dislikes = usePlayer((s) => s.dislikes);
   const tracks = useLibraryStore((s) => s.tracks);
   const albums = useLibraryStore((s) => s.albums);
   const artists = useLibraryStore((s) => s.artists);
@@ -27,6 +29,24 @@ export function HomeView() {
   useEffect(() => {
     if (!statsLoaded) void fetchStats();
   }, [statsLoaded, fetchStats]);
+
+  // Personalised recommendations from the server taste engine.
+  const recoForYou = useReco((s) => s.forYou);
+  const recoScores = useReco((s) => s.scores);
+  const recoProfile = useReco((s) => s.profile);
+  const recoLoaded = useReco((s) => s.loaded);
+  const fetchForYou = useReco((s) => s.fetchForYou);
+  useEffect(() => {
+    if (!recoLoaded) void fetchForYou();
+  }, [recoLoaded, fetchForYou]);
+
+  // "Fait pour vous" — the top of the engine's ranked mix, resolved against the
+  // in-memory library. Skipped / disliked tracks never reach here (the server
+  // scores them down / excludes them), so feedback visibly reshapes this shelf.
+  const forYou = useMemo(() => {
+    const ranked = tracksForHashesFrom(tracks, recoForYou.map((r) => r.trackhash));
+    return ranked.filter((t) => !dislikes.has(t.trackhash)).slice(0, 12);
+  }, [tracks, recoForYou, dislikes]);
 
   // Read the wall clock once after mount (never during render — that's impure and
   // would also risk an SSR/CSR mismatch). Drives the greeting.
@@ -72,6 +92,7 @@ export function HomeView() {
     const byMood = new Map<string, typeof tracks>();
     const plays = new Map<string, number>();
     for (const t of tracks) {
+      if (dislikes.has(t.trackhash)) continue; // never resurface rejected tracks
       const id = moodForTrack(t);
       if (!id) continue;
       const arr = byMood.get(id);
@@ -81,11 +102,18 @@ export function HomeView() {
     }
     if (byMood.size === 0) return null;
 
+    // Prefer the engine's learned mood affinity (it folds in skips / likes / recency);
+    // fall back to raw play tallies, then the biggest bucket for a fresh library.
     let topId: string | null = null;
-    let best = -1;
-    const ranking = plays.size > 0 ? plays : new Map([...byMood].map(([id, a]) => [id, a.length]));
-    for (const [id, score] of ranking) {
-      if (score > best) { best = score; topId = id; }
+    const affinity = recoProfile?.moods?.find((m) => m.weight > 0 && byMood.has(m.mood));
+    if (affinity) {
+      topId = affinity.mood;
+    } else {
+      let best = -1;
+      const ranking = plays.size > 0 ? plays : new Map([...byMood].map(([id, a]) => [id, a.length]));
+      for (const [id, score] of ranking) {
+        if (score > best) { best = score; topId = id; }
+      }
     }
     if (!topId) return null;
     const mood = moodById(topId);
@@ -93,11 +121,18 @@ export function HomeView() {
 
     const pool = byMood.get(topId) ?? [];
     if (pool.length < 4) return null;
-    // Least-played first (discovery), then shuffle the freshest slice for variety.
-    const ranked = [...pool].sort((a, b) => (playCounts[a.trackhash] ?? 0) - (playCounts[b.trackhash] ?? 0));
-    const recs = shuffleArray(ranked.slice(0, 40)).slice(0, 8);
+    // Rank by taste score when we have one (loved tracks rise, low-affinity sink);
+    // else least-played-first for discovery. A light shuffle of the top slice keeps
+    // the shelf fresh between visits.
+    const hasScores = recoScores.size > 0;
+    const ranked = [...pool].sort((a, b) =>
+      hasScores
+        ? (recoScores.get(b.trackhash) ?? 0) - (recoScores.get(a.trackhash) ?? 0)
+        : (playCounts[a.trackhash] ?? 0) - (playCounts[b.trackhash] ?? 0),
+    );
+    const recs = shuffleArray(ranked.slice(0, hasScores ? 16 : 40)).slice(0, 8);
     return { mood, recs };
-  }, [tracks, playCounts]);
+  }, [tracks, playCounts, dislikes, recoProfile, recoScores]);
 
   // Spotify "quick access" grid: the row of horizontal cards under the greeting.
   // Liked Songs first (the iconic purple tile), then your recently played tracks.
@@ -161,6 +196,37 @@ export function HomeView() {
             </div>
           ) : null}
         </section>
+
+        {forYou.length >= 4 && (
+          <section>
+            <div className="mb-1 flex items-end justify-between gap-3">
+              <div className="min-w-0">
+                <p className="text-[11px] font-bold uppercase tracking-[0.14em] text-[var(--text-muted)]">Recommandé pour vous</p>
+                <h2 className="truncate text-[20px] font-black tracking-tight text-foreground lg:text-[24px]">Fait pour vous</h2>
+              </div>
+              <button
+                onClick={() => playList(forYou, 0)}
+                className="signal-button hidden shrink-0 items-center gap-2 rounded-full px-5 py-2.5 text-[13px] font-bold sm:inline-flex"
+              >
+                <Play className="size-4 fill-current" />
+                Lire
+              </button>
+            </div>
+            <div className="mt-4 grid grid-cols-2 gap-3 xl:grid-cols-4">
+              {forYou.map((t, i) => (
+                <QuickTile
+                  key={t.trackhash}
+                  title={trackTitle(t)}
+                  subtitle={trackArtist(t)}
+                  image={t.image}
+                  colors={t.color}
+                  onPlay={() => playList(forYou, i)}
+                  onOpen={() => playList(forYou, i)}
+                />
+              ))}
+            </div>
+          </section>
+        )}
 
         {moodRecs && (
           <section>

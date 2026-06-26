@@ -213,6 +213,28 @@ const MIGRATIONS: string[] = [
   ALTER TABLE tracks ADD COLUMN analyzed_at INTEGER NOT NULL DEFAULT 0;
   CREATE INDEX IF NOT EXISTS idx_tracks_analyzed ON tracks(analyzed_at);
   `,
+  // v7 — feedback-driven recommendations. Two new signals join the existing
+  // "complete listen" (the only thing recorded until now):
+  //   • SKIPS — the event log gains a `kind` ('complete' | 'skip') plus how much
+  //     of the track was actually heard (`ms_played`, `ratio`). Existing rows are
+  //     all real listens, so they default to 'complete' (keeping streaks/recap
+  //     unchanged). Skips feed the taste engine a negative signal.
+  //   • DISLIKES — an explicit "not for me" per user, a hard exclude from recs
+  //     (mirrors the favorites table, opposite polarity).
+  // The composite index serves the engine's per-user, per-kind event scan.
+  `
+  ALTER TABLE play_events ADD COLUMN kind      TEXT NOT NULL DEFAULT 'complete';
+  ALTER TABLE play_events ADD COLUMN ms_played INTEGER NOT NULL DEFAULT 0;
+  ALTER TABLE play_events ADD COLUMN ratio     REAL NOT NULL DEFAULT 1;
+  CREATE INDEX IF NOT EXISTS idx_play_events_user_kind ON play_events(user_id, kind, played_at DESC);
+
+  CREATE TABLE IF NOT EXISTS dislikes (
+    user_id    INTEGER NOT NULL,
+    trackhash  TEXT NOT NULL,
+    created_at INTEGER NOT NULL DEFAULT 0,
+    PRIMARY KEY (user_id, trackhash)
+  );
+  `,
 ];
 
 function migrate(db: DB) {

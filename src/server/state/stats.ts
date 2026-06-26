@@ -40,14 +40,14 @@ export function getListeningStats(userId: number): ListeningStats {
   // Distinct local days with activity (bounded by the 400-day log retention) —
   // bucketed in SQLite so we walk at most ~400 day strings, not every event.
   const dayRows = db
-    .prepare("SELECT DISTINCT strftime('%Y-%m-%d', played_at / 1000, 'unixepoch', 'localtime') AS day FROM play_events WHERE user_id = ?")
+    .prepare("SELECT DISTINCT strftime('%Y-%m-%d', played_at / 1000, 'unixepoch', 'localtime') AS day FROM play_events WHERE user_id = ? AND kind = 'complete'")
     .all(userId) as { day: string }[];
   const daySet = new Set(dayRows.map((r) => r.day));
 
   // Per-day counts over the last 8 days (covers today + the 7-day sparkline).
   const since = Date.now() - 8 * 86_400_000;
   const countRows = db
-    .prepare("SELECT strftime('%Y-%m-%d', played_at / 1000, 'unixepoch', 'localtime') AS day, COUNT(*) AS c FROM play_events WHERE user_id = ? AND played_at >= ? GROUP BY day")
+    .prepare("SELECT strftime('%Y-%m-%d', played_at / 1000, 'unixepoch', 'localtime') AS day, COUNT(*) AS c FROM play_events WHERE user_id = ? AND kind = 'complete' AND played_at >= ? GROUP BY day")
     .all(userId, since) as { day: string; c: number }[];
   const countByDay = new Map(countRows.map((r) => [r.day, r.c]));
 
@@ -80,10 +80,10 @@ export function getListeningStats(userId: number): ListeningStats {
   // Listening time = sum of played track durations (joined to the catalogue).
   const weekSince = Date.now() - 7 * 86_400_000;
   const weekListeningSeconds = (db
-    .prepare("SELECT COALESCE(SUM(t.duration), 0) AS s FROM play_events pe JOIN tracks t ON t.trackhash = pe.trackhash WHERE pe.user_id = ? AND pe.played_at >= ?")
+    .prepare("SELECT COALESCE(SUM(t.duration), 0) AS s FROM play_events pe JOIN tracks t ON t.trackhash = pe.trackhash WHERE pe.user_id = ? AND pe.kind = 'complete' AND pe.played_at >= ?")
     .get(userId, weekSince) as { s: number }).s;
   const totalListeningSeconds = (db
-    .prepare("SELECT COALESCE(SUM(t.duration), 0) AS s FROM play_events pe JOIN tracks t ON t.trackhash = pe.trackhash WHERE pe.user_id = ?")
+    .prepare("SELECT COALESCE(SUM(t.duration), 0) AS s FROM play_events pe JOIN tracks t ON t.trackhash = pe.trackhash WHERE pe.user_id = ? AND pe.kind = 'complete'")
     .get(userId) as { s: number }).s;
 
   return { totalPlays, todayPlays, weekPlays, streak, playsByDay, weekListeningSeconds, totalListeningSeconds };

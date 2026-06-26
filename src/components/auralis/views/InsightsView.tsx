@@ -7,6 +7,7 @@ import { useLibraryStore } from "@/store/library";
 import { useStats } from "@/store/stats";
 import { formatCount, formatLongDuration } from "@/lib/auralis/brand";
 import { SectionHeader } from "../SectionHeader";
+import { MoodRecapPanel } from "../MoodRecapPanel";
 import { cn } from "@/lib/utils";
 
 export function InsightsView() {
@@ -92,6 +93,8 @@ export function InsightsView() {
           Ces métriques viennent uniquement de la bibliothèque locale indexée. Aucun chiffre de tendance artificiel n’est généré.
         </p>
       </div>
+
+      <MoodRecapPanel />
 
       <WeeklyRecap streak={streak} weekPlays={weekPlays} todayPlays={todayPlays} playsByDay={playsByDay} weekListeningSeconds={weekListeningSeconds} totalListeningSeconds={totalListeningSeconds} />
 

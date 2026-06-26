@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef } from "react";
-import { usePlayer, bindAudio, consumeResumeSeek, type ViewId } from "@/store/player";
+import { usePlayer, bindAudio, consumeResumeSeek, consumeSkipExempt, type ViewId } from "@/store/player";
 import { usePlayhead } from "@/store/playhead";
 import { TitleBar } from "@/components/auralis/TitleBar";
 import { Sidebar } from "@/components/auralis/Sidebar";
@@ -26,6 +26,7 @@ import { InsightsView } from "@/components/auralis/views/InsightsView";
 import { AlbumDetail, ArtistDetail, PlaylistDetail, SettingsView } from "@/components/auralis/views/DetailView";
 import { useLibrary } from "@/store/library";
 import { useStats } from "@/store/stats";
+import { useRecap, monthKeyFr, monthLabelFr } from "@/store/reco";
 import { api } from "@/lib/auralis/api";
 import { trackTitle, trackArtist } from "@/lib/auralis/brand";
 import { AuthGate } from "@/components/auralis/AuthGate";
@@ -93,6 +94,33 @@ function AuralisShell() {
   useEffect(() => {
     if (libStatus === "ready") usePlayer.getState().restoreLastSession();
   }, [libStatus]);
+
+  // End-of-month mood recap nudge: once a new month has started and the previous
+  // month has listening data the user hasn't been shown yet, surface its recap
+  // (Spotify-Wrapped style, but monthly). Fires at most once per month.
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    let cancelled = false;
+    void useRecap.getState().fetchRecap().then(() => {
+      if (cancelled) return;
+      const { months } = useRecap.getState();
+      const thisMonth = monthKeyFr(Date.now());
+      const elapsed = months.find((m) => m < thisMonth); // newest fully-elapsed month with data
+      if (!elapsed) return;
+      let seen = "";
+      try { seen = window.localStorage.getItem("auralis.lastRecapSeen") || ""; } catch { /* unavailable */ }
+      if (elapsed === seen) return;
+      try { window.localStorage.setItem("auralis.lastRecapSeen", elapsed); } catch { /* unavailable */ }
+      usePlayer.getState().notify(`🗓️ Ton bilan d’humeur de ${monthLabelFr(elapsed)} est prêt`, {
+        tone: "info",
+        action: {
+          label: "Voir",
+          run: () => { void useRecap.getState().fetchRecap(elapsed); usePlayer.getState().navigate("insights"); },
+        },
+      });
+    });
+    return () => { cancelled = true; };
+  }, []);
 
   // Nudge to personalise the auto-generated admin password (flagged by AuthGate).
   useEffect(() => {
@@ -241,9 +269,13 @@ function AuralisShell() {
     // min(30s, 50% of the track). We sum small forward deltas (ignoring seeks — a
     // jump >2s isn't listening) so skip-spam no longer inflates counts/recents.
     let accumHash = "";
+    let accumDuration = 0;
     let listened = 0;
     let lastClock = 0;
     let scrobbledHash = "";
+    // The hash of a track that ENDED naturally (incl. via a seek to the end), so the
+    // next track-change isn't mistaken for a skip.
+    let endedHash = "";
     // Counts back-to-back media errors (dead/moved files) so a skip-on-error can't
     // spin forever on a wholly broken library. Reset the moment a track plays.
     let consecutiveErrors = 0;
@@ -254,13 +286,32 @@ function AuralisShell() {
       if (ct) {
         const cur = audio.currentTime;
         if (ct.trackhash !== accumHash) {
+          // Outgoing-track accounting: leaving a track before it was scrobbled — and
+          // that DIDN'T end naturally and isn't an exempt move (previous / resumed
+          // session) — is a SKIP, a negative taste signal scaled by how little was
+          // heard. The >=1s guard ignores rapid re-selections and dead files (which
+          // never really started), so they don't poison the profile. The exempt check
+          // is consumed on every change (one-shot), regardless of the other guards.
+          const exempt = accumHash ? consumeSkipExempt(accumHash) : false;
+          if (accumHash && !exempt && accumHash !== scrobbledHash && accumHash !== endedHash && listened >= 1) {
+            const ratio = accumDuration > 0 ? Math.min(1, listened / accumDuration) : 0;
+            usePlayer.getState().recordSkip(accumHash, Math.round(listened * 1000), ratio);
+          }
           accumHash = ct.trackhash;
+          // Trust the element's duration only once it has actually loaded THIS track
+          // (the src swap is async — a stray timeupdate can still report the previous
+          // track's duration); otherwise fall back to the store track's own duration.
+          accumDuration = audio.dataset.trackhash === ct.trackhash && audio.duration && Number.isFinite(audio.duration)
+            ? audio.duration
+            : ct.duration || 0;
           listened = 0;
           lastClock = cur;
         } else {
           const dt = cur - lastClock;
           if (dt > 0 && dt < 2) { listened += dt; consecutiveErrors = 0; }
           lastClock = cur;
+          // Reconcile to the real duration once this track's own metadata has loaded.
+          if (audio.dataset.trackhash === ct.trackhash && audio.duration && Number.isFinite(audio.duration)) accumDuration = audio.duration;
         }
         if (scrobbledHash !== ct.trackhash) {
           const dur = audio.duration && Number.isFinite(audio.duration) ? audio.duration : ct.duration || 0;
@@ -311,12 +362,15 @@ function AuralisShell() {
         usePlayhead.getState().setPosition(0);
         // Reset the scrobble gate so each repeat counts as its own listen.
         accumHash = "";
+        accumDuration = 0;
         listened = 0;
         scrobbledHash = "";
         usePlayer.setState({ isPlaying: true });
         audio.play().catch(() => state.notify("Lecture audio indisponible", { tone: "error" }));
         return;
       }
+      // Natural completion — mark it so the upcoming track-change isn't a "skip".
+      endedHash = accumHash;
       state.playNext();
     };
     const onError = () => {
@@ -335,6 +389,11 @@ function AuralisShell() {
         state.notify("Lecture impossible — fichiers introuvables", { tone: "error" });
         return;
       }
+      // A dead source isn't a user skip. Mark the track that actually errored (the
+      // current one) — accumHash can still point at the PREVIOUS track when a freshly
+      // selected file fails before its first timeupdate, and that previous track's
+      // genuine skip must NOT be suppressed.
+      endedHash = state.currentTrack?.trackhash ?? accumHash;
       state.playNext();
     };
 
