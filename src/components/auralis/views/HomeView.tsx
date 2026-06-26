@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { Play, Settings, Heart, Music2 } from "lucide-react";
 import { usePlayer, shuffleArray } from "@/store/player";
-import { useLibraryStore, tracksForHashesFrom, artistPlayTotals } from "@/store/library";
+import { useLibraryStore, tracksFromIndex, artistPlayTotals } from "@/store/library";
 import { useStats } from "@/store/stats";
 import { useReco } from "@/store/reco";
 import { SectionHeader } from "../SectionHeader";
@@ -20,6 +20,7 @@ export function HomeView() {
   const favorites = usePlayer((s) => s.favorites);
   const dislikes = usePlayer((s) => s.dislikes);
   const tracks = useLibraryStore((s) => s.tracks);
+  const trackIndex = useLibraryStore((s) => s.trackIndex);
   const albums = useLibraryStore((s) => s.albums);
   const artists = useLibraryStore((s) => s.artists);
   const error = useLibraryStore((s) => s.error);
@@ -44,9 +45,9 @@ export function HomeView() {
   // in-memory library. Skipped / disliked tracks never reach here (the server
   // scores them down / excludes them), so feedback visibly reshapes this shelf.
   const forYou = useMemo(() => {
-    const ranked = tracksForHashesFrom(tracks, recoForYou.map((r) => r.trackhash));
+    const ranked = tracksFromIndex(trackIndex, recoForYou.map((r) => r.trackhash));
     return ranked.filter((t) => !dislikes.has(t.trackhash)).slice(0, 12);
-  }, [tracks, recoForYou, dislikes]);
+  }, [trackIndex, recoForYou, dislikes]);
 
   // Read the wall clock once after mount (never during render — that's impure and
   // would also risk an SSR/CSR mismatch). Drives the greeting.
@@ -58,8 +59,8 @@ export function HomeView() {
 
   // Real listening history (no fake fill — an empty history shows no shelf).
   const recent = useMemo(
-    () => tracksForHashesFrom(tracks, recentTrackhashes).slice(0, 6),
-    [tracks, recentTrackhashes],
+    () => tracksFromIndex(trackIndex, recentTrackhashes).slice(0, 6),
+    [trackIndex, recentTrackhashes],
   );
 
   const featuredAlbums = albums.slice(0, 6);

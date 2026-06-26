@@ -3,7 +3,7 @@
 import { useMemo } from "react";
 import { Clock3, Play, History } from "lucide-react";
 import { usePlayer } from "@/store/player";
-import { useLibraryStore, tracksForHashesFrom } from "@/store/library";
+import { useLibraryStore, tracksFromIndex } from "@/store/library";
 import { SectionHeader } from "../SectionHeader";
 import { TrackRow } from "../TrackRow";
 import { Artwork } from "../Artwork";
@@ -13,9 +13,9 @@ export function RecentsView() {
   const playTrack = usePlayer((s) => s.playTrack);
   const navigate = usePlayer((s) => s.navigate);
   const recentTrackhashes = usePlayer((s) => s.recentTrackhashes);
-  const tracks = useLibraryStore((s) => s.tracks);
+  const trackIndex = useLibraryStore((s) => s.trackIndex);
 
-  const recent = useMemo(() => tracksForHashesFrom(tracks, recentTrackhashes), [recentTrackhashes, tracks]);
+  const recent = useMemo(() => tracksFromIndex(trackIndex, recentTrackhashes), [recentTrackhashes, trackIndex]);
   const hasLive = recentTrackhashes.length > 0;
   const groups = useMemo(() => {
     if (recent.length === 0) return [];

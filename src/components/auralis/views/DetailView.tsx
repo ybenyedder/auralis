@@ -29,7 +29,7 @@ import { api } from "@/lib/auralis/api";
 import {
   albumsOfArtistFrom,
   artistPlayTotals,
-  tracksForHashesFrom,
+  tracksFromIndex,
   tracksOfAlbumFrom,
   tracksOfArtistFrom,
   useLibraryStore,
@@ -318,7 +318,7 @@ export function PlaylistDetail({ id }: { id: string }) {
   const deletePlaylist = usePlayer((s) => s.deletePlaylist);
   const navigate = usePlayer((s) => s.navigate);
   const removeFromPlaylist = usePlayer((s) => s.removeFromPlaylist);
-  const libraryTracks = useLibraryStore((state) => state.tracks);
+  const trackIndex = useLibraryStore((state) => state.trackIndex);
   const libraryPlaylists = useLibraryStore((state) => state.playlists);
   const status = useLibraryStore((state) => state.status);
   const libraryPlaylist = useMemo(
@@ -334,9 +334,9 @@ export function PlaylistDetail({ id }: { id: string }) {
   const tracks = useMemo(
     () =>
       playlist
-        ? tracksForHashesFrom(libraryTracks, playlist.trackhashes ?? [])
+        ? tracksFromIndex(trackIndex, playlist.trackhashes ?? [])
         : [],
-    [libraryTracks, playlist],
+    [trackIndex, playlist],
   );
   const [editing, setEditing] = useState(false);
   const [name, setName] = useState("");

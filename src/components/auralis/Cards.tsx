@@ -4,7 +4,7 @@ import { memo, useMemo, type MouseEvent } from "react";
 import { Play, MoreVertical } from "lucide-react";
 import type { Album, Artist, Playlist } from "@/lib/auralis/types";
 import { usePlayer } from "@/store/player";
-import { tracksForHashesFrom, tracksOfAlbumFrom, useLibraryStore } from "@/store/library";
+import { tracksForHashes, tracksFromIndex, tracksOfAlbumFrom, useLibraryStore } from "@/store/library";
 import { useAlbumContextMenu, useArtistContextMenu } from "./ContextMenu";
 import { Artwork } from "./Artwork";
 import { paletteForName, albumArtist, formatCount, plural } from "@/lib/auralis/brand";
@@ -158,13 +158,14 @@ export const ArtistCard = memo(function ArtistCard({ artist }: { artist: Artist 
 export const PlaylistTile = memo(function PlaylistTile({ playlist }: { playlist: Playlist }) {
   const navigate = usePlayer((s) => s.navigate);
   const playList = usePlayer((s) => s.playList);
-  const tracks = useLibraryStore((state) => state.tracks);
+  const trackIndex = useLibraryStore((state) => state.trackIndex);
   const colors = playlist.color ?? paletteForName(playlist.name);
-  // Memoise the cover lookup — it scans the whole library; recomputing it on every
-  // render (e.g. parent re-render) was wasted work per tile.
+  // Memoise the cover lookup over the prebuilt index — recomputing it on every
+  // render (e.g. parent re-render) was wasted work per tile, and the old helper
+  // rebuilt a whole-library Map each call.
   const coverImage = useMemo(
-    () => tracksForHashesFrom(tracks, playlist.trackhashes ?? []).find((t) => t.image)?.image,
-    [tracks, playlist.trackhashes],
+    () => tracksFromIndex(trackIndex, playlist.trackhashes ?? []).find((t) => t.image)?.image,
+    [trackIndex, playlist.trackhashes],
   );
   return (
     <div
@@ -204,7 +205,7 @@ export const PlaylistTile = memo(function PlaylistTile({ playlist }: { playlist:
         <button
           onClick={(e) => {
             e.stopPropagation();
-            const list = tracksForHashesFrom(tracks, playlist.trackhashes ?? []);
+            const list = tracksForHashes(playlist.trackhashes ?? []);
             if (list.length) playList(list, 0);
           }}
           aria-label={`Lire ${playlist.name}`}

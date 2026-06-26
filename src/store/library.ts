@@ -169,6 +169,25 @@ export function tracksForHashesFrom(tracks: Track[], hashes: string[]): Track[] 
   return hashes.map((hash) => byHash.get(hash)).filter((track): track is Track => Boolean(track));
 }
 
+/** Resolve hashes → tracks (in hash order) using the store's PREBUILT index instead
+ *  of rebuilding a full-library Map on every call. The index changes identity with
+ *  the library, so subscribing to it invalidates exactly like subscribing to tracks.
+ *  Prefer this over tracksForHashesFrom on hot paths (home shelves, playlist covers). */
+export function tracksFromIndex(index: Map<string, Track>, hashes: string[]): Track[] {
+  if (hashes.length === 0) return [];
+  const out: Track[] = [];
+  for (const hash of hashes) {
+    const track = index.get(hash);
+    if (track) out.push(track);
+  }
+  return out;
+}
+
+/** Live index lookup for non-reactive call sites (click handlers, store actions). */
+export function tracksForHashes(hashes: string[]): Track[] {
+  return tracksFromIndex(useLibraryStore.getState().trackIndex, hashes);
+}
+
 export function tracksOfAlbumFrom(tracks: Track[], albumhash: string): Track[] {
   return tracks.filter((track) => track.albumhash === albumhash);
 }

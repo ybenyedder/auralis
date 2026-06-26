@@ -26,11 +26,6 @@ export function InsightsView() {
   useEffect(() => {
     if (!statsLoaded) void fetchStats();
   }, [statsLoaded, fetchStats]);
-  const tracksWithCounts = useMemo(
-    () => tracks.map((track) => ({ ...track, playcount: playCounts[track.trackhash] ?? track.playcount ?? 0 })),
-    [tracks, playCounts],
-  );
-
   const artistTrackData = useMemo(
     () => [...artists].sort((a, b) => (b.trackcount || 0) - (a.trackcount || 0)).slice(0, 8),
     [artists],
@@ -55,25 +50,30 @@ export function InsightsView() {
       .slice(0, 8);
   }, [tracks, playCounts]);
 
+  // Genre histogram only needs each track's genre (independent of play counts), so
+  // it derives straight from `tracks` — no per-play-count full-library object copy.
   const genreData = useMemo(() => {
     const map = new Map<string, number>();
-    tracksWithCounts.forEach((track) => {
+    for (const track of tracks) {
       const genre = track.genre || "Non tagué";
       map.set(genre, (map.get(genre) || 0) + 1);
-    });
+    }
     return Array.from(map.entries())
       .map(([name, value]) => ({ name, value }))
       .sort((a, b) => b.value - a.value)
       .slice(0, 10);
-  }, [tracksWithCounts]);
+  }, [tracks]);
 
   const albumData = useMemo(
     () => [...albums].sort((a, b) => (b.trackcount || 0) - (a.trackcount || 0)).slice(0, 8),
     [albums],
   );
 
-  const totalPlays = tracksWithCounts.reduce((sum, track) => sum + (track.playcount || 0), 0);
-  const totalDuration = tracksWithCounts.reduce((sum, track) => sum + (track.duration || 0), 0);
+  const totalDuration = useMemo(() => tracks.reduce((sum, track) => sum + (track.duration || 0), 0), [tracks]);
+  const totalPlays = useMemo(
+    () => tracks.reduce((sum, track) => sum + (playCounts[track.trackhash] ?? 0), 0),
+    [tracks, playCounts],
+  );
 
   const kpis: { label: string; value: string; icon: ComponentType<{ className?: string }> }[] = [
     { label: "Écoutes locales", value: formatCount(totalPlays), icon: Headphones },
