@@ -2,6 +2,14 @@ appId: local.auralis.desktop
 productName: Auralis
 copyright: Auralis
 
+# Publish straight to a public GitHub Release on `--publish always` (electron-builder
+# defaults to a DRAFT, which then has to be released by hand — see v1.4.0).
+publish:
+  provider: github
+  owner: ybenyedder
+  repo: auralis
+  releaseType: release
+
 directories:
   output: dist-desktop
   buildResources: build
