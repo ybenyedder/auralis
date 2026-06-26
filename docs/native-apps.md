@@ -23,25 +23,25 @@ The Debian `.deb` installs the app into `/opt/Auralis`, registers a desktop entr
 and icon, and declares its GTK/NSS/ALSA runtime dependencies. Building the Windows
 target on Linux requires Wine; otherwise build it on Windows.
 
-## Android — Capacitor
+## Android — native Kotlin/Compose
 
-Source: `capacitor.config.ts`, `mobile/www/index.html`, generated `android/` project,
-`scripts/build-apk.mjs`.
+Source: `android-native/` (Kotlin + Jetpack Compose + media3), `scripts/build-native-apk.mjs`.
 
-The Android app is a native client for a self-hosted Auralis server. A small bundled
-screen asks for the server's LAN address on first launch, verifies it via
-`/api/health`, then navigates the WebView to your server so the full UI and its
-same-origin `/api` load from it. Cleartext is enabled for plain-HTTP LAN servers.
+The Android app is a fully native client for a self-hosted Auralis server — no
+WebView. An onboarding screen asks for the server's LAN address on first launch,
+verifies it via `/api/health` and logs in, then the whole UI (home, library, player
+with ExoPlayer/media3, lyrics, playlists, insights + the recommendation/mood-recap
+features) is rendered natively against the server's `/api`. Cleartext is enabled for
+plain-HTTP LAN servers.
 
 ```bash
-npm run mobile:add    # one-time: npx cap add android
-npm run mobile:sync   # copy connect screen + config into the project
-npm run mobile:apk    # → android/app/build/outputs/apk/debug/app-debug.apk
+npm run mobile:native   # → android-native/app/build/outputs/apk/debug/app-debug.apk
 ```
 
-Requires a JDK and the Android SDK. The Gradle wrapper fetches Gradle on first run.
-A release (signed) build follows the standard Android signing flow in Android Studio
-or via Gradle `assembleRelease` with a configured keystore.
+Requires a JDK and the Android SDK (`android-native/local.properties` → `sdk.dir`).
+The Gradle wrapper fetches Gradle on first run; pass `--offline` once the cache is
+warm. A release (signed) build follows the standard Gradle `assembleRelease` flow
+with a configured keystore.
 
 ## CI
 

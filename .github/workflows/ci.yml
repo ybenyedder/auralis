@@ -103,11 +103,9 @@ jobs:
           java-version: 21
       - uses: android-actions/setup-android@v3
       - run: npm ci
-      - name: Generate + build Android client
-        run: |
-          npx cap sync android
-          npm run mobile:apk
+      - name: Build native Android client
+        run: npm run mobile:native
       - uses: actions/upload-artifact@v4
         with:
           name: auralis-android
-          path: android/app/build/outputs/apk/debug/*.apk
+          path: android-native/app/build/outputs/apk/debug/*.apk

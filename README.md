@@ -130,17 +130,20 @@ Prebuilt installers are attached to each [release](https://github.com/ybenyedder
 
 ## Android app
 
-A native client that connects to your self-hosted server. On Android, Auralis ships
-the [`@jofr/capacitor-media-session`](https://github.com/jofr/capacitor-media-session)
-native plugin, so you get a real system notification and lock-screen controls —
-artwork, scrubbing, play/pause/skip — not the half-working WebView version.
+A fully native Kotlin/Compose client (`android-native/`, no WebView) that connects
+to your self-hosted server. Playback runs on ExoPlayer/media3 with a real system
+notification and lock-screen controls — artwork, scrubbing, play/pause/skip — and
+the UI renders natively (home, library, player, lyrics, playlists, insights, plus
+the personalised recommendations and monthly mood recap).
 
 ```bash
-npm run mobile:sync             # sync web + native plugins
-npm run mobile:apk              # app-debug.apk
+npm run mobile:native           # → android-native/app/build/outputs/apk/debug/app-debug.apk
 ```
 
 Grab the prebuilt APK from the [latest release](https://github.com/ybenyedder/auralis/releases/latest).
+
+> Prefer the browser? The web app is fully responsive and installable as a PWA, so
+> opening your server's address on a phone gives the same mobile-styled interface.
 
 ---
 

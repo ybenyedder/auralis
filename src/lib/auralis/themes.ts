@@ -512,7 +512,7 @@ export function applyTheme(id: ThemeId): void {
   root.dataset.backdrop = theme.backdrop.kind;
   root.dataset.glass = theme.glass ? "1" : "0";
 
-  // Sync <meta name="theme-color"> for PWA / Android status bar / Electron.
+  // Sync <meta name="theme-color"> for the PWA install / browser chrome / Electron.
   let meta = document.querySelector('meta[name="theme-color"]');
   if (!meta) {
     meta = document.createElement("meta");
@@ -520,17 +520,4 @@ export function applyTheme(id: ThemeId): void {
     document.head.appendChild(meta);
   }
   meta.setAttribute("content", theme.themeColor);
-
-  // Android (Capacitor WebView): drive the native status bar to match the theme
-  // if the @capacitor/status-bar plugin is installed. No-op on web/Electron.
-  try {
-    const cap = (window as unknown as {
-      Capacitor?: { Plugins?: { StatusBar?: { setBackgroundColor?: (o: { color: string }) => void; setStyle?: (o: { style: string }) => void } } };
-    }).Capacitor;
-    const sb = cap?.Plugins?.StatusBar;
-    sb?.setBackgroundColor?.({ color: theme.themeColor });
-    sb?.setStyle?.({ style: "DARK" });
-  } catch {
-    /* status-bar plugin not present */
-  }
 }

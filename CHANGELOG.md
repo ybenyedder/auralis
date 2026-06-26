@@ -6,6 +6,34 @@ All notable changes to Auralis are documented here. The format is based on
 
 ## [Unreleased]
 
+## [1.4.0] — 2026-06-26
+
+### Added
+- **Recommandations pilotées par tes retours.** Un moteur de goût côté serveur
+  apprend de ton écoute : un titre **skippé** remonte moins (et, via les données
+  audio energy/bpm/humeur, ses voisins de même ambiance aussi), une **écoute
+  complète** ou un **like** le font remonter, un **« Je n'aime pas »** l'exclut.
+  Nouvel endpoint `/api/recommend` (mix « Fait pour vous » + radio) et nouvelle
+  étagère **« Fait pour vous »** sur l'accueil.
+- **Bilan mensuel d'humeur.** À la fin de chaque mois, Auralis te dit l'ambiance
+  dans laquelle tu as le plus vécu (mélancolique, heureuse, électrique…) avec un
+  résumé, la répartition des humeurs, tes titres/artistes du mois et une
+  comparaison au mois précédent — dans **Analyse**, plus une notification en début
+  de mois (`/api/recap`).
+- **Action « Je n'aime pas »** dans le menu d'un titre, et un toggle **« lecture
+  continue »** sur le client natif.
+- **Classification d'humeur audio réelle** (DSP ffmpeg : energy/bpm/brillance →
+  6 humeurs) qui alimente les mixes d'humeur et les recommandations.
+- **Fonds animés par thème** (desktop) et **vignettes de pochettes WebP
+  redimensionnées** (`?w=`) pour un chargement nettement plus rapide.
+
+### Changed
+- **Mobile : application 100 % native.** L'ancienne app Android Capacitor (WebView)
+  est supprimée au profit du **client natif Kotlin/Compose**. L'interface web reste
+  entièrement responsive et installable en PWA : ouvrir l'adresse du serveur depuis
+  un téléphone garde une belle interface mobile.
+- Le **client natif** passe à parité avec le web (recommandations + bilan d'humeur).
+
 ## [1.3.2] — 2026-06-26
 
 ### Changed
