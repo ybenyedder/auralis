@@ -23,6 +23,10 @@ node_modules
 # runtime data (SQLite db, art cache)
 /data/
 
+# publish scripts containing secrets (GitHub PAT) — never commit
+publish.sh
+upload_linux.sh
+
 # misc
 .DS_Store
 *.pem
