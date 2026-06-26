@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState, type ComponentType } from "react";
+import { useDeferredValue, useEffect, useMemo, useRef, useState, type ComponentType } from "react";
 import {
   Search,
   Home,
@@ -16,7 +16,7 @@ import {
   ListMusic,
   UserRound,
   CornerDownLeft,
-  Clock3,
+  Command,
 } from "lucide-react";
 import { usePlayer } from "@/store/player";
 import { useLibraryStore } from "@/store/library";
@@ -45,6 +45,9 @@ export function CommandPalette() {
   const artists = useLibraryStore((state) => state.artists);
   const playlists = useLibraryStore((state) => state.playlists);
   const [q, setQ] = useState("");
+  // Defer the heavy catalogue scan so each keystroke stays responsive even with a
+  // huge library (typing updates the input immediately; results catch up).
+  const deferredQ = useDeferredValue(q);
   const [active, setActive] = useState(0);
   const inputRef = useRef<HTMLInputElement>(null);
   const listRef = useRef<HTMLDivElement>(null);
@@ -63,7 +66,12 @@ export function CommandPalette() {
     }
   }, [commandOpen]);
 
-  const items = useMemo<CmdItem[]>(() => {
+  // Build matches by scanning the RAW catalogue against the query and materialising
+  // CmdItems ONLY for the (capped) matches. The previous version pre-built CmdItems
+  // for the whole library AND only searched `tracks.slice(0,40)` — so most titles
+  // were unfindable. Each group early-breaks at its cap, so a hit is cheap; a miss is
+  // a single bounded pass that the deferred query keeps off the typing path.
+  const filtered = useMemo<CmdItem[]>(() => {
     const nav: CmdItem[] = [
       { id: "nav-home", label: "Accueil", icon: Home, group: "Navigation", action: () => navigate("home") },
       { id: "nav-explore", label: "Recherche", icon: Compass, group: "Navigation", action: () => navigate("explore") },
@@ -74,53 +82,50 @@ export function CommandPalette() {
       { id: "nav-insights", label: "Analyse", icon: BarChart3, group: "Navigation", action: () => navigate("insights") },
       { id: "nav-settings", label: "Réglages", icon: Settings, group: "Navigation", action: () => navigate("settings") },
     ];
-    const trackItems: CmdItem[] = tracks.slice(0, 40).map((t) => ({
-      id: `t-${t.trackhash}`,
-      label: trackTitle(t),
-      sub: trackArtist(t),
-      icon: Play,
-      group: "Titres",
-      keywords: `${t.title} ${t.artist} ${t.album} ${t.genre}`,
+    const toTrack = (t: (typeof tracks)[number]): CmdItem => ({
+      id: `t-${t.trackhash}`, label: trackTitle(t), sub: trackArtist(t), icon: Play, group: "Titres",
       action: () => playTrack(t, [t], 0),
-    }));
-    const albumItems: CmdItem[] = albums.map((a) => ({
-      id: `a-${a.albumhash}`,
-      label: a.title,
-      sub: `${a.albumartists[0]?.name} · ${a.year}`,
-      icon: Disc3,
-      group: "Albums",
-      keywords: `${a.title} ${a.albumartists[0]?.name}`,
-      action: () => navigate("album", a.albumhash),
-    }));
-    const artistItems: CmdItem[] = artists.map((a) => ({
-      id: `ar-${a.artisthash}`,
-      label: a.name,
-      sub: a.genres?.join(", "),
-      icon: UserRound,
-      group: "Artistes",
-      action: () => navigate("artist", a.artisthash),
-    }));
-    const playlistItems: CmdItem[] = [...customPlaylists, ...playlists].map((p) => ({
-      id: `p-${p.id}`,
-      label: p.name,
-      sub: `${p.trackcount} titres`,
-      icon: ListMusic,
-      group: "Playlists",
-      action: () => navigate("playlist", String(p.id)),
-    }));
-    return [...nav, ...trackItems, ...albumItems, ...artistItems, ...playlistItems];
-  }, [albums, artists, customPlaylists, navigate, playTrack, playlists, tracks]);
+    });
+    const query = deferredQ.trim().toLowerCase();
 
-  const filtered = useMemo(() => {
-    const query = q.trim().toLowerCase();
-    if (!query) return items.slice(0, 30);
-    return items
-      .filter((it) => {
-        const hay = `${it.label} ${it.sub ?? ""} ${it.keywords ?? ""}`.toLowerCase();
-        return hay.includes(query);
-      })
-      .slice(0, 40);
-  }, [items, q]);
+    if (!query) {
+      // No query: navigation + a few quick track suggestions.
+      return [...nav, ...tracks.slice(0, 8).map(toTrack)];
+    }
+
+    const CAP = 8;
+    const navMatches = nav.filter((it) => it.label.toLowerCase().includes(query));
+
+    const trackMatches: CmdItem[] = [];
+    for (const t of tracks) {
+      if (`${t.title} ${t.artist ?? ""} ${t.album ?? ""} ${t.genre ?? ""}`.toLowerCase().includes(query)) {
+        trackMatches.push(toTrack(t));
+        if (trackMatches.length >= CAP) break;
+      }
+    }
+    const albumMatches: CmdItem[] = [];
+    for (const a of albums) {
+      if (`${a.title} ${a.albumartists[0]?.name ?? ""}`.toLowerCase().includes(query)) {
+        albumMatches.push({ id: `a-${a.albumhash}`, label: a.title, sub: `${a.albumartists[0]?.name ?? ""} · ${a.year ?? ""}`, icon: Disc3, group: "Albums", action: () => navigate("album", a.albumhash) });
+        if (albumMatches.length >= CAP) break;
+      }
+    }
+    const artistMatches: CmdItem[] = [];
+    for (const a of artists) {
+      if (`${a.name} ${a.genres?.join(" ") ?? ""}`.toLowerCase().includes(query)) {
+        artistMatches.push({ id: `ar-${a.artisthash}`, label: a.name, sub: a.genres?.join(", "), icon: UserRound, group: "Artistes", action: () => navigate("artist", a.artisthash) });
+        if (artistMatches.length >= CAP) break;
+      }
+    }
+    const playlistMatches: CmdItem[] = [];
+    for (const p of [...customPlaylists, ...playlists]) {
+      if (p.name.toLowerCase().includes(query)) {
+        playlistMatches.push({ id: `p-${p.id}`, label: p.name, sub: `${p.trackcount ?? 0} titres`, icon: ListMusic, group: "Playlists", action: () => navigate("playlist", String(p.id)) });
+        if (playlistMatches.length >= CAP) break;
+      }
+    }
+    return [...navMatches, ...trackMatches, ...albumMatches, ...artistMatches, ...playlistMatches];
+  }, [albums, artists, customPlaylists, deferredQ, navigate, playTrack, playlists, tracks]);
 
   // Group filtered items preserving order
   const groups = useMemo(() => {
@@ -193,7 +198,7 @@ export function CommandPalette() {
             aria-autocomplete="list"
             aria-activedescendant={filtered.length > 0 ? `cmd-opt-${active}` : undefined}
           />
-          <kbd className="rounded-full bg-white/5 px-2 py-0.5 text-[9px] font-bold text-muted-foreground shadow-[inset_0_1px_0_rgba(255,255,255,0.05)]">ESC</kbd>
+          <kbd className="rounded-full bg-[var(--panel-2)] px-2 py-0.5 text-[9px] font-bold text-muted-foreground">ESC</kbd>
         </div>
 
         {/* Results */}
@@ -226,13 +231,13 @@ export function CommandPalette() {
                       }}
                       className={cn(
                         "group flex w-full items-center gap-3 rounded-md px-2.5 py-2 text-left transition-all duration-200",
-                        isActive ? "bg-white/5" : "hover:bg-white/[0.03]",
+                        isActive ? "bg-white/5" : "hover:bg-white/[0.04]",
                       )}
                     >
                       <span
                         className={cn(
-                          "grid size-7 shrink-0 place-items-center transition-transform duration-200",
-                          isActive ? "text-primary drop-shadow-[0_0_8px_rgba(217,95,69,0.5)] scale-110" : "text-muted-foreground group-hover:scale-110",
+                          "grid size-7 shrink-0 place-items-center transition-colors duration-200",
+                          isActive ? "text-primary" : "text-muted-foreground",
                         )}
                       >
                         <Icon className="size-3.5" />
@@ -253,7 +258,7 @@ export function CommandPalette() {
         {/* Footer */}
         <div className="flex items-center justify-between border-t border-[var(--line)] px-4 py-2 text-[10.5px] text-muted-foreground">
           <span className="flex items-center gap-1.5">
-            <Clock3 className="size-3" /> Commande Auralis
+            <Command className="size-3" /> Commande Auralis
           </span>
           <span className="flex items-center gap-2">
             <kbd className="rounded-sm border border-[var(--line)] bg-[var(--panel-2)] px-1 py-0.5 font-bold">↑↓</kbd>

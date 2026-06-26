@@ -65,7 +65,7 @@ export function VisualizerOverlay() {
     window.addEventListener("resize", resize);
 
     const seed = hashString(currentTrack?.trackhash ?? "auralis");
-    const colors = currentTrack?.color ?? ["#2A2821", "#D95F45", "#E5A184"];
+    const colors = currentTrack?.color ?? ["#2a2a2a", "#535353", "#7a7a7a"];
 
     // Pre-compute 64 deterministic "frequency" amplitudes
     const bars = Array.from({ length: 64 }, (_, i) => {
@@ -198,7 +198,7 @@ export function VisualizerOverlay() {
       {/* Top bar */}
       <div className="relative flex items-center justify-between px-6 py-4">
         <div className="flex items-center gap-2">
-          <span className="grid h-7 w-7 place-items-center rounded-full bg-white/10 backdrop-blur shadow-[0_2px_8px_rgba(0,0,0,0.2)] text-primary-soft">
+          <span className="grid h-7 w-7 place-items-center rounded-full bg-[var(--panel-2)] text-primary-soft">
             <span className="size-2 rounded-full bg-primary-soft animate-pulse" />
           </span>
           <p className="text-[10px] font-semibold uppercase tracking-[0.08em] text-white/80">
@@ -208,7 +208,7 @@ export function VisualizerOverlay() {
         <button
           onClick={closeVisualizer}
           aria-label="Fermer le visualiseur"
-          className="grid h-9 w-9 place-items-center rounded-full bg-white/10 text-foreground backdrop-blur shadow-[0_2px_8px_rgba(0,0,0,0.2)] transition-all duration-200 hover:bg-white/20 hover:scale-105"
+          className="grid h-9 w-9 place-items-center rounded-full bg-[var(--panel-2)] text-foreground transition-colors hover:bg-[var(--panel-3)]"
         >
           <X className="size-5" />
         </button>
@@ -234,14 +234,14 @@ export function VisualizerOverlay() {
               <button
                 onClick={togglePlay}
                 aria-label={isPlaying ? "Pause" : "Lecture"}
-                className="signal-button grid h-14 w-14 place-items-center rounded-full shadow-[0_8px_24px_rgba(0,0,0,0.3)] transition-all duration-200 hover:scale-105 active:scale-95"
+                className="signal-button grid h-14 w-14 place-items-center rounded-full transition-colors active:scale-95"
               >
                 {isPlaying ? <Pause className="size-6 fill-current" /> : <Play className="size-6 fill-current ml-1" />}
               </button>
               <button
                 onClick={playNext}
                 aria-label="Suivant"
-                className="grid h-12 w-12 place-items-center rounded-full bg-white/10 backdrop-blur shadow-[0_4px_16px_rgba(0,0,0,0.2)] text-foreground transition-all duration-200 hover:bg-white/20 hover:scale-105 active:scale-95"
+                className="grid h-12 w-12 place-items-center rounded-full bg-[var(--panel-2)] text-foreground transition-colors hover:bg-[var(--panel-3)] active:scale-95"
               >
                 <SkipForward className="size-5 fill-current" />
               </button>

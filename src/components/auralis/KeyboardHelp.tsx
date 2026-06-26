@@ -67,13 +67,13 @@ export function KeyboardHelp() {
               <Keyboard className="size-4" />
             </span>
             <div>
-              <p className="text-[13px] font-black leading-tight text-foreground">Raccourcis clavier</p>
+              <p className="text-[13px] font-bold leading-tight text-foreground">Raccourcis clavier</p>
             </div>
           </div>
           <button
             onClick={() => setHelpOpen(false)}
             aria-label="Fermer"
-            className="grid size-7 place-items-center rounded-full text-muted-foreground transition-all duration-200 hover:bg-white/[0.04] hover:text-foreground hover:scale-105"
+            className="grid size-7 place-items-center rounded-full text-muted-foreground transition-colors duration-200 hover:bg-white/[0.04] hover:text-foreground"
           >
             <X className="size-4" />
           </button>
@@ -92,7 +92,7 @@ export function KeyboardHelp() {
                       {it.keys.map((k) => (
                         <kbd
                           key={k}
-                          className="min-w-[20px] rounded-full bg-white/5 px-2 py-0.5 text-center text-[10px] font-bold text-foreground/90 shadow-[inset_0_1px_0_rgba(255,255,255,0.05)] border border-transparent"
+                          className="min-w-[20px] rounded-full bg-[var(--panel-2)] px-2 py-0.5 text-center text-[10px] font-bold text-foreground/90 border border-transparent"
                         >
                           {k}
                         </kbd>
@@ -107,7 +107,7 @@ export function KeyboardHelp() {
 
         {/* Footer */}
         <div className="border-t border-[var(--line)] px-5 py-2.5 text-center text-[10.5px] text-muted-foreground/70">
-          <kbd className="rounded-full bg-white/5 px-2 py-0.5 font-bold shadow-[inset_0_1px_0_rgba(255,255,255,0.05)]">Esc</kbd>
+          <kbd className="rounded-full bg-[var(--panel-2)] px-2 py-0.5 font-bold">Esc</kbd> pour fermer
         </div>
       </div>
     </div>

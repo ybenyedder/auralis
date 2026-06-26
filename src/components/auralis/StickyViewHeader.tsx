@@ -49,17 +49,20 @@ export function StickyViewHeader({ scrollRef }: { scrollRef: RefObject<HTMLDivEl
         borderBottom: scrolled ? "1px solid var(--line)" : "1px solid transparent",
       }}
     >
-      <div className={cn("pointer-events-auto flex items-center gap-1", !canBack && "opacity-40")}>
+      {/* Only capture pointer events while the bar is actually revealed — otherwise
+          the invisible (opacity-0) back button + title sit over the top of the view
+          and swallow clicks meant for the content beneath. */}
+      <div className={cn("flex items-center gap-1", scrolled ? "pointer-events-auto" : "pointer-events-none", !canBack && "opacity-40")}>
         <button
           onClick={back}
           disabled={!canBack}
           aria-label="Retour"
-          className="grid size-7 place-items-center rounded-full text-muted-foreground transition-all duration-200 hover:bg-white/[0.04] hover:text-white hover:scale-105 disabled:cursor-default"
+          className="grid size-7 place-items-center rounded-full text-muted-foreground transition-colors duration-200 hover:bg-white/[0.04] hover:text-white disabled:cursor-default"
         >
           <ChevronLeft className="size-4" />
         </button>
       </div>
-      <p className="pointer-events-auto truncate text-[13px] font-black tracking-tight text-foreground">{title}</p>
+      <p className={cn("truncate text-[13px] font-bold tracking-tight text-foreground", scrolled ? "pointer-events-auto" : "pointer-events-none")}>{title}</p>
     </div>
   );
 }

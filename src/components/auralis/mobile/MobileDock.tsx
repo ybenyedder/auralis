@@ -46,7 +46,7 @@ function MiniPlayer() {
 
   return (
     <div 
-      className="relative flex flex-col overflow-hidden rounded-md bg-[var(--panel-2)] shadow-lg"
+      className="relative flex flex-col overflow-hidden rounded-md bg-[var(--panel-2)] shadow-md"
     >
       <div className="flex h-14 items-center gap-2 px-2 py-1">
         <button
@@ -61,7 +61,6 @@ function MiniPlayer() {
             rounded={4}
             colors={currentTrack.color}
             image={currentTrack.image}
-            className="shadow-md"
           />
           <div className="min-w-0 flex-1">
             <span className="block truncate text-[13px] font-bold leading-tight text-white">
@@ -112,7 +111,7 @@ function TabBar() {
   const navigate = usePlayer((s) => s.navigate);
 
   return (
-    <nav aria-label="Navigation principale" className="flex h-[64px] items-stretch justify-around px-2 bg-gradient-to-t from-black to-black/80">
+    <nav aria-label="Navigation principale" className="flex h-[64px] items-stretch justify-around px-2 bg-[var(--sidebar)]">
       {TABS.map((tab) => {
         const Icon = tab.icon;
         const active = tab.owns.includes(view.view);

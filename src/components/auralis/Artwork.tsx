@@ -61,7 +61,20 @@ export function Artwork({
   const [c1, c2] = colors ?? paletteFor({ title, name, album, trackhash, albumhash, artisthash });
 
   const src = sizedArt(api.assetUrl(image) ?? "", imgSize ?? (fluid ? 220 : size));
+
+  // Virtualized lists RECYCLE Artwork instances as rows scroll in/out — the same
+  // component renders a new track's `src` without remounting. Without resetting the
+  // error flag when `src` changes, one broken cover would stick the fallback on every
+  // subsequent track that reuses the instance. This render-phase reset (React's
+  // "adjust state when a prop changes" pattern) clears it synchronously, no flash.
+  const [prevSrc, setPrevSrc] = useState(src);
+  if (src !== prevSrc) {
+    setPrevSrc(src);
+    setImgError(false);
+  }
+
   const showRealImage = Boolean(src) && !imgError;
+  const gradient = `linear-gradient(160deg, ${c1}, ${c2})`;
   // Fixed-px box for rows/avatars; className-driven box for fluid grids/heroes.
   const boxStyle = fluid ? { borderRadius: rounded } : { width: size, height: size, borderRadius: rounded };
 
@@ -69,7 +82,9 @@ export function Artwork({
     return (
       <div
         className={`relative overflow-hidden shrink-0 ${className}`}
-        style={boxStyle}
+        // Paint the deterministic gradient BEHIND the lazy <img> so a not-yet-loaded
+        // (or recycled) cover shows colour instead of a blank box — no skeleton flash.
+        style={{ ...boxStyle, background: gradient }}
       >
         {/* eslint-disable-next-line @next/next/no-img-element */}
         <img
@@ -97,8 +112,8 @@ export function Artwork({
       className={`relative overflow-hidden shrink-0 ${className}`}
       style={{
         ...boxStyle,
-        background: `linear-gradient(160deg, ${c1}, ${c2})`,
-        border: "1px solid rgba(255,255,255,0.08)",
+        background: gradient,
+        border: "1px solid var(--line)",
       }}
       role="img"
       aria-label={title || name || album || "Pochette"}

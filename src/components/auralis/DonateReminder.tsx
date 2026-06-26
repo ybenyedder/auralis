@@ -26,7 +26,7 @@ export function DonateButton({
     <button
       onClick={openDonate}
       className={cn(
-        "tap-press inline-flex items-center gap-2 rounded-full border border-primary/25 bg-primary/12 px-4 py-2 text-[13px] font-bold text-primary-soft shadow-[0_4px_12px_rgba(0,0,0,0.15)] transition-all duration-200 hover:bg-primary/20 hover:scale-105",
+        "tap-press inline-flex items-center gap-2 rounded-full border border-primary/25 bg-primary/12 px-4 py-2 text-[13px] font-bold text-primary-soft transition-colors duration-200 hover:bg-primary/20",
         className,
       )}
     >
@@ -99,7 +99,7 @@ export function DonateModal() {
           </button>
         </div>
         <div className="px-5 pb-5 pt-3">
-          <p className="text-[16px] font-black leading-tight text-foreground">Soutenir Auralis</p>
+          <p className="text-[16px] font-bold leading-tight text-foreground">Soutenir Auralis</p>
           <p className="mt-2 text-[13px] leading-relaxed text-muted-foreground">
             {"Auralis est gratuit, sans publicité et sans pistage. Si l'app te plaît, un petit don aide à couvrir les coûts et à faire avancer le projet."}
           </p>

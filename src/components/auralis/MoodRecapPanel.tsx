@@ -68,17 +68,17 @@ export function MoodRecapPanel() {
         <div className="grid gap-4 lg:grid-cols-[minmax(0,1.1fr)_minmax(0,0.9fr)]">
           {/* Dominant-mood hero */}
           <div
-            className="relative overflow-hidden rounded-2xl p-5 shadow-[0_8px_28px_rgba(0,0,0,0.28)]"
+            className="relative overflow-hidden rounded-2xl p-5 shadow-xl"
             style={{ background: `linear-gradient(150deg, ${colors[0]}, ${colors[1]})` }}
           >
             <div className="absolute inset-0 bg-black/25" aria-hidden />
             <div className="relative">
               <div className="flex items-center gap-3">
-                <span className="grid size-14 place-items-center rounded-2xl bg-white/15 text-[30px] shadow-[inset_0_1px_0_rgba(255,255,255,0.2)]" aria-hidden>
-                  {dominant?.emoji ?? "🎧"}
+                <span className="grid size-14 place-items-center rounded-2xl bg-white/15" aria-hidden>
+                  <Music2 className="size-7 text-white" />
                 </span>
                 <div>
-                  <p className="text-[11px] font-bold uppercase tracking-[0.14em] text-white/75">
+                  <p className="text-[11px] font-semibold uppercase tracking-[0.08em] text-white/75">
                     {recap.label}{recap.inProgress ? " · en cours" : ""}
                   </p>
                   <p className="text-[26px] font-black capitalize leading-tight tracking-tight text-white">
@@ -97,7 +97,7 @@ export function MoodRecapPanel() {
 
           {/* Mood distribution + standouts */}
           <div className="flex flex-col gap-4">
-            <div className="matte-panel rounded-2xl p-4 shadow-[0_4px_16px_rgba(0,0,0,0.15)]">
+            <div className="matte-panel rounded-2xl p-4">
               <p className="mb-3 text-[11px] font-semibold uppercase tracking-[0.06em] text-muted-foreground/80">Palette d’humeurs</p>
               <div className="space-y-2.5">
                 {recap.moods.slice(0, 6).map((ms) => {
@@ -105,14 +105,14 @@ export function MoodRecapPanel() {
                   return (
                     <div key={ms.mood}>
                       <div className="flex items-center gap-2 text-[12.5px]">
-                        <span aria-hidden>{m?.emoji ?? "•"}</span>
+                        <span aria-hidden className="size-2.5 shrink-0 rounded-full" style={{ background: (m?.colors ?? colors)[0] }} />
                         <span className="min-w-0 flex-1 truncate font-semibold text-foreground/90">{m?.label ?? ms.mood}</span>
                         <span className="shrink-0 tabular-nums text-muted-foreground">{Math.round(ms.share * 100)}%</span>
                       </div>
                       <div className="mt-1 h-2 overflow-hidden rounded-xs bg-[var(--panel-2)]">
                         <div
                           className="h-full rounded-xs"
-                          style={{ width: `${Math.max(3, ms.share * 100)}%`, background: `linear-gradient(90deg, ${(m?.colors ?? colors)[0]}, ${(m?.colors ?? colors)[1]})` }}
+                          style={{ width: `${Math.max(3, ms.share * 100)}%`, background: (m?.colors ?? colors)[0] }}
                         />
                       </div>
                     </div>
@@ -128,7 +128,7 @@ export function MoodRecapPanel() {
           </div>
         </div>
       ) : (
-        <div className="matte-panel rounded-2xl p-5 text-[13px] text-muted-foreground shadow-[0_4px_16px_rgba(0,0,0,0.15)]">
+        <div className="matte-panel rounded-2xl p-5 text-[13px] text-muted-foreground">
           {recap?.narrative ?? "Lance quelques titres ce mois-ci pour révéler ton humeur."}
         </div>
       )}
@@ -160,7 +160,7 @@ function TopTracks() {
   const list = resolved.map((x) => x.track);
 
   return (
-    <div className="matte-panel rounded-2xl p-4 shadow-[0_4px_16px_rgba(0,0,0,0.15)]">
+    <div className="matte-panel rounded-2xl p-4">
       <p className="mb-2.5 flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-[0.06em] text-muted-foreground/80">
         <Music2 className="size-3.5" /> Titres du mois
       </p>
@@ -193,7 +193,7 @@ function TopArtists() {
   const max = Math.max(1, ...artists.map((a) => a.plays));
 
   return (
-    <div className="matte-panel rounded-2xl p-4 shadow-[0_4px_16px_rgba(0,0,0,0.15)]">
+    <div className="matte-panel rounded-2xl p-4">
       <p className="mb-2.5 flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-[0.06em] text-muted-foreground/80">
         <UserRound className="size-3.5" /> Artistes du mois
       </p>

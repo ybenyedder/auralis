@@ -1,10 +1,11 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import { Folder, ChevronRight, Music2, Play, Shuffle, Home } from "lucide-react";
 import { usePlayer, shuffleArray } from "@/store/player";
 import { useLibraryStore } from "@/store/library";
 import { TrackRow, TrackListHeader } from "../TrackRow";
+import { VirtualList } from "../Virtualized";
 import type { FolderNode } from "@/lib/auralis/types";
 import { cn } from "@/lib/utils";
 
@@ -39,6 +40,9 @@ export function FoldersView() {
 
   const currentNode = useMemo(() => findFolder(folders, activePath) ?? rootNode, [activePath, folders, rootNode]);
   const crumbs = useMemo(() => pathCrumbs(activePath), [activePath]);
+  const subfolders = currentNode?.children ?? [];
+  const subScrollRef = useRef<HTMLDivElement>(null);
+  const trackScrollRef = useRef<HTMLDivElement>(null);
   const tracksInFolder = useMemo(() => {
     const prefix = activePath.replace(/\/$/, "");
     return tracks.filter((track) => {
@@ -81,36 +85,40 @@ export function FoldersView() {
       </div>
 
       <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.4fr)] lg:gap-5">
-        <div className="matte-panel rounded-2xl p-2 px-1.5 lg:px-2 shadow-[0_4px_16px_rgba(0,0,0,0.15)]">
+        <div className="matte-panel rounded-2xl p-2 px-1.5 lg:px-2">
           <p className="px-2 py-1.5 text-[10px] font-semibold uppercase tracking-[0.06em] text-muted-foreground/70">
-            Sous-dossiers · {currentNode?.children?.length || 0}
+            Sous-dossiers · {subfolders.length}
           </p>
-          {currentNode?.children?.map((child) => (
-            <button
-              key={child.path}
-              onClick={() => setCurrentPath(child.path)}
-              className="group tap-press flex min-h-[44px] w-full items-center gap-3 rounded-xl px-2 py-2 text-left transition-all hover:bg-white/[0.04]"
-            >
-              <span className="grid h-10 w-10 shrink-0 place-items-center rounded-full border border-transparent bg-white/5 shadow-[0_2px_8px_rgba(0,0,0,0.3)] lg:h-9 lg:w-9">
-                <Folder className="size-4 text-primary-soft" />
-              </span>
-              <div className="min-w-0 flex-1">
-                <p className="truncate text-[13px] font-bold leading-tight text-foreground lg:text-[12.5px]">{child.name}</p>
-                <p className="mt-0.5 truncate text-[11px] leading-tight text-muted-foreground">
-                  {child.children?.length ? `${child.children.length} sous-dossiers · ` : ""}{child.trackcount} titres
-                </p>
+          <div ref={subScrollRef} className="max-h-[40vh] overflow-y-auto scroll-auralis lg:max-h-[calc(100vh-320px)]">
+            {subfolders.length === 0 ? (
+              <div className="flex items-center justify-center gap-2 py-8 text-[12px] text-muted-foreground/70">
+                <Folder className="size-4" /> Aucun sous-dossier
               </div>
-              <ChevronRight className="size-5 shrink-0 text-muted-foreground/60 transition-colors group-hover:text-foreground lg:size-4 lg:text-muted-foreground/50" />
-            </button>
-          ))}
-          {(!currentNode?.children || currentNode.children.length === 0) && (
-            <div className="flex items-center justify-center gap-2 py-8 text-[12px] text-muted-foreground/70">
-              <Folder className="size-4" /> Aucun sous-dossier
-            </div>
-          )}
+            ) : (
+              <VirtualList items={subfolders} itemKey={(f) => f.path} estimateHeight={60} scrollRef={subScrollRef}>
+                {(child) => (
+                  <button
+                    onClick={() => setCurrentPath(child.path)}
+                    className="group tap-press flex min-h-[44px] w-full items-center gap-3 rounded-xl px-2 py-2 text-left transition-colors hover:bg-[var(--panel-3)]"
+                  >
+                    <span className="grid h-10 w-10 shrink-0 place-items-center rounded-full border border-transparent bg-white/5 lg:h-9 lg:w-9">
+                      <Folder className="size-4 text-primary-soft" />
+                    </span>
+                    <div className="min-w-0 flex-1">
+                      <p className="truncate text-[13px] font-bold leading-tight text-foreground lg:text-[12.5px]">{child.name}</p>
+                      <p className="mt-0.5 truncate text-[11px] leading-tight text-muted-foreground">
+                        {child.children?.length ? `${child.children.length} sous-dossiers · ` : ""}{child.trackcount} titres
+                      </p>
+                    </div>
+                    <ChevronRight className="size-5 shrink-0 text-muted-foreground/60 transition-colors group-hover:text-foreground lg:size-4 lg:text-muted-foreground/50" />
+                  </button>
+                )}
+              </VirtualList>
+            )}
+          </div>
         </div>
 
-        <div className="matte-panel rounded-2xl p-2 px-1.5 lg:px-2 shadow-[0_4px_16px_rgba(0,0,0,0.15)]">
+        <div className="matte-panel rounded-2xl p-2 px-1.5 lg:px-2">
           <div className="flex items-center justify-between gap-2 px-2 py-1.5">
             <p className="text-[10px] font-semibold uppercase tracking-[0.06em] text-muted-foreground/70">
               Titres · {tracksInFolder.length}
@@ -119,14 +127,14 @@ export function FoldersView() {
               <button
                 onClick={() => tracksInFolder.length && playList(tracksInFolder, 0)}
                 disabled={tracksInFolder.length === 0}
-                className="signal-button tap-press flex min-h-[44px] items-center gap-1.5 rounded-full px-4 text-[12px] font-black transition-all duration-200 hover:scale-105 shadow-[0_4px_12px_rgba(0,0,0,0.2)] disabled:opacity-40 lg:min-h-0 lg:py-2"
+                className="signal-button tap-press flex min-h-[44px] items-center gap-1.5 rounded-full px-4 text-[12px] font-bold transition-colors duration-200 disabled:opacity-40 lg:min-h-0 lg:py-2"
               >
                 <Play className="size-3.5 fill-current" /> Lire le dossier
               </button>
               <button
                 onClick={() => tracksInFolder.length && playList(shuffleArray(tracksInFolder), 0)}
                 disabled={tracksInFolder.length === 0}
-                className="ghost-button tap-press grid min-h-[44px] w-11 place-items-center rounded-full transition-all duration-200 hover:scale-105 disabled:opacity-40 lg:min-h-0 lg:h-9 lg:w-9"
+                className="ghost-button tap-press grid min-h-[44px] w-11 place-items-center rounded-full transition-colors duration-200 disabled:opacity-40 lg:min-h-0 lg:h-9 lg:w-9"
                 aria-label="Lecture aléatoire du dossier"
               >
                 <Shuffle className="size-3.5" />
@@ -134,15 +142,15 @@ export function FoldersView() {
             </div>
           </div>
           <TrackListHeader />
-          <div className="lg:max-h-[calc(100vh-320px)] lg:overflow-y-auto lg:scroll-auralis">
+          <div ref={trackScrollRef} className="max-h-[55vh] overflow-y-auto scroll-auralis lg:max-h-[calc(100vh-320px)]">
             {tracksInFolder.length === 0 ? (
               <div className="flex items-center justify-center gap-2 py-8 text-[12px] text-muted-foreground/70">
                 <Music2 className="size-4" /> Aucun fichier audio
               </div>
             ) : (
-              tracksInFolder.map((track, index) => (
-                <TrackRow key={track.trackhash} track={track} index={index} list={tracksInFolder} showAlbum={false} />
-              ))
+              <VirtualList items={tracksInFolder} itemKey={(t) => t.trackhash} estimateHeight={56} gap={2} scrollRef={trackScrollRef}>
+                {(track, index) => <TrackRow track={track} index={index} list={tracksInFolder} showAlbum={false} />}
+              </VirtualList>
             )}
           </div>
         </div>

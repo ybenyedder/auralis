@@ -6,6 +6,41 @@ All notable changes to Auralis are documented here. The format is based on
 
 ## [Unreleased]
 
+## [1.5.0] — 2026-06-26
+
+### Added
+- **Onglet « J'aime » dans la Bibliothèque.** Tes titres likés sont désormais
+  accessibles directement depuis la Bibliothèque (web, Linux et Windows), en plus
+  de la page Favoris — alimenté en temps réel par tes cœurs.
+
+### Changed
+- **Bibliothèque increvable et instantanée — virtualisation de toutes les listes.**
+  Titres, albums, artistes, favoris, file d'attente, dossiers, résultats de
+  recherche et pages de détail n'affichent plus que ce qui est réellement à
+  l'écran (une trentaine d'éléments), quelle que soit la taille de la collection.
+  Résultat : ouvrir « Bibliothèque » est instantané et l'application ne se fige
+  plus et ne plante plus, même avec des centaines de milliers de titres (vérifié
+  à plus de 6 000 titres : ~20 lignes rendues au lieu de 6 000).
+- **Refonte visuelle « anti-AI look ».** Suppression des effets génériques qui
+  trahissaient une interface générée : survols qui zooment, halos colorés, flous
+  « verre », ombres excessives, dégradés et emoji décoratifs. Surfaces plates,
+  jetons de couleur sémantiques, typographie maîtrisée — un rendu plus épuré et
+  cohérent, fidèle à l'esprit Spotify (les éléments volontairement colorés —
+  cartes genres/humeurs, tuile « titres likés », fonds animés du bureau — sont
+  conservés).
+- **Recherche unifiée** (fini la double barre de recherche sur ordinateur) et
+  **palette de commandes** qui cherche désormais dans tout le catalogue (et non
+  les 40 premiers titres).
+
+### Fixed
+- Pochettes recyclées au défilement qui restaient parfois bloquées sur l'image de
+  repli ; chargement des pochettes sans clignotement (dégradé déterministe en
+  fond).
+- Pluralisation française correcte (« 1 titre » / « N titres »).
+- Onglet Titres affichant « Scan en cours… » pendant l'indexation au lieu d'un
+  message trompeur ; suppression d'un halo orange résiduel de l'ancien thème ;
+  divers correctifs de contraste, d'états vides et de cohérence visuelle.
+
 ## [1.4.0] — 2026-06-26
 
 ### Added

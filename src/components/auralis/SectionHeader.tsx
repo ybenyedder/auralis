@@ -17,13 +17,13 @@ export function SectionHeader({ title, action, onAction, className }: SectionHea
   // props are still accepted for call-site stability but intentionally not rendered.
   return (
     <div className={cn("flex items-end justify-between gap-3", className)}>
-      <h2 className="min-w-0 truncate text-[20px] font-black tracking-[-0.02em] text-foreground hover:underline lg:text-[24px]">
+      <h2 className="min-w-0 truncate text-[20px] font-bold tracking-[-0.02em] text-foreground hover:underline lg:text-[24px]">
         {title}
       </h2>
       {action && (
         <button
           onClick={onAction}
-          className="no-drag shrink-0 text-[11px] font-bold uppercase tracking-[0.08em] text-muted-foreground transition-colors hover:text-foreground"
+          className="no-drag shrink-0 text-[11px] font-semibold uppercase tracking-[0.08em] text-muted-foreground transition-colors hover:text-foreground"
         >
           {action}
         </button>

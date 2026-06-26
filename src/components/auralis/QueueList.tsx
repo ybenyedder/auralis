@@ -1,10 +1,11 @@
 "use client";
 
-import type { CSSProperties } from "react";
+import { useRef, type CSSProperties } from "react";
 import { ArrowDown, ArrowUp, X, Trash2, Shuffle } from "lucide-react";
 import { usePlayer, shuffleArray } from "@/store/player";
 import { useLibraryStore } from "@/store/library";
 import { Artwork } from "./Artwork";
+import { VirtualList } from "./Virtualized";
 import { EqualizerBars } from "./SectionHeader";
 import { formatDuration, trackArtist, trackTitle } from "@/lib/auralis/brand";
 import { cn } from "@/lib/utils";
@@ -20,6 +21,7 @@ export function QueueList({ maxHeight }: { maxHeight?: string }) {
   const clearQueue = usePlayer((s) => s.clearQueue);
   const playList = usePlayer((s) => s.playList);
   const libraryTracks = useLibraryStore((s) => s.tracks);
+  const scrollRef = useRef<HTMLDivElement>(null);
 
   return (
     <div className="flex min-h-0 flex-1 flex-col">
@@ -27,13 +29,14 @@ export function QueueList({ maxHeight }: { maxHeight?: string }) {
         <p className="text-[12px] font-semibold uppercase tracking-[0.06em] text-muted-foreground lg:text-[11px]">{shuffledQueue.length} titres</p>
         <button
           onClick={clearQueue}
-          className="tap-press flex min-h-[40px] items-center gap-1.5 rounded-full px-3 py-1 text-[12px] font-bold text-muted-foreground/70 transition-all duration-200 hover:bg-white/[0.04] hover:text-foreground hover:scale-105 lg:min-h-0 lg:gap-1 lg:text-[10.5px]"
+          className="tap-press flex min-h-[40px] items-center gap-1.5 rounded-full px-3 py-1 text-[12px] font-bold text-muted-foreground/70 transition-colors duration-200 hover:bg-white/[0.04] hover:text-foreground lg:min-h-0 lg:gap-1 lg:text-[10.5px]"
         >
           <Trash2 className="size-3.5 lg:size-3" /> Nettoyer
         </button>
       </div>
       <div
-        className="min-h-0 flex-1 px-2 pb-4 lg:overflow-y-auto lg:scroll-auralis lg:[max-height:var(--queue-max-h)]"
+        ref={scrollRef}
+        className="min-h-0 flex-1 overflow-y-auto scroll-auralis px-2 pb-4 lg:[max-height:var(--queue-max-h)]"
         style={maxHeight ? ({ "--queue-max-h": maxHeight } as CSSProperties) : undefined}
       >
         {shuffledQueue.length === 0 ? (
@@ -48,10 +51,15 @@ export function QueueList({ maxHeight }: { maxHeight?: string }) {
             </button>
           </div>
         ) : (
-          <div className="space-y-1">
-            {shuffledQueue.map((track, index) => (
+          <VirtualList
+            items={shuffledQueue}
+            itemKey={(track, index) => `${track.trackhash}-${index}`}
+            estimateHeight={52}
+            gap={4}
+            scrollRef={scrollRef}
+          >
+            {(track, index) => (
               <QueueRow
-                key={`${track.trackhash}-${index}`}
                 track={track}
                 index={index}
                 active={index === currentIndex}
@@ -63,8 +71,8 @@ export function QueueList({ maxHeight }: { maxHeight?: string }) {
                 onMoveUp={() => reorderQueue(index, index - 1)}
                 onMoveDown={() => reorderQueue(index, index + 1)}
               />
-            ))}
-          </div>
+            )}
+          </VirtualList>
         )}
       </div>
     </div>
@@ -111,13 +119,13 @@ function QueueRow({
       </button>
       {active ? <EqualizerBars active={isPlaying} className="h-3" /> : <span className="hidden text-[10px] tabular-nums text-muted-foreground lg:inline">{formatDuration(track.duration)}</span>}
       <div className="flex items-center gap-0.5 lg:hidden lg:group-hover:flex">
-        <button onClick={onMoveUp} disabled={!canMoveUp} className="tap-press grid size-10 place-items-center rounded-full text-muted-foreground transition-all duration-200 hover:scale-110 hover:text-foreground disabled:opacity-25 lg:size-6" aria-label="Monter dans la file">
+        <button onClick={onMoveUp} disabled={!canMoveUp} className="tap-press grid size-10 place-items-center rounded-full text-muted-foreground transition-colors duration-200 hover:text-foreground disabled:opacity-25 lg:size-6" aria-label="Monter dans la file">
           <ArrowUp className="size-4 lg:size-3" />
         </button>
-        <button onClick={onMoveDown} disabled={!canMoveDown} className="tap-press grid size-10 place-items-center rounded-full text-muted-foreground transition-all duration-200 hover:scale-110 hover:text-foreground disabled:opacity-25 lg:size-6" aria-label="Descendre dans la file">
+        <button onClick={onMoveDown} disabled={!canMoveDown} className="tap-press grid size-10 place-items-center rounded-full text-muted-foreground transition-colors duration-200 hover:text-foreground disabled:opacity-25 lg:size-6" aria-label="Descendre dans la file">
           <ArrowDown className="size-4 lg:size-3" />
         </button>
-        <button onClick={onRemove} className="tap-press grid size-10 place-items-center rounded-full text-muted-foreground transition-all duration-200 hover:scale-110 hover:text-foreground lg:size-6" aria-label="Retirer de la file">
+        <button onClick={onRemove} className="tap-press grid size-10 place-items-center rounded-full text-muted-foreground transition-colors duration-200 hover:text-foreground lg:size-6" aria-label="Retirer de la file">
           <X className="size-4 lg:size-3" />
         </button>
       </div>

@@ -5,7 +5,9 @@ import { Heart, Play, Shuffle, ArrowDownUp } from "lucide-react";
 import { usePlayer, shuffleArray } from "@/store/player";
 import { useLibraryStore } from "@/store/library";
 import { TrackRow, TrackListHeader } from "../TrackRow";
-import { formatLongDuration, trackArtist, trackTitle } from "@/lib/auralis/brand";
+import { VirtualList } from "../Virtualized";
+import { compareNames } from "@/lib/utils";
+import { formatLongDuration, plural, trackArtist, trackTitle } from "@/lib/auralis/brand";
 
 type SortMode = "recent" | "az" | "za" | "artist" | "plays";
 
@@ -35,9 +37,9 @@ export function FavoritesView() {
 
   const favTracks = useMemo(() => {
     const next = [...allFavTracks];
-    if (sort === "az") next.sort((a, b) => trackTitle(a).localeCompare(trackTitle(b), undefined, { numeric: true }));
-    else if (sort === "za") next.sort((a, b) => trackTitle(b).localeCompare(trackTitle(a), undefined, { numeric: true }));
-    else if (sort === "artist") next.sort((a, b) => trackArtist(a).localeCompare(trackArtist(b), undefined, { numeric: true }));
+    if (sort === "az") next.sort((a, b) => compareNames(trackTitle(a), trackTitle(b)));
+    else if (sort === "za") next.sort((a, b) => compareNames(trackTitle(b), trackTitle(a)));
+    else if (sort === "artist") next.sort((a, b) => compareNames(trackArtist(a), trackArtist(b)));
     else if (sort === "plays") next.sort((a, b) => (b.playcount || 0) - (a.playcount || 0));
     return next;
   }, [allFavTracks, sort]);
@@ -48,14 +50,14 @@ export function FavoritesView() {
     <div className="fade-up">
       <section className="hero-cover px-4 pb-6 pt-7 lg:px-6 lg:pt-8">
         <div className="flex flex-col items-center text-center lg:flex-row lg:items-end lg:gap-5 lg:text-left">
-          <div className="grid size-20 place-items-center rounded-full bg-[var(--primary)] shadow-[0_8px_32px_rgba(0,0,0,0.4)] lg:size-28">
+          <div className="grid size-20 place-items-center rounded-full bg-[var(--primary)] glow-primary lg:size-28">
             <Heart className="size-8 fill-[var(--ink)] text-[var(--ink)] lg:size-11" />
           </div>
           <div className="mt-3 min-w-0 lg:mt-0 lg:pb-1">
             <p className="text-[10px] font-semibold uppercase tracking-[0.08em] text-[var(--brass)]">Sélection</p>
             <h1 className="mt-1 text-[26px] font-black leading-none tracking-tight text-foreground lg:text-[40px]">Favoris</h1>
             <p className="mt-2 text-[12.5px] text-muted-foreground">
-              {favTracks.length} titres · {formatLongDuration(totalDuration)}
+              {plural(favTracks.length, "titre")} · {formatLongDuration(totalDuration)}
             </p>
           </div>
         </div>
@@ -63,14 +65,14 @@ export function FavoritesView() {
           <button
             onClick={() => favTracks.length && playList(favTracks, 0)}
             disabled={favTracks.length === 0}
-            className="signal-button flex min-h-[44px] flex-1 items-center justify-center gap-2 rounded-full px-5 text-[13px] font-black transition-all duration-200 hover:scale-105 shadow-[0_4px_12px_rgba(0,0,0,0.2)] disabled:opacity-40 lg:min-h-0 lg:flex-none lg:py-2.5"
+            className="signal-button flex min-h-[44px] flex-1 items-center justify-center gap-2 rounded-full px-5 text-[13px] font-bold transition-colors duration-200 disabled:opacity-40 lg:min-h-0 lg:flex-none lg:py-2.5"
           >
             <Play className="size-4 fill-current" /> Lire
           </button>
           <button
             onClick={() => favTracks.length && playList(shuffleArray(favTracks), 0)}
             disabled={favTracks.length === 0}
-            className="ghost-button flex min-h-[44px] flex-1 items-center justify-center gap-2 rounded-full px-5 text-[13px] font-bold transition-all duration-200 hover:scale-105 disabled:opacity-40 lg:min-h-0 lg:flex-none lg:py-2.5"
+            className="ghost-button flex min-h-[44px] flex-1 items-center justify-center gap-2 rounded-full px-5 text-[13px] font-bold transition-colors duration-200 disabled:opacity-40 lg:min-h-0 lg:flex-none lg:py-2.5"
           >
             <Shuffle className="size-4" /> Aléatoire
           </button>
@@ -99,10 +101,10 @@ export function FavoritesView() {
               <Heart className="size-7 text-muted-foreground/60" />
             </div>
             <p className="text-[14px] font-bold text-muted-foreground">Aucun favori pour l’instant</p>
-            <p className="max-w-xs text-[12.5px] text-muted-foreground/70">Touche le cœur sur un titre pour le retrouver ici.</p>
+            <p className="max-w-xs text-[12.5px] text-muted-foreground">Touche le cœur sur un titre pour le retrouver ici.</p>
             <button
               onClick={() => navigate("library")}
-              className="signal-button tap-press mt-1 flex items-center gap-2 rounded-full px-5 py-2.5 text-[13px] font-black transition-all duration-200 hover:scale-105 shadow-[0_4px_12px_rgba(0,0,0,0.2)]"
+              className="signal-button tap-press mt-1 flex items-center gap-2 rounded-full px-5 py-2.5 text-[13px] font-bold transition-colors duration-200"
             >
               <Play className="size-4 fill-current" /> Parcourir la bibliothèque
             </button>
@@ -110,11 +112,9 @@ export function FavoritesView() {
         ) : (
           <>
             <TrackListHeader />
-            <div className="space-y-0.5">
-              {favTracks.map((track, index) => (
-                <TrackRow key={track.trackhash} track={track} index={index} list={favTracks} />
-              ))}
-            </div>
+            <VirtualList items={favTracks} itemKey={(t) => t.trackhash} estimateHeight={56} gap={2}>
+              {(track, index) => <TrackRow track={track} index={index} list={favTracks} />}
+            </VirtualList>
           </>
         )}
       </div>

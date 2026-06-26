@@ -91,7 +91,7 @@ export function Sidebar() {
           <div className="hidden lg:flex items-center gap-2">
             <button
               onClick={onNewPlaylist}
-              className="grid h-8 w-8 place-items-center rounded-full text-[var(--text-muted)] transition-colors hover:bg-[#1a1a1a] hover:text-white"
+              className="grid h-8 w-8 place-items-center rounded-full text-[var(--text-muted)] transition-colors hover:bg-[var(--sidebar-accent)] hover:text-white"
               aria-label="Nouvelle playlist"
             >
               <Plus className="size-5" />
@@ -130,7 +130,7 @@ export function Sidebar() {
                 title={item.label}
                 className={cn(
                   "flex items-center justify-center p-2 rounded-lg",
-                  active ? "bg-[#1a1a1a] text-white" : "text-[var(--text-muted)] hover:text-white"
+                  active ? "bg-[var(--sidebar-accent)] text-white" : "text-[var(--text-muted)] hover:text-white"
                 )}
               >
                 <Icon className="size-6 shrink-0" fill={active ? "currentColor" : "none"} />
@@ -149,14 +149,14 @@ export function Sidebar() {
                 onClick={() => navigate("playlist", String(playlist.id))}
                 className={cn(
                   "group flex w-full items-center gap-3 rounded-md p-2 text-left transition-colors duration-200",
-                  active ? "bg-[#1a1a1a]" : "hover:bg-[#1a1a1a]"
+                  active ? "bg-[var(--sidebar-accent)]" : "hover:bg-[var(--sidebar-accent)]"
                 )}
               >
-                <div className="grid h-12 w-12 shrink-0 place-items-center rounded-md bg-[var(--panel-2)] shadow-md">
+                <div className="grid h-12 w-12 shrink-0 place-items-center rounded-md bg-[var(--panel-2)]">
                   <ListMusic className="size-6 text-[var(--text-muted)]" />
                 </div>
                 <div className="hidden flex-1 min-w-0 lg:flex flex-col justify-center">
-                  <span className={cn("block w-full truncate text-[16px] font-medium", active ? "text-white" : "text-white group-hover:text-white")}>
+                  <span className="block w-full truncate text-[16px] font-medium text-white">
                     {playlist.name}
                   </span>
                   <span className="text-[14px] text-[var(--text-muted)] group-hover:text-white transition-colors">Playlist</span>
@@ -173,15 +173,15 @@ export function Sidebar() {
                 onClick={() => navigate("playlist", String(playlist.id))}
                 className={cn(
                   "group flex w-full items-center gap-3 rounded-md p-2 text-left transition-colors duration-200",
-                  active ? "bg-[#1a1a1a]" : "hover:bg-[#1a1a1a]"
+                  active ? "bg-[var(--sidebar-accent)]" : "hover:bg-[var(--sidebar-accent)]"
                 )}
               >
-                <div className="grid h-12 w-12 shrink-0 place-items-center rounded-md bg-[var(--panel-2)] shadow-md">
+                <div className="grid h-12 w-12 shrink-0 place-items-center rounded-md bg-[var(--panel-2)]">
                   <ListMusic className="size-6 text-[var(--text-muted)]" />
                 </div>
                 <div className="hidden flex-1 min-w-0 lg:flex flex-col justify-center">
                   <div className="flex items-center gap-2">
-                    <span className={cn("truncate text-[16px] font-medium", active ? "text-[var(--primary)]" : "text-white group-hover:text-white")}>
+                    <span className="truncate text-[16px] font-medium text-white">
                       {playlist.name}
                     </span>
                     {playlist.pinned && <Pin className="size-3.5 shrink-0 text-[var(--primary)]" fill="currentColor" />}

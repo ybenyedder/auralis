@@ -109,7 +109,7 @@ export const TrackRow = memo(function TrackRow({
             rounded={4}
             colors={track.color}
             image={track.image}
-            className="track-art transition-transform shrink-0"
+            className="shrink-0"
           />
         )}
         <div className="min-w-0">
@@ -125,7 +125,7 @@ export const TrackRow = memo(function TrackRow({
       {/* Album */}
       {showAlbum && !compact && (
         <div className="hidden min-w-0 md:block">
-          <p className="truncate text-[12px] text-muted-foreground/60">{track.album}</p>
+          <p className="truncate text-[12px] text-muted-foreground">{track.album}</p>
         </div>
       )}
 
@@ -138,10 +138,10 @@ export const TrackRow = memo(function TrackRow({
           className={cn(
             // Always reachable on touch (the old `hidden lg:grid` made favouriting
             // impossible on phones); hover-revealed on desktop to keep rows quiet.
-            "grid h-11 w-11 place-items-center rounded-full transition-all duration-300 lg:h-7 lg:w-7",
+            "grid h-11 w-11 place-items-center rounded-full transition-colors duration-300 lg:h-7 lg:w-7",
             fav
               ? "text-primary opacity-100"
-              : "text-muted-foreground/45 opacity-100 hover:text-foreground/90 lg:opacity-0 lg:group-hover:opacity-100 hover:scale-110",
+              : "text-muted-foreground/45 opacity-100 hover:text-foreground/90 lg:opacity-0 lg:group-hover:opacity-100",
           )}
         >
           <Heart className={cn("size-4 lg:size-3.5", fav && "fill-primary", pop && "heart-pop")} onAnimationEnd={() => setPop(false)} />
@@ -152,7 +152,7 @@ export const TrackRow = memo(function TrackRow({
         <button
           onClick={onMore}
           aria-label="Plus d'options"
-          className="grid h-11 w-11 place-items-center rounded-full text-muted-foreground/55 transition-all duration-300 hover:text-foreground/90 lg:h-7 lg:w-7 lg:text-muted-foreground/40 lg:opacity-0 lg:group-hover:opacity-100 hover:scale-110"
+          className="grid h-11 w-11 place-items-center rounded-full text-muted-foreground/55 transition-colors duration-300 hover:text-foreground/90 lg:h-7 lg:w-7 lg:text-muted-foreground/40 lg:opacity-0 lg:group-hover:opacity-100"
         >
           <MoreHorizontal className="size-4 lg:size-3.5" />
         </button>
@@ -163,7 +163,7 @@ export const TrackRow = memo(function TrackRow({
 
 export function TrackListHeader() {
   return (
-    <div className="mb-1 hidden grid-cols-[24px_minmax(0,1fr)_auto] items-center gap-3 border-b border-[var(--line)] px-2 pb-2 text-[10px] font-semibold uppercase tracking-[0.06em] text-muted-foreground/45 lg:grid md:grid-cols-[24px_minmax(0,1.6fr)_minmax(0,1fr)_auto]">
+    <div className="mb-1 hidden grid-cols-[24px_minmax(0,1fr)_auto] items-center gap-3 border-b border-[var(--line)] px-2 pb-2 text-[10px] font-semibold uppercase tracking-[0.06em] text-muted-foreground/70 lg:grid md:grid-cols-[24px_minmax(0,1.6fr)_minmax(0,1fr)_auto]">
       <div className="text-center">#</div>
       <div>Titre</div>
       <div className="hidden md:block">Album</div>

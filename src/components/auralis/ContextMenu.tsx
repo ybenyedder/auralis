@@ -237,7 +237,7 @@ function TrackMenu({
         <MenuHeader
           title={trackTitle(track)}
           subtitle={trackArtist(track)}
-          colors={track.color ?? ["#2A2821", "#D95F45", "#C6A15B"]}
+          colors={track.color ?? ["#282828", "#3E3E3E", "#535353"]}
           initial={trackTitle(track)[0] || "A"}
           sheet={sheet}
         />
@@ -284,7 +284,7 @@ function TrackMenu({
               label="Partager"
               onClick={() => run(() => void shareTrack(track, usePlayer.getState().notify))}
             />
-            <div className="my-1 h-px bg-[var(--panel-2)]" />
+            <div className="my-1 h-px bg-[var(--line)]" />
             {album && (
               <MenuItem
                 sheet={sheet}
@@ -350,7 +350,7 @@ function AlbumMenu({
         <MenuHeader
           title={album.title}
           subtitle={`${albumArtist(album)} · ${album.year}`}
-          colors={album.color ?? ["#2A2821", "#D95F45", "#C6A15B"]}
+          colors={album.color ?? ["#282828", "#3E3E3E", "#535353"]}
           initial={album.title[0] || "A"}
           sheet={sheet}
         />
@@ -377,7 +377,7 @@ function AlbumMenu({
         />
         {!playlistOpen && (
           <>
-            <div className="my-1 h-px bg-[var(--panel-2)]" />
+            <div className="my-1 h-px bg-[var(--line)]" />
             <MenuItem sheet={sheet} icon={Disc3} label="Aller à l'album" onClick={() => run(() => navigate("album", album.albumhash))} />
             {artist && (
               <MenuItem
@@ -420,7 +420,7 @@ function ArtistMenu({
       <MenuHeader
         title={artist.name}
         subtitle={`${formatCount(artist.playcount)} écoutes · ${artist.genres?.join(", ") || "Artiste"}`}
-        colors={["#2A2821", "#D95F45", "#C6A15B"]}
+        colors={["#282828", "#3E3E3E", "#535353"]}
         initial={artist.name[0] || "A"}
         round
         sheet={sheet}
@@ -428,7 +428,7 @@ function ArtistMenu({
       <div className={sheet ? "p-2" : "p-1.5"}>
         <MenuItem sheet={sheet} icon={Play} label="Lire les titres populaires" onClick={() => run(() => playList(topTracks, 0))} />
         <MenuItem sheet={sheet} icon={ListPlus} label="Ajouter les titres à la file" onClick={() => run(() => topTracks.forEach((t) => addToQueueEnd(t)))} />
-        <div className="my-1 h-px bg-[var(--panel-2)]" />
+        <div className="my-1 h-px bg-[var(--line)]" />
         <MenuItem sheet={sheet} icon={UserRound} label="Aller à l'artiste" onClick={() => run(() => navigate("artist", artist.artisthash))} />
         {albumCount > 0 && (
           <p className={cn("text-muted-foreground/70", sheet ? "px-3 py-1.5 text-xs" : "px-2.5 py-1 text-[10.5px]")}>{albumCount} albums · {artist.trackcount} titres</p>
@@ -463,7 +463,7 @@ function MenuHeader({
     >
       <span
         className={cn(
-          "grid shrink-0 place-items-center font-black text-white/90 shadow-[0_4px_12px_rgba(0,0,0,0.3)]",
+          "grid shrink-0 place-items-center font-black text-white/90",
           sheet ? "size-12 text-[15px] rounded-2xl" : "size-9 text-[11px] rounded-xl",
           round && "rounded-full",
         )}
@@ -524,7 +524,7 @@ function PlaylistSubmenu({
           <ChevronRight className="size-5 rotate-180 text-muted-foreground/70" />
           {labelOverride ?? "Ajouter à une playlist"}
         </button>
-        <div className="my-1 h-px bg-[var(--panel-2)]" />
+        <div className="my-1 h-px bg-[var(--line)]" />
         <button
           role="menuitem"
           onClick={() => run(onCreate)}

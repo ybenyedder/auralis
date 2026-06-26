@@ -111,7 +111,7 @@ function AuralisShell() {
       try { seen = window.localStorage.getItem("auralis.lastRecapSeen") || ""; } catch { /* unavailable */ }
       if (elapsed === seen) return;
       try { window.localStorage.setItem("auralis.lastRecapSeen", elapsed); } catch { /* unavailable */ }
-      usePlayer.getState().notify(`🗓️ Ton bilan d’humeur de ${monthLabelFr(elapsed)} est prêt`, {
+      usePlayer.getState().notify(`Ton bilan d’humeur de ${monthLabelFr(elapsed)} est prêt`, {
         tone: "info",
         action: {
           label: "Voir",

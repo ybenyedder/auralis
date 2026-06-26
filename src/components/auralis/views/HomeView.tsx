@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { Play, Settings, Heart } from "lucide-react";
+import { Play, Settings, Heart, Music2 } from "lucide-react";
 import { usePlayer, shuffleArray } from "@/store/player";
 import { useLibraryStore, tracksForHashesFrom } from "@/store/library";
 import { useStats } from "@/store/stats";
@@ -178,7 +178,7 @@ export function HomeView() {
         {/* Spotify-style greeting + quick-access grid */}
         <section>
           <h1 className="text-[24px] font-bold tracking-tight text-white lg:text-[32px] mb-4">{greeting}</h1>
-          {error && <p className="mt-2 max-w-xl text-[12px] text-amber">{error}</p>}
+          {error && <p className="mt-2 max-w-xl text-[12px] font-medium text-[var(--text-muted)]">{error}</p>}
 
           {tracks.length === 0 ? (
             <button
@@ -201,8 +201,8 @@ export function HomeView() {
           <section>
             <div className="mb-1 flex items-end justify-between gap-3">
               <div className="min-w-0">
-                <p className="text-[11px] font-bold uppercase tracking-[0.14em] text-[var(--text-muted)]">Recommandé pour vous</p>
-                <h2 className="truncate text-[20px] font-black tracking-tight text-foreground lg:text-[24px]">Fait pour vous</h2>
+                <p className="text-[11px] font-semibold uppercase tracking-[0.08em] text-[var(--text-muted)]">Recommandé pour vous</p>
+                <h2 className="truncate text-[20px] font-bold tracking-tight text-foreground lg:text-[24px]">Fait pour vous</h2>
               </div>
               <button
                 onClick={() => playList(forYou, 0)}
@@ -233,15 +233,15 @@ export function HomeView() {
             <div className="mb-1 flex items-end justify-between gap-3">
               <div className="flex items-center gap-3">
                 <span
-                  className="grid h-12 w-12 shrink-0 place-items-center rounded-lg text-[24px] shadow-[0_8px_16px_rgba(0,0,0,0.35)]"
+                  className="grid h-12 w-12 shrink-0 place-items-center rounded-lg"
                   style={{ background: `linear-gradient(150deg, ${moodRecs.mood.colors[0]}, ${moodRecs.mood.colors[1]})` }}
                   aria-hidden
                 >
-                  {moodRecs.mood.emoji}
+                  <Music2 className="size-6 text-white" />
                 </span>
                 <div className="min-w-0">
-                  <p className="text-[11px] font-bold uppercase tracking-[0.14em] text-[var(--text-muted)]">Pour votre humeur</p>
-                  <h2 className="truncate text-[20px] font-black tracking-tight text-foreground lg:text-[24px]">{moodRecs.mood.label}</h2>
+                  <p className="text-[11px] font-semibold uppercase tracking-[0.08em] text-[var(--text-muted)]">Pour votre humeur</p>
+                  <h2 className="truncate text-[20px] font-bold tracking-tight text-foreground lg:text-[24px]">{moodRecs.mood.label}</h2>
                 </div>
               </div>
               <button
@@ -344,7 +344,7 @@ function QuickTile({
       tabIndex={0}
       onClick={onOpen}
       onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); onOpen(); } }}
-      className="group relative flex h-[64px] cursor-pointer items-center gap-3 overflow-hidden rounded-[4px] bg-white/[0.08] transition-colors duration-200 hover:bg-white/20"
+      className="group relative flex h-[64px] cursor-pointer items-center gap-3 overflow-hidden rounded-xs bg-[var(--panel-2)] transition-colors duration-200 hover:bg-[var(--panel-3)]"
     >
       {liked ? (
         <span
@@ -370,7 +370,7 @@ function QuickTile({
       <button
         onClick={(e) => { e.stopPropagation(); onPlay(); }}
         aria-label={`Lire ${title}`}
-        className="signal-button mr-3 grid h-10 w-10 shrink-0 translate-y-2 place-items-center rounded-full opacity-0 shadow-[0_8px_16px_rgba(0,0,0,0.4)] transition-all duration-200 group-hover:translate-y-0 group-hover:opacity-100"
+        className="signal-button glow-primary mr-3 grid h-10 w-10 shrink-0 place-items-center rounded-full opacity-0 transition-all duration-200 group-hover:opacity-100"
       >
         <Play className="size-4 fill-current ml-0.5" />
       </button>

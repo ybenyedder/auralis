@@ -130,10 +130,10 @@ export function FullscreenPlayer() {
           onPointerCancel={onDragPointerEnd}
         >
           <p className="text-[10px] font-medium uppercase tracking-[0.08em] text-white/80">
-            LECTURE DE L&apos;ALBUM
+            {currentTrack.album ? "LECTURE DE L'ALBUM" : "LECTURE EN COURS"}
           </p>
           <p className="text-[12px] font-bold text-white truncate">
-            {currentTrack.album || "Titre"}
+            {currentTrack.album || trackArtist(currentTrack)}
           </p>
         </div>
         <button
@@ -166,7 +166,7 @@ export function FullscreenPlayer() {
                 rounded={8}
                 colors={colors}
                 image={currentTrack.image}
-                className="w-full aspect-square max-w-[400px] shadow-2xl"
+                className="w-full aspect-square max-w-[400px] shadow-xl"
               />
             </div>
             
@@ -205,17 +205,17 @@ export function FullscreenPlayer() {
           <Shuffle className="size-6" />
         </button>
         <button onClick={playPrev} className="grid h-12 w-12 place-items-center rounded-full text-white transition-transform active:scale-90" aria-label="Précédent">
-          <SkipBack className="size-10 fill-current" />
+          <SkipBack className="size-7 fill-current" />
         </button>
         <button
           onClick={togglePlay}
           aria-label={isPlaying ? "Pause" : "Lecture"}
-          className="grid h-16 w-16 place-items-center rounded-full bg-white text-black transition-transform active:scale-90 hover:scale-105"
+          className="grid h-16 w-16 place-items-center rounded-full bg-white text-black transition-transform active:scale-90"
         >
           {isPlaying ? <Pause className="size-8 fill-current" /> : <Play className="size-8 fill-current ml-1" />}
         </button>
         <button onClick={playNext} className="grid h-12 w-12 place-items-center rounded-full text-white transition-transform active:scale-90" aria-label="Suivant">
-          <SkipForward className="size-10 fill-current" />
+          <SkipForward className="size-7 fill-current" />
         </button>
         <button
           onClick={cycleRepeat}

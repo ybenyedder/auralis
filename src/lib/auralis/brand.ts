@@ -89,6 +89,11 @@ export function formatLongDuration(seconds?: number): string {
   return `${mins} min`;
 }
 
+/** "1 titre" / "12 titres" — correct French pluralisation for a counted noun. */
+export function plural(n: number, singular: string, pluralForm?: string): string {
+  return `${n} ${n <= 1 ? singular : pluralForm ?? singular + "s"}`;
+}
+
 export function formatCount(n?: number): string {
   if (!n) return "0";
   if (n < 1000) return String(n);

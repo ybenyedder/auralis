@@ -5,7 +5,10 @@ import { usePlayer, type ViewId } from "@/store/player";
 import { useStats } from "@/store/stats";
 import { BrandMark } from "../BrandMark";
 
-const ROOT_TABS: ViewId[] = ["home", "explore", "library", "favorites"];
+// The three real mobile root tabs (the bottom dock). Everything else — including
+// Favoris — is a secondary screen reached from within them, so it gets a back arrow
+// and a category title rather than the wordmark.
+const ROOT_TABS: ViewId[] = ["home", "explore", "library"];
 
 // Compact category label shown on detail / secondary screens. Root tabs show the
 // wordmark instead, because each root view renders its own large title.
@@ -13,6 +16,7 @@ const VIEW_LABEL: Partial<Record<ViewId, string>> = {
   album: "Album",
   artist: "Artiste",
   playlist: "Playlist",
+  favorites: "Favoris",
   recents: "Historique",
   folders: "Dossiers",
   insights: "Analyse",
@@ -40,7 +44,7 @@ export function MobileHeader() {
         {isRoot ? (
           <span className="flex items-center gap-2 pl-2">
             <BrandMark />
-            <span className="text-[15px] font-black tracking-tight text-foreground">Auralis</span>
+            <span className="text-[15px] font-bold tracking-tight text-foreground">Auralis</span>
           </span>
         ) : (
           <button
@@ -64,7 +68,7 @@ export function MobileHeader() {
           <button
             onClick={() => navigate("insights")}
             aria-label={`Série d'écoute : ${streak} jours`}
-            className="tap-press mr-0.5 flex items-center gap-1 rounded-full bg-primary/15 px-2.5 py-1.5 text-[12px] font-black text-primary-soft"
+            className="tap-press mr-0.5 flex items-center gap-1 rounded-full bg-primary/15 px-2.5 py-1.5 text-[12px] font-semibold text-primary-soft"
           >
             <Flame className="size-3.5" /> {streak}
           </button>

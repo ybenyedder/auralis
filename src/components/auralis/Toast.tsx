@@ -19,10 +19,10 @@ export function ToastHost() {
   const Icon = tone === "error" ? AlertTriangle : tone === "info" ? Info : CheckCircle2;
   const iconClass =
     tone === "error"
-      ? "text-destructive drop-shadow-[0_0_8px_rgba(239,68,68,0.5)]"
+      ? "text-destructive"
       : tone === "info"
-        ? "text-foreground drop-shadow-[0_0_8px_rgba(255,255,255,0.3)]"
-        : "text-emerald drop-shadow-[0_0_8px_rgba(16,185,129,0.5)]";
+        ? "text-foreground"
+        : "text-emerald";
 
   return (
     <div
@@ -41,7 +41,7 @@ export function ToastHost() {
         {action && (
           <button
             onClick={() => { action.run(); dismissToast(); }}
-            className="shrink-0 rounded-full bg-white/10 px-3 py-1 text-[11px] font-bold text-white transition-all duration-200 hover:bg-white/20 hover:scale-105"
+            className="shrink-0 rounded-full bg-white/10 px-3 py-1 text-[11px] font-bold text-white transition-colors duration-200 hover:bg-white/20"
           >
             {action.label}
           </button>

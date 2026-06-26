@@ -69,7 +69,7 @@ export function NowPlayingPanel() {
                   rounded={8}
                   colors={currentTrack.color}
                   image={currentTrack.image}
-                  className="w-full aspect-square h-auto shadow-2xl"
+                  className="w-full aspect-square h-auto shadow-xl"
                 />
               </div>
 
@@ -95,16 +95,16 @@ export function NowPlayingPanel() {
                 <button
                   onClick={() => toggleFavorite(currentTrack.trackhash)}
                   aria-label={fav ? "Retirer des favoris" : "Ajouter aux favoris"}
-                  className="ml-4 flex shrink-0 items-center justify-center transition-transform hover:scale-110 active:scale-100"
+                  className="ml-4 flex shrink-0 items-center justify-center transition-transform active:scale-100"
                 >
                   <Heart className={cn("size-6", fav ? "fill-[var(--primary)] text-[var(--primary)]" : "text-[var(--text-muted)] hover:text-white")} />
                 </button>
               </div>
 
               {/* Auralis Metadata Card (Spotify style About the artist / Credits cards) */}
-              <div className="mb-4 rounded-lg bg-[var(--panel-2)] p-4 relative overflow-hidden">
+              <div className="mb-4 rounded-lg bg-[var(--panel-2)] p-4">
                 <h3 className="text-[16px] font-bold text-white mb-4">À propos du titre</h3>
-                <div className="flex flex-col gap-3 relative z-10">
+                <div className="flex flex-col gap-3">
                   {currentTrack.album && (
                     <MetaLine label="Album" value={currentTrack.album} />
                   )}

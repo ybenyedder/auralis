@@ -40,6 +40,7 @@ export function PlayerBar() {
   const toggleShuffle = usePlayer((s) => s.toggleShuffle);
   const cycleRepeat = usePlayer((s) => s.cycleRepeat);
   const toggleFavorite = usePlayer((s) => s.toggleFavorite);
+  const navigate = usePlayer((s) => s.navigate);
   const toggleFullscreenPlayer = usePlayer((s) => s.toggleFullscreenPlayer);
   const toggleQueue = usePlayer((s) => s.toggleQueue);
   const queueOpen = usePlayer((s) => s.queueOpen);
@@ -79,12 +80,12 @@ export function PlayerBar() {
       <div className="flex min-w-0 items-center justify-start gap-4" style={{ width: "30%" }}>
         {currentTrack ? (
           <>
-            <button onClick={toggleFullscreenPlayer} aria-label="Agrandir" className="shrink-0 group relative overflow-hidden rounded-md">
+            <button onClick={toggleFullscreenPlayer} aria-label="Agrandir" className="shrink-0 group relative overflow-hidden rounded-sm">
               <Artwork
                 title={currentTrack.title}
                 trackhash={currentTrack.trackhash}
                 size={56}
-                rounded={6}
+                rounded={8}
                 colors={currentTrack.color}
                 image={currentTrack.image}
               />
@@ -99,14 +100,26 @@ export function PlayerBar() {
               >
                 {trackTitle(currentTrack)}
               </button>
-              <p className="block truncate text-left text-[12px] text-[var(--text-muted)] hover:text-white hover:underline cursor-pointer">
-                {trackArtist(currentTrack)}
-              </p>
+              {currentTrack.artists?.[0]?.artisthash ? (
+                <button
+                  onClick={() => {
+                    const h = currentTrack.artists?.[0]?.artisthash;
+                    if (h) navigate("artist", h);
+                  }}
+                  className="block truncate text-left text-[12px] text-[var(--text-muted)] transition-colors hover:text-white hover:underline"
+                >
+                  {trackArtist(currentTrack)}
+                </button>
+              ) : (
+                <p className="block truncate text-left text-[12px] text-[var(--text-muted)]">
+                  {trackArtist(currentTrack)}
+                </p>
+              )}
             </div>
             <button
               onClick={() => toggleFavorite(currentTrack.trackhash)}
               aria-label={fav ? "Retirer des favoris" : "Ajouter aux favoris"}
-              className="ml-2 flex shrink-0 items-center justify-center transition-transform hover:scale-110 active:scale-100"
+              className="ml-2 flex shrink-0 items-center justify-center"
             >
               <Heart className={cn("size-4", fav ? "fill-[var(--primary)] text-[var(--primary)]" : "text-[var(--text-muted)] hover:text-white")} />
             </button>
@@ -445,7 +458,7 @@ function SleepPopover({ active, minutes, remaining, afterTrackActive, onPick, on
             onClick={() => onPick(m)}
             className={cn(
               "rounded-sm py-1.5 text-[12px] font-semibold transition-colors",
-              active && !afterTrackActive && minutes === m ? "bg-[var(--primary)] text-black" : "bg-[var(--panel-3)] text-white hover:bg-[#3e3e3e]"
+              active && !afterTrackActive && minutes === m ? "bg-[var(--primary)] text-black" : "bg-[var(--panel-3)] text-white hover:bg-[var(--accent)]"
             )}
           >
             {m}m
@@ -456,7 +469,7 @@ function SleepPopover({ active, minutes, remaining, afterTrackActive, onPick, on
         onClick={onAfterTrack}
         className={cn(
           "mt-1 w-full rounded-sm py-1.5 text-[11.5px] font-semibold transition-colors",
-          afterTrackActive ? "bg-[var(--primary)] text-black" : "bg-[var(--panel-3)] text-white hover:bg-[#3e3e3e]"
+          afterTrackActive ? "bg-[var(--primary)] text-black" : "bg-[var(--panel-3)] text-white hover:bg-[var(--accent)]"
         )}
       >
         Fin du titre
@@ -464,7 +477,7 @@ function SleepPopover({ active, minutes, remaining, afterTrackActive, onPick, on
       {active && (
         <button
           onClick={onCancel}
-          className="mt-1.5 flex w-full items-center justify-center gap-1.5 rounded-sm bg-[var(--panel-3)] py-1.5 text-[11.5px] text-[var(--text-muted)] transition-colors hover:bg-[#3e3e3e] hover:text-white"
+          className="mt-1.5 flex w-full items-center justify-center gap-1.5 rounded-sm bg-[var(--panel-3)] py-1.5 text-[11.5px] text-[var(--text-muted)] transition-colors hover:bg-[var(--accent)] hover:text-white"
         >
           <X className="size-3" /> Annuler
         </button>

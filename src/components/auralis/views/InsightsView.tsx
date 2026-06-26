@@ -102,8 +102,7 @@ export function InsightsView() {
         {kpis.map((kpi) => {
           const Icon = kpi.icon;
           return (
-            <div key={kpi.label} className="matte-panel relative overflow-hidden rounded-2xl p-4 shadow-[0_4px_16px_rgba(0,0,0,0.15)]">
-              <span className="absolute inset-x-0 top-0 h-1 bg-primary" />
+            <div key={kpi.label} className="matte-panel rounded-2xl p-4">
               <div className="relative flex items-center gap-2">
                 <span className="grid h-8 w-8 shrink-0 place-items-center rounded-full bg-primary/15 text-primary-soft shadow-[inset_0_1px_0_rgba(255,255,255,0.05)]">
                   <Icon className="size-4" />
@@ -117,7 +116,7 @@ export function InsightsView() {
       </div>
 
       {totalPlays === 0 && (
-        <div className="matte-panel mb-5 rounded-2xl border-amber/20 p-4 text-[12.5px] text-muted-foreground shadow-[0_4px_16px_rgba(0,0,0,0.15)]">
+        <div className="matte-panel mb-5 rounded-2xl border-amber/20 p-4 text-[12.5px] text-muted-foreground">
           Les compteurs d’écoute démarrent à zéro : aucune statistique artificielle n’est injectée. Ils augmentent uniquement lorsque tu lances réellement des titres dans cette instance locale.
         </div>
       )}
@@ -139,7 +138,7 @@ export function InsightsView() {
           <BarList rows={genreData.map((genre) => ({ id: genre.name, label: genre.name, value: genre.value }))} />
         </MetricPanel>
 
-        <div className="matte-panel rounded-2xl p-4 lg:col-span-2 shadow-[0_4px_16px_rgba(0,0,0,0.15)]">
+        <div className="matte-panel rounded-2xl p-4 lg:col-span-2">
           <SectionHeader title="Albums les plus volumineux" eyebrow="Nombre de titres" />
           <BarList
             rows={albumData.map((album) => ({
@@ -160,7 +159,7 @@ function WeeklyRecap({ streak, weekPlays, todayPlays, playsByDay, weekListeningS
   const max = Math.max(1, ...playsByDay.map((d) => d.count));
   return (
     <div className="mb-6 grid gap-3 sm:grid-cols-[minmax(0,240px)_1fr]">
-      <div className="matte-panel flex items-center gap-3 rounded-2xl p-4 shadow-[0_4px_16px_rgba(0,0,0,0.15)]">
+      <div className="matte-panel flex items-center gap-3 rounded-2xl p-4">
         <span className="grid size-12 shrink-0 place-items-center rounded-full bg-primary/15 text-primary-soft">
           <Flame className="size-6" />
         </span>
@@ -174,7 +173,7 @@ function WeeklyRecap({ streak, weekPlays, todayPlays, playsByDay, weekListeningS
           )}
         </div>
       </div>
-      <div className="matte-panel rounded-2xl p-4 shadow-[0_4px_16px_rgba(0,0,0,0.15)]">
+      <div className="matte-panel rounded-2xl p-4">
         <div className="mb-2 flex flex-wrap items-baseline justify-between gap-x-2 gap-y-0.5">
           <p className="text-[10px] font-semibold uppercase tracking-[0.06em] text-muted-foreground/80">7 derniers jours</p>
           <p className="text-[12px] text-muted-foreground">
@@ -201,7 +200,7 @@ function WeeklyRecap({ streak, weekPlays, todayPlays, playsByDay, weekListeningS
 
 function MetricPanel({ title, eyebrow, children }: { title: string; eyebrow: string; children: React.ReactNode }) {
   return (
-    <div className="matte-panel rounded-2xl p-4 shadow-[0_4px_16px_rgba(0,0,0,0.15)]">
+    <div className="matte-panel rounded-2xl p-4">
       <SectionHeader title={title} eyebrow={eyebrow} />
       {children}
     </div>

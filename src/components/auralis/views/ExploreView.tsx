@@ -8,6 +8,7 @@ import { paletteForName } from "@/lib/auralis/brand";
 import { SectionHeader } from "../SectionHeader";
 import { TrackRow, TrackListHeader } from "../TrackRow";
 import { AlbumCard, ArtistCard } from "../Cards";
+import { VirtualList } from "../Virtualized";
 import { MoodMixes } from "../MoodMixes";
 
 export function ExploreView() {
@@ -57,8 +58,8 @@ export function ExploreView() {
   if (!query) {
     return (
       <div className="fade-up px-4 py-4 lg:px-6 lg:py-5">
-        <div className="safe-px sticky top-0 z-10 -mx-4 mb-5 bg-[var(--background)] px-4 lg:static lg:mx-0 lg:mb-6 lg:bg-transparent lg:px-0 pt-4">
-          <div className="flex items-center gap-2 rounded-full px-5 py-3 bg-[var(--panel-2)] border border-transparent hover:bg-[var(--panel-2)] hover:border-[var(--panel-3)] focus-within:border-white transition-all h-12 max-w-[360px]">
+        <div className="safe-px sticky top-0 z-10 -mx-4 mb-5 bg-[var(--background)] px-4 pt-4 md:hidden">
+          <div className="flex items-center gap-2 rounded-full px-5 py-3 bg-[var(--panel-2)] border border-transparent hover:bg-[var(--panel-3)] hover:border-[var(--panel-3)] focus-within:border-white transition-all h-12 max-w-[360px]">
             <Search className="size-5 text-[var(--text-muted)]" />
             <input
               type="search"
@@ -75,8 +76,8 @@ export function ExploreView() {
 
         {genreMixes.length > 0 && (
           <div className="mb-7 lg:mb-8">
-            <h2 className="mb-4 text-[20px] font-black tracking-tight text-foreground lg:text-[24px]">Parcourir tout</h2>
-            <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
+            <h2 className="mb-4 text-[20px] font-bold tracking-tight text-foreground lg:text-[24px]">Parcourir tout</h2>
+            <div className="grid grid-cols-2 gap-2 sm:grid-cols-4 md:grid-cols-6">
               {genreMixes.map(({ genre, tracks: gt }) => {
                 const [c0, c1] = paletteForName(genre);
                 return (
@@ -84,13 +85,13 @@ export function ExploreView() {
                     key={genre}
                     onClick={() => playList(shuffleArray(gt), 0)}
                     aria-label={`Lire un mix ${genre}`}
-                    className="group relative aspect-[1.1] overflow-hidden rounded-lg p-4 text-left transition-transform duration-200 hover:scale-[1.02]"
+                    className="group relative aspect-[1.1] overflow-hidden rounded-lg p-4 text-left"
                     style={{ background: `linear-gradient(150deg, ${c0}, ${c1})` }}
                   >
                     <span className="block max-w-[80%] text-[18px] font-black leading-tight text-white drop-shadow-[0_1px_3px_rgba(0,0,0,0.45)]">{genre}</span>
                     {/* Tilted thumbnail in the bottom-right corner — Spotify's category-card motif. */}
                     <span
-                      className="absolute -bottom-2 -right-3 h-[72px] w-[72px] rotate-[25deg] rounded-[4px] shadow-[0_8px_16px_rgba(0,0,0,0.4)]"
+                      className="absolute -bottom-2 -right-3 h-[72px] w-[72px] rotate-[25deg] rounded-xs shadow-[0_8px_16px_rgba(0,0,0,0.4)]"
                       style={{ background: `linear-gradient(135deg, ${c1}, ${c0})` }}
                     />
                   </button>
@@ -102,7 +103,7 @@ export function ExploreView() {
 
         {genreMixes.length === 0 && albums.length > 0 && (
           <div className="mb-7 lg:mb-8">
-            <h2 className="mb-4 text-[20px] font-black tracking-tight text-foreground lg:text-[24px]">Parcourir tout</h2>
+            <h2 className="mb-4 text-[20px] font-bold tracking-tight text-foreground lg:text-[24px]">Parcourir tout</h2>
             <div className="grid grid-cols-2 gap-2 sm:grid-cols-4 md:grid-cols-6">
               {albums.slice(0, 12).map((album) => (
                 <AlbumCard key={album.albumhash} album={album} />
@@ -113,7 +114,7 @@ export function ExploreView() {
 
         {genreMixes.length === 0 && albums.length === 0 && artists.length > 0 && (
           <div className="mb-7 lg:mb-8">
-            <h2 className="mb-4 text-[20px] font-black tracking-tight text-foreground lg:text-[24px]">Parcourir tout</h2>
+            <h2 className="mb-4 text-[20px] font-bold tracking-tight text-foreground lg:text-[24px]">Parcourir tout</h2>
             <div className="grid grid-cols-2 gap-2 sm:grid-cols-4 md:grid-cols-6">
               {artists.slice(0, 12).map((artist) => (
                 <ArtistCard key={artist.artisthash} artist={artist} />
@@ -130,7 +131,7 @@ export function ExploreView() {
   return (
     <div className="fade-up px-4 py-4 lg:px-6 lg:py-5">
       <div className="safe-px sticky top-0 z-10 -mx-4 mb-5 bg-[var(--background)] px-4 lg:static lg:mx-0 lg:mb-6 lg:bg-transparent lg:px-0 pt-4">
-        <div className="flex items-center gap-2 rounded-full px-5 py-3 bg-[var(--panel-2)] border border-transparent hover:bg-[var(--panel-2)] hover:border-[var(--panel-3)] focus-within:border-white transition-all h-12 max-w-[360px]">
+        <div className="flex items-center gap-2 rounded-full px-5 py-3 bg-[var(--panel-2)] border border-transparent hover:bg-[var(--panel-3)] hover:border-[var(--panel-3)] focus-within:border-white transition-all h-12 max-w-[360px]">
           <Search className="size-5 text-[var(--text-muted)]" />
           <input
             type="search"
@@ -184,14 +185,9 @@ export function ExploreView() {
               <section>
                 <SectionHeader title="Titres" eyebrow={`${results.tracks.length} trouvés`} />
                 <TrackListHeader />
-                <div className="space-y-0.5">
-                  {results.tracks.slice(0, 100).map((track, index) => (
-                    <TrackRow key={track.trackhash} track={track} index={index} list={results.tracks} />
-                  ))}
-                </div>
-                {results.tracks.length > 100 && (
-                  <p className="mt-3 px-2 text-[12px] font-medium text-[var(--text-muted)]">+{results.tracks.length - 100} autres</p>
-                )}
+                <VirtualList items={results.tracks} itemKey={(t) => t.trackhash} estimateHeight={56} gap={2}>
+                  {(track, index) => <TrackRow track={track} index={index} list={results.tracks} />}
+                </VirtualList>
               </section>
             )}
           </div>

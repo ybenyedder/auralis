@@ -31,7 +31,7 @@ export function AuthGate({ children }: { children: ReactNode }) {
   }, []);
 
   if (phase === "checking") {
-    return <div className="grid h-screen w-screen place-items-center bg-background text-muted-foreground/40 text-[12px]">…</div>;
+    return <div className="grid h-screen w-screen place-items-center bg-background text-muted-foreground/70 text-[12px]">…</div>;
   }
   if (phase === "locked") {
     return <LoginScreen onUnlock={() => setPhase("unlocked")} />;
@@ -110,18 +110,12 @@ function LoginScreen({ onUnlock }: { onUnlock: () => void }) {
 
   return (
     <div className="relative grid h-screen w-screen place-items-center overflow-hidden bg-[#101010] px-6 text-foreground">
-      {/* A quiet top wash so the black canvas isn't dead-flat, like Netflix. */}
-      <div
-        className="pointer-events-none absolute inset-0"
-        style={{ background: "radial-gradient(120% 80% at 50% -10%, rgba(30,215,96,0.10), transparent 60%)" }}
-      />
-
       {/* Brand, top-left. */}
       <div className="absolute left-6 top-6 flex items-center gap-2.5 lg:left-10 lg:top-8">
         <span className="grid h-8 w-8 place-items-center text-[var(--primary)]">
           <AuralisGlyph className="h-7 w-7" />
         </span>
-        <span className="text-[18px] font-black tracking-tight">Auralis</span>
+        <span className="text-[18px] font-bold tracking-tight">Auralis</span>
       </div>
 
       {selected === null ? (
@@ -132,7 +126,7 @@ function LoginScreen({ onUnlock }: { onUnlock: () => void }) {
           </h1>
           <div className="flex flex-wrap items-start justify-center gap-6 lg:gap-9">
             {!accountsLoaded ? (
-              <div className="h-32 w-28 animate-pulse rounded-md bg-white/5 lg:h-40 lg:w-36" />
+              <div className="h-32 w-28 animate-pulse rounded-md bg-[var(--panel-2)] lg:h-40 lg:w-36" />
             ) : (
               profiles.map((name) => <ProfileTile key={name} name={name} onClick={() => pick(name)} />)
             )}
@@ -153,7 +147,7 @@ function LoginScreen({ onUnlock }: { onUnlock: () => void }) {
             autoComplete="current-password"
             value={password}
             onChange={(e) => setPassword(e.target.value)}
-            className="w-full rounded-[4px] border border-white/15 bg-[var(--panel)] px-4 py-3.5 text-center text-[16px] tracking-[0.3em] text-foreground outline-none transition-colors placeholder:tracking-normal placeholder:text-muted-foreground/40 focus:border-white/50"
+            className="w-full rounded-xs border border-[var(--line)] bg-[var(--panel)] px-4 py-3.5 text-center text-[16px] tracking-[0.3em] text-foreground outline-none transition-colors placeholder:tracking-normal placeholder:text-muted-foreground/40 focus:border-[var(--line-strong)]"
             placeholder="Mot de passe"
           />
           <div role="alert" className="min-h-[20px] py-2 text-center text-[13px] text-[var(--destructive)]">{error}</div>
@@ -161,14 +155,14 @@ function LoginScreen({ onUnlock }: { onUnlock: () => void }) {
           <button
             type="submit"
             disabled={busy || !password}
-            className="signal-button w-full rounded-full py-3.5 text-[15px] font-black transition-transform duration-150 hover:scale-[1.02] disabled:opacity-40"
+            className="signal-button w-full rounded-full py-3.5 text-[15px] font-bold disabled:opacity-40"
           >
             {busy ? "Connexion…" : "Se connecter"}
           </button>
           <button
             type="button"
             onClick={() => { setSelected(null); setError(""); setPassword(""); }}
-            className="mt-5 text-[13px] font-bold uppercase tracking-[0.08em] text-muted-foreground transition-colors hover:text-foreground"
+            className="mt-5 text-[13px] font-semibold uppercase tracking-[0.08em] text-muted-foreground transition-colors hover:text-foreground"
           >
             ← Changer de profil
           </button>
@@ -178,8 +172,8 @@ function LoginScreen({ onUnlock }: { onUnlock: () => void }) {
   );
 }
 
-/** A Netflix-style profile tile: a big rounded avatar that brightens + lifts on
- *  hover, with the name underneath turning white. */
+/** A Netflix-style profile tile: a big rounded avatar that rings on hover, with
+ *  the name underneath turning white. */
 function ProfileTile({ name, onClick }: { name: string; onClick: () => void }) {
   return (
     <button type="button" onClick={onClick} className="group flex flex-col items-center gap-3">
@@ -192,7 +186,7 @@ function ProfileTile({ name, onClick }: { name: string; onClick: () => void }) {
 }
 
 /** The avatar square itself — a deterministic colour block with the initial.
- *  `interactive` adds the hover ring + scale used on the selection grid. */
+ *  `interactive` adds the hover ring used on the selection grid. */
 function ProfileAvatar({ name, size, interactive = false }: { name: string; size?: number; interactive?: boolean }) {
   const [c0, c1] = paletteForName(name);
   const initial = (name || "?").charAt(0).toUpperCase();
@@ -201,7 +195,7 @@ function ProfileAvatar({ name, size, interactive = false }: { name: string; size
       className={
         "grid shrink-0 place-items-center overflow-hidden rounded-md font-black text-white/95 " +
         (interactive
-          ? "h-28 w-28 ring-0 ring-white transition-all duration-200 group-hover:scale-105 group-hover:ring-4 lg:h-36 lg:w-36"
+          ? "h-28 w-28 ring-2 ring-white/0 transition-colors duration-200 group-hover:ring-white/70 lg:h-36 lg:w-36"
           : "")
       }
       style={{

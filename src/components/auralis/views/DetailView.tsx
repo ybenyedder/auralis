@@ -36,6 +36,7 @@ import {
 import { SectionHeader } from "../SectionHeader";
 import { TrackRow, TrackListHeader } from "../TrackRow";
 import { AlbumCard } from "../Cards";
+import { VirtualList, VirtualGrid } from "../Virtualized";
 import { Artwork } from "../Artwork";
 import {
   albumArtist,
@@ -44,6 +45,7 @@ import {
   formatCount,
   formatLongDuration,
   paletteForName,
+  plural,
 } from "@/lib/auralis/brand";
 import { cn } from "@/lib/utils";
 import type { Artist } from "@/lib/auralis/types";
@@ -77,6 +79,7 @@ export function AlbumDetail({ albumhash }: { albumhash: string }) {
   const togglePlay = usePlayer((s) => s.togglePlay);
   const tracks = useLibraryStore((state) => state.tracks);
   const albums = useLibraryStore((state) => state.albums);
+  const status = useLibraryStore((state) => state.status);
   const album = useMemo(
     () => albums.find((item) => item.albumhash === albumhash),
     [albums, albumhash],
@@ -86,7 +89,7 @@ export function AlbumDetail({ albumhash }: { albumhash: string }) {
     [album, tracks],
   );
 
-  if (!album) return <EmptyDetail label="Album introuvable" />;
+  if (!album) return <EmptyDetail label="Album introuvable" loading={status !== "ready"} />;
 
   const colors = album.color ?? paletteForName(album.albumhash);
   const isPlayingThis =
@@ -123,7 +126,7 @@ export function AlbumDetail({ albumhash }: { albumhash: string }) {
             </h1>
             <p className="mt-3 text-[13px] text-muted-foreground">
               {albumArtist(album)} · {album.year ?? "année inconnue"} ·{" "}
-              {albumTracks.length} titres · {formatLongDuration(totalDuration)}
+              {plural(albumTracks.length, "titre")} · {formatLongDuration(totalDuration)}
             </p>
           </div>
         </div>
@@ -147,7 +150,7 @@ export function AlbumDetail({ albumhash }: { albumhash: string }) {
           <button
             onClick={() => albumTracks.length && playList(shuffleArray(albumTracks), 0)}
             disabled={albumTracks.length === 0}
-            className="grid h-9 w-9 shrink-0 place-items-center rounded-full text-[#b3b3b3] transition-colors hover:text-white disabled:opacity-40"
+            className="grid h-9 w-9 shrink-0 place-items-center rounded-full text-muted-foreground transition-colors hover:text-foreground disabled:opacity-40"
             aria-label="Lecture aléatoire de l'album"
           >
             <Shuffle className="size-6" />
@@ -157,17 +160,11 @@ export function AlbumDetail({ albumhash }: { albumhash: string }) {
 
       <div className="px-4 py-5 lg:px-6">
         <TrackListHeader />
-        <div className="space-y-0.5">
-          {albumTracks.map((track, index) => (
-            <TrackRow
-              key={track.trackhash}
-              track={track}
-              index={index}
-              list={albumTracks}
-              showAlbum={false}
-            />
-          ))}
-        </div>
+        <VirtualList items={albumTracks} itemKey={(t) => t.trackhash} estimateHeight={56} gap={2}>
+          {(track, index) => (
+            <TrackRow track={track} index={index} list={albumTracks} showAlbum={false} />
+          )}
+        </VirtualList>
 
         {otherAlbums.length > 0 && (
           <div className="mt-8">
@@ -175,7 +172,7 @@ export function AlbumDetail({ albumhash }: { albumhash: string }) {
               title={`Autres albums de ${album.albumartists[0]?.name ?? "cet artiste"}`}
               eyebrow="Discographie"
             />
-            <div className="grid grid-cols-2 gap-1 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6">
+            <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6">
               {otherAlbums.map((item) => (
                 <AlbumCard key={item.albumhash} album={item} />
               ))}
@@ -192,6 +189,7 @@ export function ArtistDetail({ artisthash }: { artisthash: string }) {
   const tracks = useLibraryStore((state) => state.tracks);
   const artists = useLibraryStore((state) => state.artists);
   const albums = useLibraryStore((state) => state.albums);
+  const status = useLibraryStore((state) => state.status);
   const artist = useMemo<Artist | undefined>(
     () => artists.find((item) => item.artisthash === artisthash),
     [artists, artisthash],
@@ -200,15 +198,18 @@ export function ArtistDetail({ artisthash }: { artisthash: string }) {
     () => albumsOfArtistFrom(albums, artisthash),
     [albums, artisthash],
   );
-  const topTracks = useMemo(
-    () =>
-      [...tracksOfArtistFrom(tracks, artisthash)]
-        .sort((a, b) => (b.playcount || 0) - (a.playcount || 0))
-        .slice(0, 8),
+  // Compute the full artist track list ONCE, then derive the top-8 from it — so the
+  // header count is the real total (not capped at 8) and the shuffle button reuses it.
+  const artistTracks = useMemo(
+    () => tracksOfArtistFrom(tracks, artisthash),
     [tracks, artisthash],
   );
+  const topTracks = useMemo(
+    () => [...artistTracks].sort((a, b) => (b.playcount || 0) - (a.playcount || 0)).slice(0, 8),
+    [artistTracks],
+  );
 
-  if (!artist) return <EmptyDetail label="Artiste introuvable" />;
+  if (!artist) return <EmptyDetail label="Artiste introuvable" loading={status !== "ready"} />;
   const colors = paletteForName(artist.name);
 
   return (
@@ -228,7 +229,7 @@ export function ArtistDetail({ artisthash }: { artisthash: string }) {
             />
           ) : (
             <div
-              className="cover-fallback relative grid w-[min(52vw,200px)] aspect-square shrink-0 place-items-center overflow-hidden rounded-full shadow-[0_8px_32px_rgba(0,0,0,0.4)] border border-white/5 p-4 lg:size-44"
+              className="cover-fallback relative grid w-[min(52vw,200px)] aspect-square shrink-0 place-items-center overflow-hidden rounded-full border border-[var(--line)] p-4 lg:size-44"
               style={{ backgroundColor: colors[0] }}
             >
               <span className="text-[18vw] font-black leading-none text-white/82 lg:text-[64px]">
@@ -250,8 +251,8 @@ export function ArtistDetail({ artisthash }: { artisthash: string }) {
             )}
             <p className="mt-2 text-[12px] text-muted-foreground">
               {formatCount(artist.playcount)} écoutes ·{" "}
-              {artist.albumcount ?? artistAlbums.length} albums ·{" "}
-              {artist.trackcount ?? topTracks.length} titres
+              {plural(artist.albumcount ?? artistAlbums.length, "album")} ·{" "}
+              {plural(artist.trackcount ?? artistTracks.length, "titre")}
               {artist.genres?.length ? ` · ${artist.genres.join(", ")}` : ""}
             </p>
           </div>
@@ -266,12 +267,9 @@ export function ArtistDetail({ artisthash }: { artisthash: string }) {
             <Play className="size-6 fill-current ml-0.5" />
           </button>
           <button
-            onClick={() => {
-              const all = tracksOfArtistFrom(tracks, artisthash);
-              if (all.length) playList(shuffleArray(all), 0);
-            }}
+            onClick={() => artistTracks.length && playList(shuffleArray(artistTracks), 0)}
             disabled={topTracks.length === 0}
-            className="grid h-9 w-9 shrink-0 place-items-center rounded-full text-[#b3b3b3] transition-colors hover:text-white disabled:opacity-40"
+            className="grid h-9 w-9 shrink-0 place-items-center rounded-full text-muted-foreground transition-colors hover:text-foreground disabled:opacity-40"
             aria-label="Lecture aléatoire de l'artiste"
           >
             <Shuffle className="size-6" />
@@ -295,13 +293,11 @@ export function ArtistDetail({ artisthash }: { artisthash: string }) {
 
         <SectionHeader
           title="Discographie"
-          eyebrow={`${artistAlbums.length} albums`}
+          eyebrow={plural(artistAlbums.length, "album")}
         />
-        <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6">
-          {artistAlbums.map((item) => (
-            <AlbumCard key={item.albumhash} album={item} />
-          ))}
-        </div>
+        <VirtualGrid items={artistAlbums} itemKey={(a) => a.albumhash} minItemWidth={160} gap={8} estimateRowHeight={232}>
+          {(item) => <AlbumCard album={item} />}
+        </VirtualGrid>
       </div>
     </div>
   );
@@ -319,6 +315,7 @@ export function PlaylistDetail({ id }: { id: string }) {
   const removeFromPlaylist = usePlayer((s) => s.removeFromPlaylist);
   const libraryTracks = useLibraryStore((state) => state.tracks);
   const libraryPlaylists = useLibraryStore((state) => state.playlists);
+  const status = useLibraryStore((state) => state.status);
   const libraryPlaylist = useMemo(
     () => libraryPlaylists.find((item) => String(item.id) === id),
     [libraryPlaylists, id],
@@ -339,7 +336,7 @@ export function PlaylistDetail({ id }: { id: string }) {
   const [editing, setEditing] = useState(false);
   const [name, setName] = useState("");
 
-  if (!playlist) return <EmptyDetail label="Playlist introuvable" />;
+  if (!playlist) return <EmptyDetail label="Playlist introuvable" loading={isCustom ? false : status !== "ready"} />;
 
   const colors = playlist.color ?? paletteForName(playlist.name);
   const coverImage = tracks.find((track) => track.image)?.image;
@@ -418,7 +415,7 @@ export function PlaylistDetail({ id }: { id: string }) {
               </p>
             )}
             <p className="mt-3 text-[13px] text-muted-foreground">
-              {tracks.length} titres · {formatLongDuration(totalDuration)}
+              {plural(tracks.length, "titre")} · {formatLongDuration(totalDuration)}
             </p>
           </div>
         </div>
@@ -443,13 +440,13 @@ export function PlaylistDetail({ id }: { id: string }) {
             <>
               <button
                 onClick={() => { setName(playlist.name); setEditing(true); }}
-                className="flex items-center gap-2 text-[13px] font-bold text-[#b3b3b3] transition-colors hover:text-white"
+                className="flex items-center gap-2 text-[13px] font-bold text-muted-foreground transition-colors hover:text-foreground"
               >
                 <PencilLine className="size-5" /> Renommer
               </button>
               <button
                 onClick={deleteCurrentPlaylist}
-                className="flex items-center gap-2 text-[13px] font-bold text-[#b3b3b3] transition-colors hover:text-destructive"
+                className="flex items-center gap-2 text-[13px] font-bold text-muted-foreground transition-colors hover:text-destructive"
               >
                 <Trash2 className="size-5" /> Supprimer
               </button>
@@ -462,34 +459,27 @@ export function PlaylistDetail({ id }: { id: string }) {
         {tracks.length > 0 ? (
           <>
             <TrackListHeader />
-            <div className="space-y-0.5">
-              {tracks.map((track, index) => (
-                <div key={track.trackhash} className="group/playlist relative flex items-center gap-1">
+            <VirtualList items={tracks} itemKey={(t) => t.trackhash} estimateHeight={56} gap={2}>
+              {(track, index) => (
+                <div className="group/playlist flex items-center gap-1">
                   <div className="min-w-0 flex-1">
                     <TrackRow track={track} index={index} list={tracks} />
                   </div>
                   {isCustom && (
-                    <>
-                      {/* Mobile: always-visible 44px icon affordance */}
-                      <button
-                        onClick={() => removeFromPlaylist(id, track.trackhash)}
-                        aria-label={`Retirer ${track.title}`}
-                        className="tap-press grid h-11 w-11 shrink-0 place-items-center rounded-full border border-destructive/20 bg-destructive/10 text-destructive lg:hidden"
-                      >
-                        <Trash2 className="size-4" />
-                      </button>
-                      {/* Desktop: hover-only inline pill */}
-                      <button
-                        onClick={() => removeFromPlaylist(id, track.trackhash)}
-                        className="absolute right-1 top-1/2 hidden -translate-y-1/2 rounded-full border border-destructive/20 bg-destructive/10 px-2 py-1 text-[10px] font-bold text-destructive transition-all duration-200 hover:bg-destructive/20 hover:scale-105 lg:group-hover/playlist:block"
-                      >
-                        Retirer
-                      </button>
-                    </>
+                    // One in-flow affordance (no absolute overlay over the row's own
+                    // like/menu controls): always reachable on touch, hover-revealed on
+                    // desktop while still reserving its slot so nothing overlaps.
+                    <button
+                      onClick={() => removeFromPlaylist(id, track.trackhash)}
+                      aria-label={`Retirer ${track.title}`}
+                      className="tap-press grid h-11 w-11 shrink-0 place-items-center rounded-full border border-destructive/20 bg-destructive/10 text-destructive transition-opacity duration-200 hover:bg-destructive/20 lg:h-9 lg:w-9 lg:opacity-0 lg:group-hover/playlist:opacity-100 lg:focus-visible:opacity-100"
+                    >
+                      <Trash2 className="size-4" />
+                    </button>
                   )}
                 </div>
-              ))}
-            </div>
+              )}
+            </VirtualList>
           </>
         ) : (
           <div className="matte-panel rounded-lg p-8 text-center">
@@ -861,7 +851,7 @@ export function SettingsView() {
   const aboutRows: SettingsRow[] = [
     { label: "Version", value: `Auralis ${brand.version}`, type: "text" },
     { label: "Mode", value: "Lecteur local personnel", type: "text" },
-    { label: "Bibliothèque", value: `${tracks.length} titres`, type: "text" },
+    { label: "Bibliothèque", value: plural(tracks.length, "titre"), type: "text" },
     { label: "Contact", value: CONTACT_EMAIL, type: "text" },
     {
       label: "Code source",
@@ -1087,7 +1077,7 @@ function SettingsCard({ title, rows }: { title: string; rows: SettingsRow[] }) {
                   className={cn(
                     "tap-press flex h-7 w-12 shrink-0 items-center rounded-full px-0.5 transition-all duration-300 lg:h-5 lg:w-9",
                     row.active
-                      ? "justify-end bg-primary shadow-[0_0_12px_rgba(217,95,69,0.4)]"
+                      ? "justify-end bg-primary"
                       : "justify-start bg-white/10",
                   )}
                   aria-label={row.label}
@@ -1099,7 +1089,7 @@ function SettingsCard({ title, rows }: { title: string; rows: SettingsRow[] }) {
                 <button
                   onClick={row.onAction}
                   className={cn(
-                    "tap-press flex min-h-[40px] shrink-0 items-center rounded-full border border-transparent shadow-[inset_0_1px_0_rgba(255,255,255,0.05)] px-4 text-[13px] font-bold transition-all duration-200 hover:scale-105 lg:min-h-0 lg:px-3 lg:py-1 lg:text-[12px]",
+                    "tap-press flex min-h-[40px] shrink-0 items-center rounded-full border border-transparent shadow-[inset_0_1px_0_rgba(255,255,255,0.05)] px-4 text-[13px] font-bold transition-colors duration-200 lg:min-h-0 lg:px-3 lg:py-1 lg:text-[12px]",
                     row.tone === "danger"
                       ? "bg-destructive/10 text-destructive hover:bg-destructive/20"
                       : "bg-white/5 text-foreground hover:bg-white/10",
@@ -1217,7 +1207,11 @@ function ThemePreview({ theme, active, onPick }: { theme: Theme; active: boolean
   );
 }
 
-function EmptyDetail({ label }: { label: string }) {
+function EmptyDetail({ label, loading = false }: { label: string; loading?: boolean }) {
+  // While the library is still hydrating, a deep-linked entity isn't "introuvable"
+  // yet — it just hasn't loaded. Render a calm blank area (no error glyph, no
+  // spinner) so the real content simply appears, instead of flashing an error.
+  if (loading) return <div className="h-full min-h-[60vh]" aria-hidden />;
   return (
     <div className="flex h-full min-h-[60vh] flex-col items-center justify-center gap-3 text-center">
       <div className="grid h-16 w-16 place-items-center rounded-lg border border-dashed border-[var(--line-strong)]">
@@ -1267,7 +1261,7 @@ function AccountSettings() {
     window.location.reload();
   };
 
-  const inputClass = "h-12 w-full rounded-xl border border-transparent bg-white/5 shadow-[inset_0_1px_0_rgba(255,255,255,0.05)] px-4 text-[16px] text-foreground outline-none transition-all duration-200 focus:bg-white/10 focus:ring-2 focus:ring-white/10 lg:h-auto lg:py-2.5 lg:text-[14px]";
+  const inputClass = "h-12 w-full rounded-xl border border-transparent bg-[var(--panel-2)] px-4 text-[16px] text-foreground outline-none transition-all duration-200 focus:bg-[var(--panel-3)] focus:ring-2 focus:ring-white/10 lg:h-auto lg:py-2.5 lg:text-[14px]";
 
   return (
     <div className="space-y-6">
@@ -1285,7 +1279,7 @@ function AccountSettings() {
           <button
             onClick={changePassword}
             disabled={busy}
-            className="signal-button tap-press mt-1 h-12 w-full rounded-full px-5 text-[14px] font-black transition-all duration-200 hover:scale-105 shadow-[0_4px_12px_rgba(0,0,0,0.2)] disabled:opacity-40 lg:h-auto lg:w-auto lg:py-2.5 lg:text-[13px]"
+            className="signal-button tap-press mt-1 h-12 w-full rounded-full px-5 text-[14px] font-bold transition-colors duration-200 disabled:opacity-40 lg:h-auto lg:w-auto lg:py-2.5 lg:text-[13px]"
           >
             {busy ? "Mise à jour…" : "Changer le mot de passe"}
           </button>
@@ -1297,7 +1291,7 @@ function AccountSettings() {
       <div className="border-t border-[var(--line)] pt-5">
         <button
           onClick={logout}
-          className="ghost-button tap-press flex h-12 w-full items-center justify-center gap-2 rounded-full px-5 text-[14px] font-bold transition-all duration-200 hover:bg-white/[0.04] hover:scale-105 lg:h-auto lg:w-auto lg:justify-start lg:py-2.5 lg:text-[13px]"
+          className="ghost-button tap-press flex h-12 w-full items-center justify-center gap-2 rounded-full px-5 text-[14px] font-bold transition-colors duration-200 hover:bg-white/[0.04] lg:h-auto lg:w-auto lg:justify-start lg:py-2.5 lg:text-[13px]"
         >
           <LogOut className="size-4" /> Se déconnecter
         </button>
@@ -1401,7 +1395,7 @@ function AccountManager() {
 
   if (!isAdmin) return null;
 
-  const inputClass = "h-12 w-full rounded-xl border border-transparent bg-white/5 shadow-[inset_0_1px_0_rgba(255,255,255,0.05)] px-4 text-[16px] text-foreground outline-none transition-all duration-200 focus:bg-white/10 focus:ring-2 focus:ring-white/10 lg:h-auto lg:py-2.5 lg:text-[14px]";
+  const inputClass = "h-12 w-full rounded-xl border border-transparent bg-[var(--panel-2)] px-4 text-[16px] text-foreground outline-none transition-all duration-200 focus:bg-[var(--panel-3)] focus:ring-2 focus:ring-white/10 lg:h-auto lg:py-2.5 lg:text-[14px]";
 
   return (
     <div className="border-t border-[var(--line)] pt-5">
@@ -1414,17 +1408,17 @@ function AccountManager() {
 
       <div className="mb-4 space-y-1.5">
         {(users ?? []).map((u) => (
-          <div key={u.id} className="flex items-center gap-2 rounded-xl border border-transparent bg-white/5 shadow-[inset_0_1px_0_rgba(255,255,255,0.05)] px-4 py-2.5">
+          <div key={u.id} className="flex items-center gap-2 rounded-xl border border-transparent bg-[var(--panel-2)] px-4 py-2.5">
             <span className="min-w-0 flex-1 truncate text-[13.5px] font-bold text-foreground">
               {u.username}
               {u.isAdmin && <span className="ml-2 rounded-sm bg-primary/15 px-1.5 py-0.5 text-[9.5px] font-semibold uppercase tracking-[0.04em] text-primary">Admin</span>}
               {u.id === me && <span className="ml-2 text-[11px] font-medium text-muted-foreground/60">(vous)</span>}
             </span>
-            <button onClick={() => resetPassword(u)} className="ghost-button shrink-0 rounded-full px-3 py-1.5 text-[11.5px] font-bold transition-all duration-200 hover:scale-105 hover:bg-white/10" aria-label="Réinitialiser le mot de passe">
+            <button onClick={() => resetPassword(u)} className="ghost-button shrink-0 rounded-full px-3 py-1.5 text-[11.5px] font-bold transition-colors duration-200 hover:bg-white/10" aria-label="Réinitialiser le mot de passe">
               Mot de passe
             </button>
             {u.id !== me && (
-              <button onClick={() => remove(u)} className="tap-press grid h-8 w-8 shrink-0 place-items-center rounded-full text-muted-foreground/70 transition-all duration-200 hover:scale-110 hover:bg-destructive/15 hover:text-[var(--destructive)]" aria-label="Supprimer le compte">
+              <button onClick={() => remove(u)} className="tap-press grid h-8 w-8 shrink-0 place-items-center rounded-full text-muted-foreground/70 transition-colors duration-200 hover:bg-destructive/15 hover:text-[var(--destructive)]" aria-label="Supprimer le compte">
                 <Trash2 className="size-4" />
               </button>
             )}
@@ -1439,7 +1433,7 @@ function AccountManager() {
           <input type="checkbox" checked={makeAdmin} onChange={(e) => setMakeAdmin(e.target.checked)} className="size-4 accent-[var(--primary)]" />
           Administrateur (peut gérer les comptes)
         </label>
-        <button type="submit" disabled={busy} className="signal-button tap-press flex h-12 w-full items-center justify-center gap-2 rounded-full px-5 text-[14px] font-black transition-all duration-200 hover:scale-105 shadow-[0_4px_12px_rgba(0,0,0,0.2)] disabled:opacity-40 lg:h-auto lg:w-auto lg:py-2.5 lg:text-[13px]">
+        <button type="submit" disabled={busy} className="signal-button tap-press flex h-12 w-full items-center justify-center gap-2 rounded-full px-5 text-[14px] font-bold transition-colors duration-200 disabled:opacity-40 lg:h-auto lg:w-auto lg:py-2.5 lg:text-[13px]">
           <UserPlus className="size-4" /> {busy ? "Création…" : "Créer un compte"}
         </button>
       </form>

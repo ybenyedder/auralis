@@ -350,7 +350,7 @@ function KaraokeSwitch() {
   const karaokeMode = usePlayer((s) => s.karaokeMode);
   const toggleKaraoke = usePlayer((s) => s.toggleKaraoke);
   return (
-    <div role="group" aria-label="Mode des paroles" className="inline-flex items-center gap-0.5 rounded-full bg-black/20 backdrop-blur-md p-1 shadow-[inset_0_1px_0_rgba(255,255,255,0.05)]">
+    <div role="group" aria-label="Mode des paroles" className="inline-flex items-center gap-0.5 rounded-full bg-[var(--panel-2)] p-1">
       <SwitchSeg active={!karaokeMode} onClick={() => karaokeMode && toggleKaraoke()} label="Standard" icon={Captions} />
       <SwitchSeg active={karaokeMode} onClick={() => !karaokeMode && toggleKaraoke()} label="Karaoké" icon={Mic2} />
     </div>
@@ -365,7 +365,7 @@ function SyncOffset() {
   const resetLyricsOffset = usePlayer((s) => s.resetLyricsOffset);
   const label = `${lyricsOffset >= 0 ? "+" : ""}${lyricsOffset.toFixed(1)}s`;
   return (
-    <div role="group" aria-label="Décalage des paroles" className="inline-flex items-center gap-0.5 rounded-full bg-black/20 backdrop-blur-md p-1 text-[11px] font-bold shadow-[inset_0_1px_0_rgba(255,255,255,0.05)]">
+    <div role="group" aria-label="Décalage des paroles" className="inline-flex items-center gap-0.5 rounded-full bg-[var(--panel-2)] p-1 text-[11px] font-bold">
       <button
         onClick={() => adjustLyricsOffset(-0.1)}
         aria-label="Retarder les paroles"

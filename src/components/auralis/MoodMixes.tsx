@@ -1,10 +1,19 @@
 "use client";
 
 import { useMemo } from "react";
-import { Play } from "lucide-react";
+import { Play, Zap, Flame, Sun, Headphones, Moon, CloudRain, Music2, type LucideIcon } from "lucide-react";
 import { usePlayer, shuffleArray } from "@/store/player";
 import { useLibraryStore } from "@/store/library";
 import { MOODS, groupByMood } from "@/lib/auralis/mood";
+
+const MOOD_ICON: Record<string, LucideIcon> = {
+  energetic: Zap,
+  party: Flame,
+  happy: Sun,
+  focus: Headphones,
+  chill: Moon,
+  melancholy: CloudRain,
+};
 
 /**
  * "Comment vous sentez-vous ?" — one gradient card per mood that has enough
@@ -25,25 +34,28 @@ export function MoodMixes({ title = "Selon votre humeur" }: { title?: string }) 
 
   return (
     <div className="mb-7 lg:mb-8">
-      <h2 className="mb-4 text-[20px] font-black tracking-tight text-foreground lg:text-[24px]">{title}</h2>
+      <h2 className="mb-4 text-[20px] font-bold tracking-tight text-foreground lg:text-[24px]">{title}</h2>
       <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
-        {moods.map(({ mood, tracks: mt }) => (
+        {moods.map(({ mood, tracks: mt }) => {
+          const Icon = MOOD_ICON[mood.id] ?? Music2;
+          return (
           <button
             key={mood.id}
             onClick={() => playList(shuffleArray(mt), 0)}
             aria-label={`Lire un mix ${mood.label}`}
-            className="group relative aspect-[1.1] overflow-hidden rounded-lg p-4 text-left transition-transform duration-200 hover:scale-[1.02]"
+            className="group relative aspect-[1.1] overflow-hidden rounded-lg p-4 text-left"
             style={{ background: `linear-gradient(150deg, ${mood.colors[0]}, ${mood.colors[1]})` }}
           >
-            <span className="block text-[26px] leading-none drop-shadow-[0_1px_3px_rgba(0,0,0,0.45)]">{mood.emoji}</span>
-            <span className="mt-2 block max-w-[80%] text-[18px] font-black leading-tight text-white drop-shadow-[0_1px_3px_rgba(0,0,0,0.45)]">{mood.label}</span>
+            <Icon className="size-7 text-white drop-shadow-[0_1px_3px_rgba(0,0,0,0.45)]" />
+            <span className="mt-2 block max-w-[80%] text-[18px] font-bold leading-tight text-white drop-shadow-[0_1px_3px_rgba(0,0,0,0.45)]">{mood.label}</span>
             <span className="mt-0.5 block text-[12px] font-semibold text-white/80">{mood.blurb}</span>
-            {/* Play FAB slides up on hover — the recognisable Spotify card affordance. */}
-            <span className="absolute bottom-3 right-3 grid h-11 w-11 translate-y-2 place-items-center rounded-full bg-black/30 opacity-0 backdrop-blur-sm transition-all duration-200 group-hover:translate-y-0 group-hover:opacity-100">
-              <Play className="size-5 fill-white text-white" />
+            {/* Play FAB fades in on hover — the recognisable Spotify card affordance. */}
+            <span className="signal-button absolute bottom-3 right-3 grid h-11 w-11 place-items-center rounded-full opacity-0 transition-opacity duration-200 group-hover:opacity-100">
+              <Play className="size-5 fill-current" />
             </span>
           </button>
-        ))}
+          );
+        })}
       </div>
     </div>
   );
