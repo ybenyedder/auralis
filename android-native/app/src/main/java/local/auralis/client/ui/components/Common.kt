@@ -105,22 +105,44 @@ fun SectionHeader(title: String, action: String? = null, onAction: (() -> Unit)?
     }
 }
 
+// Square webp buckets the art API can serve (mirror of server ART_VARIANT_SIZES).
+private val ART_BUCKETS = intArrayOf(96, 160, 256, 384, 640)
+
+/**
+ * Rewrite an /api/art URL to fetch a right-sized webp thumbnail (`?w=<bucket>`)
+ * instead of the full embedded original — which is frequently 1000–3000px / several
+ * MB. `targetPx` is the actual on-screen pixel size (dp × density). We pick the
+ * smallest bucket that covers it, so art stays crisp while a 46dp row thumbnail
+ * downloads ~6KB instead of a multi-MB cover and the bitmap LRU holds far more.
+ * A `targetPx` of 0 (or larger than the top bucket) keeps the original, for big
+ * surfaces (full-screen player art, notifications) that want full resolution.
+ */
+fun sizedArtUrl(url: String?, targetPx: Int): String? {
+    if (url.isNullOrBlank() || targetPx <= 0 || !url.contains("/api/art/")) return url
+    val bucket = ART_BUCKETS.firstOrNull { it >= targetPx } ?: return url
+    val sep = if (url.contains('?')) '&' else '?'
+    return "$url${sep}w=$bucket"
+}
+
 @Composable
 fun CoverArt(
     image: String?,
     seed: String?,
     modifier: Modifier = Modifier,
     cornerRadius: Int = 12,
+    sizeDp: Int = 180,
 ) {
     val (bg, c1, c2) = paletteFor(seed)
     val resolveUrl = local.auralis.client.ui.theme.LocalApiUrl.current
+    val density = androidx.compose.ui.platform.LocalDensity.current.density
+    val targetPx = if (sizeDp <= 0) 0 else (sizeDp * density).toInt()
     Box(
         modifier
             .clip(RoundedCornerShape(cornerRadius.dp))
             .background(Brush.linearGradient(listOf(bg, c1.copy(alpha = 0.55f)))),
     ) {
         NetworkImage(
-            url = resolveUrl(image),
+            url = sizedArtUrl(resolveUrl(image), targetPx),
             modifier = Modifier.fillMaxSize(),
             fallback = {
                 Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
@@ -151,7 +173,7 @@ fun TrackRow(
             .padding(horizontal = 8.dp, vertical = 7.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        CoverArt(track.image, track.albumhash ?: track.title, Modifier.size(46.dp), cornerRadius = 8)
+        CoverArt(track.image, track.albumhash ?: track.title, Modifier.size(46.dp), cornerRadius = 8, sizeDp = 46)
         Spacer(Modifier.width(12.dp))
         Column(Modifier.weight(1f)) {
             Text(

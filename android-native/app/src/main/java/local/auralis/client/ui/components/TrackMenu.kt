@@ -69,7 +69,7 @@ fun TrackMenu(track: Track, ui: UiState, vm: AppViewModel, onDismiss: () -> Unit
         ) {
             // header
             Row(Modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 6.dp), verticalAlignment = Alignment.CenterVertically) {
-                CoverArt(track.image, track.albumhash ?: track.title, Modifier.size(44.dp), cornerRadius = 8)
+                CoverArt(track.image, track.albumhash ?: track.title, Modifier.size(44.dp), cornerRadius = 8, sizeDp = 44)
                 Spacer(Modifier.width(12.dp))
                 Column(Modifier.weight(1f)) {
                     Text(track.title, color = colors.foreground, fontSize = 14.sp, fontWeight = FontWeight.Bold, maxLines = 1, overflow = TextOverflow.Ellipsis)

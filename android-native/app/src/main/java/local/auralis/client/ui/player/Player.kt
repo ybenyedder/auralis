@@ -78,7 +78,7 @@ fun MiniPlayer(track: Track, playback: PlaybackSnapshot, positionMs: Long, vm: A
             Modifier.fillMaxWidth().clickable { onOpen() }.padding(8.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            CoverArt(track.image, track.albumhash ?: track.title, Modifier.size(44.dp), cornerRadius = 8)
+            CoverArt(track.image, track.albumhash ?: track.title, Modifier.size(44.dp), cornerRadius = 8, sizeDp = 44)
             Spacer(Modifier.width(10.dp))
             Column(Modifier.weight(1f)) {
                 Text(track.title, color = colors.foreground, fontSize = 13.sp, fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis)
@@ -140,7 +140,7 @@ fun FullscreenPlayer(
                 showQueue -> QueuePane(playback, ui, vm)
                 showLyrics -> LyricsPane(ui, vm, positionMs, track)
                 else -> Column(Modifier.fillMaxSize(), verticalArrangement = Arrangement.Center, horizontalAlignment = Alignment.CenterHorizontally) {
-                    CoverArt(track.image, track.albumhash ?: track.title, Modifier.fillMaxWidth().aspectRatio(1f), cornerRadius = 20)
+                    CoverArt(track.image, track.albumhash ?: track.title, Modifier.fillMaxWidth().aspectRatio(1f), cornerRadius = 20, sizeDp = 0)
                 }
             }
         }
@@ -360,7 +360,7 @@ private fun QueuePane(playback: PlaybackSnapshot, ui: UiState, vm: AppViewModel)
                     Modifier.fillMaxWidth().clickable { vm.jumpTo(idx) }.padding(vertical = 8.dp),
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
-                    CoverArt(t.image, t.albumhash ?: t.title, Modifier.size(40.dp), cornerRadius = 8)
+                    CoverArt(t.image, t.albumhash ?: t.title, Modifier.size(40.dp), cornerRadius = 8, sizeDp = 40)
                     Spacer(Modifier.width(12.dp))
                     Column(Modifier.weight(1f)) {
                         Text(t.title, color = if (isCurrent) colors.accent else colors.foreground, fontSize = 14.sp, fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis)

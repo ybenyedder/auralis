@@ -76,7 +76,7 @@ fun PlaylistTile(name: String, count: Int, seed: String, onClick: () -> Unit) {
             .padding(vertical = 6.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        CoverArt(null, seed, Modifier.size(52.dp), cornerRadius = 10)
+        CoverArt(null, seed, Modifier.size(52.dp), cornerRadius = 10, sizeDp = 52)
         androidx.compose.foundation.layout.Spacer(Modifier.width(12.dp))
         Column(Modifier.weight(1f)) {
             Text(name, color = colors.foreground, fontSize = 14.sp, fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis)

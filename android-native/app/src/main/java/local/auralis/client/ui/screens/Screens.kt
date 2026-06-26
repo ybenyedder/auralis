@@ -493,18 +493,39 @@ fun LibraryScreen(vm: AppViewModel, ui: UiState) {
                 if (tab == 0 || tab == 1) PlusChip(if (grid) "Vue liste" else "Vue grille") { grid = !grid }
             }
         }
+        // Chunk grid cards into rows so they can be WINDOWED by the LazyColumn (only
+        // on-screen rows compose). The old single `item { GridOf… }` composed every
+        // album/artist card at once — thousands of nodes + art fetches in one frame on
+        // a large catalogue, the exact "crash at 10k" the windowing is meant to avoid.
+        val albumRows = remember(sortedAlbums) { sortedAlbums.chunked(2) }
+        val artistRows = remember(sortedArtists) { sortedArtists.chunked(3) }
         when (tab) {
             0 -> LazyColumn(contentPadding = bottomPad) {
-                if (grid) item { GridOfAlbums(sortedAlbums, vm) }
+                if (grid) itemsIndexed(albumRows, key = { _, row -> row.first().albumhash }) { i, rowItems ->
+                    Row(
+                        Modifier.fillMaxWidth().padding(top = if (i == 0) 0.dp else 16.dp),
+                        horizontalArrangement = Arrangement.spacedBy(16.dp),
+                    ) {
+                        rowItems.forEach { a -> Box(Modifier.weight(1f)) { AlbumCard(a, Modifier.fillMaxWidth()) { vm.navigate(ViewId.ALBUM, a.albumhash) } } }
+                        if (rowItems.size == 1) Spacer(Modifier.weight(1f))
+                    }
+                }
                 else items(sortedAlbums, key = { it.albumhash }) { a -> AlbumRow(a) { vm.navigate(ViewId.ALBUM, a.albumhash) } }
             }
             1 -> LazyColumn(contentPadding = bottomPad) {
-                if (grid) item { GridOfArtists(sortedArtists, vm) }
+                if (grid) itemsIndexed(artistRows, key = { _, row -> row.first().artisthash }) { i, rowItems ->
+                    Row(
+                        Modifier.fillMaxWidth().padding(top = if (i == 0) 0.dp else 16.dp),
+                        horizontalArrangement = Arrangement.spacedBy(12.dp),
+                    ) {
+                        rowItems.forEach { a -> Box(Modifier.weight(1f)) { ArtistCard(a, Modifier.fillMaxWidth()) { vm.navigate(ViewId.ARTIST, a.artisthash) } } }
+                        repeat(3 - rowItems.size) { Spacer(Modifier.weight(1f)) }
+                    }
+                }
                 else items(sortedArtists, key = { it.artisthash }) { a -> ArtistRow(a) { vm.navigate(ViewId.ARTIST, a.artisthash) } }
             }
             2 -> LazyColumn(contentPadding = bottomPad) {
-                items(sortedTracks, key = { it.trackhash }) { t ->
-                    val idx = sortedTracks.indexOf(t)
+                itemsIndexed(sortedTracks, key = { _, t -> t.trackhash }) { idx, t ->
                     TrackRow(
                         t, isCurrent = t.trackhash == current, isFavorite = ui.favorites.contains(t.trackhash),
                         onClick = { vm.playTrack(t, sortedTracks, idx) },
@@ -553,39 +574,10 @@ private fun PlusChip(label: String, onClick: () -> Unit) {
 }
 
 @Composable
-private fun GridOfAlbums(albums: List<local.auralis.client.model.Album>, vm: AppViewModel) {
-    // simple two-column flow
-    Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
-        albums.chunked(2).forEach { rowItems ->
-            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(16.dp)) {
-                rowItems.forEach { a ->
-                    Box(Modifier.weight(1f)) { AlbumCard(a, Modifier.fillMaxWidth()) { vm.navigate(ViewId.ALBUM, a.albumhash) } }
-                }
-                if (rowItems.size == 1) Spacer(Modifier.weight(1f))
-            }
-        }
-    }
-}
-
-@Composable
-private fun GridOfArtists(artists: List<local.auralis.client.model.Artist>, vm: AppViewModel) {
-    Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
-        artists.chunked(3).forEach { rowItems ->
-            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                rowItems.forEach { a ->
-                    Box(Modifier.weight(1f)) { ArtistCard(a, Modifier.fillMaxWidth()) { vm.navigate(ViewId.ARTIST, a.artisthash) } }
-                }
-                repeat(3 - rowItems.size) { Spacer(Modifier.weight(1f)) }
-            }
-        }
-    }
-}
-
-@Composable
 private fun AlbumRow(album: local.auralis.client.model.Album, onClick: () -> Unit) {
     val colors = LocalAuralis.current
     Row(Modifier.fillMaxWidth().clickable { onClick() }.padding(vertical = 7.dp, horizontal = 8.dp), verticalAlignment = Alignment.CenterVertically) {
-        local.auralis.client.ui.components.CoverArt(album.image, album.albumhash, Modifier.size(46.dp), cornerRadius = 8)
+        local.auralis.client.ui.components.CoverArt(album.image, album.albumhash, Modifier.size(46.dp), cornerRadius = 8, sizeDp = 46)
         Spacer(Modifier.width(12.dp))
         Column(Modifier.weight(1f)) {
             Text(album.title, color = colors.foreground, fontSize = 14.sp, fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis)
@@ -600,7 +592,7 @@ private fun ArtistRow(artist: local.auralis.client.model.Artist, onClick: () -> 
     val colors = LocalAuralis.current
     Row(Modifier.fillMaxWidth().clickable { onClick() }.padding(vertical = 7.dp, horizontal = 8.dp), verticalAlignment = Alignment.CenterVertically) {
         Box(Modifier.size(46.dp).clip(CircleShape)) {
-            local.auralis.client.ui.components.CoverArt(artist.image, artist.artisthash, Modifier.size(46.dp).clip(CircleShape))
+            local.auralis.client.ui.components.CoverArt(artist.image, artist.artisthash, Modifier.size(46.dp).clip(CircleShape), sizeDp = 46)
         }
         Spacer(Modifier.width(12.dp))
         Text(artist.name, color = colors.foreground, fontSize = 14.sp, fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
@@ -643,8 +635,7 @@ fun FavoritesScreen(vm: AppViewModel, ui: UiState) {
                 }
             }
         }
-        items(favTracks, key = { it.trackhash }) { t ->
-            val idx = favTracks.indexOf(t)
+        itemsIndexed(favTracks, key = { _, t -> t.trackhash }) { idx, t ->
             TrackRow(
                 t, isCurrent = t.trackhash == current, isFavorite = true,
                 onClick = { vm.playTrack(t, favTracks, idx) },
@@ -670,8 +661,7 @@ fun RecentsScreen(vm: AppViewModel, ui: UiState) {
                 Text("${recents.size} lus", color = colors.textMuted, fontSize = 13.sp)
             }
         }
-        items(recents, key = { it.trackhash }) { t ->
-            val idx = recents.indexOf(t)
+        itemsIndexed(recents, key = { _, t -> t.trackhash }) { idx, t ->
             TrackRow(
                 t, isCurrent = t.trackhash == current, isFavorite = ui.favorites.contains(t.trackhash),
                 onClick = { vm.playTrack(t, recents, idx) },
@@ -745,8 +735,7 @@ fun FoldersScreen(vm: AppViewModel, ui: UiState) {
                 }
             }
         }
-        items(directTracks, key = { it.trackhash }) { t ->
-            val idx = directTracks.indexOf(t)
+        itemsIndexed(directTracks, key = { _, t -> t.trackhash }) { idx, t ->
             TrackRow(
                 t, isCurrent = t.trackhash == current, isFavorite = ui.favorites.contains(t.trackhash),
                 onClick = { vm.playTrack(t, directTracks, idx) },
@@ -919,7 +908,7 @@ private fun MoodRecapSection(vm: AppViewModel, ui: UiState) {
                         Modifier.fillMaxWidth().clickable { vm.playList(topTracks.map { it.first }, i) }.padding(vertical = 6.dp),
                         verticalAlignment = Alignment.CenterVertically,
                     ) {
-                        local.auralis.client.ui.components.CoverArt(t.image, t.albumhash ?: t.title, Modifier.size(36.dp), cornerRadius = 8)
+                        local.auralis.client.ui.components.CoverArt(t.image, t.albumhash ?: t.title, Modifier.size(36.dp), cornerRadius = 8, sizeDp = 36)
                         Spacer(Modifier.width(10.dp))
                         Column(Modifier.weight(1f)) {
                             Text(t.title, color = colors.foreground, fontSize = 13.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)

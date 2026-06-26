@@ -4,8 +4,10 @@ import android.app.Application
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import androidx.media3.common.Player
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.withContext
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -201,8 +203,16 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
         viewModelScope.launch {
             _ui.update { it.copy(phase = if (_ui.value.tracks.isEmpty()) Phase.LOADING else _ui.value.phase) }
             try {
-                val lib = api.library()
-                trackIndex = lib.tracks.associateBy { it.trackhash }
+                // Fetch AND map the snapshot off the main thread. api.library() only
+                // ran the network + JSONObject parse on IO; LibrarySnapshot.from() (which
+                // maps ~10k JSON rows into model objects) and the associateBy index then
+                // ran on the Main dispatcher (loadAll launches on viewModelScope/Main) —
+                // a real jank/ANR at scale. Default keeps the whole map off the UI thread.
+                val (lib, index) = withContext(Dispatchers.Default) {
+                    val snapshot = api.library()
+                    snapshot to snapshot.tracks.associateBy { it.trackhash }
+                }
+                trackIndex = index
                 _ui.update {
                     it.copy(
                         phase = Phase.READY,
@@ -211,7 +221,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
                         artists = lib.artists,
                         folders = lib.folders,
                         root = lib.root,
-                        trackByHash = trackIndex,
+                        trackByHash = index,
                     )
                 }
                 refreshState()
@@ -329,18 +339,31 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
         if (!_ui.value.autoplay) return // endless listening disabled — stop at queue end
         val current = currentTrack() ?: return
         val ui = _ui.value
+        // Capture everything the ranking needs BEFORE hopping off the main thread.
         val queued = player.snapshot.value.queueIds.toSet()
         val dis = ui.dislikes
-        fun eligible(t: Track) = t.trackhash !in queued && t.trackhash !in dis
-        val byArtist = ui.tracks.filter { eligible(it) && it.primaryArtistHash != null && it.primaryArtistHash == current.primaryArtistHash }
-        val byGenre = ui.tracks.filter { eligible(it) && it.genre != null && it.genre == current.genre }
-        val pool = (byArtist + byGenre).distinctBy { it.trackhash }
-            .ifEmpty { ui.tracks.filter { eligible(it) } }
-        if (pool.isNotEmpty()) {
-            // Taste score biases the radio toward what the user loves; jitter keeps variety.
-            val scores = ui.recoScores
-            val ranked = pool.sortedByDescending { (scores[it.trackhash] ?: 0.0) + Math.random() * 0.6 }
-            player.appendTracks(ranked.take(20))
+        val tracks = ui.tracks
+        val scores = ui.recoScores
+        viewModelScope.launch {
+            // Build + rank the radio pool off the main thread — two full-library filters
+            // and a sort over 10k tracks used to run on the UI thread at every queue end.
+            val ranked = withContext(Dispatchers.Default) {
+                fun eligible(t: Track) = t.trackhash !in queued && t.trackhash !in dis
+                val byArtist = tracks.filter { eligible(it) && it.primaryArtistHash != null && it.primaryArtistHash == current.primaryArtistHash }
+                val byGenre = tracks.filter { eligible(it) && it.genre != null && it.genre == current.genre }
+                val pool = (byArtist + byGenre).distinctBy { it.trackhash }
+                    .ifEmpty { tracks.filter { eligible(it) } }
+                // Precompute the jittered taste score ONCE per track, then sort. Evaluating
+                // Math.random() inside the sort selector made the comparator non-deterministic
+                // ("Comparison method violates its general contract" can crash the sort).
+                pool.map { it to ((scores[it.trackhash] ?: 0.0) + Math.random() * 0.6) }
+                    .sortedByDescending { it.second }
+                    .take(20)
+                    .map { it.first }
+            }
+            // Back on the main thread (viewModelScope) — MediaController.addMediaItems must
+            // run on the controller's application thread.
+            if (ranked.isNotEmpty()) player.appendTracks(ranked)
         }
     }
 
@@ -588,6 +611,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
     // ---- session resume ----------------------------------------------------
 
     private fun observeSessionPersist() {
+        var lastJson: String? = null
         viewModelScope.launch {
             while (true) {
                 delay(5000)
@@ -601,7 +625,15 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
                         .put("hashes", JSONArray(window))
                         .put("index", idx - start)
                         .put("position", player.positionMs())
-                    runCatching { prefs.saveLastSession(json.toString()) }
+                        .toString()
+                    // Skip redundant DataStore writes: when paused (and not seeking) the
+                    // serialized session is identical tick after tick. Deduping covers
+                    // every case correctly — playing/seek-while-paused change the JSON and
+                    // still persist; only no-op ticks are dropped.
+                    if (json != lastJson) {
+                        lastJson = json
+                        runCatching { prefs.saveLastSession(json) }
+                    }
                 }
             }
         }

@@ -26,7 +26,7 @@
     "build": "next build",
     "start": "NODE_ENV=production next start -p 4237",
     "serve": "NODE_ENV=production node .next/standalone/server.js",
-    "lint": "eslint .",
+    "lint": "eslint . --max-warnings 0",
     "typecheck": "tsc --noEmit",
     "test": "node --import tsx --test test/*.test.ts",
     "check": "npm run lint && npm run typecheck && npm run build",

@@ -41,6 +41,11 @@ const nextConfig: NextConfig = {
   // intentionally same-origin for media/img/connect to shrink the XSS surface
   // while leaving script/style inline allowances Next's runtime needs.
   async headers() {
+    // 'unsafe-eval' is only needed by the dev runtime (HMR / Turbopack eval the
+    // module graph); the production bundle never evals, so we drop it there to
+    // shrink the XSS surface. 'unsafe-inline' stays — Next's bootstrap scripts
+    // are inline and unnonced.
+    const isDev = process.env.NODE_ENV !== "production";
     const csp = [
       "default-src 'self'",
       "base-uri 'self'",
@@ -50,7 +55,7 @@ const nextConfig: NextConfig = {
       "media-src 'self' blob:",
       "font-src 'self' data:",
       "style-src 'self' 'unsafe-inline'",
-      "script-src 'self' 'unsafe-inline' 'unsafe-eval'",
+      `script-src 'self' 'unsafe-inline'${isDev ? " 'unsafe-eval'" : ""}`,
       "connect-src 'self'",
     ].join("; ");
     return [

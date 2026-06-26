@@ -6,6 +6,54 @@ All notable changes to Auralis are documented here. The format is based on
 
 ## [Unreleased]
 
+### Changed
+- **Bibliothèque instantanée à grande échelle.** Le snapshot `/api/library` est
+  désormais un catalogue **indépendant du compte**, construit une seule fois par
+  changement de bibliothèque puis mémoïsé : à 10 000 titres, sa génération côté
+  serveur passe de ~5,5 s à ~0,6 ms entre deux scans. Son ETag ne dépend plus des
+  favoris ni des écoutes, donc chaque réouverture de l'app est un simple 304
+  instantané au lieu d'un re-téléchargement complet du catalogue. Les compteurs
+  d'écoute par artiste/titre sont dérivés côté client à partir de tes propres
+  écoutes (source unique et fiable), et le payload est allégé (plus de couleur ni
+  de champs par-compte par titre).
+- **Moins de travail à chaque rendu.** Résolution des pistes par hash via l'index
+  préconstruit (accueil, playlists, récents) au lieu de reconstruire une table de
+  toute la bibliothèque à chaque appel ; l'écran Analyse ne recopie plus les
+  10 000 objets piste à chaque écoute comptée.
+- **Scan non bloquant.** Le parcours du dossier de musique est désormais
+  asynchrone : il ne gèle plus les requêtes HTTP concurrentes sur les grandes
+  bibliothèques.
+
+### Fixed
+- **Barre latérale (768–1023 px).** Affiche enfin ses libellés, filtres et noms de
+  playlists au lieu d'une colonne de 280 px à moitié vide remplie d'icônes.
+- **Dossiers sur mobile.** Plus de double zone de défilement qui piégeait le
+  geste : la vue défile d'un seul tenant sous `lg`, virtualisation préservée.
+- **Notifications (toasts)** sur deux lignes au lieu d'être tronquées en plein
+  milieu d'une phrase ; **menu « Ajouter à une playlist »** défilant au lieu de
+  rogner les longues listes.
+- **Accessibilité des barres de lecture** : les lecteurs d'écran annoncent
+  désormais la position réelle (« 1:23 sur 3:45 ») au lieu d'un pourcentage brut.
+- Le bandeau d'accueil reprend la couleur d'accent du thème au lieu d'un gris figé.
+
+### Android
+- **Bibliothèque increvable.** Les grilles Albums/Artistes sont enfin fenêtrées
+  (seules les rangées à l'écran sont composées) au lieu de tout composer d'un coup
+  — fini le risque de gel/plantage à l'ouverture d'un grand catalogue.
+- **Pochettes dimensionnées.** Le client demande des miniatures webp adaptées
+  (`?w=`) au lieu de télécharger et décoder l'original pleine résolution (souvent
+  plusieurs Mo) pour une vignette de 46 dp — beaucoup moins de mémoire et de
+  réseau, et le cache d'images en garde bien plus.
+- **Fluidité.** Le mapping des ~10 000 pistes au chargement et la construction de
+  la « radio » de lecture continue (filtre + tri sur toute la bibliothèque)
+  passent hors du thread principal ; correction d'un comparateur de tri non
+  déterministe (risque de crash) ; index de ligne gratuit via `itemsIndexed` ;
+  écritures de session dédupliquées (plus d'écriture disque inutile en pause).
+
+### Security
+- CSP de production durcie : `'unsafe-eval'` (nécessaire seulement au runtime de
+  développement) n'est plus émis en production.
+
 ## [1.5.0] — 2026-06-26
 
 ### Added
