@@ -783,6 +783,14 @@ export function SettingsView() {
       type: "action",
       onAction: () => void rescan(),
     },
+    {
+      label: "Analyse des humeurs",
+      value: scanProgress?.analyzing
+        ? `Analyse… ${scanProgress.analyzed ?? 0}/${scanProgress.analyzeTotal ?? "?"}`
+        : "Classer par humeur",
+      type: "action",
+      onAction: () => { void api.post("/api/library/analyze", {}); },
+    },
     ...(desktopBridge?.reconfigure
       ? [{
           label: "Changer la source",

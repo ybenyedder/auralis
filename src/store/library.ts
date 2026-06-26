@@ -17,6 +17,10 @@ export interface ScanProgress {
   removed: number;
   scannedAt: string | null;
   error: string | null;
+  /** Background audio-analysis (mood classifier) progress. */
+  analyzing?: boolean;
+  analyzed?: number;
+  analyzeTotal?: number;
 }
 
 export interface LibraryPayload {
@@ -128,12 +132,17 @@ export function useLibrary() {
     if (typeof window === "undefined" || typeof EventSource === "undefined") return;
     const source = new EventSource(api.url("/api/library/events"));
     let lastStatus = "";
+    let wasAnalyzing = false;
     source.onmessage = (event) => {
       try {
         const scan = JSON.parse(event.data) as ScanProgress;
         setScan(scan);
         // When a scan finishes, pull the fresh snapshot once.
         if (lastStatus === "scanning" && scan.status === "ready") void load();
+        // Also reload when the background analysis pass finishes, so the freshly
+        // classified moods feed the recommendations without a manual refresh.
+        if (wasAnalyzing && !scan.analyzing) void load();
+        wasAnalyzing = Boolean(scan.analyzing);
         lastStatus = scan.status;
       } catch {
         // ignore malformed frames

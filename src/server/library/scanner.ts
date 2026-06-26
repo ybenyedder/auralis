@@ -37,6 +37,10 @@ export interface ScanProgress {
   scannedAt: string | null;
   root: string;
   error: string | null;
+  /** Background audio-analysis (mood classifier) progress, runs after the scan. */
+  analyzing: boolean;
+  analyzed: number;
+  analyzeTotal: number;
 }
 
 const progress: ScanProgress = {
@@ -52,6 +56,9 @@ const progress: ScanProgress = {
   scannedAt: null,
   root: "",
   error: null,
+  analyzing: false,
+  analyzed: 0,
+  analyzeTotal: 0,
 };
 
 type Listener = (snapshot: ScanProgress) => void;
@@ -76,6 +83,11 @@ function emit(patch: Partial<ScanProgress>) {
       // a broken listener must not break the scan
     }
   }
+}
+
+/** Push analysis progress through the same channel (used by analysis.ts). */
+export function updateScanProgress(patch: Partial<ScanProgress>) {
+  emit(patch);
 }
 
 interface WalkedFile {
@@ -240,7 +252,8 @@ export async function runScan(): Promise<ScanProgress> {
         year=excluded.year, genre=excluded.genre, track_no=excluded.track_no, disc_no=excluded.disc_no,
         bitrate=excluded.bitrate, samplerate=excluded.samplerate, channels=excluded.channels,
         codec=excluded.codec, lossless=excluded.lossless, size=excluded.size, mtime=excluded.mtime,
-        arthash=excluded.arthash, folder=excluded.folder
+        arthash=excluded.arthash, folder=excluded.folder,
+        mood=NULL, energy=NULL, bpm=NULL, analyzed_at=0
     `);
     const ftsDelete = db.prepare("DELETE FROM track_fts WHERE trackhash = ?");
     const ftsInsert = db.prepare("INSERT INTO track_fts (trackhash, title, artist, album, genre) VALUES (?, ?, ?, ?, ?)");
@@ -315,6 +328,11 @@ export async function runScan(): Promise<ScanProgress> {
       scannedAt, finishedAt: Date.now(),
     });
     log.info("scan complete", { total: files.length, added, updated, removed: toRemove.length });
+
+    // Kick the background audio-analysis pass (mood classifier) for any tracks
+    // that still need it. Fire-and-forget + dynamically imported to avoid a load
+    // cycle; it no-ops if ffmpeg is missing or nothing is pending.
+    void import("./analysis").then((m) => m.runAnalysis()).catch(() => {/* analysis is best-effort */});
   } catch (error) {
     const message = error instanceof Error ? error.message : "unknown scan error";
     log.error("scan failed", { message });

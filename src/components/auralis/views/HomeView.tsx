@@ -2,13 +2,14 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { Play, Settings, Heart } from "lucide-react";
-import { usePlayer } from "@/store/player";
+import { usePlayer, shuffleArray } from "@/store/player";
 import { useLibraryStore, tracksForHashesFrom } from "@/store/library";
 import { useStats } from "@/store/stats";
 import { SectionHeader } from "../SectionHeader";
 import { AlbumCard, ArtistCard } from "../Cards";
 import { Artwork } from "../Artwork";
-import { trackTitle } from "@/lib/auralis/brand";
+import { trackTitle, trackArtist } from "@/lib/auralis/brand";
+import { moodForTrack, moodById } from "@/lib/auralis/mood";
 
 export function HomeView() {
   const playList = usePlayer((s) => s.playList);
@@ -61,6 +62,42 @@ export function HomeView() {
       .sort((a, b) => b.playcount - a.playcount)
       .slice(0, 6);
   }, [artists, tracks, playCounts]);
+
+  // Mood-based recommendations: infer the mood the user listens to most (by real
+  // play counts; fall back to the biggest mood bucket for a fresh library), then
+  // surface tracks from that mood they've played least — discovery within the
+  // vibe they already love. Purely derived from genre → mood, no audio analysis.
+  const moodRecs = useMemo(() => {
+    if (tracks.length === 0) return null;
+    const byMood = new Map<string, typeof tracks>();
+    const plays = new Map<string, number>();
+    for (const t of tracks) {
+      const id = moodForTrack(t);
+      if (!id) continue;
+      const arr = byMood.get(id);
+      if (arr) arr.push(t); else byMood.set(id, [t]);
+      const c = playCounts[t.trackhash] ?? 0;
+      if (c) plays.set(id, (plays.get(id) ?? 0) + c);
+    }
+    if (byMood.size === 0) return null;
+
+    let topId: string | null = null;
+    let best = -1;
+    const ranking = plays.size > 0 ? plays : new Map([...byMood].map(([id, a]) => [id, a.length]));
+    for (const [id, score] of ranking) {
+      if (score > best) { best = score; topId = id; }
+    }
+    if (!topId) return null;
+    const mood = moodById(topId);
+    if (!mood) return null;
+
+    const pool = byMood.get(topId) ?? [];
+    if (pool.length < 4) return null;
+    // Least-played first (discovery), then shuffle the freshest slice for variety.
+    const ranked = [...pool].sort((a, b) => (playCounts[a.trackhash] ?? 0) - (playCounts[b.trackhash] ?? 0));
+    const recs = shuffleArray(ranked.slice(0, 40)).slice(0, 8);
+    return { mood, recs };
+  }, [tracks, playCounts]);
 
   // Spotify "quick access" grid: the row of horizontal cards under the greeting.
   // Liked Songs first (the iconic purple tile), then your recently played tracks.
@@ -125,6 +162,46 @@ export function HomeView() {
           ) : null}
         </section>
 
+        {moodRecs && (
+          <section>
+            <div className="mb-1 flex items-end justify-between gap-3">
+              <div className="flex items-center gap-3">
+                <span
+                  className="grid h-12 w-12 shrink-0 place-items-center rounded-lg text-[24px] shadow-[0_8px_16px_rgba(0,0,0,0.35)]"
+                  style={{ background: `linear-gradient(150deg, ${moodRecs.mood.colors[0]}, ${moodRecs.mood.colors[1]})` }}
+                  aria-hidden
+                >
+                  {moodRecs.mood.emoji}
+                </span>
+                <div className="min-w-0">
+                  <p className="text-[11px] font-bold uppercase tracking-[0.14em] text-[var(--text-muted)]">Pour votre humeur</p>
+                  <h2 className="truncate text-[20px] font-black tracking-tight text-foreground lg:text-[24px]">{moodRecs.mood.label}</h2>
+                </div>
+              </div>
+              <button
+                onClick={() => playList(moodRecs.recs, 0)}
+                className="signal-button hidden shrink-0 items-center gap-2 rounded-full px-5 py-2.5 text-[13px] font-bold sm:inline-flex"
+              >
+                <Play className="size-4 fill-current" />
+                Lire
+              </button>
+            </div>
+            <div className="mt-4 grid grid-cols-2 gap-3 xl:grid-cols-4">
+              {moodRecs.recs.map((t, i) => (
+                <QuickTile
+                  key={t.trackhash}
+                  title={trackTitle(t)}
+                  subtitle={trackArtist(t)}
+                  image={t.image}
+                  colors={t.color}
+                  onPlay={() => playList(moodRecs.recs, i)}
+                  onOpen={() => playList(moodRecs.recs, i)}
+                />
+              ))}
+            </div>
+          </section>
+        )}
+
         {featuredAlbums.length > 0 && (
           <section>
             <SectionHeader title="Albums de votre bibliothèque" />
@@ -185,9 +262,10 @@ export function HomeView() {
  *  title) that lightens on hover and reveals a green circular play FAB sliding up
  *  from the bottom-right — the home screen's most recognisable element. */
 function QuickTile({
-  title, image, colors, liked, onPlay, onOpen,
+  title, subtitle, image, colors, liked, onPlay, onOpen,
 }: {
   title: string;
+  subtitle?: string;
   image?: string;
   colors?: [string, string, string];
   liked?: boolean;
@@ -219,7 +297,10 @@ function QuickTile({
           className="h-full w-[64px]"
         />
       )}
-      <span className="min-w-0 flex-1 truncate pr-2 text-[14px] font-bold text-white">{title}</span>
+      <span className="flex min-w-0 flex-1 flex-col pr-2">
+        <span className="truncate text-[14px] font-bold text-white">{title}</span>
+        {subtitle && <span className="truncate text-[12px] font-medium text-[var(--text-muted)]">{subtitle}</span>}
+      </span>
       <button
         onClick={(e) => { e.stopPropagation(); onPlay(); }}
         aria-label={`Lire ${title}`}

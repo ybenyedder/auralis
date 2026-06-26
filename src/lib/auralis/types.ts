@@ -41,6 +41,12 @@ export interface Track {
   track?: number;
   year?: number;
   genre?: string;
+  /** Mood id from the audio-analysis classifier (server-computed); see mood.ts. */
+  mood?: string;
+  /** 0..1 RMS loudness/energy from analysis. */
+  energy?: number;
+  /** Estimated tempo (BPM) from analysis. */
+  bpm?: number;
   bitrate?: number;
   samplerate?: number;
   channels?: number;

@@ -32,6 +32,9 @@ interface TrackRow {
   folder: string;
   has_lyrics: number;
   added_at: number;
+  mood: string | null;
+  energy: number | null;
+  bpm: number | null;
   playcount: number;
   is_favorite: number;
   lyrics_present: number;
@@ -90,6 +93,9 @@ function mapTrack(row: TrackRow): Track {
     hasLyrics: row.has_lyrics === 1 || row.lyrics_present === 1,
     addedAt: row.added_at || undefined,
     color: paletteForName(row.trackhash),
+    mood: row.mood ?? undefined,
+    energy: row.energy ?? undefined,
+    bpm: row.bpm ?? undefined,
   };
 }
 
@@ -227,7 +233,10 @@ export function getSnapshotEtag(userId: number): string {
 
   const { n: trackCount } = db.prepare("SELECT COUNT(*) AS n FROM tracks").get() as { n: number };
   const scannedAtRow = db.prepare("SELECT value FROM settings WHERE key = 'scannedAt'").get() as { value: string } | undefined;
-  const stamp = (scannedAtRow?.value ?? "0").replace(/[^0-9A-Za-z]/g, "");
+  // Fold in the analysis stamp so the body (which now carries mood/energy/bpm)
+  // revalidates after a background analysis pass updates those fields.
+  const analyzedAtRow = db.prepare("SELECT value FROM settings WHERE key = 'analyzedAt'").get() as { value: string } | undefined;
+  const stamp = (scannedAtRow?.value ?? "0").replace(/[^0-9A-Za-z]/g, "") + "-" + (analyzedAtRow?.value ?? "0");
 
   // favorites/playcounts both have a (user_id, trackhash) primary key, so these
   // touch only the requesting user's slice via the PK index. COUNT(*) catches

@@ -8,6 +8,7 @@ import { paletteForName } from "@/lib/auralis/brand";
 import { SectionHeader } from "../SectionHeader";
 import { TrackRow, TrackListHeader } from "../TrackRow";
 import { AlbumCard, ArtistCard } from "../Cards";
+import { MoodMixes } from "../MoodMixes";
 
 export function ExploreView() {
   const searchQuery = usePlayer((s) => s.searchQuery);
@@ -69,6 +70,8 @@ export function ExploreView() {
             />
           </div>
         </div>
+
+        <MoodMixes />
 
         {genreMixes.length > 0 && (
           <div className="mb-7 lg:mb-8">

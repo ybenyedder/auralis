@@ -202,6 +202,17 @@ const MIGRATIONS: string[] = [
   `
   CREATE INDEX IF NOT EXISTS idx_recents_user_time ON recents(user_id, played_at DESC);
   `,
+  // v6 — audio analysis. A background pass decodes each track with ffmpeg and
+  // derives real features (loudness/energy, tempo/bpm) to classify a `mood`,
+  // replacing the genre-only heuristic. `analyzed_at` is the work-queue marker:
+  // 0 = needs analysis (also reset when a file's bytes change on rescan).
+  `
+  ALTER TABLE tracks ADD COLUMN mood        TEXT;
+  ALTER TABLE tracks ADD COLUMN energy      REAL;
+  ALTER TABLE tracks ADD COLUMN bpm         REAL;
+  ALTER TABLE tracks ADD COLUMN analyzed_at INTEGER NOT NULL DEFAULT 0;
+  CREATE INDEX IF NOT EXISTS idx_tracks_analyzed ON tracks(analyzed_at);
+  `,
 ];
 
 function migrate(db: DB) {
