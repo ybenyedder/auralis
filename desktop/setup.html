@@ -132,31 +132,19 @@
         <h1>Bienvenue dans Auralis</h1>
       </div>
       <p class="lead">
-        Choisis comment écouter ta musique. Tu peux te <strong>connecter à un serveur Auralis</strong>
-        que tu héberges déjà (via son URL), ou <strong>démarrer en local</strong> sur ce PC en pointant un dossier de musique.
+        Saisis l'<strong>URL de ton serveur Auralis</strong> — exactement comme sur l'app mobile.
+        Le serveur peut tourner sur ton NAS, un autre PC ou un VPS.
       </p>
 
       <section class="card">
         <div class="card-head">
-          <div class="t">Se connecter à une URL</div>
-          <div class="d">Pointe l'app vers un serveur Auralis distant (NAS, autre PC, VPS…). Idéal pour partager une seule bibliothèque.</div>
+          <div class="t">Se connecter au serveur</div>
+          <div class="d">Adresse de ton serveur Auralis, avec le port si nécessaire.</div>
         </div>
         <div class="row">
           <input type="text" id="url" placeholder="http://192.168.1.20:4237 ou https://auralis.mondomaine.fr" autocomplete="off" spellcheck="false" />
           <button class="btn primary" id="connect">Se connecter</button>
         </div>
-      </section>
-
-      <div class="sep">ou</div>
-
-      <section class="card">
-        <div class="card-head">
-          <div class="t">Démarrer en local</div>
-          <div class="d">Auralis lance son propre serveur sur ce PC et indexe le dossier que tu choisis. Laisse vide pour utiliser ~/Music.</div>
-        </div>
-        <button class="btn" id="pick">Choisir un dossier…</button>
-        <div class="picked" id="picked">Aucun dossier choisi — ~/Music sera utilisé</div>
-        <button class="btn primary" id="start">Démarrer en local</button>
       </section>
 
       <div class="error" id="error"></div>
@@ -166,7 +154,6 @@
       const api = window.auralisDesktop || {};
       const $ = (id) => document.getElementById(id);
       const errEl = $("error");
-      let pickedDir = null;
       let busy = false;
 
       const showError = (msg) => { errEl.textContent = msg || ""; };
@@ -194,20 +181,7 @@
         submit({ mode: "remote", url });
       });
       $("url").addEventListener("keydown", (e) => { if (e.key === "Enter") $("connect").click(); });
-
-      $("pick").addEventListener("click", async () => {
-        const dir = await api.pickFolder();
-        if (dir) {
-          pickedDir = dir;
-          const el = $("picked");
-          el.textContent = dir;
-          el.classList.add("has");
-        }
-      });
-
-      $("start").addEventListener("click", () => {
-        submit({ mode: "local", musicDir: pickedDir });
-      });
+      $("url").focus();
 
       $("close").addEventListener("click", () => api.cancelSetup && api.cancelSetup());
     </script>

@@ -85,7 +85,7 @@ function runSetup() {
     setupResolver = resolve;
     setupWindow = new BrowserWindow({
       width: 580,
-      height: 640,
+      height: 390,
       resizable: false,
       backgroundColor: "#0f0f0d",
       frame: false,
@@ -236,7 +236,13 @@ function createWindow(url) {
     },
   });
 
-  mainWindow.once("ready-to-show", () => mainWindow.show());
+  // Open large: start maximised rather than in the default 1320×860 box (that
+  // size stays as the restore-down geometry). The user asked for the app to
+  // launch big like a full desktop app, not in a small window.
+  mainWindow.once("ready-to-show", () => {
+    mainWindow.maximize();
+    mainWindow.show();
+  });
   mainWindow.loadURL(url);
 
   // The window must only ever show OUR server's origin. Any other navigation

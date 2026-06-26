@@ -6,6 +6,16 @@ All notable changes to Auralis are documented here. The format is based on
 
 ## [Unreleased]
 
+## [1.3.2] — 2026-06-26
+
+### Changed
+- **App desktop : démarrage en grand.** La fenêtre s'ouvre désormais
+  **maximisée** au lancement (la taille 1320×860 reste la géométrie de
+  restauration), au lieu d'une petite fenêtre.
+- **App desktop : connexion par URL uniquement.** L'écran de premier lancement
+  ne propose plus de serveur local : on saisit directement l'**URL du serveur
+  Auralis**, exactement comme sur l'application mobile.
+
 ## [1.3.1] — 2026-06-26
 
 ### Fixed
