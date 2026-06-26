@@ -6,6 +6,15 @@ All notable changes to Auralis are documented here. The format is based on
 
 ## [Unreleased]
 
+## [1.3.1] — 2026-06-26
+
+### Fixed
+- **Barre latérale (desktop) : puces de filtre de la bibliothèque coupées.** La
+  rangée *Favoris / Historique / Dossiers / Analyse* débordait horizontalement et
+  la dernière puce (« Analyse ») était tronquée au bord de la sidebar, sans
+  indication de défilement. Les puces passent désormais à la ligne (`flex-wrap`)
+  et restent toutes visibles.
+
 ## [1.3.0] — 2026-06-25
 
 Native mobile rewrite, desktop onboarding and a gentle donation reminder.

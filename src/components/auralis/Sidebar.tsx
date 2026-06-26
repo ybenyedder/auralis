@@ -100,7 +100,7 @@ export function Sidebar() {
         </div>
 
         {/* Filters */}
-        <div className="mt-2 hidden lg:flex gap-2 px-4 overflow-x-auto scroll-hidden pb-2">
+        <div className="mt-2 hidden lg:flex flex-wrap gap-2 px-4 pb-2">
           {LIBRARY_FILTERS.map((item) => {
             const active = view.view === item.id;
             return (
