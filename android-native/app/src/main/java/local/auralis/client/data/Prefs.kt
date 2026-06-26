@@ -99,6 +99,10 @@ class Prefs(context: Context) {
     suspend fun lastMilestone(): Int = store.data.first()[MILESTONE] ?: 0
     suspend fun setMilestone(v: Int) { store.edit { it[MILESTONE] = v } }
 
+    /** The last fully-elapsed month whose mood recap was already announced. */
+    suspend fun lastRecapSeen(): String = store.data.first()[RECAP_SEEN] ?: ""
+    suspend fun setRecapSeen(month: String) { store.edit { it[RECAP_SEEN] = month } }
+
     val themeFlow = store.data.map { it[THEME] ?: "oxide" }
 
     companion object {
@@ -115,5 +119,6 @@ class Prefs(context: Context) {
         private val LAUNCH_COUNT = intPreferencesKey("launch_count")
         private val LAST_SESSION = stringPreferencesKey("last_session")
         private val MILESTONE = intPreferencesKey("streak_milestone")
+        private val RECAP_SEEN = stringPreferencesKey("recap_seen")
     }
 }

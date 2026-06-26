@@ -7,6 +7,8 @@ import local.auralis.client.model.AuthResult
 import local.auralis.client.model.LibrarySnapshot
 import local.auralis.client.model.ListeningStats
 import local.auralis.client.model.LyricsResult
+import local.auralis.client.model.RecapResult
+import local.auralis.client.model.RecommendResult
 import local.auralis.client.model.SearchResult
 import local.auralis.client.model.UserState
 import okhttp3.HttpUrl.Companion.toHttpUrlOrNull
@@ -108,6 +110,16 @@ class AuralisApi {
 
     suspend fun stats(): ListeningStats =
         runCatching { ListeningStats.from(getJson("/api/stats")) }.getOrDefault(ListeningStats.EMPTY)
+
+    /** Personalised "Made for you" mix from the server taste engine. */
+    suspend fun recommend(): RecommendResult =
+        runCatching { RecommendResult.from(getJson("/api/recommend?limit=120")) }.getOrDefault(RecommendResult.EMPTY)
+
+    /** Monthly mood recap (most recent month with data, or a specific YYYY-MM). */
+    suspend fun recap(month: String?): RecapResult = withContext(Dispatchers.IO) {
+        val path = if (month.isNullOrBlank()) "/api/recap" else "/api/recap?month=${Uri.encode(month)}"
+        runCatching { RecapResult.from(getJson(path)) }.getOrDefault(RecapResult.EMPTY)
+    }
 
     suspend fun search(query: String): SearchResult = withContext(Dispatchers.IO) {
         if (query.isBlank()) return@withContext SearchResult.EMPTY

@@ -3,6 +3,8 @@ package local.auralis.client.ui
 import android.app.Application
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
+import androidx.media3.common.Player
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -14,6 +16,7 @@ import local.auralis.client.model.Album
 import local.auralis.client.model.Artist
 import local.auralis.client.model.ListeningStats
 import local.auralis.client.model.LyricsResult
+import local.auralis.client.model.MonthlyRecap
 import local.auralis.client.model.PlaylistDto
 import local.auralis.client.model.SearchResult
 import local.auralis.client.model.Track
@@ -45,10 +48,17 @@ data class UiState(
 
     val favorites: Set<String> = emptySet(),
     val favoritesOrder: List<String> = emptyList(),
+    val dislikes: Set<String> = emptySet(),
     val recents: List<String> = emptyList(),
     val playCounts: Map<String, Int> = emptyMap(),
     val playlists: List<PlaylistDto> = emptyList(),
     val stats: ListeningStats = ListeningStats.EMPTY,
+
+    // Recommendations + monthly mood recap (server taste engine).
+    val forYou: List<Track> = emptyList(),
+    val recoScores: Map<String, Double> = emptyMap(),
+    val recap: MonthlyRecap? = null,
+    val recapMonths: List<String> = emptyList(),
 
     val nav: NavTarget = NavTarget(ViewId.HOME),
     val backStack: List<NavTarget> = emptyList(),
@@ -68,6 +78,8 @@ data class UiState(
     val commandOpen: Boolean = false,
     val visualizerOpen: Boolean = false,
     val volume: Float = 0.85f,
+    /** Endless listening: when the queue ends, auto-append similar tracks. */
+    val autoplay: Boolean = true,
     val sleepActive: Boolean = false,
     val sleepEndsAt: Long? = null,
     val sleepEndOfTrack: Boolean = false,
@@ -94,7 +106,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
     fun currentTrack(): Track? = track(player.snapshot.value.currentId)
 
     init {
-        player.onTrackChanged = { id -> onTrackChanged(id) }
+        player.onTrackChanged = { id, reason -> onTrackChanged(id, reason) }
         player.onNeedContinuation = { appendContinuation() }
         player.connect()
         boot()
@@ -112,7 +124,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
             // it (launches 1, 4, 7, …). Shown once the app reaches the library.
             val launches = prefs.bumpLaunchCount()
             val donateDue = launches == 1 || (launches - 1) % 3 == 0
-            _ui.update { it.copy(theme = p.theme, karaoke = p.karaoke, lyricsOffset = p.lyricsOffset, donateDue = donateDue, volume = p.volume) }
+            _ui.update { it.copy(theme = p.theme, karaoke = p.karaoke, lyricsOffset = p.lyricsOffset, donateDue = donateDue, volume = p.volume, autoplay = p.autoplay) }
             player.setRepeat(p.repeat)
             player.setShuffle(p.shuffle)
             player.setVolume(p.volume)
@@ -204,6 +216,8 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
                 }
                 refreshState()
                 refreshStats()
+                fetchReco()
+                fetchRecapAndMaybeNotify()
                 restoreLastSession()
             } catch (e: AuralisApi.ApiException) {
                 if (e.code == 401) {
@@ -223,6 +237,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
                 it.copy(
                     favorites = st.favorites.toSet(),
                     favoritesOrder = st.favorites,
+                    dislikes = st.dislikes.toSet(),
                     recents = st.recents,
                     playCounts = st.playCounts,
                     playlists = st.playlists.sortedBy { p -> p.position },
@@ -269,7 +284,12 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
 
     fun togglePlay() = player.togglePlay()
     fun next() = player.next()
-    fun prev() = player.prev()
+    fun prev() {
+        // Going back isn't a rejection of the current track — exempt its departure
+        // from skip detection (prev only changes track within the first 3 s).
+        if (player.positionMs() <= 3000) player.snapshot.value.currentId?.let { skipExempt.add(it) }
+        player.prev()
+    }
     fun seekTo(ms: Long) = player.seekTo(ms)
 
     fun toggleShuffle() {
@@ -280,6 +300,13 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
     fun cycleRepeat() {
         player.cycleRepeat()
         viewModelScope.launch { prefs.setPlayback(repeat = player.snapshot.value.repeat) }
+    }
+
+    fun toggleAutoplay() {
+        val next = !_ui.value.autoplay
+        _ui.update { it.copy(autoplay = next) }
+        viewModelScope.launch { prefs.setPlayback(autoplay = next) }
+        notify(if (next) "Lecture continue activée" else "Lecture continue désactivée")
     }
 
     fun addNext(track: Track) { player.addNext(track); notify("Jouera ensuite") }
@@ -299,24 +326,44 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
     fun clearQueue() { player.clearQueueExceptCurrent(); notify("File vidée") }
 
     private fun appendContinuation() {
+        if (!_ui.value.autoplay) return // endless listening disabled — stop at queue end
         val current = currentTrack() ?: return
         val ui = _ui.value
         val queued = player.snapshot.value.queueIds.toSet()
-        val byArtist = ui.tracks.filter {
-            it.trackhash !in queued && it.primaryArtistHash != null &&
-                it.primaryArtistHash == current.primaryArtistHash
-        }
-        val byGenre = ui.tracks.filter {
-            it.trackhash !in queued && it.genre != null && it.genre == current.genre
-        }
+        val dis = ui.dislikes
+        fun eligible(t: Track) = t.trackhash !in queued && t.trackhash !in dis
+        val byArtist = ui.tracks.filter { eligible(it) && it.primaryArtistHash != null && it.primaryArtistHash == current.primaryArtistHash }
+        val byGenre = ui.tracks.filter { eligible(it) && it.genre != null && it.genre == current.genre }
         val pool = (byArtist + byGenre).distinctBy { it.trackhash }
-            .ifEmpty { ui.tracks.filter { it.trackhash !in queued } }
-        if (pool.isNotEmpty()) player.appendTracks(pool.shuffled().take(20))
+            .ifEmpty { ui.tracks.filter { eligible(it) } }
+        if (pool.isNotEmpty()) {
+            // Taste score biases the radio toward what the user loves; jitter keeps variety.
+            val scores = ui.recoScores
+            val ranked = pool.sortedByDescending { (scores[it.trackhash] ?: 0.0) + Math.random() * 0.6 }
+            player.appendTracks(ranked.take(20))
+        }
     }
 
     // ---- track change → lyrics + recents bump ------------------------------
 
-    private fun onTrackChanged(id: String?) {
+    private fun onTrackChanged(id: String?, reason: Int) {
+        // Outgoing-track accounting: a user-initiated departure (next / jump / a new
+        // queue — NOT a natural end or repeat) before the scrobble threshold, and not
+        // an exempt move (previous-nav / resumed session), is a SKIP — a negative taste
+        // signal scaled by how little was heard. The >=1s guard ignores instant
+        // re-selections so they don't poison the profile.
+        val leaving = scrobbleArmedFor
+        if (leaving != null && leaving != id) {
+            val exempt = skipExempt.remove(leaving)
+            val userInitiated = reason == Player.MEDIA_ITEM_TRANSITION_REASON_SEEK ||
+                reason == Player.MEDIA_ITEM_TRANSITION_REASON_PLAYLIST_CHANGED
+            if (userInitiated && !exempt && !scrobbled && listenedMs >= 1000) {
+                val durMs = ((track(leaving)?.duration ?: 0.0) * 1000).toLong()
+                val ratio = if (durMs > 0) (listenedMs.toDouble() / durMs).coerceIn(0.0, 1.0) else 0.0
+                recordSkip(leaving, listenedMs, ratio)
+            }
+        }
+
         // Sleep "end of track": the previous track just finished and advanced — stop here.
         if (_ui.value.sleepEndOfTrack) {
             player.pause()
@@ -333,6 +380,10 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     // ---- scrobble gate (30s or 50% of duration of real listening) ----------
+
+    // Trackhashes whose departure must NOT be recorded as a skip (going back to the
+    // previous track, or a resumed-session track). One-shot: cleared on the next change.
+    private val skipExempt = HashSet<String>()
 
     private var scrobbleArmedFor: String? = null
     private var listenedMs = 0L
@@ -374,24 +425,102 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
             api.putState(JSONObject().put("action", "play").put("trackhash", trackhash))
             refreshStats()
         }
+        scheduleReco() // a completed listen nudges the taste profile
     }
 
-    // ---- favorites ---------------------------------------------------------
+    /** Record a SKIP (advanced before the listen threshold): a negative taste signal,
+     *  not a listen — it doesn't touch local play counts / recents. */
+    private fun recordSkip(trackhash: String, msPlayed: Long, ratio: Double) {
+        viewModelScope.launch {
+            api.putState(JSONObject().put("action", "skip").put("trackhash", trackhash).put("msPlayed", msPlayed).put("ratio", ratio))
+        }
+        scheduleReco()
+    }
+
+    // ---- favorites / dislikes ----------------------------------------------
 
     fun toggleFavorite(trackhash: String) {
         val isFav = _ui.value.favorites.contains(trackhash)
         _ui.update {
             val next = it.favorites.toMutableSet()
-            if (isFav) next.remove(trackhash) else next.add(trackhash)
-            it.copy(favorites = next)
+            val dis = it.dislikes.toMutableSet()
+            if (isFav) next.remove(trackhash) else { next.add(trackhash); dis.remove(trackhash) } // like clears dislike
+            it.copy(favorites = next, dislikes = dis)
         }
         notify(if (isFav) "Retiré des favoris" else "Ajouté aux favoris")
         viewModelScope.launch {
             api.putState(JSONObject().put("action", "favorite").put("trackhash", trackhash).put("value", !isFav))
         }
+        scheduleReco()
     }
 
     fun isFavorite(trackhash: String): Boolean = _ui.value.favorites.contains(trackhash)
+
+    fun toggleDislike(trackhash: String) {
+        val isDis = _ui.value.dislikes.contains(trackhash)
+        _ui.update {
+            val dis = it.dislikes.toMutableSet()
+            val fav = it.favorites.toMutableSet()
+            if (isDis) dis.remove(trackhash) else { dis.add(trackhash); fav.remove(trackhash) } // dislike clears like
+            it.copy(dislikes = dis, favorites = fav)
+        }
+        notify(if (isDis) "Préférence retirée" else "Moins de titres comme celui-ci")
+        viewModelScope.launch {
+            api.putState(JSONObject().put("action", "dislike").put("trackhash", trackhash).put("value", !isDis))
+        }
+        scheduleReco()
+    }
+
+    fun isDisliked(trackhash: String): Boolean = _ui.value.dislikes.contains(trackhash)
+
+    // ---- recommendations + monthly recap -----------------------------------
+
+    private var recoJob: Job? = null
+    /** Refresh the personalised mix shortly after a feedback event (debounced). */
+    private fun scheduleReco() {
+        recoJob?.cancel()
+        recoJob = viewModelScope.launch { delay(1500); fetchReco() }
+    }
+
+    private suspend fun fetchReco() {
+        val res = api.recommend()
+        val scores = res.forYou.associate { it.trackhash to it.score }
+        val disliked = res.disliked.toSet()
+        val tracks = res.forYou.mapNotNull { trackIndex[it.trackhash] }
+            .filter { it.trackhash !in disliked }
+            .take(12)
+        _ui.update { it.copy(forYou = tracks, recoScores = scores) }
+    }
+
+    private suspend fun fetchRecapAndMaybeNotify() {
+        val res = api.recap(null)
+        _ui.update { it.copy(recap = res.recap, recapMonths = res.months) }
+        // End-of-month nudge: the most recent fully-elapsed month with data, once.
+        val thisMonth = currentMonthKey()
+        val elapsed = res.months.firstOrNull { it < thisMonth } ?: return
+        if (elapsed == prefs.lastRecapSeen()) return
+        prefs.setRecapSeen(elapsed)
+        notify("🗓️ Ton bilan d'humeur de ${monthLabel(elapsed)} est prêt")
+    }
+
+    /** Switch the recap to a specific month (from the Insights month selector). */
+    fun selectRecapMonth(month: String) {
+        viewModelScope.launch {
+            val res = api.recap(month)
+            _ui.update { it.copy(recap = res.recap, recapMonths = if (res.months.isNotEmpty()) res.months else it.recapMonths) }
+        }
+    }
+
+    private fun currentMonthKey(): String {
+        val c = java.util.Calendar.getInstance()
+        return "%04d-%02d".format(c.get(java.util.Calendar.YEAR), c.get(java.util.Calendar.MONTH) + 1)
+    }
+    private fun monthLabel(key: String): String {
+        val months = listOf("Janvier", "Février", "Mars", "Avril", "Mai", "Juin", "Juillet", "Août", "Septembre", "Octobre", "Novembre", "Décembre")
+        val parts = key.split("-")
+        val m = parts.getOrNull(1)?.toIntOrNull() ?: 1
+        return "${months.getOrElse(m - 1) { key }} ${parts.getOrNull(0) ?: ""}".trim()
+    }
 
     fun dismissDonate() { _ui.update { it.copy(donateDue = false) } }
 
@@ -486,6 +615,9 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
         if (tracks.isEmpty()) return
         val idx = o.optInt("index", 0).coerceIn(0, tracks.lastIndex)
         val pos = o.optLong("position", 0L)
+        // A resumed track was already partly heard last session; leaving it now isn't
+        // a fresh skip (the gate can't see the prior listening).
+        if (pos > 0) tracks.getOrNull(idx)?.let { skipExempt.add(it.trackhash) }
         player.playTracksPaused(tracks, idx, pos)
     }
 
@@ -592,6 +724,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
         viewModelScope.launch {
             api.putState(JSONObject().put("action", "resetStats"))
             refreshStats()
+            fetchReco()
         }
         notify("Historique réinitialisé")
     }

@@ -100,6 +100,19 @@ fun SettingsScreen(vm: AppViewModel, ui: UiState) {
 
         item {
             Card("Lecture") {
+                Row(Modifier.fillMaxWidth().padding(bottom = 10.dp), verticalAlignment = Alignment.CenterVertically) {
+                    Column(Modifier.weight(1f)) {
+                        Text("Lecture continue", color = colors.foreground, fontSize = 14.sp, fontWeight = FontWeight.SemiBold)
+                        Text("Enchaîner des titres similaires à la fin de la file", color = colors.textMuted, fontSize = 11.sp)
+                    }
+                    Box(
+                        Modifier.clip(CircleShape).background(if (ui.autoplay) colors.accent else colors.panel2)
+                            .clickable { vm.toggleAutoplay() }.padding(horizontal = 14.dp, vertical = 7.dp),
+                    ) {
+                        Text(if (ui.autoplay) "Activée" else "Désactivée",
+                            color = if (ui.autoplay) colors.ink else colors.textMuted, fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
+                    }
+                }
                 Text("Volume", color = colors.textMuted, fontSize = 12.sp)
                 Slider(
                     value = ui.volume, onValueChange = { vm.setVolume(it) },

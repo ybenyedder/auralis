@@ -26,6 +26,7 @@ import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.PlaylistAdd
 import androidx.compose.material.icons.filled.QueueMusic
+import androidx.compose.material.icons.filled.ThumbDown
 import androidx.compose.material3.Icon
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
@@ -84,6 +85,10 @@ fun TrackMenu(track: Track, ui: UiState, vm: AppViewModel, onDismiss: () -> Unit
                 val fav = ui.favorites.contains(track.trackhash)
                 MenuRow(if (fav) Icons.Filled.Favorite else Icons.Filled.FavoriteBorder, if (fav) "Retirer des favoris" else "Ajouter aux favoris") {
                     vm.toggleFavorite(track.trackhash); onDismiss()
+                }
+                val disliked = ui.dislikes.contains(track.trackhash)
+                MenuRow(Icons.Filled.ThumbDown, if (disliked) "Ne plus masquer" else "Je n'aime pas") {
+                    vm.toggleDislike(track.trackhash); onDismiss()
                 }
                 if (track.albumhash != null) {
                     MenuRow(Icons.Filled.Album, "Aller à l'album") { vm.navigate(ViewId.ALBUM, track.albumhash); onDismiss() }

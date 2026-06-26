@@ -34,10 +34,13 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import local.auralis.client.model.Moods
 import local.auralis.client.model.Track
 import local.auralis.client.ui.AppViewModel
 import local.auralis.client.ui.UiState
@@ -141,6 +144,20 @@ fun HomeScreen(vm: AppViewModel, ui: UiState) {
                     onClick = { vm.playTrack(t, mix, mix.indexOf(t)) },
                     onToggleFavorite = { vm.toggleFavorite(t.trackhash) }, onMore = { vm.openTrackMenu(t) },
                 )
+            }
+        }
+
+        if (ui.forYou.isNotEmpty()) {
+            item {
+                Spacer(Modifier.height(20.dp))
+                SectionHeader("Fait pour vous")
+                PlayPill("Lire le mix") { vm.playList(ui.forYou) }
+                Spacer(Modifier.height(10.dp))
+                LazyRow(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                    items(ui.forYou, key = { it.trackhash }) { t ->
+                        MiniTrackCard(t, t.trackhash == current) { vm.playTrack(t, ui.forYou, ui.forYou.indexOf(t)) }
+                    }
+                }
             }
         }
 
@@ -752,6 +769,7 @@ fun InsightsScreen(vm: AppViewModel, ui: UiState) {
                 Text("Tes statistiques", fontSize = 26.sp, fontWeight = FontWeight.Black, color = colors.foreground)
             }
         }
+        item { MoodRecapSection(vm, ui) }
         item {
             Row(Modifier.fillMaxWidth().padding(vertical = 8.dp), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                 Kpi("Série", "${stats.streak} j", Modifier.weight(1f))
@@ -799,4 +817,148 @@ private fun Kpi(label: String, value: String, modifier: Modifier = Modifier) {
         Text(value, color = colors.foreground, fontSize = 22.sp, fontWeight = FontWeight.Black)
         Text(label, color = colors.textMuted, fontSize = 12.sp)
     }
+}
+
+// ============================ MONTHLY MOOD RECAP ==========================
+
+@Composable
+private fun MoodRecapSection(vm: AppViewModel, ui: UiState) {
+    val colors = LocalAuralis.current
+    if (ui.recapMonths.isEmpty()) return
+    val recap = ui.recap
+    Column(Modifier.fillMaxWidth().padding(top = 6.dp)) {
+        SectionHeader("Ton mois en émotions")
+
+        // Period selector.
+        LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.padding(vertical = 8.dp)) {
+            items(ui.recapMonths.take(12)) { m ->
+                val selected = m == recap?.month
+                Box(
+                    Modifier.clip(CircleShape)
+                        .background(if (selected) colors.accent else colors.panel)
+                        .clickable { vm.selectRecapMonth(m) }
+                        .padding(horizontal = 14.dp, vertical = 8.dp),
+                ) {
+                    Text(
+                        recapMonthChip(m),
+                        color = if (selected) colors.ink else colors.textMuted,
+                        fontSize = 12.sp, fontWeight = FontWeight.SemiBold,
+                    )
+                }
+            }
+        }
+
+        if (recap != null && recap.totalPlays > 0) {
+            val mood = Moods.byId(recap.dominantMood)
+            val c0 = hexColor(mood?.c0 ?: "#3b3b54")
+            val c1 = hexColor(mood?.c1 ?: "#23233a")
+
+            // Dominant-mood hero.
+            Column(
+                Modifier.fillMaxWidth().clip(RoundedCornerShape(18.dp))
+                    .background(Brush.linearGradient(listOf(c0, c1)))
+                    .padding(18.dp),
+            ) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text(mood?.emoji ?: "🎧", fontSize = 34.sp)
+                    Spacer(Modifier.width(12.dp))
+                    Column {
+                        Text(
+                            "${recap.label}${if (recap.inProgress) " · en cours" else ""}".uppercase(),
+                            color = Color.White.copy(alpha = 0.8f), fontSize = 11.sp, fontWeight = FontWeight.Bold,
+                        )
+                        Text(
+                            (recap.moodWord ?: mood?.label ?: "—").replaceFirstChar { it.uppercase() },
+                            color = Color.White, fontSize = 24.sp, fontWeight = FontWeight.Black,
+                        )
+                    }
+                }
+                Spacer(Modifier.height(12.dp))
+                Text(recap.narrative, color = Color.White.copy(alpha = 0.92f), fontSize = 13.sp)
+                Spacer(Modifier.height(12.dp))
+                Row(horizontalArrangement = Arrangement.spacedBy(18.dp)) {
+                    RecapStat("${recap.totalPlays}", "écoutes")
+                    RecapStat(formatRecapTime(recap.listeningSeconds), "d'écoute")
+                    RecapStat("${recap.distinctTracks}", "titres")
+                }
+            }
+
+            // Mood palette.
+            Spacer(Modifier.height(14.dp))
+            recap.moods.take(6).forEach { ms ->
+                val mi = Moods.byId(ms.mood)
+                Column(Modifier.padding(vertical = 4.dp)) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Text(
+                            "${mi?.emoji ?: "•"}  ${mi?.label ?: ms.mood}",
+                            color = colors.foreground, fontSize = 13.sp,
+                            modifier = Modifier.weight(1f), maxLines = 1, overflow = TextOverflow.Ellipsis,
+                        )
+                        Text("${(ms.share * 100).toInt()}%", color = colors.textMuted, fontSize = 12.sp)
+                    }
+                    Spacer(Modifier.height(4.dp))
+                    Box(Modifier.fillMaxWidth().height(8.dp).clip(RoundedCornerShape(4.dp)).background(colors.panel2)) {
+                        Box(
+                            Modifier.fillMaxWidth(ms.share.toFloat().coerceIn(0.03f, 1f)).height(8.dp)
+                                .clip(RoundedCornerShape(4.dp))
+                                .background(Brush.linearGradient(listOf(hexColor(mi?.c0 ?: "#888888"), hexColor(mi?.c1 ?: "#555555")))),
+                        )
+                    }
+                }
+            }
+
+            // Standout tracks of the month.
+            val topTracks = recap.topTracks.mapNotNull { ref -> ui.trackByHash[ref.trackhash]?.let { it to ref.plays } }
+            if (topTracks.isNotEmpty()) {
+                Spacer(Modifier.height(14.dp))
+                Text("Titres du mois", color = colors.textMuted, fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
+                Spacer(Modifier.height(6.dp))
+                topTracks.forEachIndexed { i, pair ->
+                    val t = pair.first
+                    Row(
+                        Modifier.fillMaxWidth().clickable { vm.playList(topTracks.map { it.first }, i) }.padding(vertical = 6.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        local.auralis.client.ui.components.CoverArt(t.image, t.albumhash ?: t.title, Modifier.size(36.dp), cornerRadius = 8)
+                        Spacer(Modifier.width(10.dp))
+                        Column(Modifier.weight(1f)) {
+                            Text(t.title, color = colors.foreground, fontSize = 13.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                            Text(t.displayArtist, color = colors.textMuted, fontSize = 11.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                        }
+                        Text("${pair.second}×", color = colors.textMuted, fontSize = 12.sp)
+                    }
+                }
+            }
+        } else {
+            Text(
+                recap?.narrative ?: "Lance quelques titres ce mois-ci pour révéler ton humeur.",
+                color = colors.textMuted, fontSize = 13.sp, modifier = Modifier.padding(vertical = 8.dp),
+            )
+        }
+        Spacer(Modifier.height(8.dp))
+    }
+}
+
+@Composable
+private fun RecapStat(value: String, label: String) {
+    Column {
+        Text(value, color = Color.White, fontSize = 17.sp, fontWeight = FontWeight.Black)
+        Text(label, color = Color.White.copy(alpha = 0.75f), fontSize = 10.sp)
+    }
+}
+
+private fun hexColor(hex: String): Color =
+    runCatching { Color(android.graphics.Color.parseColor(hex)) }.getOrDefault(Color(0xFF888888))
+
+private fun formatRecapTime(seconds: Long): String {
+    val h = seconds / 3600
+    val m = (seconds % 3600) / 60
+    return if (h > 0) "${h}h${if (m > 0) " ${m}m" else ""}" else "$m min"
+}
+
+private fun recapMonthChip(key: String): String {
+    val months = listOf("Janv.", "Févr.", "Mars", "Avril", "Mai", "Juin", "Juil.", "Août", "Sept.", "Oct.", "Nov.", "Déc.")
+    val parts = key.split("-")
+    val m = parts.getOrNull(1)?.toIntOrNull() ?: 1
+    return "${months.getOrElse(m - 1) { key }} ${parts.getOrNull(0)?.takeLast(2) ?: ""}"
 }

@@ -46,8 +46,11 @@ class PlayerHolder(
     private val _position = MutableStateFlow(0L)
     val position: StateFlow<Long> = _position
 
-    /** Invoked whenever the active media item changes (id may be null). */
-    var onTrackChanged: ((String?) -> Unit)? = null
+    /** Invoked whenever the active media item changes. `reason` is the ExoPlayer
+     *  MEDIA_ITEM_TRANSITION_REASON_* (AUTO = natural end, SEEK = next/prev/jump,
+     *  PLAYLIST_CHANGED = new queue, REPEAT) so the ViewModel can tell a real skip
+     *  from a natural advance. */
+    var onTrackChanged: ((String?, Int) -> Unit)? = null
 
     /** Invoked when the queue runs dry while autoplay should continue. */
     var onNeedContinuation: (() -> Unit)? = null
@@ -58,7 +61,7 @@ class PlayerHolder(
         }
 
         override fun onMediaItemTransition(mediaItem: MediaItem?, reason: Int) {
-            onTrackChanged?.invoke(mediaItem?.mediaId)
+            onTrackChanged?.invoke(mediaItem?.mediaId, reason)
             maybeContinue()
         }
 
@@ -75,7 +78,7 @@ class PlayerHolder(
             controller = future.get().also { c ->
                 c.addListener(listener)
                 pushSnapshot()
-                onTrackChanged?.invoke(c.currentMediaItem?.mediaId)
+                onTrackChanged?.invoke(c.currentMediaItem?.mediaId, Player.MEDIA_ITEM_TRANSITION_REASON_PLAYLIST_CHANGED)
             }
             startTicker()
         }, ContextCompat.getMainExecutor(context))

@@ -222,6 +222,7 @@ data class LibrarySnapshot(
 
 data class UserState(
     val favorites: List<String>,
+    val dislikes: List<String>,
     val playCounts: Map<String, Int>,
     val recents: List<String>,
     val playlists: List<PlaylistDto>,
@@ -239,6 +240,7 @@ data class UserState(
             }
             return UserState(
                 favorites = o.stringArray("favorites"),
+                dislikes = o.stringArray("dislikes"),
                 playCounts = pc,
                 recents = o.stringArray("recents"),
                 playlists = o.optJSONArray("playlists")?.objects()?.map { PlaylistDto.from(it) } ?: emptyList(),
@@ -246,6 +248,106 @@ data class UserState(
             )
         }
     }
+}
+
+// ---- recommendations + monthly mood recap ----------------------------------
+
+data class RecoTrack(val trackhash: String, val score: Double, val reason: String) {
+    companion object {
+        fun from(o: JSONObject) = RecoTrack(
+            trackhash = o.strOr("trackhash", ""),
+            score = o.doubleOrNull("score") ?: 0.0,
+            reason = o.strOr("reason", "Recommandé pour vous"),
+        )
+    }
+}
+
+data class RecommendResult(
+    val forYou: List<RecoTrack>,
+    val disliked: List<String>,
+) {
+    companion object {
+        val EMPTY = RecommendResult(emptyList(), emptyList())
+        fun from(o: JSONObject) = RecommendResult(
+            forYou = o.optJSONArray("forYou")?.objects()?.map { RecoTrack.from(it) } ?: emptyList(),
+            disliked = o.optJSONObject("profile")?.stringArray("disliked") ?: emptyList(),
+        )
+    }
+}
+
+data class MoodShare(val mood: String, val share: Double, val plays: Int)
+data class RecapTrackRef(val trackhash: String, val plays: Int)
+data class RecapArtistRef(val artisthash: String, val name: String, val plays: Int)
+
+data class MonthlyRecap(
+    val month: String,
+    val label: String,
+    val inProgress: Boolean,
+    val totalPlays: Int,
+    val listeningSeconds: Long,
+    val distinctTracks: Int,
+    val dominantMood: String?,
+    val moodWord: String?,
+    val arousal: Double,
+    val valence: Double,
+    val moods: List<MoodShare>,
+    val topTracks: List<RecapTrackRef>,
+    val topArtists: List<RecapArtistRef>,
+    val narrative: String,
+    val previousMood: String?,
+) {
+    companion object {
+        fun from(o: JSONObject) = MonthlyRecap(
+            month = o.strOr("month", ""),
+            label = o.strOr("label", ""),
+            inProgress = o.boolOr("inProgress", false),
+            totalPlays = o.intOrNull("totalPlays") ?: 0,
+            listeningSeconds = o.longOrNull("listeningSeconds") ?: 0,
+            distinctTracks = o.intOrNull("distinctTracks") ?: 0,
+            dominantMood = o.str("dominantMood"),
+            moodWord = o.str("moodWord"),
+            arousal = o.doubleOrNull("arousal") ?: 0.5,
+            valence = o.doubleOrNull("valence") ?: 0.5,
+            moods = o.optJSONArray("moods")?.objects()?.map {
+                MoodShare(it.strOr("mood", ""), it.doubleOrNull("share") ?: 0.0, it.intOrNull("plays") ?: 0)
+            } ?: emptyList(),
+            topTracks = o.optJSONArray("topTracks")?.objects()?.map {
+                RecapTrackRef(it.strOr("trackhash", ""), it.intOrNull("plays") ?: 0)
+            } ?: emptyList(),
+            topArtists = o.optJSONArray("topArtists")?.objects()?.map {
+                RecapArtistRef(it.strOr("artisthash", ""), it.strOr("name", "Artiste"), it.intOrNull("plays") ?: 0)
+            } ?: emptyList(),
+            narrative = o.strOr("narrative", ""),
+            previousMood = o.str("previousMood"),
+        )
+    }
+}
+
+data class RecapResult(val months: List<String>, val recap: MonthlyRecap?) {
+    companion object {
+        val EMPTY = RecapResult(emptyList(), null)
+        fun from(o: JSONObject) = RecapResult(
+            months = o.stringArray("months"),
+            recap = o.optJSONObject("recap")?.let { MonthlyRecap.from(it) },
+        )
+    }
+}
+
+/** The 6 moods, mirroring src/lib/auralis/mood.ts — label/emoji/gradient for the
+ *  recap UI (the native client doesn't carry per-track mood, the server does). */
+data class MoodInfo(val id: String, val label: String, val emoji: String, val c0: String, val c1: String)
+
+object Moods {
+    private val ALL = listOf(
+        MoodInfo("energetic", "Énergie", "⚡️", "#ef4444", "#f97316"),
+        MoodInfo("party", "Fête", "🔥", "#db2777", "#a855f7"),
+        MoodInfo("happy", "Bonne humeur", "☀️", "#f59e0b", "#fde047"),
+        MoodInfo("focus", "Concentration", "🎧", "#0d9488", "#10b981"),
+        MoodInfo("chill", "Détente", "🌙", "#0ea5e9", "#22d3ee"),
+        MoodInfo("melancholy", "Mélancolie", "🌧️", "#6366f1", "#8b5cf6"),
+    )
+    private val BY_ID = ALL.associateBy { it.id }
+    fun byId(id: String?): MoodInfo? = id?.let { BY_ID[it] }
 }
 
 data class ListeningStats(
