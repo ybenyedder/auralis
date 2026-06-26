@@ -5,7 +5,7 @@
 
 import crypto from "crypto";
 import fs from "fs";
-import { readFile } from "fs/promises";
+import { readFile, writeFile, mkdir } from "fs/promises";
 import path from "path";
 import { getConfig } from "../config";
 
@@ -69,6 +69,102 @@ export async function readCachedArt(hash: string): Promise<CachedArt | null> {
     return null;
   }
   return { buffer, contentType: sniffImageMime(buffer) };
+}
+
+// ---------------------------------------------------------------------------
+// Thumbnail variants — embedded covers are frequently 1000–3000px originals
+// (up to several MB each), so serving them verbatim for a 160px card means
+// dozens of MB on first paint. We resize on demand to a handful of webp buckets,
+// cache them to disk (and a small in-memory LRU), and the route serves the
+// nearest one via `?w=`. Falls back to the original bytes if sharp is missing,
+// so art always renders even where the native module can't load.
+// ---------------------------------------------------------------------------
+export const ART_VARIANT_SIZES = [96, 160, 256, 384, 640] as const;
+const VARIANTS = new Set<number>(ART_VARIANT_SIZES);
+
+// Lazy, cached sharp handle. `undefined` = not tried yet, `null` = unavailable.
+type SharpFn = (input: Buffer, opts?: { failOn?: string }) => {
+  rotate: () => ReturnType<SharpFn>;
+  resize: (w: number, h: number, o: Record<string, unknown>) => ReturnType<SharpFn>;
+  webp: (o: Record<string, unknown>) => ReturnType<SharpFn>;
+  toBuffer: () => Promise<Buffer>;
+};
+let sharpFn: SharpFn | null | undefined;
+async function getSharp(): Promise<SharpFn | null> {
+  if (sharpFn !== undefined) return sharpFn;
+  try {
+    const mod = (await import("sharp")) as unknown as { default: SharpFn };
+    sharpFn = mod.default;
+  } catch {
+    sharpFn = null;
+  }
+  return sharpFn;
+}
+
+// Small LRU so hot thumbnails skip the disk entirely.
+const MEM_MAX = 256;
+const memCache = new Map<string, CachedArt>();
+function memGet(key: string): CachedArt | undefined {
+  const v = memCache.get(key);
+  if (v) {
+    memCache.delete(key);
+    memCache.set(key, v);
+  }
+  return v;
+}
+function memSet(key: string, art: CachedArt): void {
+  memCache.set(key, art);
+  if (memCache.size > MEM_MAX) {
+    const oldest = memCache.keys().next().value;
+    if (oldest !== undefined) memCache.delete(oldest);
+  }
+}
+
+/**
+ * Read (or lazily generate + cache) a square webp thumbnail of the given size.
+ * Unknown sizes fall back to the full-resolution original; so does any sharp
+ * failure, so the caller always gets a usable image.
+ */
+export async function readArtVariant(hash: string, size: number): Promise<CachedArt | null> {
+  if (!/^[a-f0-9]{40}$/.test(hash)) return null;
+  if (!VARIANTS.has(size)) return readCachedArt(hash);
+
+  const key = `${hash}_${size}`;
+  const hit = memGet(key);
+  if (hit) return hit;
+
+  const thumbDir = path.join(getConfig().artDir, "thumbs");
+  const thumbFile = path.join(thumbDir, `${key}.webp`);
+  try {
+    const buffer = await readFile(thumbFile);
+    const art: CachedArt = { buffer, contentType: "image/webp" };
+    memSet(key, art);
+    return art;
+  } catch {
+    // not generated yet
+  }
+
+  const original = await readCachedArt(hash);
+  if (!original) return null;
+
+  const sharp = await getSharp();
+  if (!sharp) return original; // graceful: serve the original untouched
+
+  try {
+    const out = await sharp(original.buffer, { failOn: "none" })
+      .rotate()
+      .resize(size, size, { fit: "cover", position: "centre" })
+      .webp({ quality: 80, effort: 4 })
+      .toBuffer();
+    const art: CachedArt = { buffer: out, contentType: "image/webp" };
+    memSet(key, art);
+    mkdir(thumbDir, { recursive: true })
+      .then(() => writeFile(thumbFile, out))
+      .catch(() => {/* cache write best-effort */});
+    return art;
+  } catch {
+    return original;
+  }
 }
 
 /** Detect a raster image MIME type from the leading bytes of a buffer. */

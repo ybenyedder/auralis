@@ -20,6 +20,25 @@ interface ArtworkProps {
   /** Let the className drive width/height (e.g. `w-full aspect-square`) instead of
    * locking a fixed pixel box. Required for fluid mobile grids and artwork. */
   fluid?: boolean;
+  /** Intended on-screen px of the longest edge — picks the thumbnail variant to
+   * download. Defaults to `size` (fixed) or a card-sized bucket (fluid). Pass a
+   * big value (or 0) on heroes/fullscreen to fetch the full-resolution original. */
+  imgSize?: number;
+}
+
+// Square webp buckets the art API can serve (mirror of ART_VARIANT_SIZES).
+const ART_BUCKETS = [96, 160, 256, 384, 640];
+
+/** Append `?w=<bucket>` so we fetch a right-sized thumbnail instead of the full
+ * (often multi-MB) original. Targets ~2× the CSS px for crisp HiDPI without a
+ * hydration-unsafe devicePixelRatio read; anything larger than the top bucket
+ * keeps the original. */
+function sizedArt(src: string, intended: number): string {
+  if (!src || intended <= 0 || !src.includes("/api/art/")) return src;
+  const target = intended * 2;
+  const bucket = ART_BUCKETS.find((b) => b >= target);
+  if (!bucket) return src; // bigger than every bucket → serve the original
+  return `${src}${src.includes("?") ? "&" : "?"}w=${bucket}`;
 }
 
 export function Artwork({
@@ -36,11 +55,12 @@ export function Artwork({
   colors,
   image,
   fluid = false,
+  imgSize,
 }: ArtworkProps) {
   const [imgError, setImgError] = useState(false);
   const [c1, c2] = colors ?? paletteFor({ title, name, album, trackhash, albumhash, artisthash });
 
-  const src = api.assetUrl(image);
+  const src = sizedArt(api.assetUrl(image) ?? "", imgSize ?? (fluid ? 220 : size));
   const showRealImage = Boolean(src) && !imgError;
   // Fixed-px box for rows/avatars; className-driven box for fluid grids/heroes.
   const boxStyle = fluid ? { borderRadius: rounded } : { width: size, height: size, borderRadius: rounded };
