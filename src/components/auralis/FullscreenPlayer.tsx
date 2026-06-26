@@ -23,7 +23,7 @@ import { usePlayhead } from "@/store/playhead";
 import { Artwork } from "./Artwork";
 import { LyricsView } from "./LyricsView";
 import { QueueList } from "./QueueList";
-import { formatDuration, trackArtist, trackTitle } from "@/lib/auralis/brand";
+import { formatDuration, paletteForName, trackArtist, trackTitle } from "@/lib/auralis/brand";
 import { cn } from "@/lib/utils";
 
 export function FullscreenPlayer() {
@@ -63,7 +63,7 @@ export function FullscreenPlayer() {
 
   if (!currentTrack) return null;
 
-  const colors = currentTrack.color ?? ["#2a2a2a", "#121212", "#000000"];
+  const colors = currentTrack.color ?? paletteForName(currentTrack.trackhash);
   const onFav = () => { if (!fav) setFavPop(true); toggleFavorite(currentTrack.trackhash); };
 
   const openMore = (event: MouseEvent<HTMLButtonElement>) => {

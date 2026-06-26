@@ -5,7 +5,7 @@ import { X, Play, Pause, SkipForward } from "lucide-react";
 import { usePlayer } from "@/store/player";
 import { usePlayhead } from "@/store/playhead";
 import { useFocusTrap } from "@/lib/auralis/useFocusTrap";
-import { hashString } from "@/lib/auralis/brand";
+import { hashString, paletteForName } from "@/lib/auralis/brand";
 import { formatDuration, trackArtist, trackTitle } from "@/lib/auralis/brand";
 
 /**
@@ -65,7 +65,7 @@ export function VisualizerOverlay() {
     window.addEventListener("resize", resize);
 
     const seed = hashString(currentTrack?.trackhash ?? "auralis");
-    const colors = currentTrack?.color ?? ["#2a2a2a", "#535353", "#7a7a7a"];
+    const colors = currentTrack?.color ?? paletteForName(currentTrack?.trackhash ?? "auralis");
 
     // Pre-compute 64 deterministic "frequency" amplitudes
     const bars = Array.from({ length: 64 }, (_, i) => {

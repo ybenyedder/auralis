@@ -17,7 +17,7 @@ import { usePlayer } from "@/store/player";
 import { shareTrack } from "@/lib/auralis/share";
 import { useFocusTrap } from "@/lib/auralis/useFocusTrap";
 import { albumsOfArtistFrom, artistPlayTotals, tracksOfAlbumFrom, tracksOfArtistFrom, useLibraryStore } from "@/store/library";
-import { trackArtist, trackTitle, albumArtist, formatCount } from "@/lib/auralis/brand";
+import { trackArtist, trackTitle, albumArtist, formatCount, paletteForName } from "@/lib/auralis/brand";
 import { cn } from "@/lib/utils";
 import type { Track, Album, Artist, ViewId } from "@/lib/auralis/types";
 
@@ -237,7 +237,7 @@ function TrackMenu({
         <MenuHeader
           title={trackTitle(track)}
           subtitle={trackArtist(track)}
-          colors={track.color ?? ["#282828", "#3E3E3E", "#535353"]}
+          colors={track.color ?? paletteForName(track.trackhash)}
           initial={trackTitle(track)[0] || "A"}
           sheet={sheet}
         />
@@ -350,7 +350,7 @@ function AlbumMenu({
         <MenuHeader
           title={album.title}
           subtitle={`${albumArtist(album)} · ${album.year}`}
-          colors={album.color ?? ["#282828", "#3E3E3E", "#535353"]}
+          colors={album.color ?? paletteForName(album.albumhash)}
           initial={album.title[0] || "A"}
           sheet={sheet}
         />

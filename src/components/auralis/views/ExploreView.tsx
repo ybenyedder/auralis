@@ -3,7 +3,7 @@
 import { useMemo, useDeferredValue } from "react";
 import { Search, X } from "lucide-react";
 import { usePlayer, shuffleArray } from "@/store/player";
-import { useLibraryStore } from "@/store/library";
+import { useLibraryStore, artistPlayTotals } from "@/store/library";
 import { paletteForName } from "@/lib/auralis/brand";
 import { SectionHeader } from "../SectionHeader";
 import { TrackRow, TrackListHeader } from "../TrackRow";
@@ -15,11 +15,19 @@ export function ExploreView() {
   const searchQuery = usePlayer((s) => s.searchQuery);
   const setSearch = usePlayer((s) => s.setSearch);
   const playList = usePlayer((s) => s.playList);
+  const playCounts = usePlayer((s) => s.playCounts);
   const tracks = useLibraryStore((s) => s.tracks);
   const albums = useLibraryStore((s) => s.albums);
-  const artists = useLibraryStore((s) => s.artists);
+  const rawArtists = useLibraryStore((s) => s.artists);
   const query = searchQuery.trim().toLowerCase();
   const deferredQuery = useDeferredValue(query);
+
+  // The shared catalogue is user-independent (artist.playcount is always 0); derive
+  // the per-user play total client-side so cards show "N écoutes", like the other views.
+  const artists = useMemo(() => {
+    const tally = artistPlayTotals(tracks, playCounts);
+    return rawArtists.map((a) => ({ ...a, playcount: tally.get(a.artisthash) ?? 0 }));
+  }, [rawArtists, tracks, playCounts]);
 
   // Genre "mixes": one card per well-represented genre, plays a shuffle of it.
   const genreMixes = useMemo(() => {

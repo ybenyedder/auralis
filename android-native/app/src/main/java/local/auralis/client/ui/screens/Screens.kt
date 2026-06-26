@@ -450,10 +450,11 @@ fun LibraryScreen(vm: AppViewModel, ui: UiState) {
             else -> ui.albums.sortedBy { it.title.lowercase() }
         }
     }
-    val sortedArtists = remember(ui.artists, sort) {
+    val artistPlays = remember(ui.tracks, ui.playCounts) { artistPlayTotals(ui.tracks, ui.playCounts) }
+    val sortedArtists = remember(ui.artists, sort, artistPlays) {
         when (sort) {
             1 -> ui.artists.sortedByDescending { it.name.lowercase() }
-            2 -> ui.artists.sortedByDescending { it.playcount ?: 0 }
+            2 -> ui.artists.sortedByDescending { artistPlays[it.artisthash] ?: 0 }
             else -> ui.artists.sortedBy { it.name.lowercase() }
         }
     }
@@ -571,6 +572,21 @@ private fun PlusChip(label: String, onClick: () -> Unit) {
     ) {
         Text(label, color = colors.textMuted, fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
     }
+}
+
+// Per-artist play totals from the user's OWN play counts. The shared catalogue is
+// user-independent (server now sends artist.playcount = 0), so any "most played"
+// artist ranking/label is derived here — mirrors the web client's artistPlayTotals.
+private fun artistPlayTotals(tracks: List<Track>, playCounts: Map<String, Int>): Map<String, Int> {
+    val totals = HashMap<String, Int>()
+    for (t in tracks) {
+        val c = playCounts[t.trackhash] ?: 0
+        if (c == 0) continue
+        for (a in t.artists) {
+            if (a.artisthash.isNotBlank()) totals[a.artisthash] = (totals[a.artisthash] ?: 0) + c
+        }
+    }
+    return totals
 }
 
 @Composable
@@ -789,11 +805,15 @@ fun InsightsScreen(vm: AppViewModel, ui: UiState) {
             Spacer(Modifier.height(20.dp))
             SectionHeader("Artistes les plus écoutés")
         }
-        val topArtists = ui.artists.sortedByDescending { it.playcount ?: 0 }.take(8).filter { (it.playcount ?: 0) > 0 }
+        val artistPlays = artistPlayTotals(ui.tracks, ui.playCounts)
+        val topArtists = ui.artists
+            .filter { (artistPlays[it.artisthash] ?: 0) > 0 }
+            .sortedByDescending { artistPlays[it.artisthash] ?: 0 }
+            .take(8)
         items(topArtists) { a ->
             Row(Modifier.fillMaxWidth().clickable { vm.navigate(ViewId.ARTIST, a.artisthash) }.padding(vertical = 8.dp), verticalAlignment = Alignment.CenterVertically) {
                 Text(a.name, color = colors.foreground, fontSize = 14.sp, modifier = Modifier.weight(1f), maxLines = 1, overflow = TextOverflow.Ellipsis)
-                Text("${a.playcount} écoutes", color = colors.textMuted, fontSize = 12.sp)
+                Text("${artistPlays[a.artisthash] ?: 0} écoutes", color = colors.textMuted, fontSize = 12.sp)
             }
         }
     }

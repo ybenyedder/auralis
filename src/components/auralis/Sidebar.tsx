@@ -118,27 +118,6 @@ export function Sidebar() {
           })}
         </div>
 
-        {/* Mobile Icons Fallback */}
-        <div className="mt-3 flex flex-col gap-3 px-2 md:hidden">
-          {LIBRARY_FILTERS.map((item) => {
-            const Icon = item.icon;
-            const active = view.view === item.id;
-            return (
-              <button
-                key={item.id}
-                onClick={() => navigate(item.id)}
-                title={item.label}
-                className={cn(
-                  "flex items-center justify-center p-2 rounded-lg",
-                  active ? "bg-[var(--sidebar-accent)] text-white" : "text-[var(--text-muted)] hover:text-white"
-                )}
-              >
-                <Icon className="size-6 shrink-0" fill={active ? "currentColor" : "none"} />
-              </button>
-            );
-          })}
-        </div>
-
         {/* Playlists List */}
         <div className="min-h-0 flex-1 overflow-y-auto scroll-auralis px-2 mt-1 pb-4">
           {customPlaylists.map((playlist) => {

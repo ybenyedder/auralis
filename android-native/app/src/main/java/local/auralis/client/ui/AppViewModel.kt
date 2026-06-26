@@ -335,8 +335,14 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
     fun removeFromQueue(index: Int) = player.removeAt(index)
     fun clearQueue() { player.clearQueueExceptCurrent(); notify("File vidée") }
 
+    // Guards against a double-append: now that the pool is built off-main and appended
+    // asynchronously, a second onNeedContinuation can fire (queue still at its tail)
+    // before the first append lands. Main-thread confined, so a plain flag is enough.
+    private var continuationInFlight = false
+
     private fun appendContinuation() {
         if (!_ui.value.autoplay) return // endless listening disabled — stop at queue end
+        if (continuationInFlight) return // a continuation is already being computed/appended
         val current = currentTrack() ?: return
         val ui = _ui.value
         // Capture everything the ranking needs BEFORE hopping off the main thread.
@@ -344,26 +350,31 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
         val dis = ui.dislikes
         val tracks = ui.tracks
         val scores = ui.recoScores
+        continuationInFlight = true
         viewModelScope.launch {
-            // Build + rank the radio pool off the main thread — two full-library filters
-            // and a sort over 10k tracks used to run on the UI thread at every queue end.
-            val ranked = withContext(Dispatchers.Default) {
-                fun eligible(t: Track) = t.trackhash !in queued && t.trackhash !in dis
-                val byArtist = tracks.filter { eligible(it) && it.primaryArtistHash != null && it.primaryArtistHash == current.primaryArtistHash }
-                val byGenre = tracks.filter { eligible(it) && it.genre != null && it.genre == current.genre }
-                val pool = (byArtist + byGenre).distinctBy { it.trackhash }
-                    .ifEmpty { tracks.filter { eligible(it) } }
-                // Precompute the jittered taste score ONCE per track, then sort. Evaluating
-                // Math.random() inside the sort selector made the comparator non-deterministic
-                // ("Comparison method violates its general contract" can crash the sort).
-                pool.map { it to ((scores[it.trackhash] ?: 0.0) + Math.random() * 0.6) }
-                    .sortedByDescending { it.second }
-                    .take(20)
-                    .map { it.first }
+            try {
+                // Build + rank the radio pool off the main thread — two full-library filters
+                // and a sort over 10k tracks used to run on the UI thread at every queue end.
+                val ranked = withContext(Dispatchers.Default) {
+                    fun eligible(t: Track) = t.trackhash !in queued && t.trackhash !in dis
+                    val byArtist = tracks.filter { eligible(it) && it.primaryArtistHash != null && it.primaryArtistHash == current.primaryArtistHash }
+                    val byGenre = tracks.filter { eligible(it) && it.genre != null && it.genre == current.genre }
+                    val pool = (byArtist + byGenre).distinctBy { it.trackhash }
+                        .ifEmpty { tracks.filter { eligible(it) } }
+                    // Precompute the jittered taste score ONCE per track, then sort. Evaluating
+                    // Math.random() inside the sort selector made the comparator non-deterministic
+                    // ("Comparison method violates its general contract" can crash the sort).
+                    pool.map { it to ((scores[it.trackhash] ?: 0.0) + Math.random() * 0.6) }
+                        .sortedByDescending { it.second }
+                        .take(20)
+                        .map { it.first }
+                }
+                // Back on the main thread (viewModelScope) — MediaController.addMediaItems must
+                // run on the controller's application thread.
+                if (ranked.isNotEmpty()) player.appendTracks(ranked)
+            } finally {
+                continuationInFlight = false
             }
-            // Back on the main thread (viewModelScope) — MediaController.addMediaItems must
-            // run on the controller's application thread.
-            if (ranked.isNotEmpty()) player.appendTracks(ranked)
         }
     }
 
