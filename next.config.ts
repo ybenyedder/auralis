@@ -25,6 +25,13 @@ const nextConfig: NextConfig = {
   outputFileTracingRoot: process.cwd(),
   outputFileTracingExcludes: {
     "*": [
+      // The music library and the runtime data dir (db + art cache) routinely live
+      // INSIDE the deployment directory (e.g. ./music, ./data on the self-hosted
+      // server). They are read at runtime via dynamic fs paths, so the standalone
+      // tracer would otherwise copy the ENTIRE library into .next/standalone —
+      // hundreds of GB — and fill the disk. They are never bundle dependencies.
+      "music/**",
+      "data/**",
       "dist-desktop/**",
       "android/**",
       "android-native/**",
