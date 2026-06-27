@@ -77,6 +77,12 @@ data class UiState(
     val donateDue: Boolean = false,
     val contextTrack: Track? = null,
 
+    // In-app self-update (GitHub release). `update` is non-null when a newer build
+    // exists; the install flow streams the APK and reports `updateProgress`.
+    val update: local.auralis.client.update.UpdateInfo? = null,
+    val updateDownloading: Boolean = false,
+    val updateProgress: Float = 0f,
+
     val commandOpen: Boolean = false,
     val visualizerOpen: Boolean = false,
     val volume: Float = 0.85f,
@@ -115,6 +121,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
         observeScrobble()
         observeSleep()
         observeSessionPersist()
+        checkForUpdate()
     }
 
     // ---- boot / auth -------------------------------------------------------
@@ -557,6 +564,42 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     fun dismissDonate() { _ui.update { it.copy(donateDue = false) } }
+
+    // ---- self-update -------------------------------------------------------
+
+    // Ask GitHub once per launch whether a newer release exists. Best-effort and
+    // silent on failure (offline, rate-limited): the app simply doesn't prompt.
+    private fun checkForUpdate() {
+        viewModelScope.launch {
+            val info = local.auralis.client.update.UpdateManager.check(
+                local.auralis.client.BuildConfig.VERSION_NAME,
+            )
+            if (info != null) _ui.update { it.copy(update = info) }
+        }
+    }
+
+    fun dismissUpdate() { _ui.update { it.copy(update = null, updateDownloading = false, updateProgress = 0f) } }
+
+    // Download the new APK and hand it to the system installer. The dialog stays up
+    // (showing progress) until the installer opens, or a failure toast on error.
+    fun installUpdate() {
+        val info = _ui.value.update ?: return
+        if (_ui.value.updateDownloading) return
+        viewModelScope.launch {
+            _ui.update { it.copy(updateDownloading = true, updateProgress = 0f) }
+            val ctx = getApplication<Application>()
+            val file = local.auralis.client.update.UpdateManager.download(ctx, info) { p ->
+                _ui.update { it.copy(updateProgress = p) }
+            }
+            if (file != null) {
+                local.auralis.client.update.UpdateManager.install(ctx, file)
+                _ui.update { it.copy(update = null, updateDownloading = false, updateProgress = 0f) }
+            } else {
+                _ui.update { it.copy(updateDownloading = false, updateProgress = 0f) }
+                notify("Échec du téléchargement de la mise à jour")
+            }
+        }
+    }
 
     fun openCommand() { _ui.update { it.copy(commandOpen = true) } }
     fun closeCommand() { _ui.update { it.copy(commandOpen = false) } }

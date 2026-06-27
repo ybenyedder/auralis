@@ -20,6 +20,12 @@ directories:
 files:
   - desktop/**/*
   - package.json
+  # The desktop shell now requires electron-updater at runtime. The restrictive
+  # `files` list above excludes node_modules wholesale, so the updater's prod
+  # dependency closure must be pulled in explicitly. The heavy server deps
+  # (next/sharp/better-sqlite3) are deliberately NOT here — they ship inside the
+  # Next standalone server under extraResources, not the asar.
+  - node_modules/{electron-updater,builder-util-runtime,fs-extra,graceful-fs,jsonfile,universalify,js-yaml,argparse,sax,semver,lazy-val,lodash.escaperegexp,lodash.isequal,tiny-typed-emitter,debug,ms}/**/*
 
 extraResources:
   - from: .next/standalone

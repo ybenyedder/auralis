@@ -1,6 +1,6 @@
 {
   "name": "auralis",
-  "version": "1.5.1",
+  "version": "1.6.0",
   "private": true,
   "description": "Auralis — a self-hosted, local-first music platform: SQLite library with real tag/metadata extraction, secure range streaming, cover-art cache, and automatic lyric fetching (LRCLIB) saved back as .lrc sidecars. Ships as a web app, an Electron desktop app (Debian/Windows) and an Android client.",
   "homepage": "https://github.com/ybenyedder/auralis",
@@ -40,6 +40,7 @@
   "dependencies": {
     "better-sqlite3": "^11.10.0",
     "clsx": "^2.1.1",
+    "electron-updater": "^6.8.9",
     "lucide-react": "^0.525.0",
     "music-metadata": "^10.9.1",
     "next": "^16.1.1",

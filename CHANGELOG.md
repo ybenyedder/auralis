@@ -4,6 +4,25 @@ All notable changes to Auralis are documented here. The format is based on
 [Keep a Changelog](https://keepachangelog.com/) and this project adheres to
 [Semantic Versioning](https://semver.org/).
 
+## [1.6.0] - 2026-06-27
+
+### Added
+- **Mises à jour automatiques sur toutes les plateformes.** L'application se met
+  désormais à jour toute seule.
+  - **Bureau (Windows · Linux).** L'app vérifie au lancement, puis toutes les
+    6 heures, s'il existe une nouvelle version publiée, la télécharge en arrière-plan
+    et l'installe à la fermeture (ou propose un redémarrage immédiat). Couvre
+    l'installeur Windows (NSIS) et l'AppImage Linux ; le paquet `.deb` reste géré
+    par le gestionnaire de paquets du système.
+  - **Android.** Une fois par lancement, l'app compare sa version à la dernière
+    publiée ; si une mise à jour existe, elle propose de la télécharger et lance
+    l'installation, sans passer par un magasin d'applications.
+
+### Changed
+- L'APK Android est désormais signé avec une clé de projet stable et sa version
+  est calquée sur le tag de publication, ce qui permet aux mises à jour de
+  s'installer proprement par-dessus l'installation existante.
+
 ## [1.5.1] - 2026-06-26
 
 ### Changed

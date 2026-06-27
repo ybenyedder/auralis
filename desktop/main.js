@@ -11,6 +11,7 @@ const path = require("path");
 const http = require("http");
 const fs = require("fs");
 const { fork } = require("child_process");
+const { initAutoUpdater } = require("./updater");
 
 const isDev = !app.isPackaged || process.env.AURALIS_DESKTOP_DEV === "1";
 const DEV_URL = process.env.AURALIS_DEV_URL || "http://localhost:4237";
@@ -328,6 +329,9 @@ if (!singleInstance) {
       currentUrl = await boot(cfg);
       createWindow(currentUrl);
       registerMediaKeys();
+      // Self-update from the GitHub Releases the CI publishes. No-op in dev /
+      // unpackaged runs; updates the app silently in the background otherwise.
+      if (!isDev) initAutoUpdater(() => mainWindow);
     } catch (error) {
       console.error("Failed to start Auralis:", error);
       app.quit();

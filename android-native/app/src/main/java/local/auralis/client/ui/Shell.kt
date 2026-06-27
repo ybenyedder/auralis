@@ -112,6 +112,17 @@ fun Shell(vm: AppViewModel, ui: UiState) {
             local.auralis.client.ui.components.DonateDialog(onDismiss = { vm.dismissDonate() })
         }
 
+        // Self-update prompt (a newer GitHub release exists).
+        ui.update?.let { info ->
+            local.auralis.client.ui.components.UpdateDialog(
+                info = info,
+                downloading = ui.updateDownloading,
+                progress = ui.updateProgress,
+                onInstall = { vm.installUpdate() },
+                onDismiss = { vm.dismissUpdate() },
+            )
+        }
+
         // Track context menu (play next / queue / add-to-playlist / go-to album·artist).
         ui.contextTrack?.let { t ->
             local.auralis.client.ui.components.TrackMenu(t, ui, vm, onDismiss = { vm.closeTrackMenu() })

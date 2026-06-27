@@ -73,6 +73,10 @@ jobs:
       - name: Install dependencies
         run: npm ci
       - name: Build native Android APK
+        # Stamp the APK with the release tag so the in-app updater can compare the
+        # running version against the latest GitHub release (see UpdateManager.kt).
+        env:
+          AURALIS_VERSION: ${{ github.ref_name }}
         run: npm run mobile:native
       - name: Attach APK to the release
         env:

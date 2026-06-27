@@ -13,16 +13,44 @@ android {
         applicationId = "local.auralis.client"
         minSdk = 24
         targetSdk = 36
-        versionCode = 3
-        versionName = "2.0"
+        // The in-app updater compares this versionName against the latest GitHub
+        // release tag, so a CI build MUST stamp the real tag. release.yml passes the
+        // tag as AURALIS_VERSION (e.g. "v1.6.0"); local builds fall back to a high
+        // sentinel so a developer's own APK never prompts itself to "update".
+        val tagVersion = (System.getenv("AURALIS_VERSION") ?: "").trim().removePrefix("v")
+        versionName = tagVersion.ifEmpty { "99.0.0" }
+        // versionCode must be a monotonic Int: major*10000 + minor*100 + patch.
+        versionCode = if (tagVersion.isEmpty()) 990000 else tagVersion.split(".").let { p ->
+            fun n(i: Int) = p.getOrNull(i)?.toIntOrNull() ?: 0
+            (n(0) * 10000 + n(1) * 100 + n(2)).coerceAtLeast(1)
+        }
+    }
+
+    // A committed, stable signing key. The auto-update flow installs a new APK over
+    // the old one, which Android rejects unless BOTH are signed with the same key.
+    // The default debug keystore is regenerated per machine / per ephemeral CI run,
+    // so every release would otherwise carry a different signature and fail to
+    // install. Pinning this keystore guarantees a consistent signature everywhere.
+    // (It is a self-signed app key, not a secret — equivalent in trust to a debug key.)
+    signingConfigs {
+        getByName("debug") {
+            storeFile = file("auralis.keystore")
+            storePassword = "auralispwd"
+            keyAlias = "auralis"
+            keyPassword = "auralispwd"
+        }
     }
 
     buildTypes {
         getByName("debug") {
             isMinifyEnabled = false
+            signingConfig = signingConfigs.getByName("debug")
         }
         getByName("release") {
             isMinifyEnabled = false
+            // Ship release builds under the same stable key as debug so updates
+            // install cleanly regardless of which target was published.
+            signingConfig = signingConfigs.getByName("debug")
             proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
         }
     }

@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<paths xmlns:android="http://schemas.android.com/apk/res/android">
+    <!-- Downloaded update APKs live in the app's cache under "updates/". The updater
+         prefers external cache and falls back to internal cache, so both roots are
+         shared (only with the package installer, only that subfolder). -->
+    <external-cache-path
+        name="updates-ext"
+        path="updates/" />
+    <cache-path
+        name="updates-int"
+        path="updates/" />
+</paths>
