@@ -4,7 +4,7 @@ All notable changes to Auralis are documented here. The format is based on
 [Keep a Changelog](https://keepachangelog.com/) and this project adheres to
 [Semantic Versioning](https://semver.org/).
 
-## [Unreleased]
+## [1.5.1] - 2026-06-26
 
 ### Changed
 - **Bibliothèque instantanée à grande échelle.** Le snapshot `/api/library` est
