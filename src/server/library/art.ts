@@ -40,11 +40,11 @@ export function cacheArtBuffer(data: Buffer): string | null {
 /** Look for a sidecar cover image in a directory and cache it. */
 export function cacheFolderCover(dir: string): string | null {
   for (const name of FOLDER_COVER_NAMES) {
-    const candidate = path.join(dir, name);
+    const candidate = path.join(/*turbopackIgnore: true*/ dir, name);
     try {
-      const stat = fs.statSync(candidate);
+      const stat = fs.statSync(/*turbopackIgnore: true*/ candidate);
       if (stat.isFile() && stat.size > 0 && stat.size < 25 * 1024 * 1024) {
-        return cacheArtBuffer(fs.readFileSync(candidate));
+        return cacheArtBuffer(fs.readFileSync(/*turbopackIgnore: true*/ candidate));
       }
     } catch {
       // not present — keep looking

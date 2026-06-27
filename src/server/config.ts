@@ -44,7 +44,7 @@ function firstDefined(...values: (string | undefined)[]): string | undefined {
 
 function resolveDataDir(): string {
   const explicit = firstDefined(process.env.AURALIS_DATA_DIR);
-  if (explicit) return path.resolve(explicit);
+  if (explicit) return path.resolve(/*turbopackIgnore: true*/ explicit);
 
   // XDG Base Directory on Linux, sensible equivalents elsewhere.
   const xdg = firstDefined(process.env.XDG_DATA_HOME);
@@ -68,7 +68,7 @@ function hostSettingsPath(): string {
 }
 function readHostSettings(): Record<string, unknown> {
   try {
-    return JSON.parse(fs.readFileSync(hostSettingsPath(), "utf8")) as Record<string, unknown>;
+    return JSON.parse(fs.readFileSync(/*turbopackIgnore: true*/ hostSettingsPath(), "utf8")) as Record<string, unknown>;
   } catch {
     return {};
   }
@@ -77,7 +77,7 @@ function readHostSettings(): Record<string, unknown> {
 function resolveMusicDir(): string {
   const stored = readHostSettings().musicDir;
   const configured = firstDefined(typeof stored === "string" ? stored : undefined, process.env.AURALIS_MUSIC_DIR);
-  if (configured) return path.resolve(configured);
+  if (configured) return path.resolve(/*turbopackIgnore: true*/ configured);
   return path.resolve(os.homedir(), "Music");
 }
 

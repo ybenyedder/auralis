@@ -17,16 +17,37 @@ const nextConfig: NextConfig = {
   // .next/standalone — including build outputs (dist-desktop), the native-app
   // sources (android/mobile) and the prior package — which snowballs the desktop
   // bundle on every rebuild. Exclude everything not needed at runtime.
+  // The standalone tracer otherwise copies the whole project root into
+  // .next/standalone — including build outputs (dist-desktop), the native-app
+  // sources (android/mobile), git history and assorted root files. Confine the
+  // trace to this project and prune everything not needed at runtime so the
+  // "Finalizing" step stops snowballing (it was copying 5+ GB and stalling).
+  outputFileTracingRoot: process.cwd(),
   outputFileTracingExcludes: {
     "*": [
       "dist-desktop/**",
       "android/**",
+      "android-native/**",
       "mobile/**",
       "test/**",
+      "tests/**",
       "scripts/**",
+      "docs/**",
+      ".git/**",
+      ".next/cache/**",
+      "node_modules/.cache/**",
+      "node_modules/@swc/**",
+      "node_modules/@esbuild/**",
+      "node_modules/esbuild/**",
+      "node_modules/typescript/**",
+      "node_modules/electron/**",
+      "node_modules/electron-builder/**",
+      "node_modules/app-builder-bin/**",
       "**/*.apk",
       "**/*.deb",
       "**/*.AppImage",
+      "**/*.map",
+      "**/*.md",
     ],
   },
   turbopack: {

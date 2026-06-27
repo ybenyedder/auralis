@@ -32,8 +32,8 @@ export async function resolveRealLibraryPath(relativePath: string): Promise<stri
   if (!lexicalPath) return null;
 
   try {
-    const root = await fs.promises.realpath(getConfig().musicDir);
-    const real = await fs.promises.realpath(lexicalPath);
+    const root = await fs.promises.realpath(/*turbopackIgnore: true*/ getConfig().musicDir);
+    const real = await fs.promises.realpath(/*turbopackIgnore: true*/ lexicalPath);
     const relative = path.relative(root, real);
     if (relative.startsWith("..") || path.isAbsolute(relative)) return null;
     return real;

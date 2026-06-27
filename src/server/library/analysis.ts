@@ -46,7 +46,7 @@ async function hasFfmpeg(): Promise<boolean> {
   if (ffmpegOk !== undefined) return ffmpegOk;
   ffmpegOk = await new Promise<boolean>((resolve) => {
     try {
-      const p = spawn(ffmpegBin(), ["-version"], { stdio: "ignore" });
+      const p = spawn(/*turbopackIgnore: true*/ ffmpegBin(), ["-version"], { stdio: "ignore" });
       p.on("error", () => resolve(false));
       p.on("close", (code) => resolve(code === 0));
     } catch {
@@ -72,7 +72,7 @@ function decodePcm(absPath: string, startSec: number): Promise<Float32Array | nu
     ];
     let proc;
     try {
-      proc = spawn(ffmpegBin(), args);
+      proc = spawn(/*turbopackIgnore: true*/ ffmpegBin(), args);
     } catch {
       resolve(null);
       return;
