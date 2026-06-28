@@ -22,6 +22,8 @@ export interface AuralisConfig {
   authToken: string;
   /** Whether the lyrics provider may reach the network (LRCLIB). */
   lyricsOnline: boolean;
+  /** Whether to query Musixmatch for word-by-word (richsync) karaoke lyrics. */
+  lyricsMusixmatch: boolean;
   /** Base URL of the open lyrics database. Self-hostable LRCLIB mirrors are supported. */
   lyricsEndpoint: string;
   /** Keyless plain-lyrics fallback used when LRCLIB has nothing (lyrics.ovh). Empty disables it. */
@@ -118,6 +120,7 @@ export function getConfig(): AuralisConfig {
     port: parsePort(),
     authToken: firstDefined(process.env.AURALIS_TOKEN) ?? "",
     lyricsOnline: parseBool(process.env.AURALIS_LYRICS_ONLINE, true),
+    lyricsMusixmatch: parseBool(process.env.AURALIS_LYRICS_MUSIXMATCH, true),
     lyricsEndpoint: firstDefined(process.env.AURALIS_LYRICS_ENDPOINT) ?? "https://lrclib.net",
     lyricsFallbackEndpoint: process.env.AURALIS_LYRICS_FALLBACK ?? "https://api.lyrics.ovh",
     lyricsWriteSidecar: parseBool(process.env.AURALIS_LYRICS_SIDECAR, true),

@@ -1,6 +1,7 @@
-// Lyrics service. Resolution order: DB cache → on-disk .lrc sidecar → LRCLIB
-// (open, key-less, self-hostable lyrics database). Anything fetched online is
-// written back to the cache AND to a .lrc sidecar so the library self-hosts it.
+// Lyrics service. Resolution order: DB cache → on-disk .lrc sidecar → Musixmatch
+// richsync (word-by-word karaoke) → LRCLIB (open, key-less line-level database) →
+// lyrics.ovh (plain). Anything fetched online is written back to the cache AND to a
+// .lrc sidecar so the library self-hosts it.
 
 import fs from "fs";
 import path from "path";
@@ -10,6 +11,7 @@ import { createLogger } from "../logger";
 import { resolveLibraryPath } from "../paths";
 import { normalizeName } from "../library/ids";
 import { parseSyncedLyrics, isSynced, type SyncedLine } from "./lrc";
+import { fetchRichsync } from "./musixmatch";
 
 const log = createLogger("lyrics");
 
@@ -49,7 +51,7 @@ async function fetchJsonCapped(url: string): Promise<unknown | null> {
 }
 
 export type LyricsStatus = "found" | "instrumental" | "notfound";
-export type LyricsSource = "sidecar" | "lrclib" | "lyricsovh" | "manual" | "cache" | null;
+export type LyricsSource = "sidecar" | "lrclib" | "lyricsovh" | "musixmatch" | "manual" | "cache" | null;
 
 export interface LyricsResult {
   trackhash: string;
@@ -303,6 +305,20 @@ async function resolveLyrics(trackhash: string, opts: { forceRefetch?: boolean }
   }
 
   if (getConfig().lyricsOnline) {
+    // Musixmatch first: it is the only source with WORD-level (richsync) timing, so a
+    // hit here gives true word-by-word karaoke. Best-effort — null falls through to LRCLIB.
+    if (getConfig().lyricsMusixmatch) {
+      try {
+        const rich = await fetchRichsync(track);
+        if (rich) {
+          await writeSidecar(track.filepath, rich, null);
+          return persist(trackhash, { synced: rich, source: "musixmatch", status: "found" });
+        }
+      } catch (error) {
+        log.warn("musixmatch richsync failed", { error: String(error) });
+      }
+    }
+
     const hit = await fetchFromLrclib(track);
     if (hit) {
       if (hit.instrumental) return persist(trackhash, { source: "lrclib", status: "instrumental", instrumental: true });
