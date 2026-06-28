@@ -1,0 +1,115 @@
+name: Publish APT Repository
+
+# Rebuilds the Debian/APT repository served from GitHub Pages and publishes it.
+#
+# This is what makes `sudo apt update && sudo apt upgrade` pull new Auralis
+# versions automatically (the Mullvad-style flow). On every published release we
+# re-download EVERY .deb from EVERY release, regenerate the signed metadata and
+# redeploy the whole site. The job is fully stateless: the Pages output is always
+# a faithful mirror of the .deb assets currently attached to releases, so there is
+# no drift to maintain.
+#
+# Users add the repo once with:
+#   curl -fsSL https://ybenyedder.github.io/auralis/auralis-archive-keyring.gpg \
+#     | sudo tee /usr/share/keyrings/auralis-archive-keyring.gpg >/dev/null
+#   echo "deb [signed-by=/usr/share/keyrings/auralis-archive-keyring.gpg] https://ybenyedder.github.io/auralis ./" \
+#     | sudo tee /etc/apt/sources.list.d/auralis.list
+#   sudo apt update && sudo apt install auralis
+#
+# Requires:
+#   - repo secret APT_GPG_PRIVATE_KEY: the ASCII-armored private signing key.
+#   - Settings → Pages → Source = "GitHub Actions" (one-time).
+
+on:
+  release:
+    types: [published, released]
+  workflow_dispatch: # manual rebuild (e.g. after rotating the key)
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+# Never run two deploys at once; the latest release wins.
+concurrency:
+  group: apt-pages
+  cancel-in-progress: true
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deploy.outputs.page_url }}
+    steps:
+      - name: Install tooling
+        run: sudo apt-get update && sudo apt-get install -y dpkg-dev apt-utils gnupg
+
+      - name: Import signing key
+        env:
+          APT_GPG_PRIVATE_KEY: ${{ secrets.APT_GPG_PRIVATE_KEY }}
+        run: |
+          if [ -z "$APT_GPG_PRIVATE_KEY" ]; then
+            echo "::error::APT_GPG_PRIVATE_KEY secret is not set"; exit 1
+          fi
+          export GNUPGHOME="$(mktemp -d)"
+          echo "GNUPGHOME=$GNUPGHOME" >> "$GITHUB_ENV"
+          echo "$APT_GPG_PRIVATE_KEY" | gpg --batch --import
+          KEYID=$(gpg --list-secret-keys --with-colons | awk -F: '/^sec:/{print $5; exit}')
+          echo "KEYID=$KEYID" >> "$GITHUB_ENV"
+          echo "Imported signing key $KEYID"
+
+      - name: Download every released .deb
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          mkdir -p repo/pool
+          # Pull the .deb asset from every (non-draft) release. New releases simply
+          # add to the pool; nothing is ever lost as long as the asset exists.
+          for tag in $(gh release list --limit 200 --json tagName --jq '.[].tagName'); do
+            gh release download "$tag" --dir repo/pool --pattern '*.deb' --skip-existing || true
+          done
+          echo "Pool contents:"; ls -lh repo/pool || true
+          if [ -z "$(ls -A repo/pool 2>/dev/null)" ]; then
+            echo "::error::no .deb assets found across releases"; exit 1
+          fi
+
+      - name: Generate signed repository metadata
+        run: |
+          cd repo
+          # Flat repository: Packages + Release live at the root, paths relative to it.
+          dpkg-scanpackages --multiversion pool /dev/null > Packages
+          gzip -9c Packages > Packages.gz
+          apt-ftparchive \
+            -o APT::FTPArchive::Release::Origin="Auralis" \
+            -o APT::FTPArchive::Release::Label="Auralis" \
+            -o APT::FTPArchive::Release::Suite="stable" \
+            -o APT::FTPArchive::Release::Codename="stable" \
+            -o APT::FTPArchive::Release::Architectures="amd64" \
+            -o APT::FTPArchive::Release::Components="main" \
+            release . > Release
+          gpg --batch --yes --default-key "$KEYID" --clearsign -o InRelease Release
+          gpg --batch --yes --default-key "$KEYID" -abs -o Release.gpg Release
+          # Public keyring users install (binary export — what signed-by expects).
+          gpg --export "$KEYID" > auralis-archive-keyring.gpg
+          # A tiny landing page so the Pages URL isn't a 404 in the browser.
+          cat > index.html <<'HTML'
+          <!doctype html><meta charset="utf-8"><title>Auralis APT repository</title>
+          <h1>Auralis APT repository</h1>
+          <pre>
+          curl -fsSL https://ybenyedder.github.io/auralis/auralis-archive-keyring.gpg | sudo tee /usr/share/keyrings/auralis-archive-keyring.gpg &gt;/dev/null
+          echo "deb [signed-by=/usr/share/keyrings/auralis-archive-keyring.gpg] https://ybenyedder.github.io/auralis ./" | sudo tee /etc/apt/sources.list.d/auralis.list
+          sudo apt update &amp;&amp; sudo apt install auralis
+          </pre>
+          HTML
+          ls -lh
+
+      - name: Upload Pages artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: repo
+
+      - name: Deploy to GitHub Pages
+        id: deploy
+        uses: actions/deploy-pages@v4
