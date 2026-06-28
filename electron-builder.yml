@@ -48,10 +48,17 @@ linux:
   synopsis: Self-hosted local music player
   description: Auralis is a self-hosted, local-first music player with real metadata, cover art and automatic lyrics.
   maintainer: Auralis <maintainers@auralis.local>
+  # A directory of per-size PNGs so the .deb installs every hicolor size
+  # (16→512). With only the single build/icon.png, electron-builder installs
+  # ONLY 512x512 and many panels/menus won't downscale it — the app then shows a
+  # generic icon (the AppImage was unaffected because it embeds its own icon).
+  icon: build/icons
+  # electron-builder writes these keys verbatim into [Desktop Entry]. This must be
+  # a FLAT map — a nested `entry:` here is emitted literally as `entry=[object
+  # Object]` and the keys are ignored.
   desktop:
-    entry:
-      Name: Auralis
-      Categories: AudioVideo;Audio;Player;
+    Name: Auralis
+    Categories: AudioVideo;Audio;Player;
 
 deb:
   depends:
