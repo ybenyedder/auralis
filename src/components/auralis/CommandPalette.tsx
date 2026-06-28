@@ -178,10 +178,10 @@ export function CommandPalette() {
   return (
     <div className="fixed inset-0 z-[75] flex items-start justify-center pt-[12vh]" role="dialog" aria-modal="true" aria-label="Palette de commandes">
       <div className="backdrop-in absolute inset-0 bg-black/70" onClick={() => setCommandOpen(false)} />
-      <div ref={dialogRef} className="scale-in matte-panel relative w-full max-w-[560px] overflow-hidden rounded-sm">
+      <div ref={dialogRef} className="scale-in matte-panel relative w-full max-w-[600px] overflow-hidden rounded-xl border border-[var(--line)] shadow-2xl">
         {/* Search row */}
-        <div className="flex items-center gap-3 border-b border-[var(--line)] px-4 py-3">
-          <Search className="size-4 text-muted-foreground" />
+        <div className="flex items-center gap-3 border-b border-[var(--line)] px-4 py-3.5">
+          <Search className="size-[18px] shrink-0 text-muted-foreground" />
           <input
             ref={inputRef}
             value={q}
@@ -189,8 +189,8 @@ export function CommandPalette() {
               setQ(e.target.value);
               setActive(0);
             }}
-            placeholder="Rechercher titres, albums, artistes"
-            className="w-full bg-transparent text-[14px] text-foreground placeholder:text-muted-foreground/70 outline-none"
+            placeholder="Rechercher titres, albums, artistes…"
+            className="w-full bg-transparent text-[15px] text-foreground placeholder:text-muted-foreground/60 outline-none"
             aria-label="Rechercher"
             role="combobox"
             aria-expanded
@@ -198,7 +198,7 @@ export function CommandPalette() {
             aria-autocomplete="list"
             aria-activedescendant={filtered.length > 0 ? `cmd-opt-${active}` : undefined}
           />
-          <kbd className="rounded-full bg-[var(--panel-2)] px-2 py-0.5 text-[9px] font-bold text-muted-foreground">ESC</kbd>
+          <kbd className="shrink-0 rounded-md border border-[var(--line)] bg-[var(--panel-2)] px-2 py-0.5 text-[9px] font-bold tracking-wide text-muted-foreground">ESC</kbd>
         </div>
 
         {/* Results */}

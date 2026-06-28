@@ -1,6 +1,5 @@
 "use client";
 
-import { useState } from "react";
 import { Search, ChevronLeft, ChevronRight, PanelRight, User } from "lucide-react";
 import { usePlayer } from "@/store/player";
 import { WindowControls } from "./WindowControls";
@@ -8,15 +7,12 @@ import { BrandMark } from "./BrandMark";
 import { cn } from "@/lib/utils";
 
 export function TitleBar() {
-  const searchQuery = usePlayer((s) => s.searchQuery);
-  const setSearch = usePlayer((s) => s.setSearch);
+  const setCommandOpen = usePlayer((s) => s.setCommandOpen);
   const navigate = usePlayer((s) => s.navigate);
   const back = usePlayer((s) => s.back);
-  const view = usePlayer((s) => s.view);
   const navHistory = usePlayer((s) => s.navHistory);
   const toggleRightPanel = usePlayer((s) => s.toggleRightPanel);
   const rightPanelOpen = usePlayer((s) => s.rightPanelOpen);
-  const [focused, setFocused] = useState(false);
   const canBack = navHistory.length > 0;
 
   // Window dragging is confined to NON-interactive zones only (the brand badge +
@@ -61,25 +57,23 @@ export function TitleBar() {
       {/* Draggable spacer. */}
       <div className="drag-region h-full flex-1" aria-hidden />
 
-      {/* Search — interactive, NOT draggable. */}
+      {/* Search — a button that opens the command palette (the search menu). NOT draggable. */}
       <div className="w-full max-w-md shrink">
-        <div className={cn("flex h-8 items-center gap-2 rounded-full border border-transparent bg-[var(--panel-2)] px-2.5 transition-all duration-300", focused ? "bg-[var(--panel-3)] ring-1 ring-white/10" : "hover:bg-[var(--panel-3)]")}>
-          <Search className="size-3 text-muted-foreground/50 shrink-0" />
-          <input
-            type="search"
-            aria-label="Rechercher dans la bibliothèque"
-            value={searchQuery}
-            onChange={(e) => {
-              setSearch(e.target.value);
-              if (view.view !== "explore" && e.target.value) navigate("explore");
-            }}
-            onFocus={() => setFocused(true)}
-            onBlur={() => setFocused(false)}
-            placeholder="Rechercher dans la bibliothèque"
-            className="w-full bg-transparent text-[12px] text-foreground placeholder:text-muted-foreground/40 outline-none"
-          />
-          <span className="hidden rounded-full bg-[var(--panel-3)] px-2 py-0.5 text-[9px] font-semibold text-muted-foreground md:inline">CTRL K</span>
-        </div>
+        <button
+          type="button"
+          onClick={() => setCommandOpen(true)}
+          aria-label="Rechercher dans la bibliothèque"
+          title="Rechercher (Ctrl+K)"
+          className="group flex h-9 w-full items-center gap-2.5 rounded-full border border-[var(--line)] bg-[var(--panel-2)] px-3 text-left transition-all duration-200 hover:border-white/15 hover:bg-[var(--panel-3)] focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-white/20"
+        >
+          <Search className="size-4 shrink-0 text-muted-foreground/60 transition-colors group-hover:text-foreground" />
+          <span className="flex-1 truncate text-[12.5px] text-muted-foreground/60 transition-colors group-hover:text-muted-foreground">
+            Rechercher titres, albums, artistes
+          </span>
+          <kbd className="hidden shrink-0 rounded-md border border-[var(--line)] bg-[var(--panel-3)] px-1.5 py-0.5 text-[9px] font-semibold tracking-wide text-muted-foreground md:inline-block">
+            CTRL&nbsp;K
+          </kbd>
+        </button>
       </div>
 
       {/* Draggable spacer. */}
