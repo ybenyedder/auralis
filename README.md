@@ -24,7 +24,7 @@ not for an algorithm.
 
 <div align="center">
 
-<img src="docs/screenshot-player.png" alt="Auralis — fullscreen karaoke player" width="100%" />
+<img src="docs/screenshot-player.png" alt="Auralis — desktop app" width="100%" />
 
 <em>One window. Your album art glowing in a field of stars, lyrics lighting up word by word.</em>
 
