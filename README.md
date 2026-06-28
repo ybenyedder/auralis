@@ -78,19 +78,6 @@ beautiful surface.
 
 ---
 
-## Looks just as good in your pocket
-
-<div align="center">
-
-<img src="docs/screenshot-mobile.jpeg" alt="Auralis on Android — karaoke lyrics" width="290" />
-
-<em>Native Android client. Real system media notification. Full karaoke view.
-Your whole library, one tap away.</em>
-
-</div>
-
----
-
 ## Get started in 60 seconds
 
 ```bash
