@@ -57,22 +57,19 @@ export function TitleBar() {
       {/* Draggable spacer. */}
       <div className="drag-region h-full flex-1" aria-hidden />
 
-      {/* Search — a button that opens the command palette (the search menu). NOT draggable. */}
-      <div className="w-full max-w-md shrink">
+      {/* Search — a button that opens the command palette (the search menu). NOT draggable.
+          A quiet, balanced pill: magnifier + label only (the Ctrl+K shortcut still works,
+          it's just no longer printed on the chrome). */}
+      <div className="w-full max-w-sm shrink">
         <button
           type="button"
           onClick={() => setCommandOpen(true)}
           aria-label="Rechercher dans la bibliothèque"
-          title="Rechercher (Ctrl+K)"
-          className="group flex h-9 w-full items-center gap-2.5 rounded-full border border-[var(--line)] bg-[var(--panel-2)] px-3 text-left transition-all duration-200 hover:border-white/15 hover:bg-[var(--panel-3)] focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-white/20"
+          title="Rechercher"
+          className="group flex h-9 w-full items-center gap-2.5 rounded-full border border-[var(--line)] bg-[var(--panel-2)] pl-3.5 pr-4 text-left text-muted-foreground/70 transition-colors duration-200 hover:border-[var(--line-strong)] hover:bg-[var(--panel-3)] hover:text-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-white/20"
         >
-          <Search className="size-4 shrink-0 text-muted-foreground/60 transition-colors group-hover:text-foreground" />
-          <span className="flex-1 truncate text-[12.5px] text-muted-foreground/60 transition-colors group-hover:text-muted-foreground">
-            Rechercher titres, albums, artistes
-          </span>
-          <kbd className="hidden shrink-0 rounded-md border border-[var(--line)] bg-[var(--panel-3)] px-1.5 py-0.5 text-[9px] font-semibold tracking-wide text-muted-foreground md:inline-block">
-            CTRL&nbsp;K
-          </kbd>
+          <Search className="size-4 shrink-0 transition-colors duration-200 group-hover:text-foreground" />
+          <span className="flex-1 truncate text-[13px]">Rechercher</span>
         </button>
       </div>
 

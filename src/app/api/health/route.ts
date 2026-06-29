@@ -23,7 +23,7 @@ export async function GET() {
   return withCors(json({
     name: "Auralis",
     status: dbOk ? "ok" : "degraded",
-    version: "1.5.0",
+    version: "1.7.1",
     db: dbOk,
     tracks,
     lyricsOnline: config.lyricsOnline,

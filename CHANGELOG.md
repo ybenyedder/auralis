@@ -4,6 +4,20 @@ All notable changes to Auralis are documented here. The format is based on
 [Keep a Changelog](https://keepachangelog.com/) and this project adheres to
 [Semantic Versioning](https://semver.org/).
 
+## [1.7.1] - 2026-06-29
+
+### Fixed
+- **Android — la notification de lecture ouvre enfin l'application.** Toucher la
+  notification du média (ou la commande sur l'écran verrouillé) ramène désormais
+  l'app native au premier plan, au lieu de rediriger vers la page web.
+
+### Changed
+- **Barre de recherche (bureau + web) redessinée.** Pastille plus nette et mieux
+  proportionnée ; le raccourci `Ctrl K` n'est plus affiché sur l'interface (le
+  raccourci clavier continue de fonctionner).
+- Empaquetage `.deb` : icônes ré-encodées en RGBA 8 bits et toutes les tailles
+  hicolor incluses pour un affichage correct dans les environnements de bureau.
+
 ## [1.6.0] - 2026-06-27
 
 ### Added
