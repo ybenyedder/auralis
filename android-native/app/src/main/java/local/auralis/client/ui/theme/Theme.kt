@@ -56,8 +56,8 @@ data class ThemeDef(
     val backdrop: Backdrop,
 )
 
-val LocalAuralis = staticCompositionLocalOf { THEMES.getValue("oxide").colors }
-val LocalBackdrop = staticCompositionLocalOf { THEMES.getValue("oxide").backdrop }
+val LocalAuralis = staticCompositionLocalOf { THEMES.getValue("spotify").colors }
+val LocalBackdrop = staticCompositionLocalOf { THEMES.getValue("spotify").backdrop }
 val LocalGlass = staticCompositionLocalOf { false }
 val LocalApiUrl = staticCompositionLocalOf<((String?) -> String?)> { { it } }
 
@@ -116,6 +116,10 @@ private fun spec(
 )
 
 val THEMES: Map<String, ThemeDef> = listOf(
+    // ---- streaming (Spotify-faithful, opaque flat black) ----
+    spec("spotify", "Spotify", "streaming", false, "#ffffff", "#121212", "#181818", "#282828", "#333333",
+        "rgba(255,255,255,0.10)", "rgba(255,255,255,0.20)", "#1ED760", "#1FDF64", "#1DB954", "#b3b3b3",
+        paper = "#ffffff", ink = "#000000", textMuted = "#b3b3b3", textFaint = "#6a6a6a"),
     // ---- classic (opaque) ----
     spec("oxide", "Oxide", "classic", false, "#f3efe6", "#100b0a", "#181110", "#1f1613", "#291b16",
         "rgba(229,161,132,0.12)", "rgba(229,161,132,0.22)", "#D95F45", "#E5A184", "#923725", "#E5A184",
@@ -174,9 +178,9 @@ val THEMES: Map<String, ThemeDef> = listOf(
 ).associateBy { it.id }
 
 val THEME_LIST: List<ThemeDef> = THEMES.values.toList()
-val THEME_GROUPS = listOf("classic" to "Classiques", "cosmic" to "Cosmiques", "vivid" to "Vibrants")
+val THEME_GROUPS = listOf("streaming" to "Streaming", "classic" to "Classiques", "cosmic" to "Cosmiques", "vivid" to "Vibrants")
 
-fun themeDef(id: String): ThemeDef = THEMES[id] ?: THEMES.getValue("oxide")
+fun themeDef(id: String): ThemeDef = THEMES[id] ?: THEMES.getValue("spotify")
 
 /** Back-compat: accent palette for a theme id (used by older call sites). */
 fun accentFor(id: String): AuralisColors = themeDef(id).colors
@@ -198,7 +202,7 @@ private val AuralisType = Typography().let { d ->
 }
 
 @Composable
-fun AuralisTheme(themeId: String = "oxide", content: @Composable () -> Unit) {
+fun AuralisTheme(themeId: String = "spotify", content: @Composable () -> Unit) {
     val def = themeDef(themeId)
     val colors = def.colors
     val scheme = darkColorScheme(

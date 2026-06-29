@@ -5,7 +5,7 @@ import {
 } from "@/server/state/userState";
 import { getRequestUser } from "@/server/auth";
 import { json, checkCsrf } from "@/server/http";
-import { invalidateReco } from "@/server/reco/engine";
+import { invalidateReco, recommendFromSeeds } from "@/server/reco/engine";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -30,6 +30,12 @@ interface ActionBody {
   playlist?: { id?: string; name: string; description?: string | null; pinned?: boolean; trackhashes?: string[]; rules?: string | null };
   /** Collaborator username for playlist.collaborator. */
   username?: string;
+  /** Hand-picked seed trackhashes for playlist.generateFromSeeds. */
+  seeds?: string[];
+  /** Target track count for the generated playlist (clamped 5..60). */
+  count?: number;
+  /** Optional override name for the generated playlist. */
+  name?: string;
   state?: Parameters<typeof replaceUserState>[1];
 }
 
@@ -79,6 +85,19 @@ export async function PUT(request: Request) {
       if (!body.playlist?.name) return json({ error: "playlist.name required" }, { status: 400 });
       const id = upsertPlaylist(uid, body.playlist);
       return json({ ok: true, id });
+    }
+    case "playlist.generateFromSeeds": {
+      // "Select a few tracks → an AI builds a playlist from them + your taste."
+      const seeds = (Array.isArray(body.seeds) ? body.seeds : []).filter(isHash).slice(0, 50);
+      if (seeds.length === 0) return json({ error: "seeds required" }, { status: 400 });
+      const count = Math.max(5, Math.min(60, Number.isFinite(body.count) ? Number(body.count) : 30));
+      const result = recommendFromSeeds(uid, seeds, count);
+      // The playlist keeps the user's hand-picked seeds first, then the AI additions
+      // (deduped). De-dupe preserves first-seen order, so seeds always lead.
+      const trackhashes = [...new Set([...seeds, ...result.tracks.map((t) => t.trackhash)])];
+      const name = typeof body.name === "string" && body.name.trim() ? body.name.trim().slice(0, 120) : result.name;
+      const id = upsertPlaylist(uid, { name, description: "Généré par l'IA d'après votre sélection et vos goûts", trackhashes });
+      return json({ ok: true, id, name, mood: result.mood, trackhashes });
     }
     case "playlist.delete":
       if (!body.id) return json({ error: "id required" }, { status: 400 });

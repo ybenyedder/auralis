@@ -14,16 +14,20 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
-import androidx.compose.material.icons.filled.Favorite
+import androidx.compose.material.icons.filled.AutoAwesome
+import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.LibraryMusic
+import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -36,6 +40,8 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import local.auralis.client.ui.components.CoverArt
+import local.auralis.client.ui.components.LocalSelection
+import local.auralis.client.ui.components.SelectionController
 import local.auralis.client.ui.player.MiniPlayer
 import local.auralis.client.ui.screens.AlbumDetail
 import local.auralis.client.ui.screens.ArtistDetail
@@ -50,13 +56,15 @@ import local.auralis.client.ui.screens.SearchScreen
 import local.auralis.client.ui.screens.SettingsScreen
 import local.auralis.client.ui.theme.LocalAuralis
 
-private val rootViews = setOf(ViewId.HOME, ViewId.EXPLORE, ViewId.LIBRARY, ViewId.FAVORITES)
+// Spotify's mobile nav is 3 tabs (Home / Search / Your Library). Favourites lives
+// inside the library now (reached via the "Titres aimés" tile), so it's a secondary
+// destination, not a root tab.
+private val rootViews = setOf(ViewId.HOME, ViewId.EXPLORE, ViewId.LIBRARY)
 
 private fun tabOf(view: ViewId): Int = when (view) {
     ViewId.HOME -> 0
     ViewId.EXPLORE -> 1
-    ViewId.FAVORITES -> 3
-    else -> 2 // library + all secondary/detail destinations
+    else -> 2 // library + favourites + all secondary/detail destinations
 }
 
 private fun titleOf(view: ViewId): String = when (view) {
@@ -81,6 +89,14 @@ fun Shell(vm: AppViewModel, ui: UiState) {
     val current = ui.trackByHash[playback.currentId]
     val fullscreen = remember { mutableStateOf(false) }
 
+    CompositionLocalProvider(
+        LocalSelection provides SelectionController(
+            active = ui.selectionMode,
+            isSelected = { it in ui.selected },
+            toggle = { vm.toggleSelected(it) },
+            begin = { vm.enterSelection(it) },
+        ),
+    ) {
     Box(Modifier.fillMaxSize()) {
         Column(Modifier.fillMaxSize()) {
             // Header
@@ -95,6 +111,8 @@ fun Shell(vm: AppViewModel, ui: UiState) {
                     MiniPlayer(current, playback, position, vm) { fullscreen.value = true }
                 }
             }
+            // Multi-select action bar (above the dock) → "Mix IA".
+            if (ui.selectionMode) SelectionBar(ui, vm)
             Dock(ui.nav.view) { target -> vm.navigate(target) }
         }
 
@@ -152,6 +170,52 @@ fun Shell(vm: AppViewModel, ui: UiState) {
             local.auralis.client.ui.components.VisualizerOverlay(current?.title, playback.isPlaying) { vm.toggleVisualizer() }
         }
     }
+    }
+}
+
+@Composable
+private fun SelectionBar(ui: UiState, vm: AppViewModel) {
+    val colors = LocalAuralis.current
+    val count = ui.selected.size
+    Row(
+        Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 12.dp, vertical = 8.dp)
+            .clip(RoundedCornerShape(999.dp))
+            .background(colors.panel3)
+            .padding(start = 10.dp, end = 8.dp, top = 8.dp, bottom = 8.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Icon(
+            Icons.Filled.Close, "Quitter la sélection", tint = colors.textMuted,
+            modifier = Modifier.size(22.dp).clickable { vm.exitSelection() },
+        )
+        Spacer(Modifier.width(12.dp))
+        Text(
+            if (count > 0) "$count sélectionné${if (count > 1) "s" else ""}" else "Choisissez des titres",
+            color = colors.foreground, fontSize = 13.sp, fontWeight = FontWeight.Bold,
+            modifier = Modifier.weight(1f),
+        )
+        if (count > 0) {
+            Icon(
+                Icons.Filled.PlayArrow, "Lire la sélection", tint = colors.foreground,
+                modifier = Modifier.size(24.dp).clickable { vm.playSelection() },
+            )
+            Spacer(Modifier.width(12.dp))
+        }
+        Row(
+            Modifier
+                .clip(RoundedCornerShape(999.dp))
+                .background(if (count > 0) colors.accent else colors.panel2)
+                .clickable(enabled = count > 0 && !ui.generating) { vm.generateAiPlaylist() }
+                .padding(horizontal = 16.dp, vertical = 9.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Icon(Icons.Filled.AutoAwesome, null, tint = colors.ink, modifier = Modifier.size(16.dp))
+            Spacer(Modifier.width(6.dp))
+            Text("Mix IA", color = colors.ink, fontWeight = FontWeight.Bold, fontSize = 13.sp)
+        }
+    }
 }
 
 @Composable
@@ -206,7 +270,6 @@ private fun Dock(activeView: ViewId, onTab: (ViewId) -> Unit) {
         Tab(ViewId.HOME, "Accueil", Icons.Filled.Home),
         Tab(ViewId.EXPLORE, "Recherche", Icons.Filled.Search),
         Tab(ViewId.LIBRARY, "Bibliothèque", Icons.Filled.LibraryMusic),
-        Tab(ViewId.FAVORITES, "Favoris", Icons.Filled.Favorite),
     )
     Row(
         Modifier.fillMaxWidth().background(colors.panel).navigationBarsPadding().padding(vertical = 8.dp),

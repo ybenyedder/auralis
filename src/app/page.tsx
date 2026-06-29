@@ -41,6 +41,7 @@ import { trackTitle, trackArtist } from "@/lib/auralis/brand";
 import { AuthGate } from "@/components/auralis/AuthGate";
 import { MobileHeader } from "@/components/auralis/mobile/MobileHeader";
 import { MobileDock } from "@/components/auralis/mobile/MobileDock";
+import { SelectionBar } from "@/components/auralis/SelectionBar";
 import {
   mediaSupported,
   setMediaMetadata,
@@ -687,6 +688,7 @@ function AuralisShell() {
       </div>
 
       <MobileDock />
+      <SelectionBar />
 
       {fullscreenPlayer && <FullscreenPlayer />}
       {visualizerOpen && <VisualizerOverlay />}

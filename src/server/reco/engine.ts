@@ -433,6 +433,86 @@ export function recommendBlend(userA: number, userB: number, limit = 80): { forY
   };
 }
 
+/** Average the feeling-space vectors of a set of seed tracks into one centroid —
+ *  the "vibe" the user hand-picked. Null when none of the seeds can be placed. */
+function seedCentroid(agg: Aggregates, seeds: Iterable<string>): FeatureVector | null {
+  const acc = { arousal: 0, valence: 0, energy: 0, tempo: 0, w: 0 };
+  for (const h of seeds) {
+    const v = agg.featById.get(h) ?? null;
+    if (!v) continue;
+    acc.arousal += v.arousal;
+    acc.valence += v.valence;
+    acc.energy += v.energy;
+    acc.tempo += v.tempo;
+    acc.w++;
+  }
+  return acc.w > 0
+    ? { arousal: acc.arousal / acc.w, valence: acc.valence / acc.w, energy: acc.energy / acc.w, tempo: acc.tempo / acc.w }
+    : null;
+}
+
+export interface SeedPlaylist {
+  /** Auto-generated French name, e.g. "Mix IA · Énergique". */
+  name: string;
+  /** Dominant mood id across the seeds (drives the name + a scoring bump), or null. */
+  mood: string | null;
+  /** Recommended additions, best-first (does NOT include the seeds themselves). */
+  tracks: RecoTrack[];
+}
+
+/**
+ * The "select a few tracks → AI builds a playlist from them + your taste" feature.
+ * Places the hand-picked seeds in feeling-space, averages them into one centroid
+ * (the vibe you asked for), then ranks the rest of the library by how close each
+ * track sits to that centroid — with your personal taste score refining the order
+ * and a nudge toward the seeds' dominant mood. Seeds, dislikes and anything the
+ * caller excludes are left out. Pure taste + real audio features, no cloud, no API.
+ */
+export function recommendFromSeeds(userId: number, seedHashes: string[], limit = 30, exclude: string[] = []): SeedPlaylist {
+  const { tracks, agg } = getState(userId);
+  const now = Date.now();
+  // Keep only seeds that actually exist in the catalogue.
+  const seeds = seedHashes.filter((h) => agg.featById.has(h));
+  const skip = new Set([...seeds, ...exclude]);
+  const centroid = seedCentroid(agg, seeds);
+
+  // Dominant mood across the seeds → name + a small same-mood bonus.
+  const moodCount = new Map<string, number>();
+  for (const h of seeds) {
+    const m = agg.moodById.get(h);
+    if (m) moodCount.set(m, (moodCount.get(m) ?? 0) + 1);
+  }
+  const dominantMood = [...moodCount.entries()].sort((a, b) => b[1] - a[1])[0]?.[0] ?? null;
+
+  const scored: Scored[] = [];
+  for (const t of tracks) {
+    if (skip.has(t.trackhash) || agg.disliked.has(t.trackhash)) continue;
+    const base = scoreTrack(t, agg, now);
+    if (!base) continue;
+    // Seed vibe dominates the order; the taste score breaks ties so the picks still
+    // skew toward what THIS user finishes/likes — "grâce à mes goûts".
+    const v = agg.featById.get(t.trackhash) ?? null;
+    const sim = centroid && v ? featureSimilarity(v, centroid) : 0;
+    const moodBonus = dominantMood && agg.moodById.get(t.trackhash) === dominantMood ? 0.15 : 0;
+    const score = base.score * 0.5 + sim * 1.5 + moodBonus;
+    const reason = sim > 0.8 ? "Dans la vibe de votre sélection" : base.reason;
+    scored.push({ trackhash: t.trackhash, score, reason });
+  }
+  scored.sort((a, b) => b.score - a.score);
+
+  const moodLabel = dominantMood ? moodById(dominantMood)?.label ?? null : null;
+  const name = moodLabel ? `Mix IA · ${moodLabel}` : "Mix IA";
+  return {
+    name,
+    mood: dominantMood,
+    tracks: scored.slice(0, Math.max(1, Math.min(100, limit))).map((s) => ({
+      trackhash: s.trackhash,
+      score: Math.round(s.score * 1000) / 1000,
+      reason: s.reason,
+    })),
+  };
+}
+
 /** Discovery mix: only tracks the user has NEVER played, ranked by taste-fit — the
  *  "Discover Weekly" engine. The caller freezes a weekly slice client-side. */
 export function recommendDiscovery(userId: number, limit = 60): RecoTrack[] {

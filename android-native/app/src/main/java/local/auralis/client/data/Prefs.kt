@@ -45,7 +45,7 @@ class Prefs(context: Context) {
             autoplay = p[AUTOPLAY] ?: true,
             karaoke = p[KARAOKE] ?: true,
             lyricsOffset = p[LYRICS_OFFSET] ?: 0.15f,
-            theme = p[THEME] ?: "oxide",
+            theme = p[THEME] ?: "spotify",
         )
     }
 
@@ -103,7 +103,7 @@ class Prefs(context: Context) {
     suspend fun lastRecapSeen(): String = store.data.first()[RECAP_SEEN] ?: ""
     suspend fun setRecapSeen(month: String) { store.edit { it[RECAP_SEEN] = month } }
 
-    val themeFlow = store.data.map { it[THEME] ?: "oxide" }
+    val themeFlow = store.data.map { it[THEME] ?: "spotify" }
 
     companion object {
         private val SERVER_BASE = stringPreferencesKey("server_base")

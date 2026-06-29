@@ -132,6 +132,11 @@ interface PlayerState {
   recentTrackhashes: string[];
   playCounts: Record<string, number>;
 
+  /** Spotify-style multi-select: when on, rows show a checkbox and tapping toggles
+   *  selection instead of playing. Feeds the "AI playlist from my picks" action. */
+  selectionMode: boolean;
+  selected: Set<string>;
+
   customPlaylists: Playlist[];
   sleepTimer: SleepTimer;
 
@@ -210,6 +215,22 @@ interface PlayerState {
   reorderInPlaylist: (id: string, from: number, to: number) => void;
   /** Create a playlist from a set of already-resolved trackhashes in one shot (import). */
   importPlaylist: (name: string, trackhashes: string[]) => string;
+
+  // --- Multi-select → AI playlist -----------------------------------------
+  /** Enter selection mode (optionally pre-selecting one track from a long-press). */
+  enterSelection: (trackhash?: string) => void;
+  /** Toggle one track in/out of the current selection (turns selection mode on). */
+  toggleSelected: (trackhash: string) => void;
+  /** Add a batch of trackhashes to the selection (e.g. "select all" in a view). */
+  selectMany: (trackhashes: string[]) => void;
+  /** Empty the selection but stay in selection mode. */
+  clearSelection: () => void;
+  /** Leave selection mode and drop the selection. */
+  exitSelection: () => void;
+  /** Ask the server's taste engine to build a playlist from the selected seeds +
+   *  the user's taste, persist it, mirror it locally and open it. Resolves the new
+   *  playlist id (or null on failure / empty selection). */
+  generateAiPlaylist: (opts?: { name?: string; count?: number }) => Promise<string | null>;
   /** Owner-only: toggle a playlist shared/collaborative. */
   sharePlaylist: (id: string, shared: boolean) => void;
   /** Owner-only: invite a collaborator by username. Resolves true on success. */
@@ -516,6 +537,9 @@ export const usePlayer = create<PlayerState>((set, get) => {
     dislikes: new Set<string>(),
     recentTrackhashes: [],
     playCounts: {},
+
+    selectionMode: false,
+    selected: new Set<string>(),
 
     customPlaylists: [],
     sleepTimer: { active: false, endsAt: null, minutes: 0 },
@@ -1142,6 +1166,74 @@ export const usePlayer = create<PlayerState>((set, get) => {
       }).catch(() => {});
       get().notify(`Playlist « ${pl.name} » importée — ${unique.length} titre${unique.length > 1 ? "s" : ""}`);
       return id;
+    },
+
+    enterSelection: (trackhash) =>
+      set((s) => ({
+        selectionMode: true,
+        selected: trackhash ? new Set(s.selected).add(trackhash) : s.selected,
+      })),
+
+    toggleSelected: (trackhash) =>
+      set((s) => {
+        const next = new Set(s.selected);
+        if (next.has(trackhash)) next.delete(trackhash);
+        else next.add(trackhash);
+        return { selected: next, selectionMode: true };
+      }),
+
+    selectMany: (trackhashes) =>
+      set((s) => {
+        const next = new Set(s.selected);
+        for (const h of trackhashes) next.add(h);
+        return { selected: next, selectionMode: true };
+      }),
+
+    clearSelection: () => set({ selected: new Set<string>() }),
+    exitSelection: () => set({ selectionMode: false, selected: new Set<string>() }),
+
+    generateAiPlaylist: async (opts) => {
+      const seeds = [...get().selected];
+      if (seeds.length === 0) {
+        get().notify("Sélectionnez au moins un titre", { tone: "error" });
+        return null;
+      }
+      get().notify("Création de votre Mix IA…");
+      try {
+        const res = await api.put<{ ok: boolean; id: string; name: string; trackhashes: string[] }>("/api/state", {
+          action: "playlist.generateFromSeeds",
+          seeds,
+          count: opts?.count ?? 30,
+          name: opts?.name,
+        });
+        if (!res?.id) throw new Error("no id");
+        // Mirror the server-built playlist locally so it appears instantly, in the
+        // Spotify-green palette (it's the AI mix).
+        const pl: Playlist = {
+          id: res.id,
+          name: res.name,
+          description: "Généré par l'IA d'après votre sélection et vos goûts",
+          trackcount: res.trackhashes.length,
+          color: ["#0b3b24", "#1ED760", "#1DB954"],
+          trackhashes: res.trackhashes,
+          pinned: false,
+        };
+        set((s) => {
+          const upd = {
+            customPlaylists: [pl, ...s.customPlaylists.filter((p) => String(p.id) !== res.id)],
+            selectionMode: false,
+            selected: new Set<string>(),
+          };
+          persist({ ...get(), ...upd });
+          return upd;
+        });
+        get().navigate("playlist", res.id);
+        get().notify(`Mix IA « ${res.name} » prêt — ${res.trackhashes.length} titres`, { tone: "success" });
+        return res.id;
+      } catch {
+        get().notify("Impossible de générer la playlist", { tone: "error" });
+        return null;
+      }
     },
 
     sharePlaylist: (id, shared) => {

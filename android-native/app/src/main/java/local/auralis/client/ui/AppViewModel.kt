@@ -73,9 +73,14 @@ data class UiState(
     val karaoke: Boolean = true,
     val lyricsOffset: Float = 0.15f,
 
-    val theme: String = "oxide",
+    val theme: String = "spotify",
     val donateDue: Boolean = false,
     val contextTrack: Track? = null,
+
+    // Spotify-style multi-select → "AI playlist from my picks".
+    val selectionMode: Boolean = false,
+    val selected: Set<String> = emptySet(),
+    val generating: Boolean = false,
 
     // In-app self-update (GitHub release). `update` is non-null when a newer build
     // exists; the install flow streams the APK and reports `updateProgress`.
@@ -785,6 +790,62 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
         _ui.update { it.copy(playlists = list) }
         viewModelScope.launch {
             api.putState(JSONObject().put("action", "playlist.reorder").put("ids", JSONArray(list.map { it.id })))
+        }
+    }
+
+    // ---- multi-select → AI playlist ----------------------------------------
+
+    fun enterSelection(hash: String? = null) {
+        _ui.update {
+            val sel = if (hash != null) it.selected + hash else it.selected
+            it.copy(selectionMode = true, selected = sel)
+        }
+    }
+
+    fun toggleSelected(hash: String) {
+        _ui.update {
+            val sel = it.selected.toMutableSet()
+            if (!sel.add(hash)) sel.remove(hash)
+            it.copy(selectionMode = true, selected = sel)
+        }
+    }
+
+    fun clearSelection() { _ui.update { it.copy(selected = emptySet()) } }
+    fun exitSelection() { _ui.update { it.copy(selectionMode = false, selected = emptySet()) } }
+
+    /** Play the current selection then leave selection mode. */
+    fun playSelection() {
+        val tracks = _ui.value.selected.mapNotNull { trackIndex[it] }
+        if (tracks.isNotEmpty()) { playList(tracks, 0); exitSelection() }
+    }
+
+    /** Ask the server taste engine to build a playlist from the hand-picked seeds +
+     *  the user's taste, then open it. */
+    fun generateAiPlaylist(count: Int = 30) {
+        val seeds = _ui.value.selected.toList()
+        if (seeds.isEmpty()) { notify("Sélectionnez au moins un titre"); return }
+        if (_ui.value.generating) return
+        _ui.update { it.copy(generating = true) }
+        notify("Création de votre Mix IA…")
+        viewModelScope.launch {
+            try {
+                val body = JSONObject()
+                    .put("action", "playlist.generateFromSeeds")
+                    .put("seeds", JSONArray(seeds))
+                    .put("count", count)
+                val res = api.putState(body)
+                val id = res.optString("id", "")
+                val name = res.optString("name", "Mix IA")
+                refreshState()
+                _ui.update { it.copy(generating = false, selectionMode = false, selected = emptySet()) }
+                if (id.isNotBlank()) {
+                    navigate(ViewId.PLAYLIST, id)
+                    notify("Mix IA « $name » prêt")
+                } else notify("Impossible de générer la playlist")
+            } catch (e: Exception) {
+                _ui.update { it.copy(generating = false) }
+                notify("Impossible de générer la playlist")
+            }
         }
     }
 

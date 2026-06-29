@@ -13,6 +13,7 @@ import {
   ListMusic,
   Share2,
   Radio,
+  ListChecks,
 } from "lucide-react";
 import { usePlayer } from "@/store/player";
 import { shareTrack } from "@/lib/auralis/share";
@@ -256,6 +257,7 @@ function TrackMenu({
             <MenuItem sheet={sheet} icon={Radio} label="Démarrer une radio" onClick={() => run(() => void startRadio(track.trackhash, track))} />
             <MenuItem sheet={sheet} icon={ListPlus} label="Lire ensuite" onClick={() => run(() => addToQueueNext(track))} />
             <MenuItem sheet={sheet} icon={Plus} label="Ajouter à la file" onClick={() => run(() => addToQueueEnd(track))} />
+            <MenuItem sheet={sheet} icon={ListChecks} label="Sélectionner (Mix IA)" onClick={() => run(() => usePlayer.getState().enterSelection(track.trackhash))} />
           </>
         )}
         <PlaylistSubmenu

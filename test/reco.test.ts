@@ -122,6 +122,40 @@ test("dislike clears a prior like (opposite verdicts can't both hold)", async ()
   assert.ok(s.dislikes.includes("t"), "dislike recorded");
 });
 
+test("recommendFromSeeds: same-vibe mix that excludes the seeds and dislikes", async () => {
+  const { db, recommendFromSeeds, setDislike, invalidateReco } = await mods();
+  reset(db);
+  // Two party seeds → the AI mix should lean party/energetic, away from melancholy.
+  addTrack(db, "seed1", { mood: "party", energy: 0.9, bpm: 128 });
+  addTrack(db, "seed2", { mood: "party", energy: 0.88, bpm: 126 });
+  addTrack(db, "near", { mood: "energetic", energy: 0.85, bpm: 132 });
+  addTrack(db, "far", { mood: "melancholy", energy: 0.2, bpm: 70 });
+  addTrack(db, "banned", { mood: "party", energy: 0.9, bpm: 128 });
+  setDislike(UID, "banned", true);
+  invalidateReco(UID);
+  const res = recommendFromSeeds(UID, ["seed1", "seed2"], 10);
+  const hashes = res.tracks.map((t) => t.trackhash);
+  assert.ok(!hashes.includes("seed1") && !hashes.includes("seed2"), "seeds aren't re-listed as additions");
+  assert.ok(!hashes.includes("banned"), "a disliked track is hard-excluded");
+  assert.ok(rankOf(res.tracks, "near") < rankOf(res.tracks, "far"), "the same-vibe track outranks the mismatched one");
+  assert.equal(res.mood, "party", "dominant seed mood detected");
+  assert.ok(res.name.includes("Mix IA"), "named as the AI mix");
+});
+
+test("generateFromSeeds persistence: the playlist is led by the hand-picked seeds", async () => {
+  const { db, recommendFromSeeds, upsertPlaylist, getUserState, invalidateReco } = await mods();
+  reset(db);
+  addTrack(db, "s1", { mood: "chill", energy: 0.3, bpm: 80 });
+  addTrack(db, "extra", { mood: "chill", energy: 0.32, bpm: 82 });
+  invalidateReco(UID);
+  const res = recommendFromSeeds(UID, ["s1"], 10);
+  const trackhashes = [...new Set(["s1", ...res.tracks.map((t) => t.trackhash)])];
+  const id = upsertPlaylist(UID, { name: res.name, trackhashes });
+  const pl = getUserState(UID).playlists.find((p) => p.id === id);
+  assert.ok(pl, "playlist persisted");
+  assert.equal(pl?.trackhashes[0], "s1", "the seed leads the generated playlist");
+});
+
 test("monthly recap picks the dominant mood and ignores skips", async () => {
   const { db, getMonthlyRecap, listRecapMonths } = await mods();
   reset(db);

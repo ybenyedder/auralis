@@ -1,7 +1,10 @@
 package local.auralis.client.ui.components
 
+import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -18,6 +21,7 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Favorite
 import androidx.compose.material.icons.filled.FavoriteBorder
 import androidx.compose.material.icons.filled.MoreVert
@@ -26,6 +30,7 @@ import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -39,6 +44,18 @@ import local.auralis.client.model.Track
 import local.auralis.client.ui.theme.EyebrowStyle
 import local.auralis.client.ui.theme.LocalAuralis
 import kotlin.math.abs
+
+// ---- multi-select ----------------------------------------------------------
+// Selection is wired once at the Shell root and read by every TrackRow through this
+// CompositionLocal, so rows gain Spotify-style long-press-to-select + checkbox without
+// threading callbacks through every screen's call site.
+data class SelectionController(
+    val active: Boolean = false,
+    val isSelected: (String) -> Boolean = { false },
+    val toggle: (String) -> Unit = {},
+    val begin: (String) -> Unit = {},
+)
+val LocalSelection = staticCompositionLocalOf { SelectionController() }
 
 // ---- formatting ------------------------------------------------------------
 
@@ -153,6 +170,7 @@ fun CoverArt(
     }
 }
 
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
 fun TrackRow(
     track: Track,
@@ -164,15 +182,41 @@ fun TrackRow(
     onMore: (() -> Unit)? = null,
 ) {
     val colors = LocalAuralis.current
+    val sel = LocalSelection.current
+    val selecting = sel.active
+    val checked = selecting && sel.isSelected(track.trackhash)
     Row(
         Modifier
             .fillMaxWidth()
             .clip(RoundedCornerShape(10.dp))
-            .clickable { onClick() }
-            .background(if (isCurrent) colors.panel2 else Color.Transparent)
+            // Tap toggles selection while selecting; otherwise plays. Long-press always
+            // enters selection mode (Spotify-style).
+            .combinedClickable(
+                onClick = { if (selecting) sel.toggle(track.trackhash) else onClick() },
+                onLongClick = { sel.begin(track.trackhash) },
+            )
+            .background(
+                when {
+                    checked -> colors.accent.copy(alpha = 0.18f)
+                    isCurrent -> colors.panel2
+                    else -> Color.Transparent
+                },
+            )
             .padding(horizontal = 8.dp, vertical = 7.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
+        if (selecting) {
+            Box(
+                Modifier
+                    .size(22.dp)
+                    .clip(CircleShape)
+                    .then(if (checked) Modifier.background(colors.accent) else Modifier.border(1.5.dp, colors.textFaint, CircleShape)),
+                contentAlignment = Alignment.Center,
+            ) {
+                if (checked) Icon(Icons.Filled.Check, null, tint = colors.ink, modifier = Modifier.size(14.dp))
+            }
+            Spacer(Modifier.width(12.dp))
+        }
         CoverArt(track.image, track.albumhash ?: track.title, Modifier.size(46.dp), cornerRadius = 8, sizeDp = 46)
         Spacer(Modifier.width(12.dp))
         Column(Modifier.weight(1f)) {
@@ -192,7 +236,8 @@ fun TrackRow(
                 overflow = TextOverflow.Ellipsis,
             )
         }
-        if (onToggleFavorite != null) {
+        // In selection mode the row's own affordances step aside for the checkbox.
+        if (!selecting && onToggleFavorite != null) {
             Icon(
                 if (isFavorite) Icons.Filled.Favorite else Icons.Filled.FavoriteBorder,
                 contentDescription = "Favori",
@@ -206,7 +251,7 @@ fun TrackRow(
             color = colors.textFaint,
             fontSize = 12.sp,
         )
-        if (onMore != null) {
+        if (!selecting && onMore != null) {
             Spacer(Modifier.width(6.dp))
             Icon(
                 Icons.Filled.MoreVert,

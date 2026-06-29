@@ -482,7 +482,10 @@ fun LibraryScreen(vm: AppViewModel, ui: UiState) {
             }
         }
         // Secondary destinations (also reachable here, mirroring the web's "Plus" hub).
+        // "Titres aimés" leads the list — it's the library's pinned Liked-Songs entry now
+        // that Favourites is no longer a bottom-nav tab (Spotify-style).
         Row(Modifier.padding(start = 16.dp, end = 16.dp, bottom = 6.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            PlusChip("❤ Titres aimés") { vm.navigate(ViewId.FAVORITES) }
             PlusChip("Récents") { vm.navigate(ViewId.RECENTS) }
             PlusChip("Dossiers") { vm.navigate(ViewId.FOLDERS) }
             PlusChip("Analyse") { vm.navigate(ViewId.INSIGHTS) }

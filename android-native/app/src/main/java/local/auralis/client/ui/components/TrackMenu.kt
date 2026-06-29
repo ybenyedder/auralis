@@ -20,6 +20,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Album
+import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material.icons.filled.Favorite
 import androidx.compose.material.icons.filled.FavoriteBorder
 import androidx.compose.material.icons.filled.Person
@@ -82,6 +83,7 @@ fun TrackMenu(track: Track, ui: UiState, vm: AppViewModel, onDismiss: () -> Unit
                 MenuRow(Icons.Filled.PlayArrow, "Lire ensuite") { vm.addNext(track); onDismiss() }
                 MenuRow(Icons.Filled.QueueMusic, "Ajouter à la file") { vm.addToEnd(track); onDismiss() }
                 MenuRow(Icons.Filled.PlaylistAdd, "Ajouter à une playlist") { pickingPlaylist = true }
+                MenuRow(Icons.Filled.AutoAwesome, "Sélectionner (Mix IA)") { vm.enterSelection(track.trackhash); onDismiss() }
                 val fav = ui.favorites.contains(track.trackhash)
                 MenuRow(if (fav) Icons.Filled.Favorite else Icons.Filled.FavoriteBorder, if (fav) "Retirer des favoris" else "Ajouter aux favoris") {
                     vm.toggleFavorite(track.trackhash); onDismiss()
