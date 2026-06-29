@@ -4,6 +4,44 @@ All notable changes to Auralis are documented here. The format is based on
 [Keep a Changelog](https://keepachangelog.com/) and this project adheres to
 [Semantic Versioning](https://semver.org/).
 
+## [1.8.0] - 2026-06-29
+
+### Added
+- **Recherche puissante.** Recherche serveur (FTS5) classée et tolérante aux
+  accents, onglets Tout/Titres/Albums/Artistes et carte « Meilleur résultat ».
+- **Radios.** Démarrer une radio personnalisée depuis n'importe quel titre, album
+  ou artiste (similarité audio × goût).
+- **Découverte enrichie.** Mix du jour par humeur, « À découvrir cette semaine »,
+  voyages sonores (radios à trajectoire d'humeur : endormissement, montée en
+  énergie…) et **Blend du foyer** (mix qui mélange les goûts de deux comptes).
+- **Smart-playlists** dynamiques pilotées par l'analyse audio (Énergie haute,
+  Calme du soir, 160+ BPM, Jamais écouté, Récemment ajoutés, Tout en lossless…).
+- **Playlists collaboratives.** Partager une playlist et inviter d'autres comptes
+  du serveur à y ajouter / retirer des titres.
+- **Import / export de playlists** aux formats M3U et JSON.
+- **Filtres de bibliothèque** instantanés + pastilles humeur / lossless / genre,
+  et tri « ajout récent ».
+- **Pochette 3D.** Maintenir la pochette du lecteur l'incline en 3D (reflet + ombre).
+- **Couleur réelle de pochette.** L'ambiance du lecteur reprend la vraie couleur
+  dominante de la jaquette.
+- **Égalisation du volume (ReplayGain).** Niveau homogène entre les titres
+  (réglable : désactivé / par titre / par album).
+- **Visualiseur réellement réactif** (vraie analyse audio FFT, plus une animation).
+- **Fondu enchaîné** réglable entre les titres.
+- **Android Auto.** Auralis apparaît sur l'écran de la voiture (Fait pour vous,
+  Favoris, Récents).
+- **Écoute hors-ligne (Android).** Tout titre déjà écouté rejoue sans connexion
+  (cache média 2 Go).
+- **Multilingue.** Sélecteur de langue (français / anglais).
+
+### Changed
+- **Démarrage plus rapide.** Le catalogue n'est plus re-téléchargé à chaque
+  ouverture (revalidation 304) et les écrans lourds se chargent à la demande.
+- **Accessibilité.** Lien « Aller au contenu », squelettes de chargement et états
+  vides homogènes.
+- **Android.** Gestes natifs sur le lecteur (glisser vers le bas pour fermer,
+  horizontalement pour changer de titre) et pochettes mises en cache sur le disque.
+
 ## [1.7.1] - 2026-06-29
 
 ### Fixed
