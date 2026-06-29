@@ -3,6 +3,8 @@ package local.auralis.client.ui.player
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.detectDragGestures
+import androidx.compose.foundation.gestures.detectHorizontalDragGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -49,6 +51,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.SpanStyle
@@ -67,15 +70,26 @@ import local.auralis.client.ui.UiState
 import local.auralis.client.ui.components.CoverArt
 import local.auralis.client.ui.components.formatDuration
 import local.auralis.client.ui.theme.LocalAuralis
+import kotlin.math.abs
 
 @Composable
 fun MiniPlayer(track: Track, playback: PlaybackSnapshot, positionMs: Long, vm: AppViewModel, onOpen: () -> Unit) {
     val colors = LocalAuralis.current
     val dur = (track.duration ?: 0.0) * 1000.0
     val progress = if (dur > 0) (positionMs / dur).toFloat().coerceIn(0f, 1f) else 0f
+    var miniDx by remember { mutableStateOf(0f) }
     Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(14.dp)).background(colors.panel)) {
         Row(
-            Modifier.fillMaxWidth().clickable { onOpen() }.padding(8.dp),
+            Modifier.fillMaxWidth()
+                .clickable { onOpen() }
+                // Horizontal swipe on the mini-player → previous / next, like a native player.
+                .pointerInput(track.trackhash) {
+                    detectHorizontalDragGestures(
+                        onDragStart = { miniDx = 0f },
+                        onDragEnd = { if (miniDx > 100f) vm.prev() else if (miniDx < -100f) vm.next() },
+                    ) { _, dx -> miniDx += dx }
+                }
+                .padding(8.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
             CoverArt(track.image, track.albumhash ?: track.title, Modifier.size(44.dp), cornerRadius = 8, sizeDp = 44)
@@ -117,6 +131,8 @@ fun FullscreenPlayer(
     var showLyrics by remember { mutableStateOf(false) }
     var showQueue by remember { mutableStateOf(false) }
     var showSleep by remember { mutableStateOf(false) }
+    var gDx by remember { mutableStateOf(0f) }
+    var gDy by remember { mutableStateOf(0f) }
     val (bg, c1, _) = local.auralis.client.ui.components.paletteFor(track.albumhash ?: track.title)
 
     Column(
@@ -140,7 +156,21 @@ fun FullscreenPlayer(
                 showQueue -> QueuePane(playback, ui, vm)
                 showLyrics -> LyricsPane(ui, vm, positionMs, track)
                 else -> Column(Modifier.fillMaxSize(), verticalArrangement = Arrangement.Center, horizontalAlignment = Alignment.CenterHorizontally) {
-                    CoverArt(track.image, track.albumhash ?: track.title, Modifier.fillMaxWidth().aspectRatio(1f), cornerRadius = 20, sizeDp = 0)
+                    CoverArt(
+                        track.image, track.albumhash ?: track.title,
+                        // Drag the cover: swipe down → close, swipe left/right → next / prev.
+                        Modifier.fillMaxWidth().aspectRatio(1f).pointerInput(track.trackhash) {
+                            detectDragGestures(
+                                onDragStart = { gDx = 0f; gDy = 0f },
+                                onDragEnd = {
+                                    if (abs(gDy) > abs(gDx) && gDy > 140f) onClose()
+                                    else if (gDx > 120f) vm.prev()
+                                    else if (gDx < -120f) vm.next()
+                                },
+                            ) { _, amount -> gDx += amount.x; gDy += amount.y }
+                        },
+                        cornerRadius = 20, sizeDp = 0,
+                    )
                 }
             }
         }
