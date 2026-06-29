@@ -4,6 +4,22 @@ All notable changes to Auralis are documented here. The format is based on
 [Keep a Changelog](https://keepachangelog.com/) and this project adheres to
 [Semantic Versioning](https://semver.org/).
 
+## [1.9.0] - 2026-06-29
+
+### Added
+- **Mix IA.** Sélectionnez plusieurs titres (appui long ou ⋮ → « Sélectionner »)
+  puis « Mix IA » : le moteur de goût construit une playlist à partir de votre
+  sélection et de vos habitudes d'écoute (vibe audio des titres choisis × profil
+  de goût), en gardant vos titres en tête puis en ajoutant des recommandations.
+- **Sélection multiple** façon Spotify sur mobile et application native : cases à
+  cocher, barre d'action flottante (lecture de la sélection + Mix IA).
+
+### Changed
+- **Application Android au look Spotify.** Thème Spotify (vert #1ED760 sur noir
+  #121212) appliqué par défaut, barre de navigation à 3 onglets
+  (Accueil / Recherche / Bibliothèque) et « Titres aimés » intégré à la
+  bibliothèque.
+
 ## [1.8.0] - 2026-06-29
 
 ### Added
