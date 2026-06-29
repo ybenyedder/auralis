@@ -42,7 +42,16 @@ interface TrackRow {
   mood: string | null;
   energy: number | null;
   bpm: number | null;
+  gain: number | null;
+  accent: string | null;
   lyrics_present: number;
+}
+
+/** "#base,#shadow,#highlight" (art_colors) → the 3-tuple the UI palette consumes. */
+function parseAccent(s: string | null): [string, string, string] | undefined {
+  if (!s) return undefined;
+  const parts = s.split(",");
+  return parts.length === 3 ? [parts[0], parts[1], parts[2]] : undefined;
 }
 
 export function artUrl(arthash: string | null | undefined): string | undefined {
@@ -54,9 +63,11 @@ export function artUrl(arthash: string | null | undefined): string | undefined {
 // favorites/playcounts are deliberately NOT part of the catalogue.
 const TRACK_SELECT = `
   SELECT t.*,
-    CASE WHEN l.synced IS NOT NULL OR l.plain IS NOT NULL THEN 1 ELSE 0 END AS lyrics_present
+    CASE WHEN l.synced IS NOT NULL OR l.plain IS NOT NULL THEN 1 ELSE 0 END AS lyrics_present,
+    ac.accent AS accent
   FROM tracks t
   LEFT JOIN lyrics l ON l.trackhash = t.trackhash
+  LEFT JOIN art_colors ac ON ac.arthash = t.arthash
 `;
 
 function mapTrack(row: TrackRow): Track {
@@ -88,6 +99,8 @@ function mapTrack(row: TrackRow): Track {
     mood: row.mood ?? undefined,
     energy: row.energy ?? undefined,
     bpm: row.bpm ?? undefined,
+    gain: row.gain ?? undefined,
+    color: parseAccent(row.accent),
   };
 }
 
@@ -148,7 +161,11 @@ function libraryVersion(db: ReturnType<typeof getDb>): string {
   const { n } = db.prepare("SELECT COUNT(*) AS n FROM tracks").get() as { n: number };
   const scannedAt = (db.prepare("SELECT value FROM settings WHERE key = 'scannedAt'").get() as { value: string } | undefined)?.value ?? "0";
   const analyzedAt = (db.prepare("SELECT value FROM settings WHERE key = 'analyzedAt'").get() as { value: string } | undefined)?.value ?? "0";
-  return `${n}-${scannedAt}-${analyzedAt}`;
+  // Fold in the cover-palette count so lazily-derived colours (art_colors grows as
+  // covers are first requested) surface on the next /api/library instead of being
+  // pinned behind the cached snapshot.
+  const colors = (db.prepare("SELECT COUNT(*) AS n FROM art_colors").get() as { n: number }).n;
+  return `${n}-${scannedAt}-${analyzedAt}-${colors}`;
 }
 
 function buildSnapshot(db: ReturnType<typeof getDb>): LibrarySnapshot {
@@ -177,8 +194,12 @@ function buildSnapshot(db: ReturnType<typeof getDb>): LibrarySnapshot {
     artistAgg.set(row.artisthash, ar);
   }
 
-  const albumRows = db.prepare("SELECT albumhash, title, albumartist, artisthash, year, genre, arthash FROM albums").all() as {
-    albumhash: string; title: string; albumartist: string; artisthash: string; year: number | null; genre: string | null; arthash: string | null;
+  const albumRows = db.prepare(`
+    SELECT a.albumhash, a.title, a.albumartist, a.artisthash, a.year, a.genre, a.arthash, ac.accent AS accent
+    FROM albums a
+    LEFT JOIN art_colors ac ON ac.arthash = a.arthash
+  `).all() as {
+    albumhash: string; title: string; albumartist: string; artisthash: string; year: number | null; genre: string | null; arthash: string | null; accent: string | null;
   }[];
   const albums: Album[] = albumRows.map((row) => {
     const agg = albumAgg.get(row.albumhash);
@@ -191,6 +212,7 @@ function buildSnapshot(db: ReturnType<typeof getDb>): LibrarySnapshot {
       trackcount: agg?.count ?? 0,
       duration: agg?.duration ?? 0,
       genres: agg && agg.genres.size ? Array.from(agg.genres) : undefined,
+      color: parseAccent(row.accent),
     };
   }).sort((a, b) => a.title.localeCompare(b.title, undefined, { numeric: true }));
 

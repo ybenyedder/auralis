@@ -4,8 +4,9 @@
 //   GET /api/recommend?exclude=h1,h2          → exclude hashes from a radio/mix
 // Hashes only on the wire — the client resolves them against its library snapshot.
 
-import { recommend, recommendRadio } from "@/server/reco/engine";
+import { recommend, recommendRadio, recommendTrajectory, recommendDiscovery, recommendBlend } from "@/server/reco/engine";
 import { getRequestUser } from "@/server/auth";
+import { getDb } from "@/server/db";
 import { json } from "@/server/http";
 
 export const runtime = "nodejs";
@@ -28,6 +29,22 @@ export async function GET(request: Request) {
     .filter(Boolean)
     .slice(0, 500);
 
+  const blend = searchParams.get("blend");
+  if (blend) {
+    // Resolve the household member by username (the public accounts list exposes
+    // usernames). Blending with yourself or an unknown user yields an empty mix.
+    const other = getDb().prepare("SELECT id FROM users WHERE lower(username) = lower(?)").get(blend.trim()) as { id: number } | undefined;
+    if (!other || other.id === user.id) return json({ blend, forYou: [], match: 0 });
+    return json({ blend, ...recommendBlend(user.id, other.id, limit ?? 80) });
+  }
+
+  const path = searchParams.get("path");
+  if (path) {
+    return json({ path, tracks: recommendTrajectory(user.id, path, limit ?? 30) });
+  }
+  if (searchParams.get("mode") === "discovery") {
+    return json({ mode: "discovery", tracks: recommendDiscovery(user.id, limit ?? 60) });
+  }
   if (seed) {
     return json({ seed, tracks: recommendRadio(user.id, seed, limit ?? 25, exclude) });
   }

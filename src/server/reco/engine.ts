@@ -331,3 +331,124 @@ export function recommendRadio(userId: number, seedHash: string | null, limit = 
     reason: s.reason,
   }));
 }
+
+// Named mood arcs in (arousal, valence) space — start anchor → end anchor. This
+// exploits Auralis's REAL per-track arousal/valence coordinates (Spotify killed its
+// audio-features API), so a "wind-down to sleep" or "warm-up" set is irreproducible
+// by a catalogue-only clone.
+const TRAJECTORIES: Record<string, { from: { arousal: number; valence: number }; to: { arousal: number; valence: number } }> = {
+  winddown: { from: { arousal: 0.8, valence: 0.62 }, to: { arousal: 0.18, valence: 0.3 } },
+  warmup: { from: { arousal: 0.32, valence: 0.5 }, to: { arousal: 0.86, valence: 0.82 } },
+  focusflow: { from: { arousal: 0.5, valence: 0.42 }, to: { arousal: 0.62, valence: 0.34 } },
+  uplift: { from: { arousal: 0.4, valence: 0.28 }, to: { arousal: 0.7, valence: 0.85 } },
+};
+
+/** A radio that MOVES through feeling-space along a named arc: at each step pick the
+ *  non-disliked track nearest the interpolated target, taste-score breaking ties, no
+ *  repeats. The whole set glides from one vibe to another. */
+export function recommendTrajectory(userId: number, path: string, limit = 30): RecoTrack[] {
+  const { tracks, agg } = getState(userId);
+  const arc = TRAJECTORIES[path] ?? TRAJECTORIES.winddown;
+  const steps = Math.max(1, Math.min(100, limit));
+  const used = new Set<string>();
+  const pool = tracks.filter((t) => !agg.disliked.has(t.trackhash) && agg.featById.get(t.trackhash));
+  const out: RecoTrack[] = [];
+  for (let i = 0; i < steps; i++) {
+    const f = steps === 1 ? 0 : i / (steps - 1);
+    const a = arc.from.arousal + (arc.to.arousal - arc.from.arousal) * f;
+    const v = arc.from.valence + (arc.to.valence - arc.from.valence) * f;
+    const target: FeatureVector = { arousal: a, valence: v, energy: a, tempo: a };
+    let best: TrackRow | null = null;
+    let bestScore = -Infinity;
+    for (const t of pool) {
+      if (used.has(t.trackhash)) continue;
+      const vec = agg.featById.get(t.trackhash);
+      if (!vec) continue;
+      const taste = tanh((agg.pos.get(t.trackhash) ?? 0) - (agg.neg.get(t.trackhash) ?? 0));
+      const score = featureSimilarity(vec, target) + 0.22 * taste;
+      if (score > bestScore) {
+        bestScore = score;
+        best = t;
+      }
+    }
+    if (!best) break;
+    used.add(best.trackhash);
+    out.push({ trackhash: best.trackhash, score: Math.round(bestScore * 1000) / 1000, reason: "Trajectoire d'humeur" });
+  }
+  return out;
+}
+
+function mergeSum(a: Map<string, number>, b: Map<string, number>): Map<string, number> {
+  const out = new Map(a);
+  for (const [k, v] of b) out.set(k, (out.get(k) ?? 0) + v);
+  return out;
+}
+function avgCentroid(a: FeatureVector | null, b: FeatureVector | null): FeatureVector | null {
+  if (!a) return b;
+  if (!b) return a;
+  return { arousal: (a.arousal + b.arousal) / 2, valence: (a.valence + b.valence) / 2, energy: (a.energy + b.energy) / 2, tempo: (a.tempo + b.tempo) / 2 };
+}
+
+/** Blend two users' tastes into one mix: average centroids + mood affinities, sum
+ *  the per-track weights, UNION the dislikes (a hard no from EITHER is respected),
+ *  then score the catalogue against the blended profile. The household-Blend Spotify
+ *  charges for, here free + instant on the LAN. */
+export function recommendBlend(userA: number, userB: number, limit = 80): { forYou: RecoTrack[]; match: number } {
+  const a = getState(userA);
+  const b = getState(userB);
+  const blended: Aggregates = {
+    pos: mergeSum(a.agg.pos, b.agg.pos),
+    neg: mergeSum(a.agg.neg, b.agg.neg),
+    posCentroid: avgCentroid(a.agg.posCentroid, b.agg.posCentroid),
+    negCentroid: avgCentroid(a.agg.negCentroid, b.agg.negCentroid),
+    moodAffinity: (() => {
+      const m = new Map(a.agg.moodAffinity);
+      for (const [k, v] of b.agg.moodAffinity) m.set(k, m.has(k) ? ((m.get(k) ?? 0) + v) / 2 : v);
+      return m;
+    })(),
+    signals: a.agg.signals + b.agg.signals,
+    disliked: new Set([...a.agg.disliked, ...b.agg.disliked]),
+    featById: a.agg.featById, // same catalogue → reuse one user's precomputed vectors
+    moodById: a.agg.moodById,
+  };
+  // Compatibility score: cosine-ish similarity of the two positive centroids, 0..100.
+  let match = 50;
+  if (a.agg.posCentroid && b.agg.posCentroid) {
+    match = Math.round(featureSimilarity(a.agg.posCentroid, b.agg.posCentroid) * 100);
+  }
+  const now = Date.now();
+  const scored: Scored[] = [];
+  for (const t of a.tracks) {
+    const s = scoreTrack(t, blended, now);
+    if (s) scored.push(s);
+  }
+  scored.sort((x, y) => y.score - x.score);
+  return {
+    match,
+    forYou: scored.slice(0, Math.max(1, Math.min(200, limit))).map((s) => ({
+      trackhash: s.trackhash,
+      score: Math.round(s.score * 1000) / 1000,
+      reason: "Blend",
+    })),
+  };
+}
+
+/** Discovery mix: only tracks the user has NEVER played, ranked by taste-fit — the
+ *  "Discover Weekly" engine. The caller freezes a weekly slice client-side. */
+export function recommendDiscovery(userId: number, limit = 60): RecoTrack[] {
+  const { tracks, agg } = getState(userId);
+  const now = Date.now();
+  const scored: Scored[] = [];
+  for (const t of tracks) {
+    if (agg.disliked.has(t.trackhash) || t.playcount > 0) continue;
+    const base = scoreTrack(t, agg, now);
+    if (!base) continue;
+    scored.push({ ...base, score: base.score + 0.2, reason: "À découvrir" });
+  }
+  scored.sort((a, b) => b.score - a.score);
+  return scored.slice(0, Math.max(1, Math.min(200, limit))).map((s) => ({
+    trackhash: s.trackhash,
+    score: Math.round(s.score * 1000) / 1000,
+    reason: s.reason,
+  }));
+}

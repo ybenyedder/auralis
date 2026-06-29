@@ -74,6 +74,38 @@ export async function fetchRadio(seedHash: string, exclude: string[] = [], limit
   }
 }
 
+/** Fetch a mood-trajectory radio (a set that glides along a named arc, e.g.
+ *  "winddown" / "warmup"). Returns ordered trackhashes; empty on failure. */
+export async function fetchTrajectory(path: string, limit = 40): Promise<string[]> {
+  try {
+    const res = await api.get<{ path: string; tracks: RecoTrack[] }>(`/api/recommend?path=${encodeURIComponent(path)}&limit=${limit}`);
+    return res.tracks.map((t) => t.trackhash);
+  } catch {
+    return [];
+  }
+}
+
+/** Fetch a household Blend mix with another account (by username). Returns ordered
+ *  trackhashes + a 0..100 compatibility score. */
+export async function fetchBlend(username: string, limit = 80): Promise<{ hashes: string[]; match: number }> {
+  try {
+    const res = await api.get<{ forYou: RecoTrack[]; match: number }>(`/api/recommend?blend=${encodeURIComponent(username)}&limit=${limit}`);
+    return { hashes: res.forYou.map((t) => t.trackhash), match: res.match ?? 0 };
+  } catch {
+    return { hashes: [], match: 0 };
+  }
+}
+
+/** Fetch the "discover" mix — taste-ranked tracks the user has never played. */
+export async function fetchDiscovery(limit = 60): Promise<string[]> {
+  try {
+    const res = await api.get<{ tracks: RecoTrack[] }>(`/api/recommend?mode=discovery&limit=${limit}`);
+    return res.tracks.map((t) => t.trackhash);
+  } catch {
+    return [];
+  }
+}
+
 // ---------------------------------------------------------------------------
 
 interface RecapState {

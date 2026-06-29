@@ -35,6 +35,7 @@ export interface AudioFeatures {
   bpm: number; // estimated tempo
   brightness: number; // 0..1 HF energy ratio
   mood: string; // MOODS id
+  gain: number; // ReplayGain-style adjustment in dB (toward -14 dBFS RMS)
 }
 
 // --- ffmpeg availability (checked once, cached) ------------------------------
@@ -105,14 +106,28 @@ function clamp01(x: number): number {
   return x < 0 ? 0 : x > 1 ? 1 : x;
 }
 
-/** RMS loudness in dBFS mapped to a perceptual 0..1 energy. Calibrated on real
- *  (loudness-normalised) masters, which cluster around -14…-6 dBFS RMS. */
-function computeEnergy(x: Float32Array): number {
+/** RMS loudness of the decoded slice in dBFS — the basis for BOTH the perceptual
+ *  energy feature and the normalization gain (previously this dBFS was thrown away). */
+function loudnessDbfs(x: Float32Array): number {
   let sum = 0;
   for (let i = 0; i < x.length; i++) sum += x[i] * x[i];
   const rms = Math.sqrt(sum / x.length) || 1e-7;
-  const db = 20 * Math.log10(rms);
+  return 20 * Math.log10(rms);
+}
+
+/** dBFS RMS → perceptual 0..1 energy. Calibrated on real (loudness-normalised)
+ *  masters, which cluster around -14…-6 dBFS RMS. */
+function energyFromDb(db: number): number {
   return clamp01((db + 18) / 13); // -18 dB → 0, -5 dB → 1
+}
+
+// Bring every track's RMS toward roughly -14 dBFS (Spotify/ReplayGain-ish), clamped
+// so a pathological master can't produce a wild ±boost. RMS-dBFS isn't true LUFS, but
+// it's a consistent RELATIVE measure across the library — exactly what equal-loudness
+// playback needs.
+const GAIN_TARGET_DBFS = -14;
+function gainFromDb(db: number): number {
+  return Math.max(-12, Math.min(12, Math.round((GAIN_TARGET_DBFS - db) * 10) / 10));
 }
 
 /** Brightness from the high-frequency (first-difference) energy ratio. The raw
@@ -219,11 +234,12 @@ export async function analyzeFile(absPath: string, duration: number): Promise<Au
   const start = duration > 90 ? Math.min(60, duration * 0.15) : Math.min(10, duration * 0.1);
   const pcm = await decodePcm(absPath, start);
   if (!pcm) return null;
-  const energy = computeEnergy(pcm);
+  const db = loudnessDbfs(pcm);
+  const energy = energyFromDb(db);
   const brightness = computeBrightness(pcm);
   const bpm = computeBpm(pcm);
   const mood = classify(energy, bpm, brightness);
-  return { energy: Math.round(energy * 1000) / 1000, bpm, brightness, mood };
+  return { energy: Math.round(energy * 1000) / 1000, bpm, brightness, mood, gain: gainFromDb(db) };
 }
 
 // --- background runner -------------------------------------------------------
@@ -260,7 +276,7 @@ export async function runAnalysis(): Promise<void> {
   analyzing = true;
   const { musicDir } = getConfig();
   const update = db.prepare(
-    "UPDATE tracks SET mood = ?, energy = ?, bpm = ?, analyzed_at = ? WHERE trackhash = ?",
+    "UPDATE tracks SET mood = ?, energy = ?, bpm = ?, gain = ?, analyzed_at = ? WHERE trackhash = ?",
   );
   const total = pending.length;
   let done = 0;
@@ -282,7 +298,7 @@ export async function runAnalysis(): Promise<void> {
       // a null result just leaves mood NULL → genre fallback for that track.
       const now = Date.now();
       try {
-        update.run(features?.mood ?? null, features?.energy ?? null, features?.bpm ?? null, now, row.trackhash);
+        update.run(features?.mood ?? null, features?.energy ?? null, features?.bpm ?? null, features?.gain ?? null, now, row.trackhash);
       } catch {
         /* row vanished mid-run */
       }

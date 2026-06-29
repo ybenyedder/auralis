@@ -92,7 +92,10 @@ export const useLibraryStore = create<LibraryState>((set, get) => ({
     if (get().status === "loading") return;
     set({ status: "loading", error: null });
     try {
-      const payload = await api.get<LibraryPayload>("/api/library");
+      // getCached (not get): /api/library emits a stable ETag and answers re-opens
+      // with 304, so let the browser revalidate + reuse the cached body instead of
+      // re-downloading the multi-MB catalogue on every cold start.
+      const payload = await api.getCached<LibraryPayload>("/api/library");
       if (!Array.isArray(payload.tracks)) throw new Error("Invalid library payload");
       get().applyPayload(payload);
     } catch (error) {

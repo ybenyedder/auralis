@@ -4,6 +4,7 @@ import { X, Heart, MoreHorizontal } from "lucide-react";
 import { usePlayer } from "@/store/player";
 import { LyricsView } from "./LyricsView";
 import { Artwork } from "./Artwork";
+import { TiltStage } from "./TiltStage";
 import { QueueList } from "./QueueList";
 import { formatDuration, trackArtist, trackTitle } from "@/lib/auralis/brand";
 import { cn } from "@/lib/utils";
@@ -62,15 +63,18 @@ export function NowPlayingPanel() {
             <>
               {/* Cover */}
               <div className="w-full pb-4 pt-2">
-                <Artwork
-                  title={currentTrack.title}
-                  trackhash={currentTrack.trackhash}
-                  size={400}
-                  rounded={8}
-                  colors={currentTrack.color}
-                  image={currentTrack.image}
-                  className="w-full aspect-square h-auto shadow-xl"
-                />
+                <TiltStage radius={8} className="w-full aspect-square">
+                  <Artwork
+                    fluid
+                    title={currentTrack.title}
+                    trackhash={currentTrack.trackhash}
+                    imgSize={400}
+                    rounded={8}
+                    colors={currentTrack.color}
+                    image={currentTrack.image}
+                    className="w-full h-full"
+                  />
+                </TiltStage>
               </div>
 
               {/* Track info & Add to Fav */}

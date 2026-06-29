@@ -1,6 +1,7 @@
 import {
   getUserState, setFavorite, setDislike, recordPlay, recordSkip, setSetting,
   upsertPlaylist, deletePlaylist, reorderPlaylists, replaceUserState, resetUserStats, isHash,
+  setPlaylistShared, addCollaborator, addTrackToPlaylist, removeTrackFromPlaylist,
 } from "@/server/state/userState";
 import { getRequestUser } from "@/server/auth";
 import { json, checkCsrf } from "@/server/http";
@@ -26,7 +27,9 @@ interface ActionBody {
   msPlayed?: number;
   /** Fraction of the track heard, 0..1 (how "complete" the listen / how early the skip). */
   ratio?: number;
-  playlist?: { id?: string; name: string; description?: string | null; pinned?: boolean; trackhashes?: string[] };
+  playlist?: { id?: string; name: string; description?: string | null; pinned?: boolean; trackhashes?: string[]; rules?: string | null };
+  /** Collaborator username for playlist.collaborator. */
+  username?: string;
   state?: Parameters<typeof replaceUserState>[1];
 }
 
@@ -84,6 +87,23 @@ export async function PUT(request: Request) {
     case "playlist.reorder":
       if (!Array.isArray(body.ids)) return json({ error: "ids required" }, { status: 400 });
       reorderPlaylists(uid, body.ids);
+      return json({ ok: true });
+    case "playlist.share":
+      if (!body.id) return json({ error: "id required" }, { status: 400 });
+      setPlaylistShared(uid, body.id, Boolean(body.value));
+      return json({ ok: true });
+    case "playlist.collaborator": {
+      if (!body.id || !body.username) return json({ error: "id and username required" }, { status: 400 });
+      const r = addCollaborator(uid, body.id, body.username);
+      return r.ok ? json({ ok: true }) : json({ error: r.error }, { status: 400 });
+    }
+    case "playlist.addTrack":
+      if (!body.id || !isHash(body.trackhash)) return json({ error: "id and trackhash required" }, { status: 400 });
+      addTrackToPlaylist(uid, body.id, body.trackhash);
+      return json({ ok: true });
+    case "playlist.removeTrack":
+      if (!body.id || !isHash(body.trackhash)) return json({ error: "id and trackhash required" }, { status: 400 });
+      removeTrackFromPlaylist(uid, body.id, body.trackhash);
       return json({ ok: true });
     case "replace":
       if (!body.state) return json({ error: "state required" }, { status: 400 });

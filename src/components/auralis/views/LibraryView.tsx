@@ -1,19 +1,24 @@
 "use client";
 
-import { useMemo, useState, type ComponentType } from "react";
-import { Music2, Disc3, UserRound, ListMusic, ArrowDownUp, LayoutGrid, List, History, FolderTree, BarChart3, Settings, ChevronRight, Plus, Heart } from "lucide-react";
+import { useMemo, useRef, useState, type ComponentType } from "react";
+import { Music2, Disc3, UserRound, ListMusic, ArrowDownUp, LayoutGrid, List, History, FolderTree, BarChart3, Settings, ChevronRight, Plus, Heart, Search, X, Upload, Sparkles } from "lucide-react";
+import { parsePlaylistFile } from "@/lib/auralis/playlistIO";
+import { SMART_PRESETS } from "@/lib/auralis/smartlist";
 import { usePlayer } from "@/store/player";
 import { useLibraryStore, artistPlayTotals } from "@/store/library";
 import { TrackRow, TrackListHeader } from "../TrackRow";
 import { AlbumCard, ArtistCard, PlaylistTile } from "../Cards";
 import { VirtualList, VirtualGrid } from "../Virtualized";
-import { cn, compareNames } from "@/lib/utils";
+import { cn, compareNames, foldAccents } from "@/lib/utils";
 import { paletteForName, plural, trackTitle } from "@/lib/auralis/brand";
-import type { Album, Artist } from "@/lib/auralis/types";
+import { moodById } from "@/lib/auralis/mood";
+import { SkeletonGrid, SkeletonRows } from "../Skeletons";
+import { EmptyState } from "../EmptyState";
+import type { Album, Artist, Track } from "@/lib/auralis/types";
 
 type Tab = "tracks" | "likes" | "albums" | "artists" | "playlists";
 
-type SortMode = "az" | "za" | "year" | "plays";
+type SortMode = "az" | "za" | "year" | "plays" | "added";
 
 export function LibraryView() {
   const [tab, setTab] = useState<Tab>("albums");
@@ -21,58 +26,124 @@ export function LibraryView() {
   const [grid, setGrid] = useState(true);
   const [creating, setCreating] = useState(false);
   const [newName, setNewName] = useState("");
+  const [filter, setFilter] = useState("");
+  const [chips, setChips] = useState<Set<string>>(() => new Set());
+  const [smartOpen, setSmartOpen] = useState(false);
   const customPlaylists = usePlayer((s) => s.customPlaylists);
   const playCounts = usePlayer((s) => s.playCounts);
   const favorites = usePlayer((s) => s.favorites);
   const navigate = usePlayer((s) => s.navigate);
   const createPlaylist = usePlayer((s) => s.createPlaylist);
+  const createSmartPlaylist = usePlayer((s) => s.createSmartPlaylist);
+  const importPlaylist = usePlayer((s) => s.importPlaylist);
+  const notify = usePlayer((s) => s.notify);
+  const importRef = useRef<HTMLInputElement>(null);
   const tracks = useLibraryStore((s) => s.tracks);
   const albums = useLibraryStore((s) => s.albums);
   const artists = useLibraryStore((s) => s.artists);
   const playlists = useLibraryStore((s) => s.playlists);
   const status = useLibraryStore((s) => s.status);
   const allPlaylists = useMemo(() => [...customPlaylists, ...playlists], [customPlaylists, playlists]);
+  // Cold-start: the snapshot is still loading and nothing is in yet → show shimmer
+  // skeletons rather than a blank stage or a premature "empty" message.
+  const loading = status === "loading" && tracks.length === 0;
+
+  // Accent-folded text filter + facet chips (genre / mood / lossless), applied
+  // BEFORE the sort so a large library narrows to "high-energy lossless jazz" — a
+  // slice Spotify can't offer transparently. 100% client: the snapshot already
+  // carries mood / energy / lossless / genre / addedAt.
+  const q = foldAccents(filter.trim());
+  const facets = useMemo(() => {
+    const genreCount = new Map<string, number>();
+    const moods = new Set<string>();
+    let hasLossless = false;
+    for (const t of tracks) {
+      if (t.genre) genreCount.set(t.genre, (genreCount.get(t.genre) ?? 0) + 1);
+      if (t.mood) moods.add(t.mood);
+      if (t.lossless) hasLossless = true;
+    }
+    const genres = [...genreCount.entries()].sort((a, b) => b[1] - a[1]).slice(0, 6).map(([g]) => g);
+    return { genres, moods: [...moods].slice(0, 6), hasLossless };
+  }, [tracks]);
+
+  const trackMatches = (t: Track) => {
+    if (q && !(foldAccents(t.title).includes(q) || foldAccents(t.artist || "").includes(q) || foldAccents(t.album || "").includes(q))) return false;
+    for (const chip of chips) {
+      if (chip === "lossless") { if (!t.lossless) return false; }
+      else if (chip.startsWith("genre:")) { if (t.genre !== chip.slice(6)) return false; }
+      else if (chip.startsWith("mood:")) { if (t.mood !== chip.slice(5)) return false; }
+    }
+    return true;
+  };
+  const albumMatches = (a: Album) => !q || foldAccents(a.title).includes(q) || a.albumartists.some((ar) => foldAccents(ar.name).includes(q));
+  const toggleChip = (key: string) =>
+    setChips((prev) => {
+      const next = new Set(prev);
+      if (next.has(key)) next.delete(key);
+      else next.add(key);
+      return next;
+    });
+
+  const onImportFile = async (file?: File) => {
+    if (!file) return;
+    try {
+      const res = await parsePlaylistFile(file, tracks);
+      if (res.hashes.length === 0) {
+        notify(`Aucun titre de « ${res.name} » n'existe dans ta bibliothèque`, { tone: "error" });
+        return;
+      }
+      const id = importPlaylist(res.name, res.hashes);
+      if (res.matched < res.total) notify(`${res.matched}/${res.total} titres retrouvés`, { tone: "info" });
+      navigate("playlist", id);
+    } catch {
+      notify("Fichier de playlist invalide", { tone: "error" });
+    }
+  };
 
   const sortedAlbums = useMemo(() => {
-    const next = [...albums];
-    if (sort === "az") next.sort((a, b) => compareNames(a.title, b.title));
+    const next = albums.filter(albumMatches);
     if (sort === "za") next.sort((a, b) => compareNames(b.title, a.title));
-    if (sort === "year") next.sort((a, b) => (b.year || 0) - (a.year || 0));
+    else if (sort === "year") next.sort((a, b) => (b.year || 0) - (a.year || 0));
+    else next.sort((a, b) => compareNames(a.title, b.title));
     return next;
-  }, [albums, sort]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [albums, sort, q]);
 
   const playsKey = sort === "plays" ? playCounts : null;
   const sortedTracks = useMemo(() => {
-    const next = [...tracks];
-    if (sort === "az") next.sort((a, b) => compareNames(a.title, b.title));
+    const next = tracks.filter(trackMatches);
     if (sort === "za") next.sort((a, b) => compareNames(b.title, a.title));
-    if (sort === "plays") next.sort((a, b) => (playCounts[b.trackhash] ?? 0) - (playCounts[a.trackhash] ?? 0));
+    else if (sort === "plays") next.sort((a, b) => (playCounts[b.trackhash] ?? 0) - (playCounts[a.trackhash] ?? 0));
+    else if (sort === "added") next.sort((a, b) => (b.addedAt ?? 0) - (a.addedAt ?? 0));
+    else next.sort((a, b) => compareNames(a.title, b.title));
     return next;
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [sort, tracks, playsKey]);
+  }, [sort, tracks, playsKey, q, chips]);
 
   // Liked titles, surfaced directly inside the Library so the user's favourites are
   // always one tab away (driven by the live favorites set, never the stale per-track
   // flag). Re-sorted with the same control as the other tabs.
   const likedTracks = useMemo(() => {
-    const liked = tracks.filter((t) => favorites.has(t.trackhash));
-    if (sort === "az") liked.sort((a, b) => compareNames(trackTitle(a), trackTitle(b)));
-    else if (sort === "za") liked.sort((a, b) => compareNames(trackTitle(b), trackTitle(a)));
+    const liked = tracks.filter((t) => favorites.has(t.trackhash) && trackMatches(t));
+    if (sort === "za") liked.sort((a, b) => compareNames(trackTitle(b), trackTitle(a)));
     else if (sort === "plays") liked.sort((a, b) => (playCounts[b.trackhash] ?? 0) - (playCounts[a.trackhash] ?? 0));
+    else if (sort === "added") liked.sort((a, b) => (b.addedAt ?? 0) - (a.addedAt ?? 0));
+    else liked.sort((a, b) => compareNames(trackTitle(a), trackTitle(b)));
     return liked;
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [tracks, favorites, sort, playsKey]);
+  }, [tracks, favorites, sort, playsKey, q, chips]);
 
   // Per-user play totals per artist (the catalogue carries none); feeds both the
   // displayed "N écoutes" on each card and the "most played" sort.
   const artistPlays = artistPlayTotals(tracks, playCounts);
   const sortedArtists = useMemo(() => {
-    const next = artists.map((a) => ({ ...a, playcount: artistPlays.get(a.artisthash) ?? 0 }));
-    if (sort === "az") next.sort((a, b) => compareNames(a.name, b.name));
+    const base = q ? artists.filter((a) => foldAccents(a.name).includes(q) || a.genres?.some((g) => foldAccents(g).includes(q))) : artists;
+    const next = base.map((a) => ({ ...a, playcount: artistPlays.get(a.artisthash) ?? 0 }));
     if (sort === "za") next.sort((a, b) => compareNames(b.name, a.name));
-    if (sort === "plays") next.sort((a, b) => b.playcount - a.playcount);
+    else if (sort === "plays") next.sort((a, b) => b.playcount - a.playcount);
+    else next.sort((a, b) => compareNames(a.name, b.name));
     return next;
-  }, [artists, sort, artistPlays]);
+  }, [artists, sort, artistPlays, q]);
 
   const tabs: { id: Tab; label: string; icon: ComponentType<{ className?: string }>; count: number }[] = [
     { id: "albums", label: "Albums", icon: Disc3, count: albums.length },
@@ -106,6 +177,7 @@ export function LibraryView() {
               <option value="za" className="bg-[var(--panel-2)]">Z → A</option>
               <option value="year" className="bg-[var(--panel-2)]">Plus récents</option>
               <option value="plays" className="bg-[var(--panel-2)]">Plus joués</option>
+              <option value="added" className="bg-[var(--panel-2)]">Ajout récent</option>
             </select>
             <ArrowDownUp className="size-3 text-muted-foreground/70" />
           </div>
@@ -155,7 +227,41 @@ export function LibraryView() {
         })}
       </div>
 
-      {tab === "albums" && (grid ? (
+      {/* Instant filter + facet chips (chips only apply to the track tabs). */}
+      {tab !== "playlists" && (
+        <div className="mb-4 space-y-3">
+          <div className="flex h-10 max-w-[360px] items-center gap-2 rounded-full border border-transparent bg-[var(--panel-2)] px-4 transition-colors focus-within:border-white">
+            <Search className="size-4 text-muted-foreground" />
+            <input
+              value={filter}
+              onChange={(e) => setFilter(e.target.value)}
+              placeholder="Filtrer la bibliothèque"
+              aria-label="Filtrer la bibliothèque"
+              className="w-full bg-transparent text-[13px] font-medium text-foreground outline-none placeholder:text-muted-foreground"
+            />
+            {filter && (
+              <button onClick={() => setFilter("")} aria-label="Effacer le filtre" className="grid size-6 place-items-center rounded-full text-muted-foreground hover:text-foreground">
+                <X className="size-3.5" />
+              </button>
+            )}
+          </div>
+          {(tab === "tracks" || tab === "likes") && (facets.genres.length > 0 || facets.moods.length > 0 || facets.hasLossless) && (
+            <div className="flex flex-wrap gap-2">
+              {facets.hasLossless && <FilterChip label="Lossless" active={chips.has("lossless")} onClick={() => toggleChip("lossless")} />}
+              {facets.moods.map((m) => (
+                <FilterChip key={`mood:${m}`} label={moodById(m)?.label ?? m} active={chips.has(`mood:${m}`)} onClick={() => toggleChip(`mood:${m}`)} />
+              ))}
+              {facets.genres.map((g) => (
+                <FilterChip key={`genre:${g}`} label={g} active={chips.has(`genre:${g}`)} onClick={() => toggleChip(`genre:${g}`)} />
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+
+      {tab === "albums" && (loading ? (
+        <SkeletonGrid />
+      ) : grid ? (
         <VirtualGrid
           items={sortedAlbums}
           itemKey={(a) => a.albumhash}
@@ -173,7 +279,9 @@ export function LibraryView() {
         </div>
       ))}
 
-      {tab === "artists" && (grid ? (
+      {tab === "artists" && (loading ? (
+        <SkeletonGrid />
+      ) : grid ? (
         <VirtualGrid
           items={sortedArtists}
           itemKey={(a) => a.artisthash}
@@ -194,8 +302,14 @@ export function LibraryView() {
       {tab === "tracks" && (
         <div className="matte-panel rounded-lg p-2">
           <TrackListHeader />
-          {tracks.length === 0 ? (
-            <EmptyHint label={status === "loading" ? "Scan en cours…" : "Aucun titre indexé. Lance un scan dans Réglages."} />
+          {loading ? (
+            <SkeletonRows />
+          ) : sortedTracks.length === 0 ? (
+            <EmptyState
+              icon={Music2}
+              title={tracks.length === 0 ? "Aucun titre indexé" : "Aucun résultat"}
+              hint={tracks.length === 0 ? "Lance un scan dans Réglages pour remplir ta bibliothèque." : "Aucun titre ne correspond à ce filtre."}
+            />
           ) : (
             <VirtualList items={sortedTracks} itemKey={(t) => t.trackhash} estimateHeight={56} gap={2}>
               {(track, index) => <TrackRow track={track} index={index} list={sortedTracks} />}
@@ -207,8 +321,10 @@ export function LibraryView() {
       {tab === "likes" && (
         <div className="matte-panel rounded-lg p-2">
           <TrackListHeader />
-          {likedTracks.length === 0 ? (
-            <EmptyHint label="Aucun titre aimé. Touche le cœur sur un titre pour le retrouver ici." />
+          {loading ? (
+            <SkeletonRows />
+          ) : likedTracks.length === 0 ? (
+            <EmptyState icon={Heart} title="Aucun titre aimé" hint="Touche le cœur sur un titre pour le retrouver ici." />
           ) : (
             <VirtualList items={likedTracks} itemKey={(t) => t.trackhash} estimateHeight={56} gap={2}>
               {(track, index) => <TrackRow track={track} index={index} list={likedTracks} />}
@@ -248,12 +364,51 @@ export function LibraryView() {
                 </button>
               </form>
             ) : (
-              <button
-                onClick={() => setCreating(true)}
-                className="ghost-button inline-flex min-h-[44px] items-center gap-2 rounded-full px-5 text-[13px] font-bold transition-colors duration-200 hover:bg-white/[0.04] lg:min-h-0 lg:py-2.5"
-              >
-                <Plus className="size-4" /> Nouvelle playlist
-              </button>
+              <div className="space-y-3">
+                <div className="flex flex-wrap items-center gap-2">
+                  <button
+                    onClick={() => setCreating(true)}
+                    className="ghost-button inline-flex min-h-[44px] items-center gap-2 rounded-full px-5 text-[13px] font-bold transition-colors duration-200 hover:bg-white/[0.04] lg:min-h-0 lg:py-2.5"
+                  >
+                    <Plus className="size-4" /> Nouvelle playlist
+                  </button>
+                  <button
+                    onClick={() => setSmartOpen((v) => !v)}
+                    aria-pressed={smartOpen}
+                    className="ghost-button inline-flex min-h-[44px] items-center gap-2 rounded-full px-5 text-[13px] font-bold transition-colors duration-200 hover:bg-white/[0.04] lg:min-h-0 lg:py-2.5"
+                    title="Créer une smart playlist (règles dynamiques)"
+                  >
+                    <Sparkles className="size-4" /> Smart
+                  </button>
+                  <button
+                    onClick={() => importRef.current?.click()}
+                    className="ghost-button inline-flex min-h-[44px] items-center gap-2 rounded-full px-5 text-[13px] font-bold transition-colors duration-200 hover:bg-white/[0.04] lg:min-h-0 lg:py-2.5"
+                    title="Importer une playlist M3U ou JSON"
+                  >
+                    <Upload className="size-4" /> Importer
+                  </button>
+                  <input
+                    ref={importRef}
+                    type="file"
+                    accept=".m3u,.m3u8,.json,audio/x-mpegurl,application/json"
+                    className="hidden"
+                    onChange={(e) => { void onImportFile(e.target.files?.[0]); e.currentTarget.value = ""; }}
+                  />
+                </div>
+                {smartOpen && (
+                  <div className="flex flex-wrap gap-2">
+                    {SMART_PRESETS.map((p) => (
+                      <button
+                        key={p.id}
+                        onClick={() => { const id = createSmartPlaylist(p.config); setSmartOpen(false); navigate("playlist", id); }}
+                        className="rounded-full bg-[var(--panel-2)] px-3 py-1.5 text-[12px] font-bold text-foreground transition-colors hover:bg-[var(--panel-3)]"
+                      >
+                        {p.name}
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
             )}
           </div>
           {allPlaylists.length > 0 ? (
@@ -302,9 +457,18 @@ export function LibraryView() {
   );
 }
 
-function EmptyHint({ label }: { label: string }) {
+function FilterChip({ label, active, onClick }: { label: string; active: boolean; onClick: () => void }) {
   return (
-    <div className="px-3 py-12 text-center text-[13px] font-semibold text-muted-foreground">{label}</div>
+    <button
+      onClick={onClick}
+      aria-pressed={active}
+      className={cn(
+        "rounded-full px-3 py-1.5 text-[12px] font-bold transition-colors",
+        active ? "bg-white text-black" : "bg-[var(--panel-2)] text-muted-foreground hover:bg-[var(--panel-3)] hover:text-foreground",
+      )}
+    >
+      {label}
+    </button>
   );
 }
 

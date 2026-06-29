@@ -51,6 +51,18 @@ export const api = {
     if (!res.ok) throw new Error(`GET ${path} -> ${res.status}`);
     return (await res.json()) as T;
   },
+  /** Like get() but lets the browser HTTP cache revalidate with If-None-Match and
+   *  reuse the stored body on a 304. Use ONLY for endpoints that emit a STABLE ETag
+   *  (currently /api/library): the server already answers re-opens with 304
+   *  (route.ts), but `cache:"no-store"` told the browser to never store the body nor
+   *  send the conditional header, so the multi-MB catalogue was re-downloaded AND
+   *  re-parsed every cold open. `no-cache` keeps freshness (always revalidates) while
+   *  reusing the cached body when the snapshot is unchanged. */
+  async getCached<T>(path: string): Promise<T> {
+    const res = await fetch(this.url(path), { cache: "no-cache", headers: this.headers(), credentials: "include" });
+    if (!res.ok) throw new Error(`GET ${path} -> ${res.status}`);
+    return (await res.json()) as T;
+  },
   async post<T = unknown>(path: string, body?: unknown): Promise<T> {
     const res = await fetch(this.url(path), {
       method: "POST",

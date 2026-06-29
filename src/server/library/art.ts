@@ -8,6 +8,7 @@ import fs from "fs";
 import { readFile, writeFile, mkdir } from "fs/promises";
 import path from "path";
 import { getConfig } from "../config";
+import { getDb } from "../db";
 
 const FOLDER_COVER_NAMES = [
   "cover.jpg", "cover.jpeg", "cover.png", "cover.webp",
@@ -61,6 +62,7 @@ export interface CachedArt {
 /** Read a cached art file and detect its content type from magic bytes. */
 export async function readCachedArt(hash: string): Promise<CachedArt | null> {
   if (!/^[a-f0-9]{40}$/.test(hash)) return null;
+  ensureAccentFor(hash); // backfill the cover palette lazily (no-op once cached)
   const file = artPathFor(hash);
   let buffer: Buffer;
   try {
@@ -127,6 +129,7 @@ function memSet(key: string, art: CachedArt): void {
  */
 export async function readArtVariant(hash: string, size: number): Promise<CachedArt | null> {
   if (!/^[a-f0-9]{40}$/.test(hash)) return null;
+  ensureAccentFor(hash); // backfill the cover palette lazily (no-op once cached)
   if (!VARIANTS.has(size)) return readCachedArt(hash);
 
   const key = `${hash}_${size}`;
@@ -165,6 +168,61 @@ export async function readArtVariant(hash: string, size: number): Promise<Cached
   } catch {
     return original;
   }
+}
+
+// ---------------------------------------------------------------------------
+// Dominant cover colour → a 3-stop palette [base, shadow, highlight], cached in
+// art_colors keyed by arthash (shared across every track/album using the cover).
+// Lazily extracted the first time a cover is requested, so existing libraries
+// backfill as the user browses; the snapshot's libraryVersion folds in the
+// art_colors count, so freshly-derived palettes surface on the next /api/library.
+// ---------------------------------------------------------------------------
+type SharpStats = (input: Buffer, opts?: { failOn?: string }) => { stats: () => Promise<{ dominant: { r: number; g: number; b: number } }> };
+
+function clampByte(n: number): number {
+  return Math.max(0, Math.min(255, Math.round(n)));
+}
+function toHex(r: number, g: number, b: number): string {
+  return "#" + [r, g, b].map((x) => clampByte(x).toString(16).padStart(2, "0")).join("");
+}
+/** [base, shadow, highlight] from a dominant RGB — the shape the UI palette uses. */
+function paletteFromRgb(r: number, g: number, b: number): string {
+  const base = toHex(r, g, b);
+  const shadow = toHex(r * 0.42, g * 0.42, b * 0.42);
+  const highlight = toHex(r + (255 - r) * 0.4, g + (255 - g) * 0.4, b + (255 - b) * 0.4);
+  return `${base},${shadow},${highlight}`;
+}
+
+async function extractAccent(buffer: Buffer): Promise<string | null> {
+  try {
+    const mod = (await import("sharp")) as unknown as { default: SharpStats };
+    const { dominant } = await mod.default(buffer, { failOn: "none" }).stats();
+    if (!dominant) return null;
+    return paletteFromRgb(dominant.r, dominant.g, dominant.b);
+  } catch {
+    return null;
+  }
+}
+
+/** Ensure art_colors has a palette for `hash`. Fire-and-forget; self-throttles on
+ *  the PK existence check and reads the original file directly (no recursion into
+ *  readCachedArt). Colour is a nicety — failures never block art serving. */
+function ensureAccentFor(hash: string): void {
+  if (!/^[a-f0-9]{40}$/.test(hash)) return;
+  void (async () => {
+    try {
+      const db = getDb();
+      if (db.prepare("SELECT 1 FROM art_colors WHERE arthash = ?").get(hash)) return;
+      const buffer = await readFile(artPathFor(hash)).catch(() => null);
+      if (!buffer) return;
+      const accent = await extractAccent(buffer);
+      if (accent) {
+        db.prepare("INSERT INTO art_colors (arthash, accent) VALUES (?, ?) ON CONFLICT(arthash) DO NOTHING").run(hash, accent);
+      }
+    } catch {
+      /* best effort */
+    }
+  })();
 }
 
 /** Detect a raster image MIME type from the leading bytes of a buffer. */

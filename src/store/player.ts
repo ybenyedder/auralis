@@ -2,9 +2,11 @@
 
 import { create } from "zustand";
 import type { Track, Album, Artist, RepeatMode, Playlist } from "@/lib/auralis/types";
+import type { SmartConfig } from "@/lib/auralis/smartlist";
+import type { Locale } from "@/lib/auralis/i18n";
 import { api } from "@/lib/auralis/api";
-import { useLibraryStore } from "./library";
-import { useReco } from "./reco";
+import { useLibraryStore, tracksForHashes } from "./library";
+import { useReco, fetchRadio, fetchTrajectory, fetchBlend } from "./reco";
 import { usePlayhead } from "./playhead";
 import {
   THEMES,
@@ -16,6 +18,9 @@ import {
 // Re-exported so existing imports of the theme engine through the store keep
 // working. The catalogue + apply logic now live in lib/auralis/themes.ts.
 export { THEMES, applyTheme, type ThemeId };
+
+/** Volume normalization mode (ReplayGain-style equal loudness). */
+export type NormalizationMode = "off" | "track" | "album";
 
 // Audio element reference, bound by the app shell. Seeking writes straight to it
 // so the playhead store and the <audio> element stay in sync without React renders.
@@ -116,6 +121,12 @@ interface PlayerState {
   shuffle: boolean;
   /** Endless listening: when the queue ends, auto-append similar tracks and keep going. */
   autoplay: boolean;
+  /** Volume normalization mode (ReplayGain-style equal loudness): off | track | album. */
+  normalization: NormalizationMode;
+  /** Crossfade / fade-in length in seconds (0 = off). */
+  crossfade: number;
+  /** UI language. */
+  locale: Locale;
   favorites: Set<string>;
   dislikes: Set<string>;
   recentTrackhashes: string[];
@@ -151,6 +162,13 @@ interface PlayerState {
 
   playTrack: (track: Track, list?: Track[], startIndex?: number) => void;
   playList: (list: Track[], startIndex?: number) => void;
+  /** Start a personalised radio around a seed track: plays the seed, then a
+   *  similarity×taste continuation from the server engine (autoplay keeps it going). */
+  startRadio: (seedHash: string, seedTrack?: Track) => Promise<void>;
+  /** Start a mood-trajectory radio (a set gliding along a named arousal/valence arc). */
+  startTrajectory: (path: string, label?: string) => Promise<void>;
+  /** Start a household Blend mix with another account (by username). */
+  startBlend: (username: string, label?: string) => Promise<void>;
   togglePlay: () => void;
   playNext: () => void;
   playPrev: () => void;
@@ -161,6 +179,9 @@ interface PlayerState {
   toggleShuffle: () => void;
   cycleRepeat: () => void;
   toggleAutoplay: () => void;
+  setNormalization: (mode: NormalizationMode) => void;
+  setCrossfade: (seconds: number) => void;
+  setLocale: (locale: Locale) => void;
   addToQueueNext: (track: Track) => void;
   addToQueueEnd: (track: Track) => void;
   removeFromQueue: (index: number) => void;
@@ -180,10 +201,19 @@ interface PlayerState {
   isDisliked: (trackhash: string) => boolean;
 
   createPlaylist: (name: string, description?: string) => string;
+  /** Create a SMART (dynamic) playlist from a rule config — tracks computed live. */
+  createSmartPlaylist: (config: SmartConfig) => string;
   deletePlaylist: (id: string) => void;
   renamePlaylist: (id: string, name: string) => void;
   addToPlaylist: (id: string, track: Track) => void;
   removeFromPlaylist: (id: string, trackhash: string) => void;
+  reorderInPlaylist: (id: string, from: number, to: number) => void;
+  /** Create a playlist from a set of already-resolved trackhashes in one shot (import). */
+  importPlaylist: (name: string, trackhashes: string[]) => string;
+  /** Owner-only: toggle a playlist shared/collaborative. */
+  sharePlaylist: (id: string, shared: boolean) => void;
+  /** Owner-only: invite a collaborator by username. Resolves true on success. */
+  addPlaylistCollaborator: (id: string, username: string) => Promise<boolean>;
 
   startSleepTimer: (minutes: number) => void;
   sleepAfterTrack: () => void;
@@ -222,8 +252,19 @@ interface ServerState {
   dislikes: string[];
   playCounts: Record<string, number>;
   recents: string[];
-  playlists: { id: string; name: string; description: string | null; pinned: boolean; trackhashes: string[] }[];
+  playlists: { id: string; name: string; description: string | null; pinned: boolean; trackhashes: string[]; rules?: string | null; shared?: boolean; collaborator?: boolean; owner?: string }[];
   settings: Record<string, unknown>;
+}
+
+/** Parse a server playlist's JSON `rules` string into a SmartConfig (or undefined). */
+function parseRules(s?: string | null): SmartConfig | undefined {
+  if (!s) return undefined;
+  try {
+    const o = JSON.parse(s) as SmartConfig;
+    return o && Array.isArray(o.rules) ? o : undefined;
+  } catch {
+    return undefined;
+  }
 }
 
 interface LyricsResponse {
@@ -300,6 +341,9 @@ interface Persisted {
   repeat: RepeatMode;
   shuffle: boolean;
   autoplay: boolean;
+  normalization?: NormalizationMode;
+  crossfade?: number;
+  locale?: Locale;
   customPlaylists: Playlist[];
   recentTrackhashes: string[];
   theme: ThemeId;
@@ -345,6 +389,9 @@ function writePersist(state: PlayerState) {
       repeat: state.repeat,
       shuffle: state.shuffle,
       autoplay: state.autoplay,
+      normalization: state.normalization,
+      crossfade: state.crossfade,
+      locale: state.locale,
       customPlaylists: state.customPlaylists,
       recentTrackhashes: state.recentTrackhashes.slice(0, 40),
       theme: state.theme,
@@ -424,9 +471,12 @@ const initial = loadPersisted();
 // Migrate the pre-0.5 `accent` key into the richer `theme` registry (the four
 // classic accent ids are still valid theme ids, so existing prefs carry over).
 const initialTheme = normalizeTheme(initial.theme ?? initial.accent);
+const initialLocale: Locale =
+  (initial.locale as Locale) ?? (typeof navigator !== "undefined" && navigator.language?.toLowerCase().startsWith("en") ? "en" : "fr");
 
 if (typeof window !== "undefined") {
   applyTheme(initialTheme);
+  if (typeof document !== "undefined") document.documentElement.lang = initialLocale;
 }
 
 export const usePlayer = create<PlayerState>((set, get) => {
@@ -436,7 +486,7 @@ export const usePlayer = create<PlayerState>((set, get) => {
     if (!pl) return;
     void api.put("/api/state", {
       action: "playlist.upsert",
-      playlist: { id: String(pl.id), name: pl.name, description: pl.description ?? null, pinned: Boolean(pl.pinned), trackhashes: pl.trackhashes ?? [] },
+      playlist: { id: String(pl.id), name: pl.name, description: pl.description ?? null, pinned: Boolean(pl.pinned), trackhashes: pl.trackhashes ?? [], rules: pl.rules ? JSON.stringify(pl.rules) : null },
     }).catch(() => {});
   };
 
@@ -459,6 +509,9 @@ export const usePlayer = create<PlayerState>((set, get) => {
     repeat: "off",
     shuffle: false,
     autoplay: true,
+    normalization: initial.normalization ?? "track",
+    crossfade: initial.crossfade ?? 0,
+    locale: initialLocale,
     favorites: new Set<string>(),
     dislikes: new Set<string>(),
     recentTrackhashes: [],
@@ -555,6 +608,45 @@ export const usePlayer = create<PlayerState>((set, get) => {
         return next;
       });
       if (audioEl && audioEl.dataset.trackhash === first.trackhash) audioEl.currentTime = 0;
+    },
+
+    startRadio: async (seedHash, seedTrack) => {
+      get().notify("Chargement de la radio…", { tone: "info" });
+      // The server engine ranks the whole library by similarity-to-seed × taste,
+      // excluding the seed + dislikes. Empty only when nothing has audio features yet.
+      const hashes = await fetchRadio(seedHash, [], 50);
+      const radio = tracksForHashes(hashes);
+      const seed = seedTrack ?? useLibraryStore.getState().trackIndex.get(seedHash);
+      const list = seed ? [seed, ...radio.filter((t) => t.trackhash !== seed.trackhash)] : radio;
+      if (list.length === 0) {
+        get().notify("Radio indisponible — pas assez de titres analysés", { tone: "error" });
+        return;
+      }
+      get().playList(list, 0);
+      get().notify(seed ? `Radio : ${seed.title}` : "Radio lancée");
+    },
+
+    startTrajectory: async (path, label) => {
+      get().notify("Préparation du voyage sonore…", { tone: "info" });
+      const list = tracksForHashes(await fetchTrajectory(path, 40));
+      if (list.length === 0) {
+        get().notify("Pas assez de titres analysés pour ce trajet", { tone: "error" });
+        return;
+      }
+      get().playList(list, 0);
+      get().notify(label ? `En route : ${label}` : "Trajectoire lancée");
+    },
+
+    startBlend: async (username, label) => {
+      get().notify("Préparation du blend…", { tone: "info" });
+      const { hashes } = await fetchBlend(username);
+      const list = tracksForHashes(hashes);
+      if (list.length === 0) {
+        get().notify("Blend indisponible — profils trop minces", { tone: "error" });
+        return;
+      }
+      get().playList(list, 0);
+      get().notify(label ? `Blend avec ${label}` : "Blend lancé");
     },
 
     togglePlay: () => {
@@ -684,6 +776,28 @@ export const usePlayer = create<PlayerState>((set, get) => {
       set({ autoplay });
       persist({ ...get(), autoplay });
       get().notify(autoplay ? "Lecture continue activée" : "Lecture continue désactivée");
+    },
+
+    setNormalization: (mode) => {
+      set({ normalization: mode });
+      persist({ ...get(), normalization: mode });
+      get().notify(
+        mode === "off" ? "Normalisation désactivée" : mode === "album" ? "Volume normalisé par album" : "Volume normalisé par titre",
+      );
+    },
+
+    setCrossfade: (seconds) => {
+      const v = Math.max(0, Math.min(12, Math.round(seconds)));
+      set({ crossfade: v });
+      persist({ ...get(), crossfade: v });
+      get().notify(v ? `Fondu enchaîné : ${v} s` : "Fondu désactivé");
+    },
+
+    setLocale: (locale) => {
+      set({ locale });
+      persist({ ...get(), locale });
+      if (typeof document !== "undefined") document.documentElement.lang = locale;
+      void api.put("/api/state", { action: "setting", key: "locale", value: locale }).catch(() => {});
     },
 
 
@@ -899,6 +1013,31 @@ export const usePlayer = create<PlayerState>((set, get) => {
       return id;
     },
 
+    createSmartPlaylist: (config) => {
+      const id = `pl-${Date.now().toString(36)}-${Math.floor(Math.random() * 1e6).toString(36)}`;
+      const colors = ["#1e293b", "#0ea5e9", "#22d3ee"] as [string, string, string];
+      const pl: Playlist = {
+        id,
+        name: config.label || "Smart playlist",
+        trackcount: 0,
+        color: colors,
+        trackhashes: [],
+        pinned: false,
+        rules: config,
+      };
+      set((s) => {
+        const upd = { customPlaylists: [pl, ...s.customPlaylists] };
+        persist({ ...get(), ...upd });
+        return upd;
+      });
+      void api.put("/api/state", {
+        action: "playlist.upsert",
+        playlist: { id, name: pl.name, description: null, pinned: false, trackhashes: [], rules: JSON.stringify(config) },
+      }).catch(() => {});
+      get().notify(`Smart playlist « ${pl.name} » créée`);
+      return id;
+    },
+
     deletePlaylist: (id) => {
       set((s) => {
         const upd = { customPlaylists: s.customPlaylists.filter((p) => String(p.id) !== id) };
@@ -933,8 +1072,11 @@ export const usePlayer = create<PlayerState>((set, get) => {
         persist({ ...get(), ...upd });
         return upd;
       });
-      pushPlaylist(id);
       const pl = get().customPlaylists.find((p) => String(p.id) === id);
+      // Collaborator playlists (owned by another user) must use the GRANULAR add —
+      // the full upsert is owner-scoped and would be IDOR-rejected.
+      if (pl?.collaborator) void api.put("/api/state", { action: "playlist.addTrack", id, trackhash: track.trackhash }).catch(() => {});
+      else pushPlaylist(id);
       get().notify(`Ajouté à « ${pl?.name ?? "la playlist"} »`);
     },
 
@@ -950,7 +1092,74 @@ export const usePlayer = create<PlayerState>((set, get) => {
         persist({ ...get(), ...upd });
         return upd;
       });
+      const pl = get().customPlaylists.find((p) => String(p.id) === id);
+      if (pl?.collaborator) void api.put("/api/state", { action: "playlist.removeTrack", id, trackhash }).catch(() => {});
+      else pushPlaylist(id);
+    },
+
+    reorderInPlaylist: (id, from, to) => {
+      set((s) => {
+        const upd = {
+          customPlaylists: s.customPlaylists.map((p) => {
+            if (String(p.id) !== id) return p;
+            const trackhashes = [...(p.trackhashes ?? [])];
+            if (from === to || from < 0 || to < 0 || from >= trackhashes.length || to >= trackhashes.length) return p;
+            const [moved] = trackhashes.splice(from, 1);
+            trackhashes.splice(to, 0, moved);
+            return { ...p, trackhashes };
+          }),
+        };
+        persist({ ...get(), ...upd });
+        return upd;
+      });
+      // The server playlist stores an ORDERED trackhash array, so re-pushing the whole
+      // playlist persists the new order (calque of reorderCustomPlaylists).
       pushPlaylist(id);
+    },
+
+    importPlaylist: (name, trackhashes) => {
+      const id = `pl-${Date.now().toString(36)}-${Math.floor(Math.random() * 1e6).toString(36)}`;
+      const unique = [...new Set(trackhashes)];
+      const colors = ["#2A2821", "#D95F45", "#C6A15B"] as [string, string, string];
+      const pl: Playlist = {
+        id,
+        name: name.trim() || "Playlist importée",
+        trackcount: unique.length,
+        color: colors,
+        trackhashes: unique,
+        pinned: false,
+      };
+      set((s) => {
+        const upd = { customPlaylists: [pl, ...s.customPlaylists] };
+        persist({ ...get(), ...upd });
+        return upd;
+      });
+      // One upsert with the full ordered set (createPlaylist + N addToPlaylist would
+      // fire N server round-trips and N persists).
+      void api.put("/api/state", {
+        action: "playlist.upsert",
+        playlist: { id, name: pl.name, description: null, pinned: false, trackhashes: unique },
+      }).catch(() => {});
+      get().notify(`Playlist « ${pl.name} » importée — ${unique.length} titre${unique.length > 1 ? "s" : ""}`);
+      return id;
+    },
+
+    sharePlaylist: (id, shared) => {
+      set((s) => ({ customPlaylists: s.customPlaylists.map((p) => (String(p.id) === id ? { ...p, shared } : p)) }));
+      void api.put("/api/state", { action: "playlist.share", id, value: shared }).catch(() => {});
+      get().notify(shared ? "Playlist partagée — collaboration activée" : "Partage désactivé");
+    },
+
+    addPlaylistCollaborator: async (id, username) => {
+      try {
+        await api.put("/api/state", { action: "playlist.collaborator", id, username });
+        set((s) => ({ customPlaylists: s.customPlaylists.map((p) => (String(p.id) === id ? { ...p, shared: true } : p)) }));
+        get().notify(`« ${username} » peut maintenant collaborer`);
+        return true;
+      } catch {
+        get().notify("Collaborateur introuvable ou non autorisé", { tone: "error" });
+        return false;
+      }
     },
 
     startSleepTimer: (minutes) => {
@@ -1067,6 +1276,8 @@ export const usePlayer = create<PlayerState>((set, get) => {
         repeat: p.repeat ?? "off",
         shuffle: p.shuffle ?? false,
         autoplay: p.autoplay ?? true,
+        normalization: p.normalization ?? "track",
+        crossfade: p.crossfade ?? 0,
         favorites: new Set(p.favorites ?? []),
         dislikes: new Set(p.dislikes ?? []),
         recentTrackhashes: p.recentTrackhashes ?? [],
@@ -1075,8 +1286,10 @@ export const usePlayer = create<PlayerState>((set, get) => {
         karaokeMode: p.karaokeMode ?? true,
         lyricsOffset: clampOffset(p.lyricsOffset ?? DEFAULT_LYRICS_OFFSET),
         theme,
+        locale: p.locale ?? initialLocale,
       });
       applyTheme(theme);
+      if (typeof document !== "undefined") document.documentElement.lang = p.locale ?? initialLocale;
     },
 
     hydrateFromServer: async () => {
@@ -1111,6 +1324,8 @@ export const usePlayer = create<PlayerState>((set, get) => {
           id: p.id, name: p.name, description: p.description ?? undefined, pinned: p.pinned,
           trackhashes: p.trackhashes, trackcount: p.trackhashes.length,
           color: ["#2A2821", "#D95F45", "#C6A15B"] as [string, string, string],
+          rules: parseRules(p.rules),
+          shared: p.shared, collaborator: p.collaborator, owner: p.owner,
         }));
         // Keep any playlist created locally during the fetch window that the
         // server snapshot doesn't know about yet (its own upsert is in flight).
@@ -1125,6 +1340,7 @@ export const usePlayer = create<PlayerState>((set, get) => {
             (typeof s.settings.accent === "string" && (s.settings.accent as string)) ||
             local.theme,
         );
+        const serverLocale: Locale | undefined = s.settings.locale === "en" ? "en" : s.settings.locale === "fr" ? "fr" : undefined;
         set({
           favorites,
           dislikes,
@@ -1132,9 +1348,11 @@ export const usePlayer = create<PlayerState>((set, get) => {
           recentTrackhashes: s.recents,
           customPlaylists,
           theme,
+          ...(serverLocale ? { locale: serverLocale } : {}),
           syncReady: true,
         });
         applyTheme(theme);
+        if (serverLocale && typeof document !== "undefined") document.documentElement.lang = serverLocale;
         persist({ ...get() });
         // Profile is synced — warm up the personalised recommendations.
         void useReco.getState().fetchForYou();

@@ -1,20 +1,16 @@
 "use client";
 
 import { useEffect, useMemo, useRef } from "react";
+import dynamic from "next/dynamic";
 import { usePlayer, bindAudio, consumeResumeSeek, consumeSkipExempt, type ViewId } from "@/store/player";
 import { usePlayhead } from "@/store/playhead";
 import { TitleBar } from "@/components/auralis/TitleBar";
 import { Sidebar } from "@/components/auralis/Sidebar";
 import { PlayerBar } from "@/components/auralis/PlayerBar";
 import { NowPlayingPanel } from "@/components/auralis/NowPlayingPanel";
-import { FullscreenPlayer } from "@/components/auralis/FullscreenPlayer";
-import { CommandPalette } from "@/components/auralis/CommandPalette";
 import { ContextMenuHost } from "@/components/auralis/ContextMenu";
 import { ToastHost } from "@/components/auralis/Toast";
-import { KeyboardHelp } from "@/components/auralis/KeyboardHelp";
-import { DonateModal } from "@/components/auralis/DonateReminder";
 import { StickyViewHeader } from "@/components/auralis/StickyViewHeader";
-import { VisualizerOverlay } from "@/components/auralis/VisualizerOverlay";
 import { ThemeBackdrop } from "@/components/auralis/ThemeBackdrop";
 import { HomeView } from "@/components/auralis/views/HomeView";
 import { ExploreView } from "@/components/auralis/views/ExploreView";
@@ -22,9 +18,22 @@ import { LibraryView } from "@/components/auralis/views/LibraryView";
 import { FavoritesView } from "@/components/auralis/views/FavoritesView";
 import { RecentsView } from "@/components/auralis/views/RecentsView";
 import { FoldersView } from "@/components/auralis/views/FoldersView";
-import { InsightsView } from "@/components/auralis/views/InsightsView";
-import { AlbumDetail, ArtistDetail, PlaylistDetail, SettingsView } from "@/components/auralis/views/DetailView";
-import { useLibrary } from "@/store/library";
+
+// Heavy / conditionally-mounted surfaces are code-split out of the initial bundle.
+// They're "use client" overlays + secondary views (DetailView is the single biggest
+// component), so ssr:false is natural and shrinks the first-load JS / TTI.
+const FullscreenPlayer = dynamic(() => import("@/components/auralis/FullscreenPlayer").then((m) => m.FullscreenPlayer), { ssr: false });
+const VisualizerOverlay = dynamic(() => import("@/components/auralis/VisualizerOverlay").then((m) => m.VisualizerOverlay), { ssr: false });
+const CommandPalette = dynamic(() => import("@/components/auralis/CommandPalette").then((m) => m.CommandPalette), { ssr: false });
+const KeyboardHelp = dynamic(() => import("@/components/auralis/KeyboardHelp").then((m) => m.KeyboardHelp), { ssr: false });
+const DonateModal = dynamic(() => import("@/components/auralis/DonateReminder").then((m) => m.DonateModal), { ssr: false });
+const InsightsView = dynamic(() => import("@/components/auralis/views/InsightsView").then((m) => m.InsightsView), { ssr: false });
+const AlbumDetail = dynamic(() => import("@/components/auralis/views/DetailView").then((m) => m.AlbumDetail), { ssr: false });
+const ArtistDetail = dynamic(() => import("@/components/auralis/views/DetailView").then((m) => m.ArtistDetail), { ssr: false });
+const PlaylistDetail = dynamic(() => import("@/components/auralis/views/DetailView").then((m) => m.PlaylistDetail), { ssr: false });
+const SettingsView = dynamic(() => import("@/components/auralis/views/DetailView").then((m) => m.SettingsView), { ssr: false });
+import { useLibrary, useLibraryStore } from "@/store/library";
+import { ensureAudioGraph, resumeAudioGraph, setGraphGain, dbToGain, fadeInGain } from "@/lib/auralis/audioGraph";
 import { useStats } from "@/store/stats";
 import { useRecap, monthKeyFr, monthLabelFr } from "@/store/reco";
 import { api } from "@/lib/auralis/api";
@@ -54,6 +63,8 @@ function AuralisShell() {
   const isPlaying = usePlayer((s) => s.isPlaying);
   const volume = usePlayer((s) => s.volume);
   const muted = usePlayer((s) => s.muted);
+  const normalization = usePlayer((s) => s.normalization);
+  const crossfade = usePlayer((s) => s.crossfade);
   const sleepTimer = usePlayer((s) => s.sleepTimer);
   const lyricsOpen = usePlayer((s) => s.lyricsOpen);
 
@@ -77,6 +88,7 @@ function AuralisShell() {
 
   const mainRef = useRef<HTMLDivElement>(null);
   const audioRef = useRef<HTMLAudioElement>(null);
+  const lastFadedTrack = useRef<string | null>(null);
   // Mounts the library loader + SSE scan stream; `status` lets us restore the last
   // session once the catalogue is available (to resolve track hashes).
   const { status: libStatus } = useLibrary();
@@ -232,6 +244,10 @@ function AuralisShell() {
     }
 
     if (isPlaying) {
+      // Build the Web Audio graph (analyser + normalization gain) on the first
+      // real play — a user gesture, so the context can resume. No-ops thereafter.
+      ensureAudioGraph(audio);
+      resumeAudioGraph();
       // Rapid track switches abort the previous play() — that rejection is
       // expected, not a real failure, so don't toast on AbortError. Any other
       // rejection (autoplay blocked, decode failure) means we are NOT playing, so
@@ -253,6 +269,32 @@ function AuralisShell() {
     audio.volume = volume;
     audio.muted = muted;
   }, [volume, muted]);
+
+  // Volume normalization: drive the Web Audio gain node from the current track's
+  // ReplayGain (per-track), or the album's average gain (per-album), or unity (off).
+  // No-ops until the graph is built (gain is remembered and applied at build time).
+  useEffect(() => {
+    // Resolve the normalization multiplier for the current track…
+    let mult = 1;
+    if (normalization !== "off" && currentTrack) {
+      let db = typeof currentTrack.gain === "number" ? currentTrack.gain : undefined;
+      if (normalization === "album" && currentTrack.albumhash) {
+        const albumGains = useLibraryStore
+          .getState()
+          .tracks.filter((t) => t.albumhash === currentTrack.albumhash && typeof t.gain === "number")
+          .map((t) => t.gain as number);
+        if (albumGains.length) db = albumGains.reduce((s, g) => s + g, 0) / albumGains.length;
+      }
+      mult = typeof db === "number" ? dbToGain(db) : 1;
+    }
+    // …then apply it: fade IN on a genuine track change when crossfade is on (smooth
+    // entry, no hard start), else set instantly (a mid-track normalization change
+    // mustn't dip to silence).
+    const isNewTrack = (currentTrack?.trackhash ?? null) !== lastFadedTrack.current;
+    if (crossfade > 0 && currentTrack && isNewTrack) fadeInGain(mult, Math.min(crossfade, 2));
+    else setGraphGain(mult);
+    lastFadedTrack.current = currentTrack?.trackhash ?? null;
+  }, [currentTrack, normalization, crossfade]);
 
   // Bind the <audio> element so the player store can seek it directly.
   useEffect(() => {
@@ -591,6 +633,14 @@ function AuralisShell() {
     <>
       <ThemeBackdrop />
       <div className="app-chrome relative z-[1] flex h-[100dvh] w-screen flex-col overflow-hidden bg-black text-foreground">
+      {/* Keyboard skip-link: first tab stop jumps straight to the main content,
+          past the title bar / sidebar (WCAG 2.4.1 bypass blocks). */}
+      <a
+        href="#main-content"
+        className="sr-only focus:not-sr-only focus:absolute focus:left-4 focus:top-4 focus:z-[200] focus:rounded-md focus:bg-[var(--panel-2)] focus:px-4 focus:py-2 focus:text-[13px] focus:font-bold focus:text-foreground focus:outline focus:outline-2 focus:outline-[var(--focus-ring)]"
+      >
+        Aller au contenu
+      </a>
       <audio ref={audioRef} preload="metadata" />
 
       {/* Announce track changes to screen readers */}
@@ -613,8 +663,11 @@ function AuralisShell() {
         </div>
         <main
           ref={mainRef}
+          id="main-content"
+          tabIndex={-1}
+          aria-label="Contenu principal"
           className={cn(
-            "app-stage relative min-h-0 flex-1 overflow-y-auto scroll-auralis md:rounded-lg",
+            "app-stage relative min-h-0 flex-1 overflow-y-auto scroll-auralis md:rounded-lg outline-none",
             // Clear the fixed mobile dock (tab bar, plus the mini-player when active).
             currentTrack
               ? "pb-[calc(var(--miniplayer-h)+var(--tabbar-h)+var(--safe-bottom))] md:pb-0"

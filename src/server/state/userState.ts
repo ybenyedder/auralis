@@ -12,6 +12,15 @@ export interface PlaylistDTO {
   pinned: boolean;
   position: number;
   trackhashes: string[];
+  /** JSON-encoded SmartConfig for dynamic playlists; null for static ones. */
+  rules: string | null;
+  /** Owner has marked this playlist shared/collaborative. */
+  shared: boolean;
+  /** This playlist belongs to ANOTHER user who shared it with the requester (the
+   *  requester is a collaborator: read + append, never rename/delete). */
+  collaborator: boolean;
+  /** Owner's username (only set on collaborator playlists, for the "de X" label). */
+  owner?: string;
 }
 
 export interface UserState {
@@ -35,8 +44,8 @@ export function getUserState(userId: number): UserState {
   }
   const recents = (db.prepare("SELECT trackhash FROM recents WHERE user_id = ? ORDER BY played_at DESC LIMIT ?").all(userId, RECENTS_LIMIT) as { trackhash: string }[]).map((r) => r.trackhash);
 
-  const playlistRows = db.prepare("SELECT id, name, description, pinned, position FROM playlists WHERE user_id = ? ORDER BY position ASC, created_at ASC").all(userId) as {
-    id: string; name: string; description: string | null; pinned: number; position: number;
+  const playlistRows = db.prepare("SELECT id, name, description, pinned, position, rules, is_shared FROM playlists WHERE user_id = ? ORDER BY position ASC, created_at ASC").all(userId) as {
+    id: string; name: string; description: string | null; pinned: number; position: number; rules: string | null; is_shared: number;
   }[];
   const trackStmt = db.prepare("SELECT trackhash FROM playlist_tracks WHERE playlist_id = ? ORDER BY position ASC, added_at ASC");
   const playlists: PlaylistDTO[] = playlistRows.map((p) => ({
@@ -45,8 +54,35 @@ export function getUserState(userId: number): UserState {
     description: p.description,
     pinned: p.pinned === 1,
     position: p.position,
+    rules: p.rules ?? null,
+    shared: p.is_shared === 1,
+    collaborator: false,
     trackhashes: (trackStmt.all(p.id) as { trackhash: string }[]).map((t) => t.trackhash),
   }));
+
+  // Playlists shared WITH this user (they're a collaborator): appended to their
+  // library, read + append only (rename/delete stay owner-only).
+  const collabRows = db.prepare(`
+    SELECT p.id, p.name, p.description, p.pinned, p.rules, u.username AS owner
+    FROM playlists p
+    JOIN playlist_collaborators c ON c.playlist_id = p.id AND c.user_id = ?
+    JOIN users u ON u.id = p.user_id
+    ORDER BY p.created_at ASC
+  `).all(userId) as { id: string; name: string; description: string | null; pinned: number; rules: string | null; owner: string }[];
+  collabRows.forEach((p, i) => {
+    playlists.push({
+      id: p.id,
+      name: p.name,
+      description: p.description,
+      pinned: false,
+      position: 100_000 + i,
+      rules: p.rules ?? null,
+      shared: true,
+      collaborator: true,
+      owner: p.owner,
+      trackhashes: (trackStmt.all(p.id) as { trackhash: string }[]).map((t) => t.trackhash),
+    });
+  });
 
   const settings: Record<string, unknown> = {};
   for (const r of db.prepare("SELECT key, value FROM user_settings WHERE user_id = ?").all(userId) as { key: string; value: string }[]) {
@@ -143,22 +179,25 @@ export interface PlaylistInput {
   description?: string | null;
   pinned?: boolean;
   trackhashes?: string[];
+  /** JSON-encoded SmartConfig for a dynamic playlist; null/undefined = static. */
+  rules?: string | null;
 }
 
 export function upsertPlaylist(userId: number, input: PlaylistInput): string {
   const db = getDb();
   const now = Date.now();
   const id = input.id ?? "pl-" + now.toString(36) + "-" + Math.floor(Math.random() * 1e6).toString(36);
+  const rules = typeof input.rules === "string" ? input.rules.slice(0, 4000) : null; // cap a hostile payload
   const tx = db.transaction(() => {
     // Scope the upsert to this user so one account can't mutate another's playlist.
     const existing = db.prepare("SELECT id, position FROM playlists WHERE id = ? AND user_id = ?").get(id, userId) as { id: string; position: number } | undefined;
     const position = existing?.position ?? ((db.prepare("SELECT COALESCE(MAX(position), -1) + 1 AS p FROM playlists WHERE user_id = ?").get(userId) as { p: number }).p);
     db.prepare(`
-      INSERT INTO playlists (id, user_id, name, description, pinned, position, created_at, updated_at)
-      VALUES (@id, @userId, @name, @description, @pinned, @position, @now, @now)
-      ON CONFLICT(id) DO UPDATE SET name=excluded.name, description=excluded.description, pinned=excluded.pinned, updated_at=excluded.updated_at
+      INSERT INTO playlists (id, user_id, name, description, pinned, position, rules, created_at, updated_at)
+      VALUES (@id, @userId, @name, @description, @pinned, @position, @rules, @now, @now)
+      ON CONFLICT(id) DO UPDATE SET name=excluded.name, description=excluded.description, pinned=excluded.pinned, rules=excluded.rules, updated_at=excluded.updated_at
       WHERE playlists.user_id = @userId
-    `).run({ id, userId, name: input.name, description: input.description ?? null, pinned: input.pinned ? 1 : 0, position, now });
+    `).run({ id, userId, name: input.name, description: input.description ?? null, pinned: input.pinned ? 1 : 0, position, rules, now });
 
     if (input.trackhashes) {
       // Re-check ownership AFTER the metadata upsert: a row just created above is owned
@@ -192,6 +231,62 @@ export function reorderPlaylists(userId: number, orderedIds: string[]): void {
   const upd = db.prepare("UPDATE playlists SET position = ? WHERE id = ? AND user_id = ?");
   const tx = db.transaction(() => orderedIds.forEach((id, i) => upd.run(i, id, userId)));
   tx();
+}
+
+// --- Collaborative playlists ------------------------------------------------
+// A household feature: the OWNER shares a playlist; invited COLLABORATORS can read
+// it and append/remove tracks, but only the owner can rename/delete/reorder. All
+// mutating paths re-check authorization server-side (never trust the client).
+
+/** Owner-only: mark a playlist shared (or revoke, dropping all collaborators). */
+export function setPlaylistShared(userId: number, id: string, shared: boolean): boolean {
+  const db = getDb();
+  if (!db.prepare("SELECT 1 FROM playlists WHERE id = ? AND user_id = ?").get(id, userId)) return false;
+  const tx = db.transaction(() => {
+    db.prepare("UPDATE playlists SET is_shared = ? WHERE id = ? AND user_id = ?").run(shared ? 1 : 0, id, userId);
+    if (!shared) db.prepare("DELETE FROM playlist_collaborators WHERE playlist_id = ?").run(id);
+  });
+  tx();
+  return true;
+}
+
+/** Owner-only: invite a collaborator by username (also marks the playlist shared). */
+export function addCollaborator(userId: number, id: string, username: string): { ok: boolean; error?: string } {
+  const db = getDb();
+  if (!db.prepare("SELECT 1 FROM playlists WHERE id = ? AND user_id = ?").get(id, userId)) return { ok: false, error: "not_owner" };
+  const other = db.prepare("SELECT id FROM users WHERE lower(username) = lower(?)").get(username.trim()) as { id: number } | undefined;
+  if (!other) return { ok: false, error: "no_user" };
+  if (other.id === userId) return { ok: false, error: "self" };
+  const tx = db.transaction(() => {
+    db.prepare("UPDATE playlists SET is_shared = 1 WHERE id = ? AND user_id = ?").run(id, userId);
+    db.prepare("INSERT INTO playlist_collaborators (playlist_id, user_id, added_at) VALUES (?, ?, ?) ON CONFLICT(playlist_id, user_id) DO NOTHING").run(id, other.id, Date.now());
+  });
+  tx();
+  return { ok: true };
+}
+
+/** True when `userId` may edit tracks of playlist `id`: owner OR a collaborator. */
+function canEditPlaylistTracks(db: ReturnType<typeof getDb>, userId: number, id: string): boolean {
+  if (db.prepare("SELECT 1 FROM playlists WHERE id = ? AND user_id = ?").get(id, userId)) return true;
+  return Boolean(db.prepare("SELECT 1 FROM playlist_collaborators WHERE playlist_id = ? AND user_id = ?").get(id, userId));
+}
+
+/** Append one track (owner or collaborator). Granular so a collaborator can add to a
+ *  playlist they don't own — the full upsert stays owner-scoped to prevent IDOR. */
+export function addTrackToPlaylist(userId: number, id: string, trackhash: string): boolean {
+  const db = getDb();
+  if (!canEditPlaylistTracks(db, userId, id)) return false;
+  const pos = (db.prepare("SELECT COALESCE(MAX(position), -1) + 1 AS p FROM playlist_tracks WHERE playlist_id = ?").get(id) as { p: number }).p;
+  db.prepare("INSERT INTO playlist_tracks (playlist_id, trackhash, position, added_at) VALUES (?, ?, ?, ?) ON CONFLICT(playlist_id, trackhash) DO NOTHING").run(id, trackhash, pos, Date.now());
+  return true;
+}
+
+/** Remove one track (owner or collaborator). */
+export function removeTrackFromPlaylist(userId: number, id: string, trackhash: string): boolean {
+  const db = getDb();
+  if (!canEditPlaylistTracks(db, userId, id)) return false;
+  db.prepare("DELETE FROM playlist_tracks WHERE playlist_id = ? AND trackhash = ?").run(id, trackhash);
+  return true;
 }
 
 // Hard ceilings so a single authenticated `replace` payload can't blow up the DB

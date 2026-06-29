@@ -2,8 +2,12 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import {
+  ArrowDown,
+  ArrowUp,
   CheckCircle2,
   Disc3,
+  Download,
+  Radio,
   FileText,
   FolderOpen,
   HardDrive,
@@ -16,9 +20,11 @@ import {
   PencilLine,
   Play,
   Shuffle,
+  Share2,
   ShieldCheck,
   Trash2,
   UserPlus,
+  Users,
   Volume2,
   type LucideIcon,
 } from "lucide-react";
@@ -52,6 +58,8 @@ import { cn } from "@/lib/utils";
 import type { Artist } from "@/lib/auralis/types";
 import { CONTACT_EMAIL, PROJECT_REPO } from "@/lib/auralis/brand";
 import { DonateButton, openDonate } from "../DonateReminder";
+import { exportPlaylistM3U, exportPlaylistJSON } from "@/lib/auralis/playlistIO";
+import { evaluateSmartList } from "@/lib/auralis/smartlist";
 import { Heart } from "lucide-react";
 
 const STORAGE_KEY = "auralis.vault.v1";
@@ -75,6 +83,7 @@ type SettingsRow = {
 
 export function AlbumDetail({ albumhash }: { albumhash: string }) {
   const playList = usePlayer((s) => s.playList);
+  const startRadio = usePlayer((s) => s.startRadio);
   const currentTrack = usePlayer((s) => s.currentTrack);
   const isPlaying = usePlayer((s) => s.isPlaying);
   const togglePlay = usePlayer((s) => s.togglePlay);
@@ -156,6 +165,15 @@ export function AlbumDetail({ albumhash }: { albumhash: string }) {
           >
             <Shuffle className="size-6" />
           </button>
+          <button
+            onClick={() => albumTracks[0] && void startRadio(albumTracks[0].trackhash, albumTracks[0])}
+            disabled={albumTracks.length === 0}
+            className="grid h-9 w-9 shrink-0 place-items-center rounded-full text-muted-foreground transition-colors hover:text-foreground disabled:opacity-40"
+            aria-label="Démarrer une radio"
+            title="Démarrer une radio"
+          >
+            <Radio className="size-6" />
+          </button>
         </div>
       </section>
 
@@ -187,6 +205,7 @@ export function AlbumDetail({ albumhash }: { albumhash: string }) {
 
 export function ArtistDetail({ artisthash }: { artisthash: string }) {
   const playList = usePlayer((s) => s.playList);
+  const startRadio = usePlayer((s) => s.startRadio);
   const playCounts = usePlayer((s) => s.playCounts);
   const tracks = useLibraryStore((state) => state.tracks);
   const artists = useLibraryStore((state) => state.artists);
@@ -279,6 +298,15 @@ export function ArtistDetail({ artisthash }: { artisthash: string }) {
           >
             <Shuffle className="size-6" />
           </button>
+          <button
+            onClick={() => { const seed = topTracks[0] ?? artistTracks[0]; if (seed) void startRadio(seed.trackhash, seed); }}
+            disabled={artistTracks.length === 0}
+            className="grid h-9 w-9 shrink-0 place-items-center rounded-full text-muted-foreground transition-colors hover:text-foreground disabled:opacity-40"
+            aria-label="Démarrer une radio de l'artiste"
+            title="Démarrer une radio"
+          >
+            <Radio className="size-6" />
+          </button>
         </div>
       </section>
 
@@ -318,7 +346,13 @@ export function PlaylistDetail({ id }: { id: string }) {
   const deletePlaylist = usePlayer((s) => s.deletePlaylist);
   const navigate = usePlayer((s) => s.navigate);
   const removeFromPlaylist = usePlayer((s) => s.removeFromPlaylist);
+  const reorderInPlaylist = usePlayer((s) => s.reorderInPlaylist);
+  const sharePlaylist = usePlayer((s) => s.sharePlaylist);
+  const addPlaylistCollaborator = usePlayer((s) => s.addPlaylistCollaborator);
   const trackIndex = useLibraryStore((state) => state.trackIndex);
+  const allTracks = useLibraryStore((state) => state.tracks);
+  const favorites = usePlayer((s) => s.favorites);
+  const playCounts = usePlayer((s) => s.playCounts);
   const libraryPlaylists = useLibraryStore((state) => state.playlists);
   const status = useLibraryStore((state) => state.status);
   const libraryPlaylist = useMemo(
@@ -331,13 +365,15 @@ export function PlaylistDetail({ id }: { id: string }) {
   );
   const playlist = customPlaylist ?? libraryPlaylist;
   const isCustom = Boolean(customPlaylist);
-  const tracks = useMemo(
-    () =>
-      playlist
-        ? tracksFromIndex(trackIndex, playlist.trackhashes ?? [])
-        : [],
-    [trackIndex, playlist],
-  );
+  const isSmart = Boolean(playlist?.rules);
+  const isCollaborator = Boolean(playlist?.collaborator);
+  // Smart playlists are computed LIVE from their rules against the whole library
+  // (so they always reflect the current collection); static ones resolve hashes.
+  const tracks = useMemo(() => {
+    if (!playlist) return [];
+    if (playlist.rules) return evaluateSmartList(allTracks, playlist.rules, { favorites, playCounts });
+    return tracksFromIndex(trackIndex, playlist.trackhashes ?? []);
+  }, [trackIndex, playlist, allTracks, favorites, playCounts]);
   const [editing, setEditing] = useState(false);
   const [name, setName] = useState("");
 
@@ -393,7 +429,15 @@ export function PlaylistDetail({ id }: { id: string }) {
           )}
           <div className="mt-4 w-full min-w-0 lg:mt-0 lg:w-auto lg:pb-2">
             <p className="text-[10px] font-semibold uppercase tracking-[0.08em] text-[var(--brass)]">
-              {isCustom ? "Playlist locale" : "Playlist catalogue"}
+              {isCollaborator
+                ? `Collaboratif · de ${playlist.owner ?? "un membre"}`
+                : isSmart
+                  ? "Smart playlist · règles dynamiques"
+                  : playlist.shared
+                    ? "Playlist partagée"
+                    : isCustom
+                      ? "Playlist locale"
+                      : "Playlist catalogue"}
             </p>
             {editing && isCustom ? (
               <input
@@ -443,18 +487,58 @@ export function PlaylistDetail({ id }: { id: string }) {
           </button>
           {isCustom && (
             <>
+              {!isCollaborator && (
+                <button
+                  onClick={() => { setName(playlist.name); setEditing(true); }}
+                  className="flex items-center gap-2 text-[13px] font-bold text-muted-foreground transition-colors hover:text-foreground"
+                >
+                  <PencilLine className="size-5" /> Renommer
+                </button>
+              )}
+              {!isCollaborator && !isSmart && (
+                <>
+                  <button
+                    onClick={() => sharePlaylist(id, !playlist.shared)}
+                    className={cn("flex items-center gap-2 text-[13px] font-bold transition-colors", playlist.shared ? "text-primary hover:text-foreground" : "text-muted-foreground hover:text-foreground")}
+                    title={playlist.shared ? "Partage activé — cliquez pour révoquer" : "Partager pour collaborer en famille"}
+                  >
+                    <Share2 className="size-5" /> {playlist.shared ? "Partagée" : "Partager"}
+                  </button>
+                  {playlist.shared && (
+                    <button
+                      onClick={() => { const u = window.prompt("Inviter un collaborateur (nom d'utilisateur) :"); if (u && u.trim()) void addPlaylistCollaborator(id, u.trim()); }}
+                      className="flex items-center gap-2 text-[13px] font-bold text-muted-foreground transition-colors hover:text-foreground"
+                      title="Inviter un collaborateur par nom d'utilisateur"
+                    >
+                      <Users className="size-5" /> Inviter
+                    </button>
+                  )}
+                </>
+              )}
               <button
-                onClick={() => { setName(playlist.name); setEditing(true); }}
-                className="flex items-center gap-2 text-[13px] font-bold text-muted-foreground transition-colors hover:text-foreground"
+                onClick={() => exportPlaylistM3U(playlist.name, tracks)}
+                disabled={tracks.length === 0}
+                className="flex items-center gap-2 text-[13px] font-bold text-muted-foreground transition-colors hover:text-foreground disabled:opacity-40"
+                title="Exporter en M3U (lisible par VLC, foobar2000…)"
               >
-                <PencilLine className="size-5" /> Renommer
+                <Download className="size-5" /> M3U
               </button>
               <button
-                onClick={deleteCurrentPlaylist}
-                className="flex items-center gap-2 text-[13px] font-bold text-muted-foreground transition-colors hover:text-destructive"
+                onClick={() => exportPlaylistJSON(playlist.name, tracks)}
+                disabled={tracks.length === 0}
+                className="flex items-center gap-2 text-[13px] font-bold text-muted-foreground transition-colors hover:text-foreground disabled:opacity-40"
+                title="Exporter en JSON (réimport exact sur Auralis)"
               >
-                <Trash2 className="size-5" /> Supprimer
+                <Download className="size-5" /> JSON
               </button>
+              {!isCollaborator && (
+                <button
+                  onClick={deleteCurrentPlaylist}
+                  className="flex items-center gap-2 text-[13px] font-bold text-muted-foreground transition-colors hover:text-destructive"
+                >
+                  <Trash2 className="size-5" /> Supprimer
+                </button>
+              )}
             </>
           )}
         </div>
@@ -470,7 +554,27 @@ export function PlaylistDetail({ id }: { id: string }) {
                   <div className="min-w-0 flex-1">
                     <TrackRow track={track} index={index} list={tracks} />
                   </div>
-                  {isCustom && (
+                  {isCustom && !isSmart && !isCollaborator && (
+                    <div className="flex shrink-0 flex-col transition-opacity duration-200 lg:opacity-0 lg:group-hover/playlist:opacity-100 lg:focus-within:opacity-100">
+                      <button
+                        onClick={() => reorderInPlaylist(id, index, index - 1)}
+                        disabled={index === 0}
+                        aria-label={`Monter ${track.title}`}
+                        className="grid h-5 w-9 place-items-center rounded text-muted-foreground transition-colors hover:text-foreground disabled:opacity-25"
+                      >
+                        <ArrowUp className="size-4" />
+                      </button>
+                      <button
+                        onClick={() => reorderInPlaylist(id, index, index + 1)}
+                        disabled={index === tracks.length - 1}
+                        aria-label={`Descendre ${track.title}`}
+                        className="grid h-5 w-9 place-items-center rounded text-muted-foreground transition-colors hover:text-foreground disabled:opacity-25"
+                      >
+                        <ArrowDown className="size-4" />
+                      </button>
+                    </div>
+                  )}
+                  {isCustom && !isSmart && (
                     // One in-flow affordance (no absolute overlay over the row's own
                     // like/menu controls): always reachable on touch, hover-revealed on
                     // desktop while still reserving its slot so nothing overlaps.
@@ -493,7 +597,9 @@ export function PlaylistDetail({ id }: { id: string }) {
               Playlist vide
             </p>
             <p className="mt-1 text-[12px] text-muted-foreground">
-              Ajoute des titres depuis le menu contextuel d’un morceau.
+              {isSmart
+                ? "Aucun titre ne correspond aux règles de cette smart playlist pour le moment."
+                : "Ajoute des titres depuis le menu contextuel d’un morceau."}
             </p>
           </div>
         )}
@@ -514,12 +620,18 @@ export function SettingsView() {
   const cycleRepeat = usePlayer((s) => s.cycleRepeat);
   const autoplay = usePlayer((s) => s.autoplay);
   const toggleAutoplay = usePlayer((s) => s.toggleAutoplay);
+  const normalization = usePlayer((s) => s.normalization);
+  const setNormalization = usePlayer((s) => s.setNormalization);
+  const crossfade = usePlayer((s) => s.crossfade);
+  const setCrossfade = usePlayer((s) => s.setCrossfade);
   const startSleepTimer = usePlayer((s) => s.startSleepTimer);
   const cancelSleepTimer = usePlayer((s) => s.cancelSleepTimer);
   const theme = usePlayer((s) => s.theme);
   const setTheme = usePlayer((s) => s.setTheme);
   const rightPanelOpen = usePlayer((s) => s.rightPanelOpen);
   const toggleRightPanel = usePlayer((s) => s.toggleRightPanel);
+  const locale = usePlayer((s) => s.locale);
+  const setLocale = usePlayer((s) => s.setLocale);
   const customPlaylists = usePlayer((s) => s.customPlaylists);
   const favorites = usePlayer((s) => s.favorites);
   const recentTrackhashes = usePlayer((s) => s.recentTrackhashes);
@@ -710,6 +822,18 @@ export function SettingsView() {
       type: "toggle",
       active: autoplay,
       onAction: toggleAutoplay,
+    },
+    {
+      label: "Normalisation du volume",
+      value: normalization === "off" ? "Désactivée" : normalization === "album" ? "Par album" : "Par titre",
+      type: "action",
+      onAction: () => setNormalization(normalization === "off" ? "track" : normalization === "track" ? "album" : "off"),
+    },
+    {
+      label: "Fondu enchaîné (entrée)",
+      value: crossfade > 0 ? `${crossfade} s` : "Désactivé",
+      type: "action",
+      onAction: () => setCrossfade(crossfade >= 12 ? 0 : crossfade === 0 ? 3 : crossfade === 3 ? 6 : 12),
     },
     sleepTimer.active
       ? {
@@ -958,6 +1082,12 @@ export function SettingsView() {
               <SettingsCard
                 title="Interface"
                 rows={[
+                  {
+                    label: "Langue",
+                    value: locale === "en" ? "English" : "Français",
+                    type: "action",
+                    onAction: () => setLocale(locale === "fr" ? "en" : "fr"),
+                  },
                   {
                     label: "Panneau de lecture",
                     value: rightPanelOpen ? "Visible" : "Masqué",

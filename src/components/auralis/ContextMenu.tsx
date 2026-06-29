@@ -12,6 +12,7 @@ import {
   ChevronRight,
   ListMusic,
   Share2,
+  Radio,
 } from "lucide-react";
 import { usePlayer } from "@/store/player";
 import { shareTrack } from "@/lib/auralis/share";
@@ -29,6 +30,7 @@ export function ContextMenuHost() {
   const closeContextMenu = usePlayer((s) => s.closeContextMenu);
   const playTrack = usePlayer((s) => s.playTrack);
   const playList = usePlayer((s) => s.playList);
+  const startRadio = usePlayer((s) => s.startRadio);
   const addToQueueNext = usePlayer((s) => s.addToQueueNext);
   const addToQueueEnd = usePlayer((s) => s.addToQueueEnd);
   const toggleFavorite = usePlayer((s) => s.toggleFavorite);
@@ -106,6 +108,7 @@ export function ContextMenuHost() {
           setSubmenu={setSubmenu}
           sheet={sheet}
           playTrack={playTrack}
+          startRadio={startRadio}
           addToQueueNext={addToQueueNext}
           addToQueueEnd={addToQueueEnd}
           toggleFavorite={toggleFavorite}
@@ -126,6 +129,7 @@ export function ContextMenuHost() {
           setSubmenu={setSubmenu}
           sheet={sheet}
           playList={playList}
+          startRadio={startRadio}
           addToQueueEnd={addToQueueEnd}
           navigate={navigate}
           customPlaylists={customPlaylists}
@@ -139,6 +143,7 @@ export function ContextMenuHost() {
           run={run}
           sheet={sheet}
           playList={playList}
+          startRadio={startRadio}
           addToQueueEnd={addToQueueEnd}
           navigate={navigate}
         />
@@ -192,6 +197,7 @@ function TrackMenu({
   setSubmenu,
   sheet,
   playTrack,
+  startRadio,
   addToQueueNext,
   addToQueueEnd,
   toggleFavorite,
@@ -209,6 +215,7 @@ function TrackMenu({
   setSubmenu: (v: "playlists" | null) => void;
   sheet: boolean;
   playTrack: (track: Track, list?: Track[], startIndex?: number) => void;
+  startRadio: (seedHash: string, seedTrack?: Track) => Promise<void>;
   addToQueueNext: (track: Track) => void;
   addToQueueEnd: (track: Track) => void;
   toggleFavorite: (trackhash: string) => void;
@@ -246,6 +253,7 @@ function TrackMenu({
         {!playlistOpen && (
           <>
             <MenuItem sheet={sheet} icon={Play} label="Lire maintenant" onClick={() => run(() => playTrack(track, [track], 0))} />
+            <MenuItem sheet={sheet} icon={Radio} label="Démarrer une radio" onClick={() => run(() => void startRadio(track.trackhash, track))} />
             <MenuItem sheet={sheet} icon={ListPlus} label="Lire ensuite" onClick={() => run(() => addToQueueNext(track))} />
             <MenuItem sheet={sheet} icon={Plus} label="Ajouter à la file" onClick={() => run(() => addToQueueEnd(track))} />
           </>
@@ -316,6 +324,7 @@ function AlbumMenu({
   setSubmenu,
   sheet,
   playList,
+  startRadio,
   addToQueueEnd,
   navigate,
   customPlaylists,
@@ -328,6 +337,7 @@ function AlbumMenu({
   setSubmenu: (v: "playlists" | null) => void;
   sheet: boolean;
   playList: (list: Track[], startIndex?: number) => void;
+  startRadio: (seedHash: string, seedTrack?: Track) => Promise<void>;
   addToQueueEnd: (track: Track) => void;
   navigate: (view: ViewId, id?: string) => void;
   customPlaylists: import("@/lib/auralis/types").Playlist[];
@@ -359,6 +369,9 @@ function AlbumMenu({
         {!playlistOpen && (
           <>
             <MenuItem sheet={sheet} icon={Play} label="Lire l'album" onClick={() => run(() => playList(tracks, 0))} />
+            {tracks[0] && (
+              <MenuItem sheet={sheet} icon={Radio} label="Démarrer une radio" onClick={() => run(() => void startRadio(tracks[0].trackhash, tracks[0]))} />
+            )}
             <MenuItem sheet={sheet} icon={ListPlus} label="Ajouter l'album à la file" onClick={() => run(addAlbumToQueue)} />
           </>
         )}
@@ -400,6 +413,7 @@ function ArtistMenu({
   run,
   sheet,
   playList,
+  startRadio,
   addToQueueEnd,
   navigate,
 }: {
@@ -407,6 +421,7 @@ function ArtistMenu({
   run: (fn: () => void) => void;
   sheet: boolean;
   playList: (list: Track[], startIndex?: number) => void;
+  startRadio: (seedHash: string, seedTrack?: Track) => Promise<void>;
   addToQueueEnd: (track: Track) => void;
   navigate: (view: ViewId, id?: string) => void;
 }) {
@@ -429,6 +444,9 @@ function ArtistMenu({
       />
       <div className={sheet ? "p-2" : "p-1.5"}>
         <MenuItem sheet={sheet} icon={Play} label="Lire les titres populaires" onClick={() => run(() => playList(topTracks, 0))} />
+        {topTracks[0] && (
+          <MenuItem sheet={sheet} icon={Radio} label="Démarrer une radio de l'artiste" onClick={() => run(() => void startRadio(topTracks[0].trackhash, topTracks[0]))} />
+        )}
         <MenuItem sheet={sheet} icon={ListPlus} label="Ajouter les titres à la file" onClick={() => run(() => topTracks.forEach((t) => addToQueueEnd(t)))} />
         <div className="my-1 h-px bg-[var(--line)]" />
         <MenuItem sheet={sheet} icon={UserRound} label="Aller à l'artiste" onClick={() => run(() => navigate("artist", artist.artisthash))} />

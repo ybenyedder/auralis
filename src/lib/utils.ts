@@ -13,3 +13,11 @@ const collator = new Intl.Collator(undefined, { numeric: true, sensitivity: "bas
 export function compareNames(a: string, b: string): number {
   return collator.compare(a, b);
 }
+
+// Strip diacritics + lowercase for accent-insensitive client matching, mirroring
+// the server FTS index tokenizer ("unicode61 remove_diacritics 2"): "neon" finds
+// "Néon", "ete" finds "Été", whether the query hits the server index or the client
+// fallback. NFD splits an accented letter into base + combining marks; we drop the marks.
+export function foldAccents(s: string): string {
+  return s.normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase();
+}

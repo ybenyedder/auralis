@@ -21,6 +21,7 @@ import { shareTrack } from "@/lib/auralis/share";
 import { useFocusTrap } from "@/lib/auralis/useFocusTrap";
 import { usePlayhead } from "@/store/playhead";
 import { Artwork } from "./Artwork";
+import { TiltStage } from "./TiltStage";
 import { LyricsView } from "./LyricsView";
 import { QueueList } from "./QueueList";
 import { formatDuration, paletteForName, trackArtist, trackTitle } from "@/lib/auralis/brand";
@@ -105,10 +106,15 @@ export function FullscreenPlayer() {
         transition: dragging ? "none" : "transform 0.2s ease"
       }}
     >
-      {/* Background Gradient */}
-      <div 
-        className="absolute inset-0 pointer-events-none opacity-80" 
-        style={{ background: `linear-gradient(to bottom, ${colors[0] || '#535353'}, var(--background))` }} 
+      {/* Ambient background drawn from the track's REAL cover palette (extracted
+          server-side, not a hash of the title): a soft top glow in the base colour
+          plus a low highlight wash, fading into the app background. The 700ms
+          transition cross-fades the ambiance as the cover changes. */}
+      <div
+        className="absolute inset-0 pointer-events-none transition-[background] duration-700 ease-out"
+        style={{
+          background: `radial-gradient(120% 75% at 50% -8%, ${colors[0] || "#535353"} 0%, transparent 58%), radial-gradient(90% 60% at 80% 8%, ${(colors[2] || colors[0] || "#535353")}55 0%, transparent 55%), linear-gradient(to bottom, ${(colors[0] || "#535353")}cc, var(--background) 72%)`,
+        }}
       />
 
       <div className="relative z-10 flex h-full flex-col pt-[env(safe-area-inset-top)] pb-[env(safe-area-inset-bottom)]">
@@ -158,16 +164,17 @@ export function FullscreenPlayer() {
           /* Mobile Stage: Artwork + Meta */
           <div className="flex min-h-0 flex-1 flex-col justify-center gap-8">
             <div className="w-full flex justify-center">
-              <Artwork
-                fluid
-                title={currentTrack.title}
-                trackhash={currentTrack.trackhash}
-                size={400}
-                rounded={8}
-                colors={colors}
-                image={currentTrack.image}
-                className="w-full aspect-square max-w-[400px] shadow-xl"
-              />
+              <TiltStage radius={8} className="w-full max-w-[400px] aspect-square">
+                <Artwork
+                  fluid
+                  title={currentTrack.title}
+                  trackhash={currentTrack.trackhash}
+                  rounded={8}
+                  colors={colors}
+                  image={currentTrack.image}
+                  className="w-full h-full"
+                />
+              </TiltStage>
             </div>
             
             <div className="flex items-center justify-between">

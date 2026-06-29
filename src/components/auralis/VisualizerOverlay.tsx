@@ -7,6 +7,7 @@ import { usePlayhead } from "@/store/playhead";
 import { useFocusTrap } from "@/lib/auralis/useFocusTrap";
 import { hashString, paletteForName } from "@/lib/auralis/brand";
 import { formatDuration, trackArtist, trackTitle } from "@/lib/auralis/brand";
+import { getAnalyser, resumeAudioGraph } from "@/lib/auralis/audioGraph";
 
 /**
  * Auralis Scope — a fullscreen audio-reactive visualizer overlay.
@@ -67,6 +68,13 @@ export function VisualizerOverlay() {
     const seed = hashString(currentTrack?.trackhash ?? "auralis");
     const colors = currentTrack?.color ?? paletteForName(currentTrack?.trackhash ?? "auralis");
 
+    // Real spectrum from the shared Web Audio graph. Falls back to the seeded
+    // synthetic motion when the graph isn't built yet (audio never played) — so the
+    // scope is genuinely audio-reactive when it can be, never blank when it can't.
+    resumeAudioGraph();
+    const analyser = getAnalyser();
+    const freq = analyser ? new Uint8Array(analyser.frequencyBinCount) : null;
+
     // Pre-compute 64 deterministic "frequency" amplitudes
     const bars = Array.from({ length: 64 }, (_, i) => {
       const v = ((seed >> (i % 24)) ^ (i * 2654435761)) >>> 0;
@@ -82,8 +90,19 @@ export function VisualizerOverlay() {
       const cy = h / 2;
       ctx.clearRect(0, 0, w, h);
 
-      // Background radial wash that pulses with the beat
-      const beat = isPlaying ? 0.5 + 0.5 * Math.sin(t * 4.2) : 0.18;
+      // Sample the real spectrum once per frame and derive an overall level.
+      let bins: Uint8Array | null = null;
+      let level = 0;
+      if (isPlaying && freq && analyser) {
+        analyser.getByteFrequencyData(freq);
+        bins = freq;
+        let acc = 0;
+        for (let i = 0; i < bins.length; i++) acc += bins[i];
+        level = acc / (bins.length * 255);
+      }
+      const reactive = bins !== null;
+      // Background radial wash that pulses with the beat (real level, or synthetic).
+      const beat = isPlaying ? (reactive ? 0.22 + level * 0.9 : 0.5 + 0.5 * Math.sin(t * 4.2)) : 0.18;
       const grad = ctx.createRadialGradient(cx, cy, 0, cx, cy, Math.max(w, h) * 0.7);
       grad.addColorStop(0, `${colors[1]}${Math.round(beat * 80).toString(16).padStart(2, "0")}`);
       grad.addColorStop(0.4, `${colors[0]}22`);
@@ -98,9 +117,12 @@ export function VisualizerOverlay() {
       ctx.rotate(t * (isPlaying ? 0.08 : 0.015));
       for (let i = 0; i < bars.length; i++) {
         const angle = (i / bars.length) * Math.PI * 2;
-        const amp = isPlaying
-          ? bars[i] * (0.55 + 0.45 * Math.abs(Math.sin(t * 3.1 + i * 0.42)))
-          : bars[i] * 0.25;
+        const real = bins ? bins[Math.min(bins.length - 1, Math.floor((i / bars.length) * bins.length))] / 255 : 0;
+        const amp = reactive
+          ? bars[i] * 0.2 + real * 1.15
+          : isPlaying
+            ? bars[i] * (0.55 + 0.45 * Math.abs(Math.sin(t * 3.1 + i * 0.42)))
+            : bars[i] * 0.25;
         const len = baseR * 0.4 + amp * baseR * 1.8;
         const x1 = Math.cos(angle) * baseR;
         const y1 = Math.sin(angle) * baseR;
@@ -125,7 +147,7 @@ export function VisualizerOverlay() {
       ctx.beginPath();
       for (let x = 0; x <= w; x += 3) {
         const phase = (x / w) * Math.PI * 6 + t * (isPlaying ? 4 : 0.6);
-        const amp = isPlaying ? waveH * 0.35 * (0.5 + 0.5 * Math.sin(phase + seed)) : waveH * 0.06;
+        const amp = isPlaying ? waveH * (reactive ? 0.18 + level * 0.7 : 0.35) * (0.5 + 0.5 * Math.sin(phase + seed)) : waveH * 0.06;
         const y = baselineY + Math.sin(phase) * amp;
         if (x === 0) ctx.moveTo(x, y);
         else ctx.lineTo(x, y);
@@ -137,7 +159,7 @@ export function VisualizerOverlay() {
       ctx.beginPath();
       for (let x = 0; x <= w; x += 3) {
         const phase = (x / w) * Math.PI * 6 + t * (isPlaying ? 4 : 0.6);
-        const amp = isPlaying ? waveH * 0.35 * (0.5 + 0.5 * Math.sin(phase + seed)) : waveH * 0.06;
+        const amp = isPlaying ? waveH * (reactive ? 0.18 + level * 0.7 : 0.35) * (0.5 + 0.5 * Math.sin(phase + seed)) : waveH * 0.06;
         const y = baselineY - Math.sin(phase) * amp;
         if (x === 0) ctx.moveTo(x, y);
         else ctx.lineTo(x, y);

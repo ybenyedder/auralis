@@ -9,8 +9,11 @@ import { useReco } from "@/store/reco";
 import { SectionHeader } from "../SectionHeader";
 import { AlbumCard, ArtistCard } from "../Cards";
 import { Artwork } from "../Artwork";
+import { DailyMixes } from "../DailyMixes";
+import { BlendShelf } from "../BlendShelf";
 import { trackTitle, trackArtist } from "@/lib/auralis/brand";
 import { moodForTrack, moodById } from "@/lib/auralis/mood";
+import { useT } from "@/lib/auralis/i18n";
 
 export function HomeView() {
   const playList = usePlayer((s) => s.playList);
@@ -151,13 +154,14 @@ export function HomeView() {
     return tiles.slice(0, 8);
   }, [favorites, tracks, recent, playList, navigate]);
 
+  const t = useT();
   const greeting = (() => {
-    if (now == null) return "Bienvenue";
+    if (now == null) return t("greeting.welcome");
     const h = new Date(now).getHours();
-    if (h < 6) return "Bonne nuit";
-    if (h < 12) return "Bonjour";
-    if (h < 18) return "Bon après-midi";
-    return "Bonsoir";
+    if (h < 6) return t("greeting.night");
+    if (h < 12) return t("greeting.morning");
+    if (h < 18) return t("greeting.afternoon");
+    return t("greeting.evening");
   })();
 
   return (
@@ -191,6 +195,10 @@ export function HomeView() {
             </div>
           ) : null}
         </section>
+
+        {tracks.length > 0 && <DailyMixes />}
+
+        {tracks.length > 0 && <BlendShelf />}
 
         {forYou.length >= 4 && (
           <section>

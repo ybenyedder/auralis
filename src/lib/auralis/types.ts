@@ -47,6 +47,9 @@ export interface Track {
   energy?: number;
   /** Estimated tempo (BPM) from analysis. */
   bpm?: number;
+  /** ReplayGain-style adjustment in dB (toward -14 dBFS RMS) from analysis; used for
+   *  transparent volume normalization. Undefined = not analysed yet. */
+  gain?: number;
   bitrate?: number;
   samplerate?: number;
   channels?: number;
@@ -78,6 +81,15 @@ export interface Playlist {
   color?: [string, string, string];
   trackhashes?: string[];
   pinned?: boolean;
+  /** When set, this is a SMART (dynamic) playlist computed live from rules instead
+   *  of a static trackhash list. Persisted to the server as a JSON string. */
+  rules?: import("./smartlist").SmartConfig;
+  /** Owner has shared this playlist (collaborators can append/remove tracks). */
+  shared?: boolean;
+  /** This playlist is owned by ANOTHER user who shared it with us (read + append). */
+  collaborator?: boolean;
+  /** Owner's username, when this is a collaborator playlist. */
+  owner?: string;
 }
 
 export type ViewId =

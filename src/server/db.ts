@@ -235,6 +235,36 @@ const MIGRATIONS: string[] = [
     PRIMARY KEY (user_id, trackhash)
   );
   `,
+  // v8 — signature features foundation:
+  //   • art_colors — dominant cover-art palette (shadow / base / highlight),
+  //     keyed by arthash so it is shared across every track + album using that
+  //     cover. Populated lazily when a thumbnail is first generated (art.ts), so
+  //     existing libraries backfill as the user browses — no re-scan needed.
+  //   • tracks.gain — per-track ReplayGain-style adjustment (dB toward -14 dBFS
+  //     RMS), derived from the SAME ffmpeg decode the mood analyzer already runs.
+  //   • playlists.rules — smart-playlist rule set (JSON); NULL = a normal static
+  //     playlist that stores explicit trackhashes.
+  //   • playlists.is_shared + playlist_collaborators — household collaborative
+  //     playlists, co-editable by invited users on the same server.
+  `
+  CREATE TABLE IF NOT EXISTS art_colors (
+    arthash TEXT PRIMARY KEY,
+    accent  TEXT NOT NULL
+  );
+
+  ALTER TABLE tracks ADD COLUMN gain REAL;
+
+  ALTER TABLE playlists ADD COLUMN rules     TEXT;
+  ALTER TABLE playlists ADD COLUMN is_shared INTEGER NOT NULL DEFAULT 0;
+
+  CREATE TABLE IF NOT EXISTS playlist_collaborators (
+    playlist_id TEXT NOT NULL,
+    user_id     INTEGER NOT NULL,
+    added_at    INTEGER NOT NULL DEFAULT 0,
+    PRIMARY KEY (playlist_id, user_id)
+  );
+  CREATE INDEX IF NOT EXISTS idx_plcollab_user ON playlist_collaborators(user_id);
+  `,
 ];
 
 function migrate(db: DB) {
