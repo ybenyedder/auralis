@@ -42,6 +42,7 @@ import { AuthGate } from "@/components/auralis/AuthGate";
 import { MobileHeader } from "@/components/auralis/mobile/MobileHeader";
 import { MobileDock } from "@/components/auralis/mobile/MobileDock";
 import { SelectionBar } from "@/components/auralis/SelectionBar";
+import { SyncManager } from "@/components/auralis/SyncManager";
 import {
   mediaSupported,
   setMediaMetadata,
@@ -689,6 +690,7 @@ function AuralisShell() {
 
       <MobileDock />
       <SelectionBar />
+      <SyncManager />
 
       {fullscreenPlayer && <FullscreenPlayer />}
       {visualizerOpen && <VisualizerOverlay />}

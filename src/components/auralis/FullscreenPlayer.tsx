@@ -17,11 +17,13 @@ import {
   Share2,
 } from "lucide-react";
 import { usePlayer } from "@/store/player";
+import { api } from "@/lib/auralis/api";
 import { shareTrack } from "@/lib/auralis/share";
 import { useFocusTrap } from "@/lib/auralis/useFocusTrap";
 import { usePlayhead } from "@/store/playhead";
-import { Artwork } from "./Artwork";
+import { Artwork, sizedArt } from "./Artwork";
 import { TiltStage } from "./TiltStage";
+import { ConnectButton } from "./ConnectButton";
 import { LyricsView } from "./LyricsView";
 import { QueueList } from "./QueueList";
 import { formatDuration, paletteForName, trackArtist, trackTitle } from "@/lib/auralis/brand";
@@ -65,6 +67,10 @@ export function FullscreenPlayer() {
   if (!currentTrack) return null;
 
   const colors = currentTrack.color ?? paletteForName(currentTrack.trackhash);
+  // Small bucket is plenty behind an 80px blur — cheap and cached. `sizedArt`
+  // owns the `?w=` thumbnail-bucket convention (intended×2 → 256 bucket).
+  const coverSrc = currentTrack.image ? api.assetUrl(currentTrack.image) : null;
+  const blurredCover = coverSrc ? sizedArt(coverSrc, 128) : null;
   const onFav = () => { if (!fav) setFavPop(true); toggleFavorite(currentTrack.trackhash); };
 
   const openMore = (event: MouseEvent<HTMLButtonElement>) => {
@@ -100,31 +106,56 @@ export function FullscreenPlayer() {
       role="dialog"
       aria-modal="true"
       aria-label="Lecteur plein écran"
-      className="fixed inset-0 z-[60] bg-[var(--background)]"
+      // `no-drag`: this full-screen overlay paints OVER the Electron TitleBar, but
+      // the OS still treats the titlebar's `-webkit-app-region: drag` rect as
+      // draggable underneath — so a press on the top-left back button started a
+      // window-move instead of firing the click ("I could see it, it didn't work").
+      // Carving the whole overlay out of the drag region restores every control.
+      // No-op in the browser/mobile (app-region does nothing there).
+      className="no-drag fixed inset-0 z-[60] bg-[var(--background)]"
       style={{
         transform: dragY ? `translateY(${dragY}px)` : undefined,
         transition: dragging ? "none" : "transform 0.2s ease"
       }}
     >
-      {/* Ambient background drawn from the track's REAL cover palette (extracted
-          server-side, not a hash of the title): a soft top glow in the base colour
-          plus a low highlight wash, fading into the app background. The 700ms
-          transition cross-fades the ambiance as the cover changes. */}
+      {/* Spotify-style cover-themed backdrop. Bottom layer: the actual cover blown
+          up and heavily blurred so the whole stage is bathed in the artwork's real
+          tones. Top layer: the server-extracted palette painting a soft glow that
+          gives the wash structure and fades cleanly into the app background. Both
+          cross-fade over 700ms as the cover changes. */}
+      {blurredCover && (
+        <div className="absolute inset-0 overflow-hidden pointer-events-none">
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img
+            key={blurredCover}
+            src={blurredCover}
+            alt=""
+            aria-hidden
+            className="absolute inset-0 h-full w-full scale-125 object-cover opacity-45 blur-[80px] saturate-150"
+          />
+        </div>
+      )}
       <div
         className="absolute inset-0 pointer-events-none transition-[background] duration-700 ease-out"
         style={{
-          background: `radial-gradient(120% 75% at 50% -8%, ${colors[0] || "#535353"} 0%, transparent 58%), radial-gradient(90% 60% at 80% 8%, ${(colors[2] || colors[0] || "#535353")}55 0%, transparent 55%), linear-gradient(to bottom, ${(colors[0] || "#535353")}cc, var(--background) 72%)`,
+          background: `radial-gradient(120% 75% at 50% -8%, ${colors[0] || "#535353"}cc 0%, transparent 58%), radial-gradient(90% 60% at 80% 8%, ${(colors[2] || colors[0] || "#535353")}55 0%, transparent 55%), linear-gradient(to bottom, transparent 0%, ${(colors[0] || "#535353")}33 30%, var(--background) 88%)`,
         }}
       />
+      {/* Legibility scrim: the blurred cover + palette wash can be near-white for a
+          light album, washing out the white top-bar controls. A short top-down dark
+          fade keeps the back button / track meta readable on any cover, with no
+          visible effect on dark ones. */}
+      <div className="absolute inset-x-0 top-0 h-32 pointer-events-none bg-gradient-to-b from-black/40 to-transparent" />
 
       <div className="relative z-10 flex h-full flex-col pt-[env(safe-area-inset-top)] pb-[env(safe-area-inset-bottom)]">
 
       {/* Top bar */}
       <div className="flex h-16 items-center justify-between px-4">
         <button
+          type="button"
           onClick={closeFullscreenPlayer}
           aria-label="Réduire le lecteur"
-          className="grid h-10 w-10 place-items-center text-white"
+          className="grid h-10 w-10 place-items-center text-white transition-transform active:scale-90"
         >
           <ChevronDown className="size-8" />
         </button>
@@ -153,8 +184,43 @@ export function FullscreenPlayer() {
 
       <div className="flex flex-1 min-h-0 flex-col px-6">
         {showLyrics ? (
-          <div className="min-h-0 flex-1 pt-2">
-            <LyricsView variant="stage" />
+          /* Spotify-style lyrics stage. Desktop: cover (+ meta) pinned left, paroles
+             scrolling right, both bathed in the cover-themed backdrop above. Mobile:
+             just the paroles, full-bleed. */
+          <div className="min-h-0 flex-1 pt-2 lg:grid lg:grid-cols-[minmax(0,400px)_minmax(0,1fr)] lg:items-stretch lg:gap-12 lg:px-2">
+            <div className="hidden min-h-0 flex-col justify-center gap-7 lg:flex">
+              <TiltStage radius={10} className="w-full aspect-square shadow-2xl shadow-black/40">
+                <Artwork
+                  fluid
+                  title={currentTrack.title}
+                  trackhash={currentTrack.trackhash}
+                  imgSize={640}
+                  rounded={10}
+                  colors={colors}
+                  image={currentTrack.image}
+                  className="w-full h-full"
+                />
+              </TiltStage>
+              <div className="flex items-center justify-between gap-4">
+                <div className="flex min-w-0 flex-col">
+                  <h1 className="truncate text-[26px] font-bold text-white">{trackTitle(currentTrack)}</h1>
+                  <p className="truncate text-[17px] font-medium text-[var(--text-muted)]">{trackArtist(currentTrack)}</p>
+                </div>
+                <button
+                  onClick={onFav}
+                  aria-label={fav ? "Retirer des favoris" : "Ajouter aux favoris"}
+                  className="shrink-0 transition-transform active:scale-90"
+                >
+                  <Heart
+                    className={cn("size-[26px]", favPop && "heart-pop", fav ? "fill-[var(--primary)] text-[var(--primary)]" : "text-white")}
+                    onAnimationEnd={() => setFavPop(false)}
+                  />
+                </button>
+              </div>
+            </div>
+            <div className="h-full min-h-0">
+              <LyricsView variant="stage" />
+            </div>
           </div>
         ) : showQueue ? (
           <div className="flex min-h-0 flex-1 flex-col pt-2">
@@ -243,7 +309,8 @@ export function FullscreenPlayer() {
         >
           <Mic2 className="size-5" />
         </button>
-        <div className="flex gap-4">
+        <div className="flex items-center gap-4">
+          <ConnectButton variant="stage" />
           <button
             onClick={() => void shareTrack(currentTrack, notify)}
             aria-label="Partager"

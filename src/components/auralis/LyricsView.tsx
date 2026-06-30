@@ -72,6 +72,10 @@ export function LyricsView({ variant }: { variant: "panel" | "stage" }) {
   const stage = variant === "stage";
   const lyrics = currentTrack?.lyrics ?? [];
   const hasLyrics = lyrics.length > 0;
+  // Word-by-word (richsync) availability: at least one line carries per-word
+  // timestamps. Karaoké is the DEFAULT surface only for these — a plain line-synced
+  // LRC stays in Standard (no estimated wipe), per the user's request.
+  const hasWords = lyrics.some((l) => l.words && l.words.length > 0);
   // A timestamped lyric is "synced". `lyrics` only ever holds parsed timestamped
   // lines, so multi-line counts as synced even if a leading line sits at t=0
   // (e.g. an LRC [offset:] pulled it back); the `time > 0` check covers the rest.
@@ -177,9 +181,10 @@ export function LyricsView({ variant }: { variant: "panel" | "stage" }) {
   if (!currentTrack) return <Centered>Aucune lecture</Centered>;
 
   if (hasLyrics) {
-    // Karaoke wipe is gated to synced lyrics with motion allowed; otherwise the
+    // Karaoke wipe is gated to WORD-BY-WORD (richsync) lyrics with motion allowed;
+    // a plain line-synced LRC (no per-word timestamps) stays Standard. Otherwise the
     // active line just gets the plain glowing highlight.
-    const karaokeOn = karaokeMode && seekable && !reduce;
+    const karaokeOn = karaokeMode && seekable && hasWords && !reduce;
     // Guard against a stale activeIndex from the previous track leaking into the
     // first render of a shorter new track (the rAF corrects it next frame).
     const safeActive = activeIndex >= lyrics.length ? -1 : activeIndex;
@@ -187,9 +192,10 @@ export function LyricsView({ variant }: { variant: "panel" | "stage" }) {
       <div className="flex h-full w-full flex-col">
         {seekable && (
           <div className={cn("flex shrink-0 flex-wrap items-center gap-2 pb-2.5", stage ? "justify-center" : "justify-end pr-1")}>
-            {/* Under prefers-reduced-motion the wipe is disabled, so don't offer a
-                Karaoké toggle that would silently do nothing — only the sync trim. */}
-            {!reduce && <KaraokeSwitch />}
+            {/* The Karaoké toggle only appears when it can do something: word-by-word
+                lyrics with motion allowed. Plain line-synced LRC and reduced-motion
+                get the sync trim alone. */}
+            {!reduce && hasWords && <KaraokeSwitch />}
             <SyncOffset />
           </div>
         )}

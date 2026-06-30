@@ -33,7 +33,7 @@ const ART_BUCKETS = [96, 160, 256, 384, 640];
  * (often multi-MB) original. Targets ~2× the CSS px for crisp HiDPI without a
  * hydration-unsafe devicePixelRatio read; anything larger than the top bucket
  * keeps the original. */
-function sizedArt(src: string, intended: number): string {
+export function sizedArt(src: string, intended: number): string {
   if (!src || intended <= 0 || !src.includes("/api/art/")) return src;
   const target = intended * 2;
   const bucket = ART_BUCKETS.find((b) => b >= target);

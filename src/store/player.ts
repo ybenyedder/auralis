@@ -437,7 +437,18 @@ function writePersist(state: PlayerState) {
               position: Math.floor(usePlayhead.getState().position),
             };
           })()
-        : undefined,
+        // No current track. Two opposite states both land here:
+        //  • BEFORE hydration (app startup, launch-time persists from
+        //    hydrateFromServer() fire while currentTrack is still null) — writing
+        //    `undefined` would erase the saved session before restoreLastSession
+        //    can read it, leaving the reopened app on "Aucune lecture". So we
+        //    PRESERVE the prior value until restore has had its chance.
+        //  • AFTER hydration (the user genuinely stopped / emptied the queue) —
+        //    the session SHOULD clear, so we write `undefined`.
+        // The `hydrated` flag (set the first time restoreLastSession runs with the
+        // library ready) is what tells the two apart; it also spares the common
+        // post-hydration path the localStorage read+parse.
+        : hydrated ? undefined : loadPersisted().lastSession,
     };
     window.localStorage.setItem(LS_KEY, JSON.stringify(data));
   } catch {
@@ -452,6 +463,10 @@ function writePersist(state: PlayerState) {
 // ~400ms, plus a synchronous flush on page hide so nothing is lost on close.
 let persistTimer: ReturnType<typeof setTimeout> | undefined;
 let pendingPersist: PlayerState | null = null;
+// True once restoreLastSession has run with the library ready: from that point a
+// null currentTrack means a genuine stop (clear the session), not the pre-restore
+// startup window (preserve it). See writePersist's lastSession branch.
+let hydrated = false;
 
 function flushPersist() {
   if (persistTimer !== undefined) {
@@ -1455,11 +1470,14 @@ export const usePlayer = create<PlayerState>((set, get) => {
 
     restoreLastSession: () => {
       // Don't clobber anything the user already started before the library loaded.
-      if (get().currentTrack) return;
+      if (get().currentTrack) { hydrated = true; return; }
       const ls = loadPersisted().lastSession;
-      if (!ls?.trackhash) return;
       const lib = useLibraryStore.getState().tracks;
-      if (lib.length === 0) return; // library not ready yet
+      if (lib.length === 0) return; // library not ready yet — retried on load, still pre-hydration
+      // Library is ready and we've had our chance to restore: from here on a null
+      // currentTrack is a real stop, so persist may clear the session.
+      hydrated = true;
+      if (!ls?.trackhash) return;
       const byHash = new Map(lib.map((t) => [t.trackhash, t]));
       const track = byHash.get(ls.trackhash);
       if (!track) return; // the track left the library (rescan/move)

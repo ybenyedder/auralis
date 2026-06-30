@@ -21,6 +21,7 @@ import {
 import { usePlayer } from "@/store/player";
 import { usePlayhead } from "@/store/playhead";
 import { Artwork } from "./Artwork";
+import { ConnectButton } from "./ConnectButton";
 import { formatDuration, trackArtist, trackTitle } from "@/lib/auralis/brand";
 import { cn } from "@/lib/utils";
 
@@ -220,6 +221,9 @@ export function PlayerBar() {
         >
           <ListMusic className="size-[18px]" />
         </button>
+
+        {/* Connect — écouter / piloter un autre appareil (PC ↔ téléphone). */}
+        <ConnectButton variant="bar" />
 
         {/* Volume */}
         <div className="flex items-center gap-2 group w-[125px]">
