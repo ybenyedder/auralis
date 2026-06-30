@@ -14,7 +14,7 @@
 // scripts/forced_align.py; this module only orchestrates it off the request path.
 // ============================================================================
 
-import { spawn } from "child_process";
+import { spawn, type ChildProcess } from "child_process";
 import fs from "fs";
 import path from "path";
 import { getConfig } from "../config";
@@ -24,6 +24,11 @@ import { createLogger } from "../logger";
 const log = createLogger("alignment");
 
 let aligning = false;
+
+// One track can take minutes on CPU (and the very first run downloads the ~1.2GB
+// model), so the on-demand path never blocks the request: it runs detached and the
+// client polls getAlignStatus(). 12 min is a generous ceiling incl. first download.
+const ALIGN_TIMEOUT_MS = 12 * 60 * 1000;
 
 /** Locate the bundled aligner script; absent in trimmed standalone builds. */
 function scriptPath(): string | null {
@@ -104,5 +109,91 @@ export async function runForcedAlignment(): Promise<void> {
     });
   }).finally(() => {
     aligning = false;
+  });
+}
+
+// ── On-demand single-track alignment (the "✨ Générer le mot-à-mot" button) ──────
+
+export type AlignState = "running" | "ok" | "failed" | "unavailable";
+export interface AlignStatus {
+  state: AlignState;
+  message?: string;
+  at: number;
+}
+
+// Last known outcome per track (so the client can poll) + single-flight guard so a
+// double-click or two listeners don't spawn the aligner twice for the same track.
+const alignStatus = new Map<string, AlignStatus>();
+const alignInflight = new Map<string, Promise<void>>();
+
+export function getAlignStatus(trackhash: string): AlignStatus | null {
+  return alignStatus.get(trackhash) ?? null;
+}
+
+/** Kick a one-track alignment if not already running. Returns immediately. */
+export function startAlignOne(trackhash: string): void {
+  if (alignInflight.has(trackhash)) return;
+  const p = runAlignOne(trackhash).finally(() => alignInflight.delete(trackhash));
+  alignInflight.set(trackhash, p);
+}
+
+async function runAlignOne(trackhash: string): Promise<void> {
+  alignStatus.set(trackhash, { state: "running", at: Date.now() });
+  const script = scriptPath();
+  if (!script) {
+    alignStatus.set(trackhash, { state: "unavailable", message: "Aligneur absent de cette build.", at: Date.now() });
+    return;
+  }
+  const { musicDir, dataDir } = getConfig();
+
+  await new Promise<void>((resolve) => {
+    let child: ChildProcess;
+    try {
+      // --separate off keeps the on-demand path responsive (vocal isolation via
+      // Demucs is minutes-slow); the background post-scan pass uses "auto" instead.
+      child = spawn(pythonBin(), [script, "--track", trackhash, "--separate", "off"], {
+        cwd: process.cwd(),
+        env: { ...process.env, AURALIS_DATA_DIR: dataDir, AURALIS_MUSIC_DIR: musicDir },
+        stdio: ["ignore", "pipe", "pipe"],
+      });
+    } catch {
+      alignStatus.set(trackhash, { state: "unavailable", message: "Python introuvable sur le serveur.", at: Date.now() });
+      return resolve();
+    }
+
+    let out = "";
+    let err = "";
+    child.stdout?.on("data", (b: Buffer) => { out += b.toString("utf8"); });
+    child.stderr?.on("data", (b: Buffer) => { err += b.toString("utf8"); });
+    const killer = setTimeout(() => { try { child.kill("SIGKILL"); } catch {/* gone */} }, ALIGN_TIMEOUT_MS);
+
+    child.on("error", () => {
+      clearTimeout(killer);
+      alignStatus.set(trackhash, { state: "unavailable", message: "Python introuvable sur le serveur.", at: Date.now() });
+      resolve();
+    });
+    child.on("close", async (code) => {
+      clearTimeout(killer);
+      if (/manquants|No module named|ModuleNotFoundError/i.test(err)) {
+        alignStatus.set(trackhash, { state: "unavailable", message: "Dépendances IA non installées sur le serveur (torch).", at: Date.now() });
+        return resolve();
+      }
+      if (out.includes("✓ MOT")) {
+        // Re-resolve so the new word-by-word sidecar lands in the DB cache; the
+        // client's next lyrics fetch then serves the upgraded, word-timed lines.
+        try {
+          await import("../lyrics/service").then((m) => m.getLyrics(trackhash, { forceRefetch: true }));
+        } catch {/* the sidecar is on disk regardless; next open will pick it up */}
+        alignStatus.set(trackhash, { state: "ok", at: Date.now() });
+        log.info("forced alignment (on-demand) succeeded", { trackhash });
+      } else {
+        alignStatus.set(trackhash, {
+          state: "failed",
+          message: code === 0 ? "Rien d'alignable sur ce titre." : "Échec de l'alignement.",
+          at: Date.now(),
+        });
+      }
+      resolve();
+    });
   });
 }

@@ -61,15 +61,19 @@ To enable it:
 The install then puts the aligner deps (`torch`/`torchaudio` + a static `ffmpeg`,
 ~1.5 GB) **into the `data/` folder**, which is preserved across reinstalls — so you
 only pay for it once, and future reinstalls reuse it (no re-download). A ~1.2 GB
-model is cached (also under `data/`) on first use. The server then upgrades lyrics
-to word-by-word in a background pass after each scan.
+model is pre-cached (also under `data/`) during install. The server then upgrades
+lyrics to word-by-word two ways:
+
+- **automatically**, in a background pass after each scan, and
+- **on demand**: open a song's lyrics (🎤) and, when it only has line-level text,
+  click **✨ Mot-à-mot** to align just that song right away.
 
 Requirements when enabled:
 
 - **Memory:** at least **4 GB** (6 GB if you also want Demucs vocal isolation).
 - **Disk:** ~3 GB extra for the ML deps + model.
-- It runs as a **background pass after each scan** and only *upgrades* lyrics that
-  are already line-level synced (from LRCLIB/Musixmatch) — it never blocks the app.
+- It only *upgrades* lyrics that are already line-level synced (from
+  LRCLIB/Musixmatch) — it never blocks the app.
 
 If anything is missing (no `python3` in the image, install fails), the wrapper logs
 why, disables the feature for that boot, and the server starts normally with

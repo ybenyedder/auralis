@@ -157,6 +157,9 @@ interface PlayerState {
   lyricsLoading: boolean;
   lyricsStatus: "idle" | "loading" | "found" | "notfound" | "instrumental" | "error";
   lyricsPlain: string | null;
+  /** True while the local forced-alignment AI is upgrading the current track's
+   *  line-level lyrics to word-by-word karaoke (the "✨ Générer le mot-à-mot" button). */
+  aligning: boolean;
   syncReady: boolean;
 
   navigate: (view: ViewId, id?: string) => void;
@@ -266,6 +269,9 @@ interface PlayerState {
   restoreLastSession: () => void;
   resetServerStats: () => void;
   fetchLyrics: (force?: boolean) => Promise<void>;
+  /** Trigger the local forced-alignment AI on the current track (line-level →
+   *  word-by-word), then poll until done and reload the upgraded lyrics. */
+  alignLyrics: () => Promise<void>;
 }
 
 interface ServerState {
@@ -576,6 +582,7 @@ export const usePlayer = create<PlayerState>((set, get) => {
     lyricsLoading: false,
     lyricsStatus: "idle",
     lyricsPlain: null,
+    aligning: false,
     syncReady: false,
 
     navigate: (view, id) => {
@@ -1549,6 +1556,60 @@ export const usePlayer = create<PlayerState>((set, get) => {
       } catch {
         set({ lyricsLoading: false, lyricsStatus: "error" });
         get().notify("Recherche de paroles indisponible", { tone: "error" });
+      }
+    },
+
+    alignLyrics: async () => {
+      const track = get().currentTrack;
+      if (!track || get().aligning) return;
+      const hash = track.trackhash;
+      set({ aligning: true });
+      try {
+        const start = await api.post<{ state: string; message?: string }>(`/api/lyrics/${hash}/align`);
+        if (start.state === "ready") {
+          await get().fetchLyrics();
+          set({ aligning: false });
+          get().notify("Déjà en mot-à-mot ✨", { tone: "info" });
+          return;
+        }
+        if (start.state === "no-source") {
+          set({ aligning: false });
+          get().notify("Pas de paroles synchronisées à convertir", { tone: "info" });
+          return;
+        }
+        // The job runs detached on the server; poll its status until it resolves.
+        // The first ever run also downloads the model, hence the generous ceiling.
+        const deadline = Date.now() + 12 * 60 * 1000;
+        while (Date.now() < deadline) {
+          await new Promise((r) => setTimeout(r, 3000));
+          // User moved on to another track — stop quietly, the job still finishes.
+          if (get().currentTrack?.trackhash !== hash) {
+            set({ aligning: false });
+            return;
+          }
+          let st: { state: string; message?: string };
+          try {
+            st = await api.get<{ state: string; message?: string }>(`/api/lyrics/${hash}/align`);
+          } catch {
+            continue; // transient — keep polling
+          }
+          if (st.state === "ok") {
+            await get().fetchLyrics();
+            set({ aligning: false });
+            get().notify("Karaoké mot-à-mot prêt ✨", { tone: "success" });
+            return;
+          }
+          if (st.state === "failed" || st.state === "unavailable") {
+            set({ aligning: false });
+            get().notify(st.message || "Génération impossible", { tone: "error" });
+            return;
+          }
+        }
+        set({ aligning: false });
+        get().notify("Toujours en cours… réessaie dans un moment", { tone: "info" });
+      } catch {
+        set({ aligning: false });
+        get().notify("Génération du mot-à-mot indisponible", { tone: "error" });
       }
     },
   };

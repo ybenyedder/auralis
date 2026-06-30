@@ -14,7 +14,7 @@
 // The Standard/Karaoké switch lives at the top of the pane (synced lyrics only).
 
 import { useEffect, useLayoutEffect, useRef, useState, type CSSProperties } from "react";
-import { Mic2, Captions, Minus, Plus, Timer } from "lucide-react";
+import { Mic2, Captions, Minus, Plus, Timer, Sparkles, Loader2 } from "lucide-react";
 import { usePlayer, getAudioTime } from "@/store/player";
 import { usePlayhead } from "@/store/playhead";
 import { cn } from "@/lib/utils";
@@ -196,6 +196,9 @@ export function LyricsView({ variant }: { variant: "panel" | "stage" }) {
                 lyrics with motion allowed. Plain line-synced LRC and reduced-motion
                 get the sync trim alone. */}
             {!reduce && hasWords && <KaraokeSwitch />}
+            {/* Line-level synced but no per-word timing yet → offer the local AI that
+                aligns the words to the audio, turning it into real karaoke. */}
+            {!reduce && !hasWords && hasLyrics && <GenerateWordByWord />}
             <SyncOffset />
           </div>
         )}
@@ -360,6 +363,26 @@ function KaraokeSwitch() {
       <SwitchSeg active={!karaokeMode} onClick={() => karaokeMode && toggleKaraoke()} label="Standard" icon={Captions} />
       <SwitchSeg active={karaokeMode} onClick={() => !karaokeMode && toggleKaraoke()} label="Karaoké" icon={Mic2} />
     </div>
+  );
+}
+
+// When a track only has line-level synced lyrics, this runs the local
+// forced-alignment AI (listens to the audio, aligns the known words) to upgrade it
+// to real word-by-word karaoke. Heavy: the work runs server-side and the store
+// polls it, so the button just reflects the in-flight state.
+function GenerateWordByWord() {
+  const aligning = usePlayer((s) => s.aligning);
+  const alignLyrics = usePlayer((s) => s.alignLyrics);
+  return (
+    <button
+      onClick={() => !aligning && alignLyrics()}
+      disabled={aligning}
+      title="Générer le karaoké mot-à-mot en alignant les paroles sur l'audio (IA locale)"
+      className="inline-flex items-center gap-1.5 rounded-full bg-[var(--panel-2)] px-3 py-1.5 text-[12px] font-bold text-white/70 transition-all duration-200 hover:bg-white/10 hover:text-white disabled:opacity-60"
+    >
+      {aligning ? <Loader2 className="size-3.5 animate-spin" /> : <Sparkles className="size-3.5" />}
+      {aligning ? "Alignement…" : "Mot-à-mot"}
+    </button>
   );
 }
 
