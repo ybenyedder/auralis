@@ -4,6 +4,28 @@ All notable changes to Auralis are documented here. The format is based on
 [Keep a Changelog](https://keepachangelog.com/) and this project adheres to
 [Semantic Versioning](https://semver.org/).
 
+## [1.10.0] - 2026-06-30
+
+### Added
+- **Connect.** Télécommande en temps réel entre vos appareils (PC ↔ téléphone,
+  même compte) via un hub SSE : un appareil pilote la lecture d'un autre
+  (lecture/pause, précédent/suivant, recherche dans le morceau) avec un
+  now-playing miroir et un scrubber interpolé. Sélecteur d'appareils façon Spotify
+  dans la barre du lecteur et en plein écran.
+
+### Changed
+- **Plein écran façon Spotify.** Fond thématisé par la pochette (cover floutée +
+  glow de la palette), vue paroles desktop avec la pochette épinglée à gauche, et
+  un voile de lisibilité en haut pour les pochettes claires.
+- **Paroles.** Le mode karaoké (surbrillance mot-à-mot) n'apparaît que pour les
+  paroles synchronisées mot-à-mot (richsync) ; les LRC ligne-à-ligne restent en
+  affichage Standard.
+
+### Fixed
+- **Reprise de session.** Vider la file ou arrêter la lecture efface enfin la
+  session sauvegardée (plus de morceau « ressuscité » à la réouverture), tout en
+  corrigeant la course qui pouvait afficher « Aucune lecture » au démarrage.
+
 ## [1.9.0] - 2026-06-29
 
 ### Added
