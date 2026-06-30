@@ -774,6 +774,19 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
         }
     }
 
+    /** Upload (dataUrl, e.g. "data:image/jpeg;base64,...") or clear (null) a playlist's
+     * custom cover. Owner-only server-side; mirrors web's setPlaylistCover. */
+    fun setPlaylistCover(playlistId: String, dataUrl: String?) {
+        viewModelScope.launch {
+            val payload = JSONObject().put("action", "playlist.cover").put("id", playlistId)
+                .put("imageDataUrl", dataUrl ?: JSONObject.NULL)
+            val res = api.putState(payload)
+            if (!res.optBoolean("ok", false)) { notify("Échec de l'envoi de la pochette"); return@launch }
+            val hash = res.optString("imageHash", "").ifBlank { null }
+            _ui.update { it.copy(playlists = it.playlists.map { p -> if (p.id == playlistId) p.copy(imageHash = hash) else p }) }
+        }
+    }
+
     fun togglePin(playlistId: String) {
         val pl = _ui.value.playlists.find { it.id == playlistId } ?: return
         upsertPlaylist(pl.copy(pinned = !pl.pinned))

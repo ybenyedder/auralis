@@ -265,6 +265,13 @@ const MIGRATIONS: string[] = [
   );
   CREATE INDEX IF NOT EXISTS idx_plcollab_user ON playlist_collaborators(user_id);
   `,
+  // v9 — custom playlist cover art. `image_hash` points into the SAME
+  // content-addressed art cache tracks/albums use (art.ts cacheArtBuffer /
+  // /api/art/[hash]); NULL = no custom cover, clients fall back to a
+  // generated mosaic from the playlist's own tracks.
+  `
+  ALTER TABLE playlists ADD COLUMN image_hash TEXT;
+  `,
 ];
 
 function migrate(db: DB) {

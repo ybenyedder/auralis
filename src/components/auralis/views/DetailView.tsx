@@ -11,6 +11,7 @@ import {
   FileText,
   FolderOpen,
   HardDrive,
+  ImagePlus,
   Info,
   ListMusic,
   Lock,
@@ -343,6 +344,7 @@ export function PlaylistDetail({ id }: { id: string }) {
   const togglePlay = usePlayer((s) => s.togglePlay);
   const customPlaylists = usePlayer((s) => s.customPlaylists);
   const renamePlaylist = usePlayer((s) => s.renamePlaylist);
+  const setPlaylistCover = usePlayer((s) => s.setPlaylistCover);
   const deletePlaylist = usePlayer((s) => s.deletePlaylist);
   const navigate = usePlayer((s) => s.navigate);
   const removeFromPlaylist = usePlayer((s) => s.removeFromPlaylist);
@@ -376,11 +378,28 @@ export function PlaylistDetail({ id }: { id: string }) {
   }, [trackIndex, playlist, allTracks, favorites, playCounts]);
   const [editing, setEditing] = useState(false);
   const [name, setName] = useState("");
+  const [coverBusy, setCoverBusy] = useState(false);
+  const coverInputRef = useRef<HTMLInputElement>(null);
 
   if (!playlist) return <EmptyDetail label="Playlist introuvable" loading={isCustom ? false : status !== "ready"} />;
 
   const colors = playlist.color ?? paletteForName(playlist.name);
-  const coverImage = tracks.find((track) => track.image)?.image;
+  // A user-set cover always wins; otherwise fall back to the first track with art.
+  const coverImage = playlist.image ?? tracks.find((track) => track.image)?.image;
+
+  const onPickCover = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    e.target.value = "";
+    if (!file) return;
+    const MAX_BYTES = 8 * 1024 * 1024;
+    if (file.size > MAX_BYTES) { window.alert("Image trop lourde (8 Mo max)."); return; }
+    const reader = new FileReader();
+    reader.onload = () => {
+      setCoverBusy(true);
+      void setPlaylistCover(id, String(reader.result)).finally(() => setCoverBusy(false));
+    };
+    reader.readAsDataURL(file);
+  };
   const totalDuration = tracks.reduce(
     (sum, track) => sum + (track.duration || 0),
     0,
@@ -406,27 +425,54 @@ export function PlaylistDetail({ id }: { id: string }) {
     <div className="fade-up">
       <section className="hero-cover px-4 pb-6 pt-7 lg:px-6 lg:pt-8" style={coverVars(colors)}>
         <div className="flex flex-col items-center text-center lg:flex-row lg:items-end lg:gap-6 lg:text-left">
-          {coverImage ? (
-            <Artwork
-              name={playlist.name}
-              image={coverImage}
-              size={208}
-              rounded={12}
-              colors={colors}
-              showInitials={false}
-              fluid
-              className="w-[min(56vw,240px)] aspect-square lg:size-[208px]"
-            />
-          ) : (
-            <div
-              className="cover-fallback relative flex w-[min(56vw,240px)] aspect-square shrink-0 items-end overflow-hidden rounded-lg border border-[var(--line)] p-4 lg:size-[208px]"
-              style={{ backgroundColor: colors[0] }}
-            >
-              <span className="relative text-[18px] font-black leading-tight text-white">
-                {playlist.name}
-              </span>
-            </div>
-          )}
+          <div className="group relative w-[min(56vw,240px)] shrink-0 lg:size-[208px]">
+            {coverImage ? (
+              <Artwork
+                name={playlist.name}
+                image={coverImage}
+                size={208}
+                rounded={12}
+                colors={colors}
+                showInitials={false}
+                fluid
+                className="aspect-square size-full"
+              />
+            ) : (
+              <div
+                className="cover-fallback relative flex aspect-square size-full items-end overflow-hidden rounded-lg border border-[var(--line)] p-4"
+                style={{ backgroundColor: colors[0] }}
+              >
+                <span className="relative text-[18px] font-black leading-tight text-white">
+                  {playlist.name}
+                </span>
+              </div>
+            )}
+            {isCustom && !isCollaborator && (
+              <>
+                <input ref={coverInputRef} type="file" accept="image/*" className="hidden" onChange={onPickCover} />
+                <button
+                  onClick={() => coverInputRef.current?.click()}
+                  disabled={coverBusy}
+                  aria-label="Changer la pochette"
+                  title="Changer la pochette"
+                  className="absolute inset-0 grid place-items-center rounded-lg bg-black/55 opacity-0 transition-opacity duration-200 group-hover:opacity-100 disabled:opacity-100"
+                >
+                  <span className="flex flex-col items-center gap-1.5 text-white">
+                    <ImagePlus className="size-7" />
+                    <span className="text-[11px] font-semibold">{coverBusy ? "Envoi…" : "Changer la pochette"}</span>
+                  </span>
+                </button>
+                {/* Always-visible badge — the hover overlay above is desktop-only discoverable,
+                    this keeps the affordance reachable on touch (no hover state there). */}
+                <span
+                  aria-hidden
+                  className="pointer-events-none absolute bottom-2 right-2 grid size-8 place-items-center rounded-full bg-black/65 text-white opacity-100 transition-opacity duration-200 group-hover:opacity-0"
+                >
+                  <ImagePlus className="size-4" />
+                </span>
+              </>
+            )}
+          </div>
           <div className="mt-4 w-full min-w-0 lg:mt-0 lg:w-auto lg:pb-2">
             <p className="text-[10px] font-semibold uppercase tracking-[0.08em] text-[var(--brass)]">
               {isCollaborator
@@ -493,6 +539,15 @@ export function PlaylistDetail({ id }: { id: string }) {
                   className="flex items-center gap-2 text-[13px] font-bold text-muted-foreground transition-colors hover:text-foreground"
                 >
                   <PencilLine className="size-5" /> Renommer
+                </button>
+              )}
+              {!isCollaborator && (
+                <button
+                  onClick={() => coverInputRef.current?.click()}
+                  disabled={coverBusy}
+                  className="flex items-center gap-2 text-[13px] font-bold text-muted-foreground transition-colors hover:text-foreground disabled:opacity-40"
+                >
+                  <ImagePlus className="size-5" /> {coverBusy ? "Envoi…" : "Pochette"}
                 </button>
               )}
               {!isCollaborator && !isSmart && (

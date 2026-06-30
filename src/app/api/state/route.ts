@@ -1,11 +1,12 @@
 import {
   getUserState, setFavorite, setDislike, recordPlay, recordSkip, setSetting,
   upsertPlaylist, deletePlaylist, reorderPlaylists, replaceUserState, resetUserStats, isHash,
-  setPlaylistShared, addCollaborator, addTrackToPlaylist, removeTrackFromPlaylist,
+  setPlaylistShared, addCollaborator, addTrackToPlaylist, removeTrackFromPlaylist, setPlaylistCover,
 } from "@/server/state/userState";
 import { getRequestUser } from "@/server/auth";
 import { json, checkCsrf } from "@/server/http";
 import { invalidateReco, recommendFromSeeds } from "@/server/reco/engine";
+import { cacheArtBuffer } from "@/server/library/art";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -28,6 +29,8 @@ interface ActionBody {
   /** Fraction of the track heard, 0..1 (how "complete" the listen / how early the skip). */
   ratio?: number;
   playlist?: { id?: string; name: string; description?: string | null; pinned?: boolean; trackhashes?: string[]; rules?: string | null };
+  /** Data URL (e.g. "data:image/jpeg;base64,...") for playlist.cover; omit/null to clear. */
+  imageDataUrl?: string | null;
   /** Collaborator username for playlist.collaborator. */
   username?: string;
   /** Hand-picked seed trackhashes for playlist.generateFromSeeds. */
@@ -98,6 +101,22 @@ export async function PUT(request: Request) {
       const name = typeof body.name === "string" && body.name.trim() ? body.name.trim().slice(0, 120) : result.name;
       const id = upsertPlaylist(uid, { name, description: "Généré par l'IA d'après votre sélection et vos goûts", trackhashes });
       return json({ ok: true, id, name, mood: result.mood, trackhashes });
+    }
+    case "playlist.cover": {
+      if (!body.id) return json({ error: "id required" }, { status: 400 });
+      if (!body.imageDataUrl) {
+        const cleared = setPlaylistCover(uid, body.id, null);
+        return cleared ? json({ ok: true, imageHash: null }) : json({ error: "not_owner" }, { status: 403 });
+      }
+      const match = /^data:image\/[a-zA-Z0-9.+-]+;base64,([A-Za-z0-9+/=]+)$/.exec(body.imageDataUrl);
+      if (!match) return json({ error: "imageDataUrl must be a base64 image data URL" }, { status: 400 });
+      const buffer = Buffer.from(match[1], "base64");
+      const MAX_COVER_BYTES = 8 * 1024 * 1024;
+      if (buffer.length === 0 || buffer.length > MAX_COVER_BYTES) return json({ error: "image too large" }, { status: 400 });
+      const hash = cacheArtBuffer(buffer);
+      if (!hash) return json({ error: "could not store image" }, { status: 500 });
+      const ok = setPlaylistCover(uid, body.id, hash);
+      return ok ? json({ ok: true, imageHash: hash }) : json({ error: "not_owner" }, { status: 403 });
     }
     case "playlist.delete":
       if (!body.id) return json({ error: "id required" }, { status: 400 });

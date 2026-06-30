@@ -21,6 +21,8 @@ export interface PlaylistDTO {
   collaborator: boolean;
   /** Owner's username (only set on collaborator playlists, for the "de X" label). */
   owner?: string;
+  /** Content-hash into the shared art cache (art.ts); null = no custom cover. */
+  imageHash: string | null;
 }
 
 export interface UserState {
@@ -44,8 +46,8 @@ export function getUserState(userId: number): UserState {
   }
   const recents = (db.prepare("SELECT trackhash FROM recents WHERE user_id = ? ORDER BY played_at DESC LIMIT ?").all(userId, RECENTS_LIMIT) as { trackhash: string }[]).map((r) => r.trackhash);
 
-  const playlistRows = db.prepare("SELECT id, name, description, pinned, position, rules, is_shared FROM playlists WHERE user_id = ? ORDER BY position ASC, created_at ASC").all(userId) as {
-    id: string; name: string; description: string | null; pinned: number; position: number; rules: string | null; is_shared: number;
+  const playlistRows = db.prepare("SELECT id, name, description, pinned, position, rules, is_shared, image_hash FROM playlists WHERE user_id = ? ORDER BY position ASC, created_at ASC").all(userId) as {
+    id: string; name: string; description: string | null; pinned: number; position: number; rules: string | null; is_shared: number; image_hash: string | null;
   }[];
   const trackStmt = db.prepare("SELECT trackhash FROM playlist_tracks WHERE playlist_id = ? ORDER BY position ASC, added_at ASC");
   const playlists: PlaylistDTO[] = playlistRows.map((p) => ({
@@ -57,18 +59,19 @@ export function getUserState(userId: number): UserState {
     rules: p.rules ?? null,
     shared: p.is_shared === 1,
     collaborator: false,
+    imageHash: p.image_hash ?? null,
     trackhashes: (trackStmt.all(p.id) as { trackhash: string }[]).map((t) => t.trackhash),
   }));
 
   // Playlists shared WITH this user (they're a collaborator): appended to their
   // library, read + append only (rename/delete stay owner-only).
   const collabRows = db.prepare(`
-    SELECT p.id, p.name, p.description, p.pinned, p.rules, u.username AS owner
+    SELECT p.id, p.name, p.description, p.pinned, p.rules, p.image_hash, u.username AS owner
     FROM playlists p
     JOIN playlist_collaborators c ON c.playlist_id = p.id AND c.user_id = ?
     JOIN users u ON u.id = p.user_id
     ORDER BY p.created_at ASC
-  `).all(userId) as { id: string; name: string; description: string | null; pinned: number; rules: string | null; owner: string }[];
+  `).all(userId) as { id: string; name: string; description: string | null; pinned: number; rules: string | null; image_hash: string | null; owner: string }[];
   collabRows.forEach((p, i) => {
     playlists.push({
       id: p.id,
@@ -80,6 +83,7 @@ export function getUserState(userId: number): UserState {
       shared: true,
       collaborator: true,
       owner: p.owner,
+      imageHash: p.image_hash ?? null,
       trackhashes: (trackStmt.all(p.id) as { trackhash: string }[]).map((t) => t.trackhash),
     });
   });
@@ -247,6 +251,14 @@ export function setPlaylistShared(userId: number, id: string, shared: boolean): 
     if (!shared) db.prepare("DELETE FROM playlist_collaborators WHERE playlist_id = ?").run(id);
   });
   tx();
+  return true;
+}
+
+/** Owner-only: set (or clear, with hash=null) a playlist's custom cover image. */
+export function setPlaylistCover(userId: number, id: string, hash: string | null): boolean {
+  const db = getDb();
+  if (!db.prepare("SELECT 1 FROM playlists WHERE id = ? AND user_id = ?").get(id, userId)) return false;
+  db.prepare("UPDATE playlists SET image_hash = ? WHERE id = ? AND user_id = ?").run(hash, id, userId);
   return true;
 }
 

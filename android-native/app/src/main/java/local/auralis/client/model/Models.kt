@@ -183,6 +183,8 @@ data class PlaylistDto(
     val pinned: Boolean,
     val position: Int,
     val trackhashes: List<String>,
+    /** Content-hash into the shared art cache (server art.ts); null = no custom cover. */
+    val imageHash: String? = null,
 ) {
     companion object {
         fun from(o: JSONObject) = PlaylistDto(
@@ -192,6 +194,7 @@ data class PlaylistDto(
             pinned = o.boolOr("pinned", false),
             position = o.intOrNull("position") ?: 0,
             trackhashes = o.stringArray("trackhashes"),
+            imageHash = o.str("imageHash"),
         )
     }
 }

@@ -230,15 +230,34 @@ private fun Header(vm: AppViewModel, ui: UiState) {
             Icon(Icons.Filled.ArrowBack, "Retour", tint = colors.foreground,
                 modifier = Modifier.size(24.dp).clickable { vm.back() })
             Spacer(Modifier.width(12.dp))
-            Text(titleOf(ui.nav.view), color = colors.foreground, fontSize = 17.sp, fontWeight = FontWeight.Bold)
+            Text(titleOf(ui.nav.view), color = colors.foreground, fontSize = 15.sp, fontWeight = FontWeight.Bold)
             Spacer(Modifier.weight(1f))
         } else {
-            Text("Auralis", color = colors.foreground, fontSize = 20.sp, fontWeight = FontWeight.Black)
+            local.auralis.client.ui.components.BrandMark(26)
+            Spacer(Modifier.width(8.dp))
+            Text("Auralis", color = colors.foreground, fontSize = 15.sp, fontWeight = FontWeight.Bold)
             Spacer(Modifier.weight(1f))
         }
-        Icon(Icons.Filled.Search, "Aller à", tint = colors.textMuted,
-            modifier = Modifier.size(22.dp).clickable { vm.openCommand() })
-        Spacer(Modifier.width(16.dp))
+        if (ui.stats.streak > 0) {
+            Row(
+                Modifier
+                    .clip(RoundedCornerShape(999.dp))
+                    .background(colors.accent.copy(alpha = 0.15f))
+                    .clickable { vm.navigate(ViewId.INSIGHTS) }
+                    .padding(horizontal = 10.dp, vertical = 6.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Text("🔥", fontSize = 12.sp)
+                Spacer(Modifier.width(4.dp))
+                Text("${ui.stats.streak}", color = colors.accentSoft, fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
+            }
+            Spacer(Modifier.width(8.dp))
+        }
+        if (ui.nav.view != ViewId.EXPLORE) {
+            Icon(Icons.Filled.Search, "Aller à", tint = colors.textMuted,
+                modifier = Modifier.size(22.dp).clickable { vm.openCommand() })
+            Spacer(Modifier.width(16.dp))
+        }
         Icon(Icons.Filled.Settings, "Réglages", tint = colors.textMuted,
             modifier = Modifier.size(22.dp).clickable { vm.navigate(ViewId.SETTINGS) })
     }
@@ -281,10 +300,10 @@ private fun Dock(activeView: ViewId, onTab: (ViewId) -> Unit) {
                 Modifier.clickable { onTab(t.view) }.padding(horizontal = 10.dp, vertical = 4.dp),
                 horizontalAlignment = Alignment.CenterHorizontally,
             ) {
-                Icon(t.icon, t.label, tint = if (on) colors.accent else colors.textFaint, modifier = Modifier.size(24.dp))
+                Icon(t.icon, t.label, tint = if (on) colors.foreground else colors.textMuted, modifier = Modifier.size(24.dp))
                 Spacer(Modifier.size(3.dp))
-                Text(t.label, color = if (on) colors.accent else colors.textFaint, fontSize = 10.sp,
-                    fontWeight = if (on) FontWeight.Bold else FontWeight.Normal)
+                Text(t.label, color = if (on) colors.foreground else colors.textMuted, fontSize = 10.sp,
+                    fontWeight = FontWeight.Medium)
             }
         }
     }

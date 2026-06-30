@@ -11,6 +11,9 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.PlayArrow
+import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
@@ -27,14 +30,36 @@ import local.auralis.client.ui.components.CoverArt
 import local.auralis.client.ui.components.paletteFor
 import local.auralis.client.ui.theme.LocalAuralis
 
+/** Green circular play FAB pinned bottom-right of a card cover — Spotify's
+ * signature card control. Always shown (no hover on touch), bottom layer tap target. */
 @Composable
-fun AlbumCard(album: Album, modifier: Modifier = Modifier.width(150.dp), onClick: () -> Unit) {
+private fun CardPlayFab(onPlay: () -> Unit, modifier: Modifier = Modifier) {
+    val colors = LocalAuralis.current
+    Box(
+        modifier
+            .size(36.dp)
+            .clip(CircleShape)
+            .background(colors.accent)
+            .clickable { onPlay() },
+        contentAlignment = Alignment.Center,
+    ) {
+        Icon(Icons.Filled.PlayArrow, "Lire", tint = colors.ink, modifier = Modifier.size(18.dp))
+    }
+}
+
+@Composable
+fun AlbumCard(album: Album, modifier: Modifier = Modifier.width(150.dp), onPlay: (() -> Unit)? = null, onClick: () -> Unit) {
     val colors = LocalAuralis.current
     Column(modifier.clickable { onClick() }) {
-        CoverArt(album.image, album.albumhash, Modifier.fillMaxWidth().aspectRatio(1f), cornerRadius = 12)
+        Box {
+            CoverArt(album.image, album.albumhash, Modifier.fillMaxWidth().aspectRatio(1f), cornerRadius = 8)
+            if (onPlay != null) {
+                CardPlayFab(onPlay, Modifier.align(Alignment.BottomEnd).padding(8.dp))
+            }
+        }
         Text(
             album.title,
-            color = colors.foreground, fontSize = 13.sp, fontWeight = FontWeight.SemiBold,
+            color = colors.foreground, fontSize = 14.sp, fontWeight = FontWeight.Bold,
             maxLines = 1, overflow = TextOverflow.Ellipsis,
             modifier = Modifier.padding(top = 8.dp),
         )
@@ -46,19 +71,24 @@ fun AlbumCard(album: Album, modifier: Modifier = Modifier.width(150.dp), onClick
 }
 
 @Composable
-fun ArtistCard(artist: Artist, modifier: Modifier = Modifier.width(130.dp), onClick: () -> Unit) {
+fun ArtistCard(artist: Artist, modifier: Modifier = Modifier.width(130.dp), onPlay: (() -> Unit)? = null, onClick: () -> Unit) {
     val colors = LocalAuralis.current
     val (bg, _, _) = paletteFor(artist.artisthash)
     Column(
         modifier.clickable { onClick() },
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
-        Box(Modifier.fillMaxWidth().aspectRatio(1f).clip(CircleShape).background(bg)) {
-            CoverArt(artist.image, artist.artisthash, Modifier.fillMaxWidth().aspectRatio(1f).clip(CircleShape))
+        Box(Modifier.fillMaxWidth().aspectRatio(1f)) {
+            Box(Modifier.fillMaxWidth().aspectRatio(1f).clip(CircleShape).background(bg)) {
+                CoverArt(artist.image, artist.artisthash, Modifier.fillMaxWidth().aspectRatio(1f).clip(CircleShape))
+            }
+            if (onPlay != null) {
+                CardPlayFab(onPlay, Modifier.align(Alignment.BottomEnd).padding(4.dp))
+            }
         }
         Text(
             artist.name,
-            color = colors.foreground, fontSize = 13.sp, fontWeight = FontWeight.SemiBold,
+            color = colors.foreground, fontSize = 14.sp, fontWeight = FontWeight.Bold,
             maxLines = 1, overflow = TextOverflow.Ellipsis, textAlign = TextAlign.Center,
             modifier = Modifier.padding(top = 8.dp).fillMaxWidth(),
         )

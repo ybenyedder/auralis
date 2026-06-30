@@ -105,13 +105,14 @@ fun SettingsScreen(vm: AppViewModel, ui: UiState) {
                         Text("Lecture continue", color = colors.foreground, fontSize = 14.sp, fontWeight = FontWeight.SemiBold)
                         Text("Enchaîner des titres similaires à la fin de la file", color = colors.textMuted, fontSize = 11.sp)
                     }
-                    Box(
-                        Modifier.clip(CircleShape).background(if (ui.autoplay) colors.accent else colors.panel2)
-                            .clickable { vm.toggleAutoplay() }.padding(horizontal = 14.dp, vertical = 7.dp),
-                    ) {
-                        Text(if (ui.autoplay) "Activée" else "Désactivée",
-                            color = if (ui.autoplay) colors.ink else colors.textMuted, fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
-                    }
+                    androidx.compose.material3.Switch(
+                        checked = ui.autoplay,
+                        onCheckedChange = { vm.toggleAutoplay() },
+                        colors = androidx.compose.material3.SwitchDefaults.colors(
+                            checkedThumbColor = colors.ink, checkedTrackColor = colors.accent, checkedBorderColor = colors.accent,
+                            uncheckedThumbColor = colors.textMuted, uncheckedTrackColor = colors.panel2, uncheckedBorderColor = colors.lineStrong,
+                        ),
+                    )
                 }
                 Text("Volume", color = colors.textMuted, fontSize = 12.sp)
                 Slider(

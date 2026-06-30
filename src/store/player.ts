@@ -213,6 +213,8 @@ interface PlayerState {
   createSmartPlaylist: (config: SmartConfig) => string;
   deletePlaylist: (id: string) => void;
   renamePlaylist: (id: string, name: string) => void;
+  /** Upload (dataUrl) or clear (null) a playlist's custom cover. Owner-only. */
+  setPlaylistCover: (id: string, dataUrl: string | null) => Promise<void>;
   addToPlaylist: (id: string, track: Track) => void;
   removeFromPlaylist: (id: string, trackhash: string) => void;
   reorderInPlaylist: (id: string, from: number, to: number) => void;
@@ -279,7 +281,7 @@ interface ServerState {
   dislikes: string[];
   playCounts: Record<string, number>;
   recents: string[];
-  playlists: { id: string; name: string; description: string | null; pinned: boolean; trackhashes: string[]; rules?: string | null; shared?: boolean; collaborator?: boolean; owner?: string }[];
+  playlists: { id: string; name: string; description: string | null; pinned: boolean; trackhashes: string[]; rules?: string | null; shared?: boolean; collaborator?: boolean; owner?: string; imageHash?: string | null }[];
   settings: Record<string, unknown>;
 }
 
@@ -1105,6 +1107,26 @@ export const usePlayer = create<PlayerState>((set, get) => {
       pushPlaylist(id);
     },
 
+    setPlaylistCover: async (id, dataUrl) => {
+      try {
+        const res = await api.put<{ ok: boolean; imageHash: string | null }>("/api/state", {
+          action: "playlist.cover", id, imageDataUrl: dataUrl,
+        });
+        if (!res.ok) return;
+        set((s) => {
+          const upd = {
+            customPlaylists: s.customPlaylists.map((p) =>
+              String(p.id) === id ? { ...p, image: res.imageHash ? `/api/art/${res.imageHash}` : undefined } : p,
+            ),
+          };
+          persist({ ...get(), ...upd });
+          return upd;
+        });
+      } catch {
+        get().notify("Échec de l'envoi de la pochette");
+      }
+    },
+
     addToPlaylist: (id, track) => {
       set((s) => {
         const upd = {
@@ -1440,6 +1462,7 @@ export const usePlayer = create<PlayerState>((set, get) => {
           color: ["#2A2821", "#D95F45", "#C6A15B"] as [string, string, string],
           rules: parseRules(p.rules),
           shared: p.shared, collaborator: p.collaborator, owner: p.owner,
+          image: p.imageHash ? `/api/art/${p.imageHash}` : undefined,
         }));
         // Keep any playlist created locally during the fetch window that the
         // server snapshot doesn't know about yet (its own upsert is in flight).

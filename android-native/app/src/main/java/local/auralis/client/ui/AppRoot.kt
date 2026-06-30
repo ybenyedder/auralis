@@ -41,7 +41,10 @@ fun AppRoot(vm: AppViewModel) {
                 when (ui.phase) {
                     Phase.BOOT, Phase.LOADING -> LoadingScreen()
                     Phase.CONNECT -> ConnectScreen(ui.connecting, ui.message, ui.serverBase, vm::connect)
-                    Phase.LOGIN -> LoginScreen(ui.serverBase, ui.connecting, ui.message, vm::login, vm::changeServer)
+                    Phase.LOGIN -> LoginScreen(
+                        ui.serverBase, ui.connecting, ui.message, vm::login, vm::changeServer,
+                        loadAccounts = { vm.api.accounts(ui.serverBase) },
+                    )
                     Phase.READY -> Shell(vm, ui)
                     Phase.ERROR -> ErrorScreen(ui.message, onRetry = { vm.loadAll() }, onChangeServer = { vm.changeServer() })
                 }

@@ -9,6 +9,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
@@ -63,11 +64,18 @@ fun TrackMenu(track: Track, ui: UiState, vm: AppViewModel, onDismiss: () -> Unit
         Box(Modifier.fillMaxSize().background(androidx.compose.ui.graphics.Color(0xAA000000)).clickable { onDismiss() })
         Column(
             Modifier.align(Alignment.BottomCenter).fillMaxWidth()
-                .clip(RoundedCornerShape(topStart = 20.dp, topEnd = 20.dp))
+                .clip(RoundedCornerShape(topStart = 8.dp, topEnd = 8.dp))
                 .background(colors.panel)
                 .navigationBarsPadding()
-                .padding(horizontal = 8.dp, vertical = 12.dp),
+                .padding(horizontal = 8.dp, vertical = 10.dp),
         ) {
+            // Drag handle (web's bottom-sheet affordance)
+            Box(
+                Modifier.padding(top = 2.dp, bottom = 8.dp).align(Alignment.CenterHorizontally)
+                    .size(width = 36.dp, height = 4.dp)
+                    .clip(RoundedCornerShape(2.dp))
+                    .background(colors.line),
+            )
             // header
             Row(Modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 6.dp), verticalAlignment = Alignment.CenterVertically) {
                 CoverArt(track.image, track.albumhash ?: track.title, Modifier.size(44.dp), cornerRadius = 8, sizeDp = 44)
@@ -77,12 +85,13 @@ fun TrackMenu(track: Track, ui: UiState, vm: AppViewModel, onDismiss: () -> Unit
                     Text(track.displayArtist, color = colors.textMuted, fontSize = 12.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
                 }
             }
-            Spacer(Modifier.size(6.dp))
+            MenuDivider()
 
             if (!pickingPlaylist) {
                 MenuRow(Icons.Filled.PlayArrow, "Lire ensuite") { vm.addNext(track); onDismiss() }
                 MenuRow(Icons.Filled.QueueMusic, "Ajouter à la file") { vm.addToEnd(track); onDismiss() }
                 MenuRow(Icons.Filled.PlaylistAdd, "Ajouter à une playlist") { pickingPlaylist = true }
+                MenuDivider()
                 MenuRow(Icons.Filled.AutoAwesome, "Sélectionner (Mix IA)") { vm.enterSelection(track.trackhash); onDismiss() }
                 val fav = ui.favorites.contains(track.trackhash)
                 MenuRow(if (fav) Icons.Filled.Favorite else Icons.Filled.FavoriteBorder, if (fav) "Retirer des favoris" else "Ajouter aux favoris") {
@@ -92,6 +101,7 @@ fun TrackMenu(track: Track, ui: UiState, vm: AppViewModel, onDismiss: () -> Unit
                 MenuRow(Icons.Filled.ThumbDown, if (disliked) "Ne plus masquer" else "Je n'aime pas") {
                     vm.toggleDislike(track.trackhash); onDismiss()
                 }
+                MenuDivider()
                 if (track.albumhash != null) {
                     MenuRow(Icons.Filled.Album, "Aller à l'album") { vm.navigate(ViewId.ALBUM, track.albumhash); onDismiss() }
                 }
@@ -123,6 +133,12 @@ fun TrackMenu(track: Track, ui: UiState, vm: AppViewModel, onDismiss: () -> Unit
             }
         }
     }
+}
+
+@Composable
+private fun MenuDivider() {
+    val colors = LocalAuralis.current
+    Box(Modifier.fillMaxWidth().padding(vertical = 6.dp).height(1.dp).background(colors.line))
 }
 
 @Composable

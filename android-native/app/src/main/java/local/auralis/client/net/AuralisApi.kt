@@ -102,6 +102,19 @@ class AuralisApi {
             }.getOrElse { AuthResult(false, null, null, false, false, "Serveur injoignable") }
         }
 
+    /** Account list for the Netflix-style profile picker. Falls back to ["admin"]
+     * on older servers / no accounts endpoint, so the login flow is identical. */
+    suspend fun accounts(probeBase: String): List<String> = withContext(Dispatchers.IO) {
+        val b = normalizeBase(probeBase)
+        runCatching {
+            val req = Request.Builder().url("$b/api/auth/accounts").get().build()
+            client.newCall(req).execute().use { resp ->
+                val arr = resp.body?.string()?.let { JSONObject(it) }?.optJSONArray("usernames")
+                (0 until (arr?.length() ?: 0)).map { i -> arr!!.getString(i) }
+            }
+        }.getOrDefault(emptyList()).ifEmpty { listOf("admin") }
+    }
+
     // ---- library / state / stats ------------------------------------------
 
     suspend fun library(): LibrarySnapshot = getJson("/api/library").let { LibrarySnapshot.from(it) }

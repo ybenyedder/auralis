@@ -1,5 +1,6 @@
 package local.auralis.client.ui.components
 
+import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -8,6 +9,7 @@ import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -26,7 +28,9 @@ import androidx.compose.material.icons.filled.Favorite
 import androidx.compose.material.icons.filled.FavoriteBorder
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.MusicNote
+import androidx.compose.material.icons.filled.Pause
 import androidx.compose.material.icons.filled.PlayArrow
+import androidx.compose.material.icons.filled.Shuffle
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -34,6 +38,9 @@ import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.geometry.CornerRadius
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
@@ -90,6 +97,49 @@ fun paletteFor(seed: String?): Triple<Color, Color, Color> {
     return palettes[abs(h) % palettes.size]
 }
 
+// ---- brand -------------------------------------------------------------------
+// The Auralis logo: a five-bar "aura equalizer" glyph (mirrors web's AuralisGlyph
+// SVG, viewBox 32x32) that reads as both a waveform and the apex of an "A".
+
+@Composable
+fun AuralisGlyph(modifier: Modifier = Modifier.size(20.dp), tint: Color = LocalAuralis.current.accent) {
+    Canvas(modifier) {
+        val scale = size.width / 32f
+        val barW = 3.7f * scale
+        val rx = CornerRadius(1.85f * scale, 1.85f * scale)
+        listOf(
+            Triple(3.4f, 19f, 0.5f),
+            Triple(8.9f, 13f, 0.75f),
+            Triple(14.15f, 5f, 1f),
+            Triple(19.4f, 13f, 0.75f),
+            Triple(24.9f, 19f, 0.5f),
+        ).forEach { (x, y, alpha) ->
+            drawRoundRect(
+                color = tint.copy(alpha = alpha),
+                topLeft = Offset(x * scale, y * scale),
+                size = Size(barW, (27f - y) * scale),
+                cornerRadius = rx,
+            )
+        }
+    }
+}
+
+/** The badged mark used in headers / splash screens — a circle housing the glyph. */
+@Composable
+fun BrandMark(size: Int = 30, modifier: Modifier = Modifier) {
+    val colors = LocalAuralis.current
+    Box(
+        modifier
+            .size(size.dp)
+            .clip(CircleShape)
+            .background(colors.panel2)
+            .border(1.dp, colors.lineStrong, CircleShape),
+        contentAlignment = Alignment.Center,
+    ) {
+        AuralisGlyph(Modifier.size((size * 0.67f).dp), tint = colors.accent)
+    }
+}
+
 // ---- atoms -----------------------------------------------------------------
 
 @Composable
@@ -109,14 +159,34 @@ fun SectionHeader(title: String, action: String? = null, onAction: (() -> Unit)?
         horizontalArrangement = Arrangement.SpaceBetween,
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        Text(title, fontSize = 20.sp, fontWeight = FontWeight.Black, color = LocalAuralis.current.foreground)
+        Text(title, fontSize = 20.sp, fontWeight = FontWeight.Bold, letterSpacing = (-0.3).sp, color = LocalAuralis.current.foreground)
         if (action != null && onAction != null) {
             Text(
-                action,
-                fontSize = 13.sp,
+                action.uppercase(),
+                fontSize = 11.sp,
                 fontWeight = FontWeight.SemiBold,
+                letterSpacing = 0.8.sp,
                 color = LocalAuralis.current.textMuted,
                 modifier = Modifier.clickable { onAction() },
+            )
+        }
+    }
+}
+
+/** Static "now playing" glyph — four fixed-height bars, dimmed when paused. Mirrors
+ * the web's EqualizerBars (a deliberately non-animated indicator, not a fake spectrum). */
+@Composable
+fun EqualizerBars(active: Boolean = true, modifier: Modifier = Modifier) {
+    val colors = LocalAuralis.current
+    val heights = listOf(7.dp, 14.dp, 10.dp, 6.dp)
+    Row(modifier.height(14.dp), verticalAlignment = Alignment.Bottom, horizontalArrangement = Arrangement.spacedBy(2.dp)) {
+        heights.forEach { h ->
+            Box(
+                Modifier
+                    .width(2.dp)
+                    .height(h)
+                    .clip(RoundedCornerShape(1.dp))
+                    .background(colors.accent.copy(alpha = if (active) 0.85f else 0.34f)),
             )
         }
     }
@@ -195,13 +265,7 @@ fun TrackRow(
                 onClick = { if (selecting) sel.toggle(track.trackhash) else onClick() },
                 onLongClick = { sel.begin(track.trackhash) },
             )
-            .background(
-                when {
-                    checked -> colors.accent.copy(alpha = 0.18f)
-                    isCurrent -> colors.panel2
-                    else -> Color.Transparent
-                },
-            )
+            .background(if (checked) colors.accent.copy(alpha = 0.18f) else Color.Transparent)
             .padding(horizontal = 8.dp, vertical = 7.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
@@ -216,6 +280,15 @@ fun TrackRow(
                 if (checked) Icon(Icons.Filled.Check, null, tint = colors.ink, modifier = Modifier.size(14.dp))
             }
             Spacer(Modifier.width(12.dp))
+        } else if (index != null) {
+            Box(Modifier.width(22.dp), contentAlignment = Alignment.Center) {
+                if (isCurrent) {
+                    EqualizerBars(active = true)
+                } else {
+                    Text("${index + 1}", color = colors.textFaint, fontSize = 12.sp)
+                }
+            }
+            Spacer(Modifier.width(10.dp))
         }
         CoverArt(track.image, track.albumhash ?: track.title, Modifier.size(46.dp), cornerRadius = 8, sizeDp = 46)
         Spacer(Modifier.width(12.dp))
@@ -260,6 +333,68 @@ fun TrackRow(
                 modifier = Modifier.size(20.dp).clickable { onMore() },
             )
         }
+    }
+}
+
+/** Album/artist/playlist hero: a soft palette-tinted gradient wash behind the cover +
+ * title block, mirroring the web's `hero-cover` + `coverVars()`. */
+@Composable
+fun DetailHero(seed: String?, centered: Boolean = false, content: @Composable ColumnScope.() -> Unit) {
+    val colors = LocalAuralis.current
+    val (_, c1, _) = paletteFor(seed)
+    Box(
+        Modifier
+            .fillMaxWidth()
+            .background(
+                Brush.verticalGradient(
+                    listOf(c1.copy(alpha = 0.32f), c1.copy(alpha = 0.08f), Color.Transparent),
+                ),
+            )
+            .padding(top = 16.dp, bottom = 4.dp),
+    ) {
+        Column(
+            Modifier.fillMaxWidth(),
+            horizontalAlignment = if (centered) Alignment.CenterHorizontally else Alignment.Start,
+            content = content,
+        )
+    }
+}
+
+/** Spotify's signature 56dp solid-accent circular hero play button — icon only, no label. */
+@Composable
+fun HeroPlayButton(enabled: Boolean = true, playing: Boolean = false, modifier: Modifier = Modifier, onClick: () -> Unit) {
+    val colors = LocalAuralis.current
+    Box(
+        modifier
+            .size(56.dp)
+            .clip(CircleShape)
+            .background(colors.accent.copy(alpha = if (enabled) 1f else 0.4f))
+            .clickable(enabled = enabled) { onClick() },
+        contentAlignment = Alignment.Center,
+    ) {
+        Icon(
+            if (playing) Icons.Filled.Pause else Icons.Filled.PlayArrow,
+            if (playing) "Pause" else "Lire",
+            tint = colors.ink, modifier = Modifier.size(26.dp),
+        )
+    }
+}
+
+/** Icon-only ghost shuffle button next to the hero play button (no pill background). */
+@Composable
+fun HeroShuffleButton(enabled: Boolean = true, modifier: Modifier = Modifier, onClick: () -> Unit) {
+    val colors = LocalAuralis.current
+    Box(
+        modifier
+            .size(36.dp)
+            .clickable(enabled = enabled) { onClick() },
+        contentAlignment = Alignment.Center,
+    ) {
+        Icon(
+            Icons.Filled.Shuffle, "Aléatoire",
+            tint = colors.textMuted.copy(alpha = if (enabled) 1f else 0.4f),
+            modifier = Modifier.size(24.dp),
+        )
     }
 }
 

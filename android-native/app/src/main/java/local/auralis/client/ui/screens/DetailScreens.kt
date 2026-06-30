@@ -1,5 +1,9 @@
 package local.auralis.client.ui.screens
 
+import android.net.Uri
+import android.util.Base64
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -26,24 +30,35 @@ import androidx.compose.material3.Text
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
+import androidx.compose.material.icons.filled.PhotoCamera
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import local.auralis.client.ui.AppViewModel
 import local.auralis.client.ui.UiState
 import local.auralis.client.ui.ViewId
 import local.auralis.client.ui.components.CoverArt
+import local.auralis.client.ui.components.DetailHero
 import local.auralis.client.ui.components.Eyebrow
 import local.auralis.client.ui.components.GhostPill
+import local.auralis.client.ui.components.HeroPlayButton
+import local.auralis.client.ui.components.HeroShuffleButton
 import local.auralis.client.ui.components.PlayPill
 import local.auralis.client.ui.components.TrackRow
 import local.auralis.client.ui.components.formatLongDuration
@@ -57,12 +72,16 @@ fun AlbumDetail(vm: AppViewModel, ui: UiState, albumhash: String) {
         ui.tracks.filter { it.albumhash == albumhash }
             .sortedWith(compareBy({ it.disc ?: 1 }, { it.track ?: 0 }))
     }
-    val current = vm.playback.value.currentId
+    val playback by vm.playback.collectAsState()
+    val current = playback.currentId
+    val isPlayingThis = playback.isPlaying && tracks.any { it.trackhash == current }
     LazyColumn(contentPadding = PaddingValues(start = 16.dp, end = 16.dp, bottom = 170.dp)) {
         item {
-            Column(Modifier.padding(top = 8.dp)) {
-                CoverArt(album?.image, albumhash, Modifier.size(180.dp), cornerRadius = 16)
+            DetailHero(seed = albumhash) {
+                CoverArt(album?.image, albumhash, Modifier.size(180.dp), cornerRadius = 12)
                 Spacer(Modifier.height(14.dp))
+                Eyebrow("Album")
+                Spacer(Modifier.height(2.dp))
                 Text(album?.title ?: "Album", fontSize = 26.sp, fontWeight = FontWeight.Black, color = colors.foreground)
                 Text(album?.artistName ?: "", color = colors.textMuted, fontSize = 14.sp,
                     modifier = Modifier.clickable {
@@ -71,18 +90,19 @@ fun AlbumDetail(vm: AppViewModel, ui: UiState, albumhash: String) {
                 Spacer(Modifier.height(4.dp))
                 val dur = tracks.sumOf { it.duration ?: 0.0 }
                 Text("${tracks.size} titres · ${formatLongDuration(dur)}", color = colors.textFaint, fontSize = 12.sp)
-                Spacer(Modifier.height(14.dp))
-                Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                    PlayPill("Lire") { vm.playList(tracks) }
-                    GhostPill("Aléatoire") { vm.playShuffled(tracks) }
+                Spacer(Modifier.height(16.dp))
+                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(18.dp)) {
+                    HeroPlayButton(enabled = tracks.isNotEmpty(), playing = isPlayingThis) {
+                        if (isPlayingThis) vm.togglePlay() else vm.playList(tracks)
+                    }
+                    HeroShuffleButton(enabled = tracks.isNotEmpty()) { vm.playShuffled(tracks) }
                 }
-                Spacer(Modifier.height(10.dp))
             }
         }
         items(tracks, key = { it.trackhash }) { t ->
             val idx = tracks.indexOf(t)
             TrackRow(
-                t, isCurrent = t.trackhash == current, isFavorite = ui.favorites.contains(t.trackhash),
+                t, index = idx, isCurrent = t.trackhash == current, isFavorite = ui.favorites.contains(t.trackhash),
                 onClick = { vm.playTrack(t, tracks, idx) },
                 onToggleFavorite = { vm.toggleFavorite(t.trackhash) }, onMore = { vm.openTrackMenu(t) },
             )
@@ -103,20 +123,23 @@ fun ArtistDetail(vm: AppViewModel, ui: UiState, artisthash: String) {
     val top = remember(tracks, ui.playCounts) {
         tracks.sortedByDescending { ui.playCounts[it.trackhash] ?: it.playcount }.take(8)
     }
-    val current = vm.playback.value.currentId
+    val playback by vm.playback.collectAsState()
+    val current = playback.currentId
+    val isPlayingThis = playback.isPlaying && tracks.any { it.trackhash == current }
     LazyColumn(contentPadding = PaddingValues(start = 16.dp, end = 16.dp, bottom = 170.dp)) {
         item {
-            Column(Modifier.padding(top = 8.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+            DetailHero(seed = artisthash, centered = true) {
                 CoverArt(artist?.image, artisthash, Modifier.size(150.dp).clip(CircleShape))
                 Spacer(Modifier.height(14.dp))
                 Text(artist?.name ?: "Artiste", fontSize = 26.sp, fontWeight = FontWeight.Black, color = colors.foreground)
                 Text("${tracks.size} titres · ${albums.size} albums", color = colors.textMuted, fontSize = 13.sp)
-                Spacer(Modifier.height(14.dp))
-                Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                    PlayPill("Lire") { vm.playList(top.ifEmpty { tracks }) }
-                    GhostPill("Aléatoire") { vm.playShuffled(tracks) }
+                Spacer(Modifier.height(16.dp))
+                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(18.dp)) {
+                    HeroPlayButton(enabled = tracks.isNotEmpty(), playing = isPlayingThis) {
+                        if (isPlayingThis) vm.togglePlay() else vm.playList(top.ifEmpty { tracks })
+                    }
+                    HeroShuffleButton(enabled = tracks.isNotEmpty()) { vm.playShuffled(tracks) }
                 }
-                Spacer(Modifier.height(10.dp))
             }
         }
         if (top.isNotEmpty()) {
@@ -124,7 +147,7 @@ fun ArtistDetail(vm: AppViewModel, ui: UiState, artisthash: String) {
             items(top, key = { it.trackhash }) { t ->
                 val idx = top.indexOf(t)
                 TrackRow(
-                    t, isCurrent = t.trackhash == current, isFavorite = ui.favorites.contains(t.trackhash),
+                    t, index = idx, isCurrent = t.trackhash == current, isFavorite = ui.favorites.contains(t.trackhash),
                     onClick = { vm.playTrack(t, top, idx) },
                     onToggleFavorite = { vm.toggleFavorite(t.trackhash) }, onMore = { vm.openTrackMenu(t) },
                 )
@@ -147,13 +170,44 @@ fun PlaylistDetail(vm: AppViewModel, ui: UiState, playlistId: String) {
     val colors = LocalAuralis.current
     val pl = remember(ui.playlists, playlistId) { ui.playlists.find { it.id == playlistId } }
     val tracks = remember(pl, ui.trackByHash) { pl?.trackhashes?.mapNotNull { ui.trackByHash[it] } ?: emptyList() }
-    val current = vm.playback.value.currentId
+    val playback by vm.playback.collectAsState()
+    val current = playback.currentId
+    val isPlayingThis = playback.isPlaying && tracks.any { it.trackhash == current }
     var renaming by remember { mutableStateOf(false) }
     var newName by remember { mutableStateOf(pl?.name ?: "") }
+    val context = LocalContext.current
+    val scope = rememberCoroutineScope()
+    val pickCover = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { uri: Uri? ->
+        if (uri == null) return@rememberLauncherForActivityResult
+        scope.launch(Dispatchers.IO) {
+            val bytes = runCatching { context.contentResolver.openInputStream(uri)?.use { it.readBytes() } }.getOrNull()
+            if (bytes == null || bytes.isEmpty() || bytes.size > 8 * 1024 * 1024) {
+                withContext(Dispatchers.Main) { vm.notify("Image invalide ou trop lourde (8 Mo max)") }
+                return@launch
+            }
+            val mime = context.contentResolver.getType(uri) ?: "image/jpeg"
+            val dataUrl = "data:$mime;base64," + Base64.encodeToString(bytes, Base64.NO_WRAP)
+            withContext(Dispatchers.Main) { vm.setPlaylistCover(playlistId, dataUrl) }
+        }
+    }
     LazyColumn(contentPadding = PaddingValues(start = 16.dp, end = 16.dp, bottom = 170.dp)) {
         item {
-            Column(Modifier.padding(top = 8.dp)) {
-                CoverArt(null, playlistId, Modifier.size(160.dp), cornerRadius = 16)
+            DetailHero(seed = playlistId) {
+                Box {
+                    CoverArt(pl?.imageHash?.let { "/api/art/$it" }, playlistId, Modifier.size(180.dp), cornerRadius = 12)
+                    Box(
+                        Modifier
+                            .align(Alignment.BottomEnd)
+                            .padding(6.dp)
+                            .size(32.dp)
+                            .clip(CircleShape)
+                            .background(Color.Black.copy(alpha = 0.6f))
+                            .clickable { pickCover.launch("image/*") },
+                        contentAlignment = Alignment.Center,
+                    ) {
+                        Icon(Icons.Filled.PhotoCamera, "Changer la pochette", tint = Color.White, modifier = Modifier.size(16.dp))
+                    }
+                }
                 Spacer(Modifier.height(14.dp))
                 if (renaming) {
                     OutlinedTextField(value = newName, onValueChange = { newName = it }, singleLine = true,
@@ -164,12 +218,17 @@ fun PlaylistDetail(vm: AppViewModel, ui: UiState, playlistId: String) {
                         GhostPill("Annuler") { renaming = false }
                     }
                 } else {
+                    Eyebrow("Playlist")
+                    Spacer(Modifier.height(2.dp))
                     Text(pl?.name ?: "Playlist", fontSize = 26.sp, fontWeight = FontWeight.Black, color = colors.foreground)
                     Text("${tracks.size} titres", color = colors.textMuted, fontSize = 13.sp)
-                    Spacer(Modifier.height(14.dp))
-                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                        PlayPill("Lire") { vm.playList(tracks) }
-                        GhostPill("Aléatoire") { vm.playShuffled(tracks) }
+                    Spacer(Modifier.height(16.dp))
+                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(16.dp)) {
+                        HeroPlayButton(enabled = tracks.isNotEmpty(), playing = isPlayingThis) {
+                            if (isPlayingThis) vm.togglePlay() else vm.playList(tracks)
+                        }
+                        HeroShuffleButton(enabled = tracks.isNotEmpty()) { vm.playShuffled(tracks) }
+                        Spacer(Modifier.weight(1f))
                         Text(if (pl?.pinned == true) "📌" else "📍", fontSize = 18.sp,
                             modifier = Modifier.clickable { vm.togglePin(playlistId) })
                         Icon(Icons.Filled.Edit, "Renommer", tint = colors.textMuted,
@@ -178,7 +237,6 @@ fun PlaylistDetail(vm: AppViewModel, ui: UiState, playlistId: String) {
                             modifier = Modifier.size(22.dp).clickable { vm.deletePlaylist(playlistId); vm.navigate(ViewId.LIBRARY) })
                     }
                 }
-                Spacer(Modifier.height(10.dp))
             }
         }
         items(tracks, key = { it.trackhash }) { t ->
@@ -186,7 +244,7 @@ fun PlaylistDetail(vm: AppViewModel, ui: UiState, playlistId: String) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Box(Modifier.weight(1f)) {
                     TrackRow(
-                        t, isCurrent = t.trackhash == current, isFavorite = ui.favorites.contains(t.trackhash),
+                        t, index = idx, isCurrent = t.trackhash == current, isFavorite = ui.favorites.contains(t.trackhash),
                         onClick = { vm.playTrack(t, tracks, idx) },
                         onToggleFavorite = { vm.toggleFavorite(t.trackhash) }, onMore = { vm.openTrackMenu(t) },
                     )

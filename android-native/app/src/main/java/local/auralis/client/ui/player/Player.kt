@@ -78,7 +78,7 @@ fun MiniPlayer(track: Track, playback: PlaybackSnapshot, positionMs: Long, vm: A
     val dur = (track.duration ?: 0.0) * 1000.0
     val progress = if (dur > 0) (positionMs / dur).toFloat().coerceIn(0f, 1f) else 0f
     var miniDx by remember { mutableStateOf(0f) }
-    Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(14.dp)).background(colors.panel)) {
+    Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(6.dp)).background(colors.panel2)) {
         Row(
             Modifier.fillMaxWidth()
                 .clickable { onOpen() }
@@ -109,11 +109,9 @@ fun MiniPlayer(track: Track, playback: PlaybackSnapshot, positionMs: Long, vm: A
                 "Lecture", tint = colors.foreground,
                 modifier = Modifier.size(30.dp).clickable { vm.togglePlay() },
             )
-            Spacer(Modifier.width(8.dp))
-            Icon(Icons.Filled.SkipNext, "Suivant", tint = colors.foreground, modifier = Modifier.size(28.dp).clickable { vm.next() })
         }
-        Box(Modifier.fillMaxWidth().height(2.dp).background(colors.line)) {
-            Box(Modifier.fillMaxWidth(progress).height(2.dp).background(colors.accent))
+        Box(Modifier.fillMaxWidth().height(2.dp).background(colors.foreground.copy(alpha = 0.2f))) {
+            Box(Modifier.fillMaxWidth(progress).height(2.dp).background(colors.foreground))
         }
     }
 }
@@ -200,7 +198,11 @@ fun FullscreenPlayer(
             value = progress,
             onValueChange = { dragging = true; dragValue = it },
             onValueChangeFinished = { vm.seekTo((dragValue * durMs).toLong()); dragging = false },
-            colors = SliderDefaults.colors(thumbColor = colors.accent, activeTrackColor = colors.accent, inactiveTrackColor = colors.line),
+            colors = SliderDefaults.colors(
+                thumbColor = if (dragging) colors.accent else colors.foreground,
+                activeTrackColor = if (dragging) colors.accent else colors.foreground,
+                inactiveTrackColor = colors.panel3,
+            ),
             modifier = Modifier.fillMaxWidth(),
         )
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
@@ -219,10 +221,10 @@ fun FullscreenPlayer(
             Icon(Icons.Filled.SkipPrevious, "Précédent", tint = colors.foreground,
                 modifier = Modifier.size(40.dp).clickable { vm.prev() })
             Box(
-                Modifier.size(68.dp).clip(CircleShape).background(colors.accent).clickable { vm.togglePlay() },
+                Modifier.size(56.dp).clip(CircleShape).background(colors.foreground).clickable { vm.togglePlay() },
                 contentAlignment = Alignment.Center,
             ) {
-                Icon(if (playback.isPlaying) Icons.Filled.Pause else Icons.Filled.PlayArrow, "Lecture", tint = colors.ink, modifier = Modifier.size(36.dp))
+                Icon(if (playback.isPlaying) Icons.Filled.Pause else Icons.Filled.PlayArrow, "Lecture", tint = colors.ink, modifier = Modifier.size(30.dp))
             }
             Icon(Icons.Filled.SkipNext, "Suivant", tint = colors.foreground,
                 modifier = Modifier.size(40.dp).clickable { vm.next() })
@@ -240,7 +242,7 @@ fun FullscreenPlayer(
             Slider(
                 value = ui.volume,
                 onValueChange = { vm.setVolume(it) },
-                colors = SliderDefaults.colors(thumbColor = colors.accent, activeTrackColor = colors.accent, inactiveTrackColor = colors.line),
+                colors = SliderDefaults.colors(thumbColor = colors.foreground, activeTrackColor = colors.foreground, inactiveTrackColor = colors.panel3),
                 modifier = Modifier.weight(1f),
             )
         }

@@ -17,16 +17,21 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.itemsIndexed
+import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Favorite
+import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.Icon
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -67,7 +72,14 @@ private fun seededShuffle(list: List<Track>, seed: Long): List<Track> {
     return arr
 }
 
-private fun currentTrackOf(vm: AppViewModel): String? = vm.playback.value.currentId
+@Composable
+private fun currentTrackOf(vm: AppViewModel): String? {
+    // Reactive: .value would snapshot once at composition and never update while
+    // the user sits on this screen (this was the bug — play/pause + the active-row
+    // highlight never updated live, only the Shell-level mini player did).
+    val playback by vm.playback.collectAsState()
+    return playback.currentId
+}
 
 // ============================ HOME =========================================
 
@@ -100,16 +112,32 @@ fun HomeScreen(vm: AppViewModel, ui: UiState) {
         if (neverPlayed.size >= 4) seededShuffle(neverPlayed, daySeed + 7).take(12) else emptyList()
     }
     val current = currentTrackOf(vm)
+    val favTracks = remember(ui.tracks, ui.favorites) { ui.tracks.filter { ui.favorites.contains(it.trackhash) } }
+    val quickTiles = buildList {
+        if (favTracks.isNotEmpty()) {
+            add(
+                QuickTileItem(
+                    "liked", "Titres likés", null, null, null, liked = true,
+                    onOpen = { vm.navigate(ViewId.FAVORITES) },
+                    onPlay = { vm.playList(favTracks) },
+                ),
+            )
+        }
+        recentsTracks.take((8 - size).coerceAtLeast(0)).forEach { t ->
+            add(
+                QuickTileItem(
+                    t.trackhash, t.title, t.displayArtist, t.image, t.albumhash ?: t.title, liked = false,
+                    onOpen = { vm.playTrack(t, recentsTracks, recentsTracks.indexOf(t)) },
+                    onPlay = { vm.playTrack(t, recentsTracks, recentsTracks.indexOf(t)) },
+                ),
+            )
+        }
+    }
 
     LazyColumn(contentPadding = bottomPad) {
         item {
             Column(Modifier.padding(top = 8.dp, bottom = 8.dp)) {
-                Eyebrow(greeting)
-                Spacer(Modifier.height(4.dp))
-                Text(
-                    "Ta bibliothèque",
-                    fontSize = 28.sp, fontWeight = FontWeight.Black, color = colors.foreground,
-                )
+                Text(greeting, fontSize = 24.sp, fontWeight = FontWeight.Bold, color = colors.foreground)
                 if (ui.stats.streak > 0) {
                     Spacer(Modifier.height(8.dp))
                     Row(verticalAlignment = Alignment.CenterVertically) {
@@ -129,6 +157,20 @@ fun HomeScreen(vm: AppViewModel, ui: UiState) {
                 )
             }
             return@LazyColumn
+        }
+
+        // Spotify "quick access" grid: Liked Songs (purple) + recently played, 2 columns.
+        if (quickTiles.isNotEmpty()) {
+            item {
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    quickTiles.chunked(2).forEach { row ->
+                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            row.forEach { tile -> QuickTile(tile, Modifier.weight(1f)) }
+                            if (row.size == 1) Spacer(Modifier.weight(1f))
+                        }
+                    }
+                }
+            }
         }
 
         if (mix.isNotEmpty()) {
@@ -215,7 +257,7 @@ fun HomeScreen(vm: AppViewModel, ui: UiState) {
                 SectionHeader("Albums", "Tout voir") { vm.navigate(ViewId.LIBRARY) }
                 LazyRow(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                     items(ui.albums.take(12), key = { it.albumhash }) { a ->
-                        AlbumCard(a) { vm.navigate(ViewId.ALBUM, a.albumhash) }
+                        AlbumCard(a, onPlay = { vm.playList(ui.tracks.filter { t -> t.albumhash == a.albumhash }) }) { vm.navigate(ViewId.ALBUM, a.albumhash) }
                     }
                 }
             }
@@ -241,7 +283,10 @@ fun HomeScreen(vm: AppViewModel, ui: UiState) {
                 SectionHeader("Artistes")
                 LazyRow(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                     items(ui.artists.take(12), key = { it.artisthash }) { a ->
-                        ArtistCard(a) { vm.navigate(ViewId.ARTIST, a.artisthash) }
+                        ArtistCard(
+                            a,
+                            onPlay = { vm.playList(ui.tracks.filter { t -> t.primaryArtistHash == a.artisthash }) },
+                        ) { vm.navigate(ViewId.ARTIST, a.artisthash) }
                     }
                 }
             }
@@ -254,6 +299,55 @@ private fun Chip(text: String) {
     val colors = LocalAuralis.current
     Box(Modifier.clip(CircleShape).background(colors.panel2).padding(horizontal = 12.dp, vertical = 6.dp)) {
         Text(text, color = colors.textMuted, fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
+    }
+}
+
+private class QuickTileItem(
+    val key: String, val title: String, val subtitle: String?, val image: String?, val seed: String?,
+    val liked: Boolean, val onOpen: () -> Unit, val onPlay: () -> Unit,
+)
+
+/** Spotify's "quick access" tile: a squat horizontal card (art flush-left, bold title)
+ * with a green circular play FAB — the home screen's most recognisable element. */
+@Composable
+private fun QuickTile(tile: QuickTileItem, modifier: Modifier = Modifier) {
+    val colors = LocalAuralis.current
+    Row(
+        modifier
+            .height(56.dp)
+            .clip(RoundedCornerShape(4.dp))
+            .background(colors.panel2)
+            .clickable { tile.onOpen() },
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        if (tile.liked) {
+            Box(
+                Modifier.size(56.dp).background(Brush.linearGradient(listOf(Color(0xFF450AF5), Color(0xFF8E8EE5), Color(0xFFC4B9E8)))),
+                contentAlignment = Alignment.Center,
+            ) {
+                Icon(Icons.Filled.Favorite, null, tint = Color.White, modifier = Modifier.size(22.dp))
+            }
+        } else {
+            local.auralis.client.ui.components.CoverArt(tile.image, tile.seed, Modifier.size(56.dp), cornerRadius = 0, sizeDp = 56)
+        }
+        Spacer(Modifier.width(10.dp))
+        Column(Modifier.weight(1f)) {
+            Text(tile.title, color = colors.foreground, fontSize = 14.sp, fontWeight = FontWeight.Bold, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            if (tile.subtitle != null) {
+                Text(tile.subtitle, color = colors.textMuted, fontSize = 12.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            }
+        }
+        Box(
+            Modifier
+                .padding(end = 10.dp)
+                .size(34.dp)
+                .clip(CircleShape)
+                .background(colors.accent)
+                .clickable { tile.onPlay() },
+            contentAlignment = Alignment.Center,
+        ) {
+            Icon(Icons.Filled.PlayArrow, "Lire", tint = colors.ink, modifier = Modifier.size(18.dp))
+        }
     }
 }
 
@@ -312,15 +406,18 @@ fun SearchScreen(vm: AppViewModel, ui: UiState) {
             value = ui.searchQuery,
             onValueChange = { vm.setSearch(it) },
             placeholder = { Text("Rechercher titres, albums, artistes", color = colors.textFaint) },
-            leadingIcon = { Icon(Icons.Filled.Search, null, tint = colors.textMuted) },
+            leadingIcon = { Icon(Icons.Filled.Search, null, tint = colors.foreground) },
             singleLine = true,
+            shape = RoundedCornerShape(999.dp),
             modifier = Modifier.fillMaxWidth(),
             colors = OutlinedTextFieldDefaults.colors(
-                focusedBorderColor = colors.accent,
-                unfocusedBorderColor = colors.lineStrong,
+                focusedBorderColor = Color.Transparent,
+                unfocusedBorderColor = Color.Transparent,
+                focusedContainerColor = colors.panel2,
+                unfocusedContainerColor = colors.panel2,
                 focusedTextColor = colors.foreground,
                 unfocusedTextColor = colors.foreground,
-                cursorColor = colors.accent,
+                cursorColor = colors.foreground,
             ),
         )
         Spacer(Modifier.height(8.dp))
@@ -467,31 +564,51 @@ fun LibraryScreen(vm: AppViewModel, ui: UiState) {
     }
 
     Column(Modifier.fillMaxWidth()) {
-        Row(Modifier.padding(horizontal = 16.dp, vertical = 12.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        Row(Modifier.padding(horizontal = 16.dp, vertical = 12.dp), horizontalArrangement = Arrangement.spacedBy(20.dp)) {
             tabs.forEachIndexed { i, label ->
                 val active = i == tab
                 val count = when (i) { 0 -> ui.albums.size; 1 -> ui.artists.size; 2 -> ui.tracks.size; else -> ui.playlists.size }
-                Box(
-                    Modifier.clip(CircleShape)
-                        .background(if (active) colors.accent else colors.panel2)
-                        .clickable { tab = i }
-                        .padding(horizontal = 14.dp, vertical = 8.dp),
+                Column(
+                    Modifier.width(androidx.compose.foundation.layout.IntrinsicSize.Min).clickable { tab = i },
+                    horizontalAlignment = Alignment.CenterHorizontally,
                 ) {
-                    Text("$label · $count", color = if (active) colors.ink else colors.textMuted, fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
+                    Text(
+                        "$label · $count",
+                        color = if (active) colors.foreground else colors.textMuted,
+                        fontSize = 14.sp,
+                        fontWeight = if (active) FontWeight.Bold else FontWeight.Medium,
+                    )
+                    Spacer(Modifier.height(6.dp))
+                    Box(
+                        Modifier
+                            .height(2.dp)
+                            .fillMaxWidth()
+                            .background(if (active) colors.foreground else Color.Transparent),
+                    )
                 }
             }
         }
         // Secondary destinations (also reachable here, mirroring the web's "Plus" hub).
         // "Titres aimés" leads the list — it's the library's pinned Liked-Songs entry now
         // that Favourites is no longer a bottom-nav tab (Spotify-style).
-        Row(Modifier.padding(start = 16.dp, end = 16.dp, bottom = 6.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        Row(
+            Modifier
+                .horizontalScroll(rememberScrollState())
+                .padding(start = 16.dp, end = 16.dp, bottom = 6.dp),
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
             PlusChip("❤ Titres aimés") { vm.navigate(ViewId.FAVORITES) }
             PlusChip("Récents") { vm.navigate(ViewId.RECENTS) }
             PlusChip("Dossiers") { vm.navigate(ViewId.FOLDERS) }
             PlusChip("Analyse") { vm.navigate(ViewId.INSIGHTS) }
         }
         if (tab != 3) {
-            Row(Modifier.padding(start = 16.dp, end = 16.dp, bottom = 6.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            Row(
+                Modifier
+                    .horizontalScroll(rememberScrollState())
+                    .padding(start = 16.dp, end = 16.dp, bottom = 6.dp),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
                 val sortLabel = when (sort) { 1 -> "Z→A"; 2 -> if (tab == 0) "Année" else "Écoutes"; else -> "A→Z" }
                 PlusChip("Tri : $sortLabel") { sort = (sort + 1) % 3 }
                 if (tab == 0 || tab == 1) PlusChip(if (grid) "Vue liste" else "Vue grille") { grid = !grid }
