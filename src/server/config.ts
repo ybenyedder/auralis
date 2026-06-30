@@ -30,6 +30,9 @@ export interface AuralisConfig {
   lyricsFallbackEndpoint: string;
   /** Whether to write fetched lyrics back to a .lrc sidecar (self-hosting). */
   lyricsWriteSidecar: boolean;
+  /** Whether to run the local forced-alignment pass that upgrades line-level lyrics
+   *  to word-by-word karaoke after a scan (needs Python + torch; off by default). */
+  lyricsForcedAlign: boolean;
   /** Max files scanned in one pass (guards pathological trees). */
   maxScanFiles: number;
   /** Max directory recursion depth. */
@@ -124,6 +127,7 @@ export function getConfig(): AuralisConfig {
     lyricsEndpoint: firstDefined(process.env.AURALIS_LYRICS_ENDPOINT) ?? "https://lrclib.net",
     lyricsFallbackEndpoint: process.env.AURALIS_LYRICS_FALLBACK ?? "https://api.lyrics.ovh",
     lyricsWriteSidecar: parseBool(process.env.AURALIS_LYRICS_SIDECAR, true),
+    lyricsForcedAlign: parseBool(process.env.AURALIS_LYRICS_FORCED_ALIGN, false),
     maxScanFiles: Number.parseInt(process.env.AURALIS_MAX_SCAN_FILES ?? "", 10) || 200_000,
     maxScanDepth: Number.parseInt(process.env.AURALIS_MAX_SCAN_DEPTH ?? "", 10) || 12,
   };

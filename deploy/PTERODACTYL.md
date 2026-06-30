@@ -45,6 +45,35 @@ Start the server. When you see `Ready in …` in the console, open it at
 | `AURALIS_DATA_DIR` | `/home/container/data` | SQLite DB + art cache + session secret |
 | `AURALIS_ADMIN_PASSWORD` | _(random)_ | Initial admin password |
 | `AURALIS_LYRICS_ONLINE` | `true` | Fetch missing lyrics from LRCLIB |
+| `AURALIS_LYRICS_FORCED_ALIGN` | `false` | Word-by-word karaoke by aligning lyrics to the audio locally — **heavy, opt-in** (see below) |
+
+## Word-by-word karaoke (forced alignment) — optional, heavy
+
+Auralis can turn ordinary line-level lyrics into **word-by-word** karaoke by
+listening to the audio and aligning the known text to it locally (no extra
+services). It is **off by default** because it is resource-hungry.
+
+To enable it:
+
+1. Set **`AURALIS_LYRICS_FORCED_ALIGN`** to `true` in the startup variables.
+2. Press **Reinstall**.
+
+The install then puts the aligner deps (`torch`/`torchaudio` + a static `ffmpeg`,
+~1.5 GB) **into the `data/` folder**, which is preserved across reinstalls — so you
+only pay for it once, and future reinstalls reuse it (no re-download). A ~1.2 GB
+model is cached (also under `data/`) on first use. The server then upgrades lyrics
+to word-by-word in a background pass after each scan.
+
+Requirements when enabled:
+
+- **Memory:** at least **4 GB** (6 GB if you also want Demucs vocal isolation).
+- **Disk:** ~3 GB extra for the ML deps + model.
+- It runs as a **background pass after each scan** and only *upgrades* lyrics that
+  are already line-level synced (from LRCLIB/Musixmatch) — it never blocks the app.
+
+If anything is missing (no `python3` in the image, install fails), the wrapper logs
+why, disables the feature for that boot, and the server starts normally with
+plain line-level lyrics. Leave the variable `false` on small (2 GB) servers.
 
 ## Updating
 

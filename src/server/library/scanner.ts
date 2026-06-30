@@ -340,8 +340,14 @@ export async function runScan(): Promise<ScanProgress> {
 
     // Kick the background audio-analysis pass (mood classifier) for any tracks
     // that still need it. Fire-and-forget + dynamically imported to avoid a load
-    // cycle; it no-ops if ffmpeg is missing or nothing is pending.
-    void import("./analysis").then((m) => m.runAnalysis()).catch(() => {/* analysis is best-effort */});
+    // cycle; it no-ops if ffmpeg is missing or nothing is pending. The local
+    // forced-alignment pass (line-level → word-by-word karaoke) runs AFTER it so
+    // the two heavy CPU passes don't fight; it no-ops unless opted in.
+    void import("./analysis")
+      .then((m) => m.runAnalysis())
+      .catch(() => {/* analysis is best-effort */})
+      .then(() => import("./alignment").then((m) => m.runForcedAlignment()))
+      .catch(() => {/* forced alignment is best-effort / opt-in */});
   } catch (error) {
     const message = error instanceof Error ? error.message : "unknown scan error";
     log.error("scan failed", { message });
