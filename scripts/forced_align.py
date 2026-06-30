@@ -144,7 +144,9 @@ def align_window(wave: np.ndarray, words_display, device: str):
     if not units or wave.size < SAMPLE_RATE // 4:  # < 0,25 s : trop court pour aligner
         return None
     try:
-        wav = torch.from_numpy(np.ascontiguousarray(wave)).unsqueeze(0).to(device)
+        # np.array() forces a writable, contiguous copy (ffmpeg's frombuffer view is
+        # read-only, which makes torch.from_numpy emit a non-writable-tensor warning).
+        wav = torch.from_numpy(np.array(wave, dtype=np.float32)).unsqueeze(0).to(device)
         with torch.inference_mode():
             emission, _ = model(wav)
         spans = aligner(emission[0], tokenizer([n for _, n in units]))

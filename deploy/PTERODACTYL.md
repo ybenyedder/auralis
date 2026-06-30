@@ -58,10 +58,11 @@ To enable it:
 1. Set **`AURALIS_LYRICS_FORCED_ALIGN`** to `true` in the startup variables.
 2. Press **Reinstall**.
 
-The install then puts the aligner deps (`torch`/`torchaudio` + a static `ffmpeg`,
+The install then `pip install`s the aligner deps (`torch`/`torchaudio`/`numpy`,
 ~1.5 GB) **into the `data/` folder**, which is preserved across reinstalls — so you
 only pay for it once, and future reinstalls reuse it (no re-download). A ~1.2 GB
-model is pre-cached (also under `data/`) during install. The server then upgrades
+model is pre-cached (also under `data/`) during install. `ffmpeg` is already part of
+the runtime image, so nothing extra is downloaded for it. The server then upgrades
 lyrics to word-by-word two ways:
 
 - **automatically**, in a background pass after each scan, and
@@ -70,12 +71,14 @@ lyrics to word-by-word two ways:
 
 Requirements when enabled:
 
-- **Memory:** at least **4 GB** (6 GB if you also want Demucs vocal isolation).
-- **Disk:** the server needs **~6 GB total** (torch ~1.5 GB + model ~1.2 GB on top
-  of the app). If the **Disk Space** limit is too low the install aborts with
-  `No space left on device (Errno 28)` and `forced align stays off` — raise it in
-  the admin server's **Build Configuration → Disk Space** (e.g. `6000`, or `0` for
-  unlimited) and Reinstall.
+- **Memory:** at least **4 GB** (CPU alignment; Demucs vocal isolation is off by
+  default since it wants ~6 GB).
+- **Disk:** ~3 GB extra under `data/` (torch ~1.5 GB + model ~1.2 GB). The install
+  routes pip's temp through `data/` on purpose, because the runtime container's
+  `/tmp` is a tiny ~100 MB tmpfs that would otherwise overflow with
+  `No space left on device` mid-download. If you still hit that, your server's
+  **Build Configuration → Disk Space** limit is too low — raise it (e.g. `6000`, or
+  `0` for unlimited).
 - It only *upgrades* lyrics that are already line-level synced (from
   LRCLIB/Musixmatch) — it never blocks the app.
 
