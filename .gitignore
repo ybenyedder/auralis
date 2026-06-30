@@ -49,3 +49,7 @@ next-env.d.ts
 .z-ai-config
 /skills/
 .agents/
+
+# Python
+__pycache__/
+*.pyc
