@@ -71,7 +71,11 @@ lyrics to word-by-word two ways:
 Requirements when enabled:
 
 - **Memory:** at least **4 GB** (6 GB if you also want Demucs vocal isolation).
-- **Disk:** ~3 GB extra for the ML deps + model.
+- **Disk:** the server needs **~6 GB total** (torch ~1.5 GB + model ~1.2 GB on top
+  of the app). If the **Disk Space** limit is too low the install aborts with
+  `No space left on device (Errno 28)` and `forced align stays off` — raise it in
+  the admin server's **Build Configuration → Disk Space** (e.g. `6000`, or `0` for
+  unlimited) and Reinstall.
 - It only *upgrades* lyrics that are already line-level synced (from
   LRCLIB/Musixmatch) — it never blocks the app.
 
