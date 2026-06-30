@@ -12,35 +12,36 @@ export async function GET(request: Request) {
   if (denied) return denied;
 
   const encoder = new TextEncoder();
+  let cleanup: (() => void) | undefined;
   const stream = new ReadableStream({
     start(controller) {
-      const send = (data: unknown) => {
+      let closed = false;
+      const write = (chunk: string) => {
+        if (closed) return;
         try {
-          controller.enqueue(encoder.encode(`data: ${JSON.stringify(data)}\n\n`));
+          controller.enqueue(encoder.encode(chunk));
         } catch {
-          // controller already closed
+          closed = true;
         }
       };
+      const send = (data: unknown) => write(`data: ${JSON.stringify(data)}\n\n`);
       send(getScanProgress());
       const unsubscribe = subscribeScan(send);
-      const keepalive = setInterval(() => {
-        try {
-          controller.enqueue(encoder.encode(": keepalive\n\n"));
-        } catch {
-          // ignore
-        }
-      }, 15000);
+      const keepalive = setInterval(() => write(": keepalive\n\n"), 15000);
 
-      const close = () => {
+      // Tear down OUR resources only. Do NOT call controller.close() here: when
+      // the client disconnects the runtime closes the controller itself, and a
+      // second close() lands in Next's internals as an uncaught ERR_INVALID_STATE.
+      cleanup = () => {
+        if (closed) return;
+        closed = true;
         clearInterval(keepalive);
         unsubscribe();
-        try {
-          controller.close();
-        } catch {
-          // already closed
-        }
       };
-      request.signal.addEventListener("abort", close);
+      request.signal.addEventListener("abort", cleanup);
+    },
+    cancel() {
+      cleanup?.();
     },
   });
 

@@ -48,15 +48,14 @@ export async function GET(request: Request) {
         safeEnqueue(`: ping\n\n`); // comment frame keeps the connection warm
       }, 25000);
 
+      // Clean up OUR resources only. The runtime closes the controller itself on
+      // disconnect; calling controller.close() here too triggers an uncaught
+      // ERR_INVALID_STATE ("Controller is already closed") inside Next's internals.
       const cleanup = () => {
+        if (closed) return;
         closed = true;
         if (ping) clearInterval(ping);
         unregisterSubscriber(user.id, subId);
-        try {
-          controller.close();
-        } catch {
-          /* already closed */
-        }
       };
       request.signal.addEventListener("abort", cleanup);
     },
