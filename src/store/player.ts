@@ -1011,9 +1011,18 @@ export const usePlayer = create<PlayerState>((set, get) => {
     toggleFavorite: (trackhash) => {
       let nowFavorite = false;
       set((s) => {
-        const next = new Set(s.favorites);
-        if (next.has(trackhash)) next.delete(trackhash);
-        else { next.add(trackhash); nowFavorite = true; }
+        let next: Set<string>;
+        if (s.favorites.has(trackhash)) {
+          next = new Set(s.favorites);
+          next.delete(trackhash);
+        } else {
+          nowFavorite = true;
+          // Prepend so the newest like iterates FIRST — the server hydrates this
+          // set newest-first (created_at DESC) and FavoritesView's "Récents" sort
+          // relies on that same iteration order; a plain `.add()` would instead
+          // put a fresh like LAST, the opposite of "most recent".
+          next = new Set([trackhash, ...s.favorites]);
+        }
         // Liking clears any prior dislike (opposite verdicts) — mirror the server.
         const dislikes = new Set(s.dislikes);
         if (nowFavorite) dislikes.delete(trackhash);

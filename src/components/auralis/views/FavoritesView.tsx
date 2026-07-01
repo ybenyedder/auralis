@@ -42,8 +42,18 @@ export function FavoritesView() {
     else if (sort === "za") next.sort((a, b) => compareNames(trackTitle(b), trackTitle(a)));
     else if (sort === "artist") next.sort((a, b) => compareNames(trackArtist(a), trackArtist(b)));
     else if (sort === "plays") next.sort((a, b) => (playCounts[b.trackhash] ?? 0) - (playCounts[a.trackhash] ?? 0));
+    else {
+      // "recent": allFavTracks is filtered from `tracks` (library order), which has
+      // nothing to do with when a track was favourited — the actual most-recent-first
+      // order lives in the `favorites` Set's OWN iteration order (hydrated newest-first
+      // from the server, kept that way by toggleFavorite prepending new likes).
+      const rank = new Map<string, number>();
+      let i = 0;
+      for (const hash of favorites) rank.set(hash, i++);
+      next.sort((a, b) => (rank.get(a.trackhash) ?? 0) - (rank.get(b.trackhash) ?? 0));
+    }
     return next;
-  }, [allFavTracks, sort, playCounts]);
+  }, [allFavTracks, sort, playCounts, favorites]);
 
   const totalDuration = favTracks.reduce((sum, track) => sum + (track.duration || 0), 0);
 

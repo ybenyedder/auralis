@@ -26,6 +26,15 @@ async function stores() {
 type T = { trackhash: string; title: string; artists: { artisthash: string; name: string }[]; genre?: string; duration: number };
 const mk = (h: string, artist = "A", genre = "rock"): T => ({ trackhash: h, title: h, artists: [{ artisthash: artist, name: artist }], genre, duration: 200 });
 
+test("toggleFavorite prepends so the newest like iterates first (matches server's created_at DESC + FavoritesView's 'Récents' sort)", async () => {
+  const { usePlayer } = await stores();
+  usePlayer.setState({ favorites: new Set(["old2", "old1"]) });
+  usePlayer.getState().toggleFavorite("new1");
+  assert.deepEqual([...usePlayer.getState().favorites], ["new1", "old2", "old1"], "fresh like goes first, not last");
+  usePlayer.getState().toggleFavorite("new1");
+  assert.deepEqual([...usePlayer.getState().favorites], ["old2", "old1"], "un-liking removes it cleanly without disturbing the rest's order");
+});
+
 test("navigate() to the already-active view is a no-op for identity + history (no wasted re-render, no stuck back())", async () => {
   const { usePlayer } = await stores();
   usePlayer.setState({ view: { view: "home" }, navHistory: [] });
