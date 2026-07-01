@@ -5,6 +5,34 @@ en local via `/loop 5h`. Chaque entrée résume ce qui a été trouvé, corrigé
 qu'il reste à explorer pour la prochaine passe. Ne pas pousser sur un remote — usage
 local uniquement (voir consigne utilisateur : tout reste sur cette machine).
 
+## 2026-06-30 — Passe 9 (`/goal` actif) — CommandPalette/menus contextuels/Queue
+
+Dernières zones UI jamais vues en détail. Code jugé "globalement solide" par l'agent lui-même
+(pas de crash, pas de fuite de listeners, pas de double-exécution, fermeture menu correcte
+au clic extérieur/Escape). 2 findings mineurs remontés, **les 2 écartés après vérification** :
+
+- "Race condition CommandPalette" (index de sélection clavier hors limites si on tape puis
+  spamme ArrowDown avant que le debounce ne se résolve) — l'agent lui-même le note comme
+  "TRÈS MARGINAL", déjà protégé par un guard `if (it)` (pas de crash), impact = "bruit UI"
+  <1% du temps. Pas corrigé, rapport coût/bénéfice défavorable.
+- "Submenu playlist qui déborde l'écran à droite sur petits écrans" — **FAUX POSITIF**,
+  vérifié : `ContextMenu.tsx:582-591`, le wrapper est `className="relative"` mais le
+  submenu lui-même n'a NI `absolute` NI `fixed` — c'est un simple bloc en flux normal
+  (marges `mb-1 ml-2`, pas un décalage de positionnement) qui s'étend VERTICALEMENT sous
+  l'item de menu, à l'intérieur du panneau parent déjà clampé horizontalement (`Math.min(x,
+  window.innerWidth - menuW - 8)`). Le commentaire du code ("the original side fly-out")
+  est trompeur — il n'y a pas de fly-out latéral en CSS, donc pas de débordement possible
+  par ce mécanisme. Non modifié.
+
+Aucun changement de code cette passe — les deux zones (CommandPalette, ContextMenu/Queue)
+étaient déjà correctes. Confirme le pattern des dernières passes : les larges sweeps
+d'audit de zones jamais vues rapportent de moins en moins de vrais bugs actionnables ; le
+vrai rendement de fin de session vient de la relecture adversariale du travail déjà fait
+(passe 8) plutôt que de continuer à chercher du terrain neuf.
+
+### Validation
+Aucun changement — `npm run check`/`npm test` toujours à l'état de la passe 8 (80/80).
+
 ## 2026-06-30 — Passe 8 (`/goal` actif) — revue adversariale des fixes déjà appliqués
 
 **Méthode** : suite à la piste #3 de la passe 7, au lieu de chercher une nouvelle zone,
