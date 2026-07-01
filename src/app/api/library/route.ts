@@ -3,6 +3,9 @@ import { getScanProgress } from "@/server/library/scanner";
 import { ensureLibraryReady } from "@/server/bootstrap";
 import { json } from "@/server/http";
 import { getRequestUser } from "@/server/auth";
+import { createLogger } from "@/server/logger";
+
+const log = createLogger("api:library");
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -42,9 +45,12 @@ export async function GET(request: Request) {
     res.headers.set("Cache-Control", "private, no-cache");
     return res;
   } catch (error) {
-    const message = error instanceof Error ? error.message : "Library read failed";
+    // Log the real error (may contain filesystem paths) server-side only —
+    // every other route in this codebase returns a hand-written message and
+    // never echoes error.message back to the client for the same reason.
+    log.error("library read failed", { error: error instanceof Error ? error.message : String(error) });
     return json(
-      { tracks: [], albums: [], artists: [], folders: [], count: 0, root: null, scannedAt: null, error: message },
+      { tracks: [], albums: [], artists: [], folders: [], count: 0, root: null, scannedAt: null, error: "Library read failed" },
       { status: 500 },
     );
   }
