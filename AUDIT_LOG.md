@@ -5,6 +5,72 @@ en local via `/loop 5h`. Chaque entrée résume ce qui a été trouvé, corrigé
 qu'il reste à explorer pour la prochaine passe. Ne pas pousser sur un remote — usage
 local uniquement (voir consigne utilisateur : tout reste sur cette machine).
 
+## 2026-06-30 — Passe 4 (`/goal` actif)
+
+**Méthode** : suite du punch-list passe 3 (warning NFT, scanner.ts jamais audité, trou de
+test reco). Détails déjà committés individuellement ; résumé ici pour la continuité.
+
+- **Warning build NFT (alignment.ts)** : investigué, annotation `turbopackIgnore` ajoutée
+  (recommandation officielle de Next) mais le warning persiste quand même — a priori cette
+  version de Turbopack ne l'honore pas pour `fs.existsSync`, seulement pour les imports
+  dynamiques. Vérifié l'impact réel : `.next/standalone` fait 59M, pas de bloat (les
+  `outputFileTracingExcludes` déjà en place pour ce même problème historique absorbent le
+  souci). Conclusion : warning cosmétique, non bloquant, laissé tel quel.
+- **Test reco/engine.ts** : ma note de la passe 3 disant "aucun test" était fausse
+  (`test/reco.test.ts` existait déjà et couvre bien le moteur) — corrigée. Le seul vrai
+  trou (fenêtre de lecture à 180 jours ajoutée passe 1) a reçu un test dédié.
+- **Audit `scanner.ts`** : 3 findings remontés par l'agent, **les 3 se sont révélés
+  soit faux soit déjà mitigés ailleurs** après vérification ligne par ligne :
+  - "GRAVE : un fichier corrompu crash tout le scan" (`buildRow()` → `extractMetadata()`
+    sans try/catch dans un `Promise.all`) — FAUX. `extractMetadata()`
+    (`metadata.ts:83-139`) a SON PROPRE try/catch interne et retourne un fallback dérivé
+    du nom de fichier pour tout conteneur illisible/non supporté ("still index it with
+    filename data" est même écrit dans un commentaire) — elle ne lève jamais. Même
+    vérification sur `cacheFolderCover()` (`art.ts:42-55`, aussi try/catch par candidat) :
+    aucune fonction appelée dans `buildRow()` ne peut réellement rejeter dans ce
+    scénario. Le pattern `Promise.all` fail-fast est réel en général mais ne s'applique
+    pas ici en pratique.
+  - "MODÉRÉ : path traversal via symlinks pendant le scan" (un symlink dans musicDir
+    pointant hors racine serait indexé) — le scan lui-même ne valide en effet pas ça,
+    MAIS ce n'est pas exploitable pour une exfiltration réelle : la route de streaming
+    (`api/stream/[...path]/route.ts:64`) utilise déjà `resolveRealLibraryPath()`
+    (`server/paths.ts:30-44`), qui suit le symlink via `realpath` et revérifie le
+    confinement dans musicDir AVANT de servir le moindre octet — exactement pour ce
+    scénario (commentaire du code : "a symlink inside the library can point outside it;
+    this follows the link with realpath and re-checks containment"). Pire cas réel :
+    des MÉTADONNÉES (titre/durée dérivés du nom de fichier) de fichiers hors racine
+    pourraient apparaître dans l'index, jamais le contenu. Et ça suppose un attaquant qui
+    a déjà un accès écriture au dossier musique du serveur (typiquement l'opérateur
+    lui-même en self-hosted). Sévérité réelle : basse, pas modérée. Un check `realpath`
+    par dossier PENDANT le scan durcirait encore, mais ajoute un syscall par dossier sur
+    potentiellement des dizaines de milliers de dossiers — pas justifié vu la sévérité
+    réelle et la priorité "moins de ressources" du projet. Non modifié.
+  - "MINEUR : pas de validation explicite que `rel` n'échappe pas" — même mécanisme que
+    ci-dessus, déjà couvert par `resolveLibraryPath`/`resolveRealLibraryPath` au moment de
+    servir. Non modifié.
+  - Confirmé correct par l'agent (RAS) : pas de fuite de ressources, pas de race
+    (flag `scanning` + Node single-threaded), parallélisme borné (META_BATCH=24,
+    WRITE_BATCH=200), transactions SQLite pour l'atomicité.
+- **Point méthode à retenir** : cet agent a terminé en 1 seul appel d'outil (lecture
+  unique du fichier, pas de vérification croisée des fonctions appelées) — 3ᵉ "GRAVE"/
+  "critique" de cette session qui ne survit pas à une relecture réelle des fonctions
+  citées (après le leak SSE et les `contentDescription` Android). Toujours ouvrir et lire
+  les fonctions APPELÉES par le code signalé, pas seulement le code signalé lui-même.
+
+### Validation
+`npm run check` + `npm test` (67/67) verts après chaque commit de cette passe.
+
+### Pistes pour la passe 5
+1. android-native/ : header Authorization ExoPlayer (en attente d'un device/émulateur).
+2. desktop/ : câblage visuel `setup.html` (en attente de test manuel).
+3. Zones encore non auditées : composants settings/admin (web), `src/lib/auralis/*`
+   (utilitaires partagés), lyrics/musixmatch (`musixmatch.ts`), mood classifier
+   (`analysis.ts`, DSP ffmpeg).
+4. Test d'intégration HTTP sur au moins une route API (actuellement tout est unitaire sur
+   la couche server/lib) ; test dédié pour `art.ts` (cache d'images).
+5. Repasser en detail sur les composants React pas encore vus ligne par ligne (Sidebar,
+   Shell/TitleBar, settings panels) — la passe 1 a couvert un échantillon, pas l'exhaustif.
+
 ## 2026-06-30 — Passe 3 (`/goal` actif : continuer automatiquement, sans redemander)
 
 **Méthode** : suite du punch-list passe 2 (item next.config + zones non couvertes :
