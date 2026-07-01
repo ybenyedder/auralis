@@ -34,6 +34,33 @@ construction, soit (b) un `HttpDataSource.Factory` custom qui lit le token coura
 `Prefs`/`AuralisApi` à chaque `createDataSource()`. Dans les deux cas : test runtime
 obligatoire (lecture avant/après un changement de mot de passe) avant de merger.
 
+### Test HTTP d'intégration réel → a trouvé un VRAI trou dans mon propre fix de la passe 3
+J'ai écrit `test/httpRoutes.test.ts` (appelle les vrais handlers `POST` des routes, pas
+juste `checkCsrf`/`checkBodySize` en isolation comme `csrf.test.ts`) pour combler le gap
+"aucun test d'intégration HTTP" noté depuis 2 passes. Premier test écrit — body JSON de
+11MB sur `/api/auth/login`, attendu 413 — **a échoué (401 reçu)**. En creusant :
+`new Request(url, { body: "grosse-string" })` construit en JS **ne pose PAS de header
+`content-length`** (vérifié : `req.headers.get("content-length")` → `null` malgré un body
+de 11MB) — donc `checkBodySize()` (la fix de la passe 3, basée uniquement sur ce header)
+ne bloquait RIEN pour un client qui n'envoie pas ce header, le mentait, ou utilisait un
+chunked transfer-encoding. Exactement le vecteur DoS que la fix était censée fermer,
+grand ouvert pour n'importe quel client qui ne coopère pas.
+
+**CORRIGÉ** : remplacé `checkBodySize()` + `request.json()` par `readJsonBody()`
+(`src/server/http.ts`) sur les 6 routes concernées — lit le stream manuellement avec un
+compteur d'octets réel et annule le reader dès que la limite est dépassée, donc la limite
+tient peu importe ce que le client déclare ou omet. Le check `Content-Length` est gardé
+comme fast-path (rejette sans rien lire pour une requête honnêtement trop grosse) mais
+n'est plus la seule ligne de défense. Les 4 nouveaux tests (413 sur body réellement gros,
+401 sans cookie sur mauvais mdp, 200 + cookie HttpOnly + token sur bon login, 400 sur JSON
+invalide) passent, ainsi que toute la suite (71/71).
+
+**Point méthode** : un `npm run check` qui passe ne prouve QUE la compilation — il n'a
+jamais exercé le vrai comportement runtime de `checkBodySize`. Un test d'intégration qui
+appelle le handler réel avec un `Request` construit comme un vrai client le ferait aurait
+dû exister dès la passe 3. À refaire : écrire le test qui exerce vraiment le nouveau code,
+pas seulement vérifier que ça compile, à chaque fix futur touchant une route API.
+
 ## 2026-06-30 — Passe 5 (`/goal` actif)
 
 **Méthode** : suite du punch-list passe 4 (musixmatch.ts/analysis.ts jamais audités,
