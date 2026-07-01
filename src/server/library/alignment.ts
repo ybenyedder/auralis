@@ -32,7 +32,12 @@ const ALIGN_TIMEOUT_MS = 12 * 60 * 1000;
 
 /** Locate the bundled aligner script; absent in trimmed standalone builds. */
 function scriptPath(): string | null {
-  const candidate = path.join(process.cwd(), "scripts", "forced_align.py");
+  // turbopackIgnore: this is a runtime existence check for an external .py file
+  // (spawned as a subprocess, never require()'d), not a build-time dependency —
+  // without the annotation Next's file tracer can't prove the path is scoped and
+  // conservatively pulls the whole project into every route that imports this
+  // module's output bundle (harmless, but bloats standalone/desktop builds).
+  const candidate = path.join(/* turbopackIgnore: true */ process.cwd(), "scripts", "forced_align.py");
   return fs.existsSync(candidate) ? candidate : null;
 }
 
