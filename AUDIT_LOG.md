@@ -5,6 +5,59 @@ en local via `/loop 5h`. Chaque entrée résume ce qui a été trouvé, corrigé
 qu'il reste à explorer pour la prochaine passe. Ne pas pousser sur un remote — usage
 local uniquement (voir consigne utilisateur : tout reste sur cette machine).
 
+## 2026-06-30 — Passe 7 (`/goal` actif)
+
+**Méthode** : dernière grande zone UI non auditée (Sidebar/Shell/TitleBar), agent le plus
+minutieux de la session (70 appels d'outils). Bilan : event listeners, responsive,
+accessibilité (skip-link, aria-current, focus-visible, vrais `<button>`), drag-region
+Electron — tout confirmé correct, RAS. 3 findings de perf/re-render remontés, triés :
+
+- **CORRIGÉ, et plus important que la sévérité "MOYEN" annoncée** : `navigate()`
+  (`store/player.ts`) recréait TOUJOURS un nouvel objet `view` et poussait TOUJOURS
+  l'entrée courante sur `navHistory`, même en navigant vers la vue déjà active (re-clic
+  sur un lien sidebar déjà sélectionné). Au-delà du re-render gâché (tout sélecteur
+  atomique `s.view` re-render pour rien), ça polluait `navHistory` d'un doublon — `back()`
+  “revenait” alors sur la même vue, un appui perdu avant d'aller réellement en arrière.
+  Correction à la source (le store, pas juste le sélecteur Sidebar comme suggéré) : même
+  référence `view` réutilisée et pas de push d'historique si la cible est identique ;
+  `fullscreenPlayer: false` reste inconditionnel (un clic de nav doit toujours sortir du
+  plein écran).
+- **CLAIM ÉCARTÉE** : "Shell re-render à chaque tick du sleepTimer (~chaque seconde)" —
+  faux, vérifié dans `store/player.ts` : `sleepTimer` ne change que 3 fois par cycle de
+  vie (démarrage / fin-de-piste / expiration), le compte à rebours est un `setTimeout`
+  unique calculé une fois, pas un `setInterval` qui tick. Non modifié.
+- **NOTÉ, pas corrigé (sévérité réelle plus faible que "MOYEN-HAUT")** : la liste de
+  playlists de la Sidebar n'utilise pas `Virtualized.tsx` (qui existe et sert déjà les
+  vraies grosses listes — bibliothèque de morceaux avec cover art). Mais elle est plafonnée
+  server-side à 500 playlists, chaque ligne est juste icône statique + texte (pas d'image
+  réseau par ligne) — pas la classe de liste pour laquelle la virtualisation a été
+  construite. Pas assez d'impact réel pour justifier la complexité d'intégration ici.
+
+### Point méthode important de cette passe
+`npm run check` (lint --max-warnings 0 + typecheck + build) a échoué après le commit
+"passe 6" précédent (`test/art.test.ts` utilisait des `!` non-null assertions interdites
+par ESLint) — **je ne l'avais PAS relancé après ces tests, seulement `npm test` (plus
+étroit)**. Recorrigé immédiatement. Leçon : toujours lancer `npm run check` en entier
+après CHAQUE changement, pas seulement `npm test`, même pour un ajout "juste des tests" —
+`npm test` ne lint pas.
+
+### Validation
+`npm run check` + `npm test` (76/76) verts après correction.
+
+### Pistes pour la passe 8
+1. android-native/ ExoPlayer + desktop/ setup.html : toujours en attente de device/test
+   manuel.
+2. La couverture d'audit ligne-par-ligne a maintenant traversé : API routes, perf/SQLite,
+   store/moteur audio, PWA/SSE, scanner, musixmatch/ffmpeg, settings/admin/lib,
+   Sidebar/Shell/TitleBar. Zones encore non vues en détail : CommandPalette, contextes de
+   menu (context menus track/album/playlist), le composant Queue complet (au-delà de
+   QueueList déjà touché passe 1), et les vues Home/Library/Explore elles-mêmes
+   (composants de haut niveau, pas juste leurs sous-parties déjà auditées).
+3. Envisager un premier passage volontairement ADVERSARIAL sur les fixes DÉJÀ appliqués
+   dans ce journal (relire chaque diff des passes 1-7 avec un œil sceptique) plutôt que de
+   continuer à chercher de nouvelles zones — la passe 6 a montré qu'un "fix" peut sembler
+   correct (compile, buildé) sans être réellement testé en conditions réelles.
+
 ## 2026-06-30 — Passe 6 (`/goal` actif)
 
 ### ExoPlayer Authorization header — RECOMMANDATION DES PASSES 2-5 CORRIGÉE, pas implémentée
