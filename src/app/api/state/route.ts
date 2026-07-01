@@ -4,7 +4,7 @@ import {
   setPlaylistShared, addCollaborator, addTrackToPlaylist, removeTrackFromPlaylist, setPlaylistCover,
 } from "@/server/state/userState";
 import { getRequestUser } from "@/server/auth";
-import { json, checkCsrf } from "@/server/http";
+import { json, checkCsrf, checkBodySize } from "@/server/http";
 import { invalidateReco, recommendFromSeeds } from "@/server/reco/engine";
 import { cacheArtBuffer } from "@/server/library/art";
 
@@ -50,6 +50,8 @@ export async function PUT(request: Request) {
   const user = getRequestUser(request);
   if (!user) return json({ error: "Unauthorized" }, { status: 401 });
   const uid = user.id;
+  const tooBig = checkBodySize(request);
+  if (tooBig) return tooBig;
 
   let body: ActionBody;
   try {

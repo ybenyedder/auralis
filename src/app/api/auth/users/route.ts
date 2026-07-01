@@ -1,7 +1,7 @@
 // Admin-only account management. List, create and delete user accounts; each
 // account carries its own favorites / playlists / history (see userState).
 import { getRequestUser, listUsers, createUser, deleteUser, setUserPassword, createSessionToken, SESSION_COOKIE, SESSION_MAX_AGE_S } from "@/server/auth";
-import { json, checkCsrf } from "@/server/http";
+import { json, checkCsrf, checkBodySize } from "@/server/http";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -22,6 +22,8 @@ export async function POST(request: Request) {
   const user = getRequestUser(request);
   if (!user) return json({ error: "Unauthorized" }, { status: 401 });
   if (user.is_admin !== 1) return json({ error: "Réservé à l'administrateur" }, { status: 403 });
+  const tooBig = checkBodySize(request);
+  if (tooBig) return tooBig;
 
   let body: { username?: string; password?: string; isAdmin?: boolean };
   try {
@@ -41,6 +43,8 @@ export async function PUT(request: Request) {
   const user = getRequestUser(request);
   if (!user) return json({ error: "Unauthorized" }, { status: 401 });
   if (user.is_admin !== 1) return json({ error: "Réservé à l'administrateur" }, { status: 403 });
+  const tooBig = checkBodySize(request);
+  if (tooBig) return tooBig;
 
   let body: { id?: number; password?: string };
   try {

@@ -1,11 +1,16 @@
 import { verifyCredentials, createSessionToken, SESSION_COOKIE, SESSION_MAX_AGE_S } from "@/server/auth";
-import { json } from "@/server/http";
+import { json, checkBodySize } from "@/server/http";
 import { clientKey, usernameKey, rateLimitCheck, rateLimitFail, rateLimitReset } from "@/server/rateLimit";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 export async function POST(request: Request) {
+  // Unauthenticated endpoint — the size guard runs before anything else here,
+  // ahead of even the rate limiter, since there's no session to key work off yet.
+  const tooBig = checkBodySize(request);
+  if (tooBig) return tooBig;
+
   let username = "";
   let password = "";
   try {

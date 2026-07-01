@@ -88,6 +88,22 @@ export function checkCsrf(request: Request): NextResponse | null {
   return json({ error: "Origine de la requête non autorisée" }, { status: 403 });
 }
 
+// App Router route handlers have no built-in cap on request.json() — an
+// oversized body is fully buffered into memory before any route-level
+// validation (e.g. the 8MB playlist-cover check) gets a chance to reject it.
+// This is a cheap Content-Length pre-check, not a true streaming limit (a
+// client could omit/lie about the header), but it covers every real client
+// this app talks to (web fetch/desktop/Android all set it correctly) at
+// negligible cost.
+const MAX_JSON_BODY_BYTES = 10 * 1024 * 1024; // 8MB cover image + JSON/base64 overhead
+
+/** Returns a 413 response if Content-Length declares a body over maxBytes, else null. */
+export function checkBodySize(request: Request, maxBytes = MAX_JSON_BODY_BYTES): NextResponse | null {
+  const len = Number(request.headers.get("content-length") ?? "0");
+  if (len > maxBytes) return json({ error: "Requête trop volumineuse" }, { status: 413 });
+  return null;
+}
+
 export function json(body: unknown, init?: ResponseInit): NextResponse {
   const res = NextResponse.json(body, init);
   for (const [k, v] of Object.entries(SECURITY_HEADERS)) res.headers.set(k, v);

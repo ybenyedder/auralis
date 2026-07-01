@@ -2,7 +2,7 @@ import fs from "fs";
 import path from "path";
 import { getConfig, setMusicDir } from "@/server/config";
 import { runScan } from "@/server/library/scanner";
-import { requireAdmin, json, checkCsrf } from "@/server/http";
+import { requireAdmin, json, checkCsrf, checkBodySize } from "@/server/http";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -25,6 +25,8 @@ export async function POST(request: Request) {
   if (csrf) return csrf;
   const denied = requireAdmin(request);
   if (denied) return denied;
+  const tooBig = checkBodySize(request);
+  if (tooBig) return tooBig;
 
   let body: { dir?: unknown };
   try {
