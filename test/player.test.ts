@@ -26,6 +26,38 @@ async function stores() {
 type T = { trackhash: string; title: string; artists: { artisthash: string; name: string }[]; genre?: string; duration: number };
 const mk = (h: string, artist = "A", genre = "rock"): T => ({ trackhash: h, title: h, artists: [{ artisthash: artist, name: artist }], genre, duration: 200 });
 
+test("navigate() to the already-active view is a no-op for identity + history (no wasted re-render, no stuck back())", async () => {
+  const { usePlayer } = await stores();
+  usePlayer.setState({ view: { view: "home" }, navHistory: [] });
+  usePlayer.getState().navigate("explore");
+  const afterFirstNav = usePlayer.getState().view;
+  assert.deepEqual(afterFirstNav, { view: "explore", id: undefined });
+  assert.equal(usePlayer.getState().navHistory.length, 1, "one real navigation = one history entry");
+
+  // Re-navigating to the SAME view+id must not duplicate history or reallocate
+  // the view object — components with an atomic `s.view` selector should see
+  // no change at all.
+  usePlayer.getState().navigate("explore");
+  assert.equal(usePlayer.getState().view, afterFirstNav, "same object reference — no re-render for atomic selectors");
+  assert.equal(usePlayer.getState().navHistory.length, 1, "redundant navigate() must not push a duplicate history entry");
+
+  // Navigate somewhere new, then back() must land on "home" (the real previous
+  // view), not "explore" again (which the duplicate-history bug would cause).
+  usePlayer.getState().navigate("favorites");
+  assert.equal(usePlayer.getState().navHistory.length, 2);
+  usePlayer.getState().back();
+  assert.deepEqual(usePlayer.getState().view, { view: "explore", id: undefined });
+  usePlayer.getState().back();
+  assert.deepEqual(usePlayer.getState().view, { view: "home" });
+});
+
+test("navigate() always closes fullscreen, even when re-navigating to the current view", async () => {
+  const { usePlayer } = await stores();
+  usePlayer.setState({ view: { view: "home" }, navHistory: [], fullscreenPlayer: true });
+  usePlayer.getState().navigate("home");
+  assert.equal(usePlayer.getState().fullscreenPlayer, false);
+});
+
 test("shuffleArray is a permutation (keeps every element exactly once)", async () => {
   const { shuffleArray } = await stores();
   const input = Array.from({ length: 50 }, (_, i) => i);
