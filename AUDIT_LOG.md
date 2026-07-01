@@ -5,6 +5,34 @@ en local via `/loop 5h`. Chaque entrée résume ce qui a été trouvé, corrigé
 qu'il reste à explorer pour la prochaine passe. Ne pas pousser sur un remote — usage
 local uniquement (voir consigne utilisateur : tout reste sur cette machine).
 
+## 2026-07-01 — Passe 13 — même recherche de motif poussée plus loin, rien de plus trouvé
+
+Suite logique de la passe 12 : vérifié si d'autres endroits partagent soit (a) le bug
+"Set utilisé comme si l'ordre d'insertion = récence, mais `.add()` casse ça", soit (b)
+"un contrôle partagé affiché sur plusieurs onglets/vues sans s'appliquer partout".
+
+- **`recentTrackhashes`** (historique d'écoute, `store/player.ts:985`) : DÉJÀ correct —
+  contrairement à `favorites`, c'est un tableau simple et `recordPlay` fait bien
+  `[trackhash, ...s.recentTrackhashes.filter(h => h !== trackhash)].slice(0, 100)`
+  (dédoublonnage + remise en tête). Pas le même bug, car un tableau explicite oblige à
+  gérer l'ordre à la main — un Set masque le problème (c'est justement ce qui avait
+  laissé passer le bug des favoris).
+- **`dislikes`** : jamais itéré/affiché comme liste ordonnée nulle part dans l'UI,
+  seulement utilisé comme filtre d'exclusion (`.has()`) dans HomeView/DailyMixes — l'ordre
+  du Set n'a aucune incidence visible. Pas concerné.
+- **Chips de filtre genre/mood/lossless + recherche texte dans LibraryView** : vérifié que
+  la ligne de chips n'est rendue QUE sur les onglets où `trackMatches` les applique
+  réellement (`tab === "tracks" || tab === "likes"`, ligne 300) et que la barre de
+  recherche est masquée sur l'onglet playlists (`tab !== "playlists"`, ligne 283) — cohérent
+  avec `sortedPlaylists` qui n'utilise pas `q`. Déjà correctement conditionné, pas de bug.
+
+Recherche de motif désormais épuisée pour cette classe précise de bug dans ce périmètre
+(2 vrais bugs trouvés sur passes 11-12, 0 sur cette passe de vérification complémentaire).
+
+### Validation
+Aucun changement de code — `npm test` (81/81) toujours vert, état inchangé depuis la
+passe 12.
+
 ## 2026-07-01 — Passe 12 — même classe de bug trouvée par recherche de motif, pas par audit large
 
 **Méthode** : au lieu d'un nouveau sweep générique, recherche ciblée d'autres composants
