@@ -91,7 +91,12 @@ export function checkCsrf(request: Request): NextResponse | null {
 // App Router route handlers have no built-in cap on request.json() — an
 // oversized body is fully buffered into memory before any route-level
 // validation (e.g. the 8MB playlist-cover check) gets a chance to reject it.
-const MAX_JSON_BODY_BYTES = 10 * 1024 * 1024; // 8MB cover image + JSON/base64 overhead
+// Base64 inflates raw bytes by 4/3, so an 8MB cover image (MAX_COVER_BYTES in
+// api/state/route.ts) becomes an ~11.2MB JSON body — this cap must stay above
+// that with headroom, or a legitimate max-size cover upload gets a false 413
+// before the route's own 8MB check ever runs (caught by a real integration
+// test PUTting an actual 8MB image through the route, not just a raw byte count).
+const MAX_JSON_BODY_BYTES = 12 * 1024 * 1024;
 
 export type JsonBodyResult<T> = { ok: true; body: T } | { ok: false; response: NextResponse };
 

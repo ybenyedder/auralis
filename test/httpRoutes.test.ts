@@ -15,6 +15,7 @@ process.env.AURALIS_LYRICS_ONLINE = "false";
 process.on("exit", () => { try { fs.rmSync(tmp, { recursive: true, force: true }); } catch { /* best effort */ } });
 
 const LOGIN_URL = "http://localhost:4237/api/auth/login";
+const STATE_URL = "http://localhost:4237/api/state";
 
 async function mods() {
   const { getDb } = await import("../src/server/db");
@@ -23,11 +24,20 @@ async function mods() {
   return { db: getDb(), createUser, loginPost };
 }
 
+async function stateMods() {
+  const { getDb } = await import("../src/server/db");
+  const { createUser, createSessionToken } = await import("../src/server/auth");
+  const { upsertPlaylist } = await import("../src/server/state/userState");
+  const { PUT: statePut } = await import("../src/app/api/state/route");
+  return { db: getDb(), createUser, createSessionToken, upsertPlaylist, statePut };
+}
+
 test("login rejects an oversized body with 413 before touching credentials/rate-limit", async () => {
   const { loginPost } = await mods();
   // A real oversized body (not a spoofed header) so Content-Length reflects it
-  // exactly like a real client's request would.
-  const hugePassword = "x".repeat(11 * 1024 * 1024);
+  // exactly like a real client's request would. Comfortably over the 12MB cap
+  // (sized to fit an 8MB base64 cover image, see http.ts).
+  const hugePassword = "x".repeat(13 * 1024 * 1024);
   const req = new Request(LOGIN_URL, {
     method: "POST",
     headers: { "content-type": "application/json" },
@@ -76,4 +86,51 @@ test("login with an invalid JSON body returns 400, not a 500 crash", async () =>
   const req = new Request(LOGIN_URL, { method: "POST", headers: { "content-type": "application/json" }, body: "{not json" });
   const res = await loginPost(req);
   assert.equal(res.status, 400);
+});
+
+test("playlist.cover accepts a legitimate cover right up at the 8MB limit (base64 inflation must fit the JSON body cap)", async () => {
+  const { db, createUser, createSessionToken, upsertPlaylist, statePut } = await stateMods();
+  db.exec("DELETE FROM users; DELETE FROM playlists;");
+  const created = createUser("coveruser", "correct-horse-battery-staple", false);
+  assert.ok(created.id);
+  const uid = created.id;
+  const token = createSessionToken(uid);
+  const playlistId = upsertPlaylist(uid, { name: "Cover test" });
+
+  // Exactly MAX_COVER_BYTES (8MB) of raw image data, base64-encoded — the JSON
+  // body this produces is ~11.2MB, bigger than a naive "8MB is under 10MB" guess
+  // would suggest. This is the exact upload the code's own MAX_COVER_BYTES check
+  // is supposed to allow; readJsonBody's cap must not reject it first.
+  const raw = Buffer.alloc(8 * 1024 * 1024, 1);
+  const imageDataUrl = `data:image/jpeg;base64,${raw.toString("base64")}`;
+  const req = new Request(STATE_URL, {
+    method: "PUT",
+    headers: { "content-type": "application/json", authorization: `Bearer ${token}` },
+    body: JSON.stringify({ action: "playlist.cover", id: playlistId, imageDataUrl }),
+  });
+  const res = await statePut(req);
+  const data = (await res.json().catch(() => ({}))) as { ok?: boolean; error?: string };
+  assert.equal(res.status, 200, `expected the max-size cover to be accepted, got ${res.status}: ${data.error}`);
+  assert.equal(data.ok, true);
+});
+
+test("playlist.cover still rejects a body genuinely over the JSON cap", async () => {
+  const { db, createUser, createSessionToken, upsertPlaylist, statePut } = await stateMods();
+  db.exec("DELETE FROM users; DELETE FROM playlists;");
+  const created = createUser("coveruser2", "correct-horse-battery-staple", false);
+  assert.ok(created.id);
+  const uid = created.id;
+  const token = createSessionToken(uid);
+  const playlistId = upsertPlaylist(uid, { name: "Cover test 2" });
+
+  // Comfortably past MAX_COVER_BYTES even after accounting for base64 inflation.
+  const raw = Buffer.alloc(14 * 1024 * 1024, 1);
+  const imageDataUrl = `data:image/jpeg;base64,${raw.toString("base64")}`;
+  const req = new Request(STATE_URL, {
+    method: "PUT",
+    headers: { "content-type": "application/json", authorization: `Bearer ${token}` },
+    body: JSON.stringify({ action: "playlist.cover", id: playlistId, imageDataUrl }),
+  });
+  const res = await statePut(req);
+  assert.equal(res.status, 413);
 });
