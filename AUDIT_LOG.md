@@ -5,6 +5,46 @@ en local via `/loop 5h`. Chaque entrée résume ce qui a été trouvé, corrigé
 qu'il reste à explorer pour la prochaine passe. Ne pas pousser sur un remote — usage
 local uniquement (voir consigne utilisateur : tout reste sur cette machine).
 
+## 2026-07-01 — Passe 11 — vrai bug confirmé dans LibraryView
+
+**Méthode** : audit ligne par ligne des dernières grosses vues jamais vues (HomeView,
+LibraryView). Contrairement aux dernières passes de sweep large, celle-ci a trouvé un
+vrai bug fonctionnel confirmé, pas juste des faux positifs.
+
+### CORRIGÉ — le sélecteur de tri de la Bibliothèque proposait des options qui ne faisaient rien
+`LibraryView.tsx` : un seul `<select>` de tri (5 options : A→Z, Z→A, Plus récents, Plus
+joués, Ajout récent) affiché sur TOUS les onglets (albums/artistes/titres/j'aime/playlists),
+mais chaque fonction de tri n'implémente qu'un sous-ensemble :
+- albums : gère `za`+`year`, pas `plays`/`added` → retombe silencieusement sur A→Z
+- artistes : gère `za`+`plays`, pas `year`/`added` → idem
+- **playlists : n'appliquait AUCUN tri du tout**, quelle que soit l'option choisie (même
+  "A → Z", qui est pourtant la valeur PAR DÉFAUT du sélecteur — donc le bug était visible
+  dès le premier chargement de l'onglet, pas seulement sur un choix exotique)
+
+Corrigé en listant, par onglet, uniquement les modes réellement implémentés
+(`SORT_OPTIONS: Record<Tab, ...>`) plutôt qu'une liste statique de 5 options partagée ;
+`changeTab()` rabat `sort` sur "az" si le mode courant n'existe pas pour le nouvel onglet
+(sinon le bug se serait juste déplacé : choisir "Plus joués" sur Artistes puis basculer
+sur Albums aurait laissé le sélecteur afficher un mode non supporté). Ajouté au passage :
+le cas `year` pour titres/j'aime (triv­ial, `track.year` existe déjà, même pattern que les
+albums) et un vrai tri az/za pour les playlists (qui n'en avaient aucun).
+
+**Non implémenté délibérément** : trier les albums par écoutes ou date d'ajout, et les
+artistes par année/date d'ajout, nécessiterait une NOUVELLE logique d'agrégation
+(équivalent d'`artistPlayTotals` mais pour album/artiste) — au-delà de "corriger le
+sélecteur qui ment", plutôt une extension de fonctionnalité. Noté pour une passe future
+si utile.
+
+**Pas de test dédié** : ce fix vit dans un composant React (`LibraryView.tsx`), et ce
+projet n'a pas de harnais de rendu de composants (React Testing Library/jsdom) — seule la
+couche server/store est testée automatiquement ici. Vérifié par `npm run check` (lint +
+typecheck + build) comme les autres fixes UI-only de cette session (Cards.tsx,
+changePassword). Le fix `navigate()` de la passe 7 avait un vrai test parce qu'il vivait
+dans le store (testable sans DOM), pas parce que c'est le seul cas où un test serait utile.
+
+### Validation
+`npm run check` + `npm test` (80/80) verts.
+
 ## 2026-06-30 — Passe 10 (relance du cron local 5h, job `3c2138a6`)
 
 Le job cron local créé en tout début de session a effectivement refiré après ~5h — preuve
