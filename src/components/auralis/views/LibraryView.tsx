@@ -20,9 +20,53 @@ type Tab = "tracks" | "likes" | "albums" | "artists" | "playlists";
 
 type SortMode = "az" | "za" | "year" | "plays" | "added";
 
+// Every tab's actual sort implementation supports a different subset of
+// SortMode (albums have no per-item "added"/"plays", artists have no "year"/
+// "added", playlists have none of those) — the <select> below only offers
+// what a tab really implements, so a chosen option never silently no-ops
+// back to alphabetical.
+const SORT_OPTIONS: Record<Tab, { value: SortMode; label: string }[]> = {
+  albums: [
+    { value: "az", label: "A → Z" },
+    { value: "za", label: "Z → A" },
+    { value: "year", label: "Plus récents" },
+  ],
+  artists: [
+    { value: "az", label: "A → Z" },
+    { value: "za", label: "Z → A" },
+    { value: "plays", label: "Plus joués" },
+  ],
+  tracks: [
+    { value: "az", label: "A → Z" },
+    { value: "za", label: "Z → A" },
+    { value: "year", label: "Plus récents" },
+    { value: "plays", label: "Plus joués" },
+    { value: "added", label: "Ajout récent" },
+  ],
+  likes: [
+    { value: "az", label: "A → Z" },
+    { value: "za", label: "Z → A" },
+    { value: "year", label: "Plus récents" },
+    { value: "plays", label: "Plus joués" },
+    { value: "added", label: "Ajout récent" },
+  ],
+  playlists: [
+    { value: "az", label: "A → Z" },
+    { value: "za", label: "Z → A" },
+  ],
+};
+
 export function LibraryView() {
   const [tab, setTab] = useState<Tab>("albums");
   const [sort, setSort] = useState<SortMode>("az");
+  // Switching tabs while a mode from the previous tab's option set is active
+  // (e.g. "Plus joués" on Artists, then Albums) would otherwise leave the
+  // dropdown showing a mode Albums doesn't implement — same silent no-op bug,
+  // just carried across tabs. Falls back to "az", which every tab supports.
+  const changeTab = (next: Tab) => {
+    setTab(next);
+    if (!SORT_OPTIONS[next].some((o) => o.value === sort)) setSort("az");
+  };
   const [grid, setGrid] = useState(true);
   const [creating, setCreating] = useState(false);
   const [newName, setNewName] = useState("");
@@ -44,6 +88,14 @@ export function LibraryView() {
   const playlists = useLibraryStore((s) => s.playlists);
   const status = useLibraryStore((s) => s.status);
   const allPlaylists = useMemo(() => [...customPlaylists, ...playlists], [customPlaylists, playlists]);
+  // Playlists have no per-item play count or "added" date to sort by (see
+  // SORT_OPTIONS), just the universal az/za every tab supports.
+  const sortedPlaylists = useMemo(() => {
+    const next = [...allPlaylists];
+    if (sort === "za") next.sort((a, b) => compareNames(b.name, a.name));
+    else next.sort((a, b) => compareNames(a.name, b.name));
+    return next;
+  }, [allPlaylists, sort]);
   // Cold-start: the snapshot is still loading and nothing is in yet → show shimmer
   // skeletons rather than a blank stage or a premature "empty" message.
   const loading = status === "loading" && tracks.length === 0;
@@ -113,6 +165,7 @@ export function LibraryView() {
   const sortedTracks = useMemo(() => {
     const next = tracks.filter(trackMatches);
     if (sort === "za") next.sort((a, b) => compareNames(b.title, a.title));
+    else if (sort === "year") next.sort((a, b) => (b.year || 0) - (a.year || 0));
     else if (sort === "plays") next.sort((a, b) => (playCounts[b.trackhash] ?? 0) - (playCounts[a.trackhash] ?? 0));
     else if (sort === "added") next.sort((a, b) => (b.addedAt ?? 0) - (a.addedAt ?? 0));
     else next.sort((a, b) => compareNames(a.title, b.title));
@@ -126,6 +179,7 @@ export function LibraryView() {
   const likedTracks = useMemo(() => {
     const liked = tracks.filter((t) => favorites.has(t.trackhash) && trackMatches(t));
     if (sort === "za") liked.sort((a, b) => compareNames(trackTitle(b), trackTitle(a)));
+    else if (sort === "year") liked.sort((a, b) => (b.year || 0) - (a.year || 0));
     else if (sort === "plays") liked.sort((a, b) => (playCounts[b.trackhash] ?? 0) - (playCounts[a.trackhash] ?? 0));
     else if (sort === "added") liked.sort((a, b) => (b.addedAt ?? 0) - (a.addedAt ?? 0));
     else liked.sort((a, b) => compareNames(trackTitle(a), trackTitle(b)));
@@ -173,11 +227,9 @@ export function LibraryView() {
               className="h-9 cursor-pointer bg-transparent px-2 text-[13px] font-semibold text-muted-foreground outline-none transition-colors hover:text-foreground lg:h-auto lg:py-1 lg:text-[11.5px]"
               aria-label="Trier"
             >
-              <option value="az" className="bg-[var(--panel-2)]">A → Z</option>
-              <option value="za" className="bg-[var(--panel-2)]">Z → A</option>
-              <option value="year" className="bg-[var(--panel-2)]">Plus récents</option>
-              <option value="plays" className="bg-[var(--panel-2)]">Plus joués</option>
-              <option value="added" className="bg-[var(--panel-2)]">Ajout récent</option>
+              {SORT_OPTIONS[tab].map((o) => (
+                <option key={o.value} value={o.value} className="bg-[var(--panel-2)]">{o.label}</option>
+              ))}
             </select>
             <ArrowDownUp className="size-3 text-muted-foreground/70" />
           </div>
@@ -212,7 +264,7 @@ export function LibraryView() {
           return (
             <button
               key={item.id}
-              onClick={() => setTab(item.id)}
+              onClick={() => changeTab(item.id)}
               className={cn(
                 "relative flex h-11 flex-1 items-center justify-center gap-1.5 px-1 text-[12px] font-bold transition-colors lg:h-auto lg:flex-none lg:justify-start lg:gap-2 lg:px-3 lg:py-2 lg:text-[12.5px]",
                 active ? "text-foreground" : "text-muted-foreground hover:text-foreground",
@@ -411,9 +463,9 @@ export function LibraryView() {
               </div>
             )}
           </div>
-          {allPlaylists.length > 0 ? (
+          {sortedPlaylists.length > 0 ? (
             <VirtualGrid
-              items={allPlaylists}
+              items={sortedPlaylists}
               itemKey={(p) => p.id}
               minItemWidth={160}
               gap={8}
