@@ -25,10 +25,13 @@ export async function GET(request: Request) {
   const subId = globalThis.crypto.randomUUID();
   const encoder = new TextEncoder();
   let ping: ReturnType<typeof setInterval> | undefined;
+  // Shared with cancel() below — it's a separate method on this object, not
+  // nested inside start(), so a `closed` declared only inside start() would be
+  // invisible to it and the two cleanup paths couldn't guard against each other.
+  let closed = false;
 
   const stream = new ReadableStream<Uint8Array>({
     start(controller) {
-      let closed = false;
       const safeEnqueue = (chunk: string) => {
         if (closed) return;
         try {
@@ -60,6 +63,8 @@ export async function GET(request: Request) {
       request.signal.addEventListener("abort", cleanup);
     },
     cancel() {
+      if (closed) return;
+      closed = true;
       if (ping) clearInterval(ping);
       unregisterSubscriber(user.id, subId);
     },

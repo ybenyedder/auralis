@@ -133,7 +133,9 @@ export function useLibrary() {
     void rescan();
 
     if (typeof window === "undefined" || typeof EventSource === "undefined") return;
-    const source = new EventSource(api.url("/api/library/events"));
+    // withCredentials so a cookie-only session (no ?token=) still authenticates —
+    // matches the sync SSE channel (store/sync.ts), which already sets this.
+    const source = new EventSource(api.url("/api/library/events"), { withCredentials: true });
     let lastStatus = "";
     let wasAnalyzing = false;
     source.onmessage = (event) => {

@@ -5,6 +5,85 @@ en local via `/loop 5h`. Chaque entrée résume ce qui a été trouvé, corrigé
 qu'il reste à explorer pour la prochaine passe. Ne pas pousser sur un remote — usage
 local uniquement (voir consigne utilisateur : tout reste sur cette machine).
 
+## 2026-06-30 — Passe 3 (`/goal` actif : continuer automatiquement, sans redemander)
+
+**Méthode** : suite du punch-list passe 2 (item next.config + zones non couvertes :
+store Zustand/moteur audio, PWA/service worker, SSE sync).
+
+### Sécurité — CORRIGÉ
+`src/server/http.ts` : ajout de `checkBodySize()` (pré-check `Content-Length`, 413 si
+dépassement) — `request.json()` d'App Router n'a AUCUNE limite intégrée, un body énorme
+est entièrement bufferisé en mémoire avant que la moindre validation de route (ex: le
+check 8MB de `playlist.cover`) ait une chance de le rejeter. Câblé sur les 6 routes qui
+parsent un body JSON, y compris `/api/auth/login` qui est pré-authentification (surface la
+plus exposée). `npm run check` + `npm test` (66/66) verts après coup.
+
+### Store Zustand / moteur audio — AUDITÉ, AUCUN vrai bug trouvé
+Un agent a remonté 3 "race conditions" (page.tsx:242-245 dataset.trackhash mis à jour
+après `audio.load()`, player.ts:633/658 reset de currentTime lors d'une re-sélection
+rapide, page.tsx:463 loadedmetadata désynchronisé). Les 3 ont été vérifiées ligne par
+ligne et écartées :
+- page.tsx:242-245 : impossible en JS — deux instructions synchrones dans la même
+  fonction ne peuvent jamais être interrompues par un event listener (aucun point de
+  suspension entre elles). Le scénario proposé n'existe pas.
+- player.ts:633/658 : le commentaire du code explique déjà l'intention exacte (forcer un
+  restart à 0 UNIQUEMENT quand on re-sélectionne la piste DÉJÀ chargée, dataset ==
+  nouvelle piste). Pour un changement vers une piste VRAIMENT différente, le test est
+  censé être faux (aucun reset nécessaire : un nouveau `src` repart de 0 nativement dans
+  le navigateur). Le scénario "B reprend où A s'est arrêté" décrit par l'agent ne découle
+  pas de la mécanique réelle de `audio.src`.
+- page.tsx:463 : `consumeResumeSeek()` (player.ts:49-56) compare déjà le trackhash avant
+  de renvoyer quoi que ce soit — verrou complet, pas juste une atténuation partielle.
+Aucune modification. Sélecteurs Zustand, cleanup des listeners, gestion d'erreur audio et
+persistance confirmés corrects par l'agent (RAS).
+
+### PWA / SSE — 2 petits fixes corrigés, 1 faux positif "GRAVE" écarté après vérification
+Pas de service worker enregistré (juste `src/app/manifest.ts`) → aucun des risques
+PWA (cache de données privées, staleness) ne s'applique, rien à faire.
+- **FAUX POSITIF écarté malgré le label "GRAVE"** : un agent a signalé une fuite mémoire
+  de listeners `EventSource` dans `src/store/sync.ts` (5 listeners par `connect()`,
+  soi-disant jamais nettoyés à la reconnexion). Vérifié : `connect()` retourne
+  immédiatement si `es` (le handle module-level, `let es: EventSource | null`) est déjà
+  défini (ligne 100) — impossible d'attacher un second jeu de listeners tant que l'ancien
+  n'est pas fermé. Et `es` est une simple variable réassignée, pas un tableau qui
+  accumule : dès que `es = source` pointe vers la nouvelle connexion, l'ancien
+  `EventSource` (+ tous ses listeners, qui ne sont que des propriétés internes de CET
+  objet) perd sa dernière référence externe et devient éligible au GC comme un tout —
+  attacher un listener à un objet ne "fuit" pas globalement, ça garde seulement CET
+  objet vivant tant que lui-même est référencé. Aucune modification.
+- **CORRIGÉ** (`src/app/api/sync/stream/route.ts`) : `cancel()` (méthode séparée de
+  `start()` sur le même `ReadableStream`, donc scope différent) ne voyait jamais le flag
+  `closed` — celui-ci était déclaré `let closed = false` À L'INTÉRIEUR de `start()`,
+  invisible depuis `cancel()`. Un abort concurrent aurait pu déclencher `unregisterSubscriber`
+  deux fois (inoffensif aujourd'hui car idempotent, mais c'est exactement la classe de bug
+  déjà rencontrée ici — voir commit historique "fix: SSE controller double-close crash").
+  `closed` remonté au scope partagé par `start()` ET `cancel()`, `cancel()` le vérifie/pose
+  désormais comme `cleanup()` le fait déjà. Vérifié : `src/app/api/library/events/route.ts`
+  n'a PAS ce bug (l'agent l'avait signalé à tort aussi) — son `cancel()` appelle
+  `cleanup?.()`, la MÊME closure que `start()` utilise pour l'abort, donc le flag `closed`
+  qu'elle capture est déjà correctement partagé par construction.
+- **CORRIGÉ** (`src/store/library.ts`) : `EventSource("/api/library/events")` n'avait pas
+  `{ withCredentials: true }` contrairement à `store/sync.ts`, qui l'a déjà. Sans ça, une
+  session cookie-only (sans `?token=`) ne s'authentifierait pas sur cet endpoint en
+  cross-origin. Mineur (le token query param compense la plupart du temps) mais correctif
+  sûr et cohérent avec l'autre canal SSE du projet.
+
+### Validation
+`npm run check` + `npm test` (66/66) ✅ après le lot store/PWA/SSE.
+
+### Pistes pour la passe 4
+1. android-native/ : header Authorization ExoPlayer (reporté passe 2, toujours en attente
+   d'un device/émulateur pour vérifier).
+2. desktop/ : câblage visuel `setup.html` (reporté passe 2, idem, besoin de test manuel).
+3. Repasser sur des zones encore non auditées : composants de settings/admin,
+   `src/lib/auralis/*` (utilitaires partagés), scanner de bibliothèque (`scanner.ts`)
+   ligne par ligne (seulement survolé indirectement jusqu'ici), lyrics/musixmatch,
+   forced-align (`alignment.ts`, mentionné dans le warning NFT trace du build — à
+   vérifier si c'est un vrai souci ou juste un warning bénin de Next.js).
+4. Élargir la couverture de tests : aucun test ne couvre encore `reco/engine.ts`
+   (scoring), `art.ts` (cache d'images), ou les routes API elles-mêmes (tests actuels =
+   unitaires sur la couche server/lib, pas d'intégration HTTP sur les routes).
+
 ## 2026-06-30 — Passe 2 (déclenchée par `/goal continue toute les prochaine passe sans que j te demande`)
 
 **Méthode** : suite du punch-list de la passe 1. Test unitaire écrit pour verrouiller le fix
