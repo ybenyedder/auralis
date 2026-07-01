@@ -39,6 +39,10 @@ import { moodById } from "@/lib/auralis/mood";
 const DAY = 86_400_000;
 const HALF_LIFE_MS = 21 * DAY; // taste relevance half-life
 const RECENT_HALF_LIFE_MS = 1.5 * DAY; // "just heard it" fatigue half-life
+// Events older than this decay to <0.3% of their original weight (8.5+ half-lives),
+// so excluding them from the read leaves aggregates unchanged while bounding query
+// cost for long-time users (the table itself is separately pruned at 400 days).
+const EVENTS_WINDOW_MS = 180 * DAY;
 
 // Base signal strengths before time-decay.
 const FAVORITE_WEIGHT = 2.5;
@@ -127,8 +131,8 @@ function buildAggregates(userId: number, tracks: TrackRow[]): Aggregates {
 
   // --- play / skip events ---------------------------------------------------
   const events = db
-    .prepare("SELECT trackhash, played_at, kind, ratio FROM play_events WHERE user_id = ?")
-    .all(userId) as EventRow[];
+    .prepare("SELECT trackhash, played_at, kind, ratio FROM play_events WHERE user_id = ? AND played_at >= ?")
+    .all(userId, now - EVENTS_WINDOW_MS) as EventRow[];
   for (const e of events) {
     const d = decay(now - e.played_at, HALF_LIFE_MS);
     const r = Math.max(0, Math.min(1, e.ratio ?? (e.kind === "complete" ? 1 : 0)));

@@ -87,7 +87,7 @@ export const AlbumCard = memo(function AlbumCard({ album, onOpen }: AlbumCardPro
       <div className="min-w-0">
         <p className="truncate text-[15px] font-bold leading-tight text-foreground">{album.title}</p>
         <p className="mt-1 truncate text-[13px] leading-snug text-muted-foreground">
-          {albumArtist(album)} · {album.year}
+          {albumArtist(album)} · {album.year ?? "année inconnue"}
         </p>
       </div>
     </div>

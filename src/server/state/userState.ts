@@ -49,19 +49,6 @@ export function getUserState(userId: number): UserState {
   const playlistRows = db.prepare("SELECT id, name, description, pinned, position, rules, is_shared, image_hash FROM playlists WHERE user_id = ? ORDER BY position ASC, created_at ASC").all(userId) as {
     id: string; name: string; description: string | null; pinned: number; position: number; rules: string | null; is_shared: number; image_hash: string | null;
   }[];
-  const trackStmt = db.prepare("SELECT trackhash FROM playlist_tracks WHERE playlist_id = ? ORDER BY position ASC, added_at ASC");
-  const playlists: PlaylistDTO[] = playlistRows.map((p) => ({
-    id: p.id,
-    name: p.name,
-    description: p.description,
-    pinned: p.pinned === 1,
-    position: p.position,
-    rules: p.rules ?? null,
-    shared: p.is_shared === 1,
-    collaborator: false,
-    imageHash: p.image_hash ?? null,
-    trackhashes: (trackStmt.all(p.id) as { trackhash: string }[]).map((t) => t.trackhash),
-  }));
 
   // Playlists shared WITH this user (they're a collaborator): appended to their
   // library, read + append only (rename/delete stay owner-only).
@@ -72,6 +59,36 @@ export function getUserState(userId: number): UserState {
     JOIN users u ON u.id = p.user_id
     ORDER BY p.created_at ASC
   `).all(userId) as { id: string; name: string; description: string | null; pinned: number; rules: string | null; image_hash: string | null; owner: string }[];
+
+  // One indexed IN-query for every playlist's tracks instead of one query per
+  // playlist — a user with N playlists used to fire N+1 statements here on
+  // every getUserState() call (i.e. every client reload).
+  const allPlaylistIds = [...playlistRows.map((p) => p.id), ...collabRows.map((p) => p.id)];
+  const trackhashesByPlaylist = new Map<string, string[]>();
+  if (allPlaylistIds.length > 0) {
+    const placeholders = allPlaylistIds.map(() => "?").join(",");
+    const trackRows = db
+      .prepare(`SELECT playlist_id, trackhash FROM playlist_tracks WHERE playlist_id IN (${placeholders}) ORDER BY playlist_id ASC, position ASC, added_at ASC`)
+      .all(...allPlaylistIds) as { playlist_id: string; trackhash: string }[];
+    for (const t of trackRows) {
+      const arr = trackhashesByPlaylist.get(t.playlist_id);
+      if (arr) arr.push(t.trackhash);
+      else trackhashesByPlaylist.set(t.playlist_id, [t.trackhash]);
+    }
+  }
+
+  const playlists: PlaylistDTO[] = playlistRows.map((p) => ({
+    id: p.id,
+    name: p.name,
+    description: p.description,
+    pinned: p.pinned === 1,
+    position: p.position,
+    rules: p.rules ?? null,
+    shared: p.is_shared === 1,
+    collaborator: false,
+    imageHash: p.image_hash ?? null,
+    trackhashes: trackhashesByPlaylist.get(p.id) ?? [],
+  }));
   collabRows.forEach((p, i) => {
     playlists.push({
       id: p.id,
@@ -84,7 +101,7 @@ export function getUserState(userId: number): UserState {
       collaborator: true,
       owner: p.owner,
       imageHash: p.image_hash ?? null,
-      trackhashes: (trackStmt.all(p.id) as { trackhash: string }[]).map((t) => t.trackhash),
+      trackhashes: trackhashesByPlaylist.get(p.id) ?? [],
     });
   });
 
