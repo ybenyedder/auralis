@@ -589,9 +589,17 @@ export const usePlayer = create<PlayerState>((set, get) => {
 
     navigate: (view, id) => {
       const { view: current } = get();
+      // Navigating to the view you're already on (e.g. re-clicking the active
+      // sidebar link) used to still push a duplicate onto navHistory — back()
+      // would then "return" to the same view, a wasted press before it actually
+      // went anywhere — and recreate the `view` object, re-rendering every
+      // atomic `s.view` subscriber (Sidebar, TitleBar…) for nothing. Keep the
+      // SAME view reference so those subscribers see no change; fullscreenPlayer
+      // still resets unconditionally (a nav click should always leave fullscreen).
+      const same = current.view === view && current.id === id;
       set((s) => ({
-        view: { view, id },
-        navHistory: [...s.navHistory, current].slice(-24),
+        view: same ? s.view : { view, id },
+        navHistory: same ? s.navHistory : [...s.navHistory, current].slice(-24),
         fullscreenPlayer: false,
       }));
     },
