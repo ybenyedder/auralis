@@ -5,6 +5,54 @@ en local via `/loop 5h`. Chaque entrée résume ce qui a été trouvé, corrigé
 qu'il reste à explorer pour la prochaine passe. Ne pas pousser sur un remote — usage
 local uniquement (voir consigne utilisateur : tout reste sur cette machine).
 
+## 2026-06-30 — Passe 5 (`/goal` actif)
+
+**Méthode** : suite du punch-list passe 4 (musixmatch.ts/analysis.ts jamais audités,
+settings/admin/lib jamais audités).
+
+### musixmatch.ts — AUDITÉ, RAS
+Timeout AbortController 9s, JSON/schema défensifs partout (optional chaining), tous les
+paramètres utilisateur `encodeURIComponent()`-és, pas de secret en dur. Rien à corriger.
+
+### analysis.ts (classifieur mood ffmpeg) — 1 vrai bug corrigé, 1 claim écartée
+- **CORRIGÉ** : `decodePcm()` n'avait aucun timeout — `-t 60` borne la durée de l'AUDIO
+  décodé par ffmpeg, PAS le temps d'exécution réel du process. Un fichier corrompu ou un
+  dossier musique monté en réseau (NFS/SMB, cas réel en self-hosted) qui stall peut laisser
+  le process ffmpeg bloqué indéfiniment (aucun événement `data`/`close`/`error` ne se
+  déclenche jamais), gelant la Promise pour toujours. Avec `CONCURRENCY=2`, deux fichiers à
+  problème suffisent à bloquer TOUT le reste de la passe d'analyse en arrière-plan sans la
+  moindre erreur visible. Ajout d'un timer de 30s qui `kill()` le process et résout `null`.
+- **CLAIM ÉCARTÉE** : le même agent a aussi affirmé que le cap `CAP` (garde-fou sur la
+  taille du buffer PCM) causait un blocage par backpressure sur stdout. Faux — le listener
+  `data` continue de CONSOMMER (drainer) chaque chunk, il arrête juste de les STOCKER
+  au-delà de CAP ; le pipe ne se remplit donc jamais, pas de blocage. Non modifié.
+
+### settings/admin (DetailView.tsx) + lib/auralis/*.ts — 2 petits fixes, reste RAS
+Agent le plus minutieux de la session (48 appels d'outils) : confirmations sur toutes les
+actions destructives (`window.confirm`), CSRF correct sur toutes les mutations, mots de
+passe jamais affichés en clair, validation serveur correcte partout (`timingSafeEqual`,
+rate limiting), et tous les utilitaires `lib/auralis/*.ts` déjà protégés contre les
+divisions par zéro / edge cases (vérifié : `normalizeTempo`, `featureVector`,
+`evaluateSmartList`, `parsePlaylistFile`).
+- **CORRIGÉ** : `changePassword` (DetailView.tsx:1422) n'avait pas le garde `if (busy)
+  return;` que `create` (compte admin) a déjà — même classe de double-soumission,
+  appliquée de façon incohérente. Sévérité très basse (React batch les renders, fenêtre de
+  course quasi inexistante en pratique) mais correctif gratuit et cohérent.
+- **CORRIGÉ** : `resetPassword` (admin réinitialisant le mot de passe d'un autre compte)
+  n'avait pas de check de longueur minimale (6) côté client avant l'aller-retour réseau —
+  le serveur validait déjà correctement (aucun risque sécu), juste une requête gâchée.
+
+### Validation
+`npm run check` + `npm test` (67/67) verts après chaque commit de cette passe.
+
+### Pistes pour la passe 6
+1. android-native/ ExoPlayer Authorization header + desktop/ setup.html wiring : toujours
+   en attente d'un device/émulateur/test manuel (reporté depuis passe 2).
+2. Zones encore non vues en détail : Sidebar/Shell/TitleBar (React), test HTTP
+   d'intégration sur au moins une route API, test dédié `art.ts`.
+3. Envisager de relire ce journal en entier et vérifier qu'aucune piste "différée" n'a
+   été oubliée trop longtemps (5 passes en une session — risque de dérive/redite).
+
 ## 2026-06-30 — Passe 4 (`/goal` actif)
 
 **Méthode** : suite du punch-list passe 3 (warning NFT, scanner.ts jamais audité, trou de
