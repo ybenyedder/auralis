@@ -5,6 +5,39 @@ en local via `/loop 5h`. Chaque entrée résume ce qui a été trouvé, corrigé
 qu'il reste à explorer pour la prochaine passe. Ne pas pousser sur un remote — usage
 local uniquement (voir consigne utilisateur : tout reste sur cette machine).
 
+## 2026-06-30 — Passe 10 (relance du cron local 5h, job `3c2138a6`)
+
+Le job cron local créé en tout début de session a effectivement refiré après ~5h — preuve
+que la boucle `/loop 5h` tient tant que cette session Claude Code reste ouverte, comme prévu.
+
+**Méthode** : recherche systématique d'autres endroits qui pourraient partager la même
+classe de bug que le fix de la passe 8 (plafond de taille trop petit pour du base64) —
+`grep` sur tout usage de `base64`/`MAX_*_BYTES` dans le code plutôt qu'un nouvel audit
+générique.
+
+- **Confirmé, pas juste théorique** : `DetailView.tsx:390-402` (`onPickCover`, upload de
+  cover de playlist côté client) est EXACTEMENT le flux qui alimente le bug corrigé passe
+  8 — `reader.readAsDataURL(file)` sur un fichier jusqu'à 8 Mo, envoyé à `/api/state`
+  `playlist.cover`. Avant le fix, un utilisateur choisissant une image de ~7-8 Mo (validée
+  côté client comme "OK, ≤ 8 Mo") se serait vu répondre silencieusement "Échec de l'envoi
+  de la pochette" par le serveur — le check client disait "bon" et le serveur refusait
+  quand même. Confirme que le fix de la passe 8 n'était pas juste un problème de calcul
+  abstrait mais un vrai bug utilisateur reproductible avec l'UI existante.
+- **Vérifié en creusant `setPlaylistCover` (store) et `api.put`** : la gestion d'erreur
+  réseau est en fait correcte — `api.put` lève une exception sur tout statut HTTP non-2xx
+  (donc un 413 est bien catché et notifié via `notify("Échec de l'envoi de la pochette")`),
+  pas un échec totalement silencieux comme je le craignais en premier lieu.
+- **CORRIGÉ** (petit, trouvé en marge) : `onPickCover` n'avait pas de `reader.onerror` —
+  un échec de `FileReader.readAsDataURL()` (rare) ne faisait absolument rien (pas de
+  state busy, pas d'erreur). Ajouté une alerte, cohérent avec le pattern déjà présent
+  dans cette même fonction pour le check de taille.
+- **Recherche élargie** : `MAX_LYRICS_BYTES` (musixmatch.ts, lyrics/service.ts) sont des
+  plafonds sur des réponses d'API EXTERNES en texte brut (pas du base64 envoyé par un
+  client), donc pas concernés par la même classe de bug. Aucun autre plafond affecté trouvé.
+
+### Validation
+`npm run check` + `npm test` (80/80) verts.
+
 ## 2026-06-30 — Passe 9 (`/goal` actif) — CommandPalette/menus contextuels/Queue
 
 Dernières zones UI jamais vues en détail. Code jugé "globalement solide" par l'agent lui-même
