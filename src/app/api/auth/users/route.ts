@@ -1,7 +1,7 @@
 // Admin-only account management. List, create and delete user accounts; each
 // account carries its own favorites / playlists / history (see userState).
 import { getRequestUser, listUsers, createUser, deleteUser, setUserPassword, createSessionToken, SESSION_COOKIE, SESSION_MAX_AGE_S } from "@/server/auth";
-import { json, checkCsrf, checkBodySize } from "@/server/http";
+import { json, checkCsrf, readJsonBody } from "@/server/http";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -22,15 +22,10 @@ export async function POST(request: Request) {
   const user = getRequestUser(request);
   if (!user) return json({ error: "Unauthorized" }, { status: 401 });
   if (user.is_admin !== 1) return json({ error: "Réservé à l'administrateur" }, { status: 403 });
-  const tooBig = checkBodySize(request);
-  if (tooBig) return tooBig;
 
-  let body: { username?: string; password?: string; isAdmin?: boolean };
-  try {
-    body = (await request.json()) as { username?: string; password?: string; isAdmin?: boolean };
-  } catch {
-    return json({ error: "Invalid body" }, { status: 400 });
-  }
+  const parsed = await readJsonBody<{ username?: string; password?: string; isAdmin?: boolean }>(request);
+  if (!parsed.ok) return parsed.response;
+  const body = parsed.body;
   const result = createUser(body.username ?? "", body.password ?? "", Boolean(body.isAdmin));
   if (!result.ok) return json({ error: result.error }, { status: 400 });
   return json({ ok: true, id: result.id });
@@ -43,15 +38,10 @@ export async function PUT(request: Request) {
   const user = getRequestUser(request);
   if (!user) return json({ error: "Unauthorized" }, { status: 401 });
   if (user.is_admin !== 1) return json({ error: "Réservé à l'administrateur" }, { status: 403 });
-  const tooBig = checkBodySize(request);
-  if (tooBig) return tooBig;
 
-  let body: { id?: number; password?: string };
-  try {
-    body = (await request.json()) as { id?: number; password?: string };
-  } catch {
-    return json({ error: "Invalid body" }, { status: 400 });
-  }
+  const parsed = await readJsonBody<{ id?: number; password?: string }>(request);
+  if (!parsed.ok) return parsed.response;
+  const body = parsed.body;
   if (typeof body.id !== "number") return json({ error: "id required" }, { status: 400 });
   const result = setUserPassword(body.id, body.password ?? "");
   if (!result.ok) return json({ error: result.error }, { status: 400 });

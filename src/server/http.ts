@@ -91,17 +91,46 @@ export function checkCsrf(request: Request): NextResponse | null {
 // App Router route handlers have no built-in cap on request.json() — an
 // oversized body is fully buffered into memory before any route-level
 // validation (e.g. the 8MB playlist-cover check) gets a chance to reject it.
-// This is a cheap Content-Length pre-check, not a true streaming limit (a
-// client could omit/lie about the header), but it covers every real client
-// this app talks to (web fetch/desktop/Android all set it correctly) at
-// negligible cost.
 const MAX_JSON_BODY_BYTES = 10 * 1024 * 1024; // 8MB cover image + JSON/base64 overhead
 
-/** Returns a 413 response if Content-Length declares a body over maxBytes, else null. */
-export function checkBodySize(request: Request, maxBytes = MAX_JSON_BODY_BYTES): NextResponse | null {
-  const len = Number(request.headers.get("content-length") ?? "0");
-  if (len > maxBytes) return json({ error: "Requête trop volumineuse" }, { status: 413 });
-  return null;
+export type JsonBodyResult<T> = { ok: true; body: T } | { ok: false; response: NextResponse };
+
+/**
+ * Reads and JSON-parses a request body while enforcing a hard cap on the actual
+ * bytes read. A Content-Length pre-check alone isn't enough — a client can omit
+ * the header or use chunked transfer-encoding, in which case an over-limit
+ * request would sail straight through and get fully buffered by request.json()
+ * before anything could reject it. This reads the stream manually and aborts
+ * (cancelling the reader) the moment the running total crosses maxBytes, so an
+ * oversized body is rejected regardless of what the client claims or omits.
+ */
+export async function readJsonBody<T>(request: Request, maxBytes = MAX_JSON_BODY_BYTES): Promise<JsonBodyResult<T>> {
+  // Fast path: an honestly-declared oversized Content-Length rejects before
+  // reading a single byte.
+  const declared = Number(request.headers.get("content-length") ?? "0");
+  if (declared > maxBytes) return { ok: false, response: json({ error: "Requête trop volumineuse" }, { status: 413 }) };
+
+  const reader = request.body?.getReader();
+  if (!reader) return { ok: false, response: json({ error: "Invalid JSON body" }, { status: 400 }) };
+
+  const chunks: Uint8Array[] = [];
+  let total = 0;
+  try {
+    for (;;) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      total += value.byteLength;
+      if (total > maxBytes) {
+        await reader.cancel().catch(() => {});
+        return { ok: false, response: json({ error: "Requête trop volumineuse" }, { status: 413 }) };
+      }
+      chunks.push(value);
+    }
+    const text = Buffer.concat(chunks).toString("utf-8");
+    return { ok: true, body: JSON.parse(text) as T };
+  } catch {
+    return { ok: false, response: json({ error: "Invalid JSON body" }, { status: 400 }) };
+  }
 }
 
 export function json(body: unknown, init?: ResponseInit): NextResponse {

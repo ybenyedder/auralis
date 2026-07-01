@@ -4,7 +4,7 @@
 // way. Same-origin POST, so the standard CSRF guard applies (token clients exempt).
 
 import { getRequestUser } from "@/server/auth";
-import { json, checkCsrf, checkBodySize } from "@/server/http";
+import { json, checkCsrf, readJsonBody } from "@/server/http";
 import { publishNowPlaying, sendCommand, type RemoteCommand } from "@/server/sync";
 
 export const runtime = "nodejs";
@@ -17,10 +17,10 @@ export async function POST(request: Request) {
   if (!user) return json({ error: "Unauthorized" }, { status: 401 });
   const csrf = checkCsrf(request);
   if (csrf) return csrf;
-  const tooBig = checkBodySize(request);
-  if (tooBig) return tooBig;
 
-  const body = (await request.json().catch(() => null)) as Record<string, unknown> | null;
+  const parsed = await readJsonBody<Record<string, unknown>>(request);
+  if (!parsed.ok) return parsed.response;
+  const body = parsed.body;
   if (!body || typeof body !== "object") return json({ error: "Bad Request" }, { status: 400 });
 
   if (body.action === "state") {

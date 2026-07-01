@@ -1,5 +1,5 @@
 import { verifyCredentials, createSessionToken, SESSION_COOKIE, SESSION_MAX_AGE_S } from "@/server/auth";
-import { json, checkBodySize } from "@/server/http";
+import { json, readJsonBody } from "@/server/http";
 import { clientKey, usernameKey, rateLimitCheck, rateLimitFail, rateLimitReset } from "@/server/rateLimit";
 
 export const runtime = "nodejs";
@@ -8,20 +8,13 @@ export const dynamic = "force-dynamic";
 export async function POST(request: Request) {
   // Unauthenticated endpoint — the size guard runs before anything else here,
   // ahead of even the rate limiter, since there's no session to key work off yet.
-  const tooBig = checkBodySize(request);
-  if (tooBig) return tooBig;
+  const parsed = await readJsonBody<{ username?: string; password?: string }>(request);
+  if (!parsed.ok) return parsed.response;
 
-  let username = "";
-  let password = "";
-  try {
-    const body = (await request.json()) as { username?: string; password?: string };
-    // Username is optional for backward compatibility — the single original
-    // account is "admin", so a password-only login still works.
-    username = (body.username ?? "admin").trim().toLowerCase() || "admin";
-    password = body.password ?? "";
-  } catch {
-    return json({ error: "Invalid body" }, { status: 400 });
-  }
+  // Username is optional for backward compatibility — the single original
+  // account is "admin", so a password-only login still works.
+  const username = (parsed.body.username ?? "admin").trim().toLowerCase() || "admin";
+  const password = parsed.body.password ?? "";
 
   // Brute-force guard: two independent buckets. `ipKey` (IP+username) blunts a
   // single source; `userKey` (username only) caps total failures for an account

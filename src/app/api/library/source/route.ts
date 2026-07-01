@@ -2,7 +2,7 @@ import fs from "fs";
 import path from "path";
 import { getConfig, setMusicDir } from "@/server/config";
 import { runScan } from "@/server/library/scanner";
-import { requireAdmin, json, checkCsrf, checkBodySize } from "@/server/http";
+import { requireAdmin, json, checkCsrf, readJsonBody } from "@/server/http";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -25,15 +25,10 @@ export async function POST(request: Request) {
   if (csrf) return csrf;
   const denied = requireAdmin(request);
   if (denied) return denied;
-  const tooBig = checkBodySize(request);
-  if (tooBig) return tooBig;
 
-  let body: { dir?: unknown };
-  try {
-    body = (await request.json()) as { dir?: unknown };
-  } catch {
-    return json({ error: "Corps JSON invalide" }, { status: 400 });
-  }
+  const parsed = await readJsonBody<{ dir?: unknown }>(request);
+  if (!parsed.ok) return parsed.response;
+  const body = parsed.body;
 
   const raw = typeof body.dir === "string" ? body.dir.trim() : "";
   if (!raw) return json({ error: "Chemin de dossier requis" }, { status: 400 });

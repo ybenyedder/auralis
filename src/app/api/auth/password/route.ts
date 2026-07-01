@@ -1,5 +1,5 @@
 import { changePassword, getRequestUser, createSessionToken, SESSION_COOKIE, SESSION_MAX_AGE_S } from "@/server/auth";
-import { json, checkCsrf, checkBodySize } from "@/server/http";
+import { json, checkCsrf, readJsonBody } from "@/server/http";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -9,15 +9,10 @@ export async function POST(request: Request) {
   if (csrf) return csrf;
   const user = getRequestUser(request);
   if (!user) return json({ error: "Unauthorized" }, { status: 401 });
-  const tooBig = checkBodySize(request);
-  if (tooBig) return tooBig;
 
-  let body: { currentPassword?: string; newPassword?: string };
-  try {
-    body = (await request.json()) as { currentPassword?: string; newPassword?: string };
-  } catch {
-    return json({ error: "Invalid body" }, { status: 400 });
-  }
+  const parsed = await readJsonBody<{ currentPassword?: string; newPassword?: string }>(request);
+  if (!parsed.ok) return parsed.response;
+  const body = parsed.body;
 
   const result = changePassword(user.id, body.currentPassword ?? "", body.newPassword ?? "");
   if (!result.ok) return json({ error: result.error }, { status: 400 });
