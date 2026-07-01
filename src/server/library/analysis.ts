@@ -81,12 +81,26 @@ function decodePcm(absPath: string, startSec: number): Promise<Float32Array | nu
     const chunks: Buffer[] = [];
     let bytes = 0;
     const CAP = (WINDOW_SECONDS + 2) * SAMPLE_RATE * 4; // guard against runaway
+    // `-t` above bounds ffmpeg's OUTPUT duration, not its wall-clock run time — a
+    // stuck demuxer (corrupt file, a stalled network-mounted music dir) can hang
+    // with no 'data'/'close'/'error' ever firing, which previously stalled this
+    // Promise forever and — with CONCURRENCY workers all landing on bad files —
+    // could wedge the whole background analysis pass permanently. 30s is generous
+    // headroom over the ~60s of audio actually being decoded on any real hardware.
+    const killTimer = setTimeout(() => {
+      proc.kill("SIGKILL");
+      resolve(null);
+    }, 30_000);
     proc.stdout.on("data", (c: Buffer) => {
       bytes += c.length;
       if (bytes <= CAP) chunks.push(c);
     });
-    proc.on("error", () => resolve(null));
+    proc.on("error", () => {
+      clearTimeout(killTimer);
+      resolve(null);
+    });
     proc.on("close", () => {
+      clearTimeout(killTimer);
       if (!chunks.length) {
         resolve(null);
         return;
