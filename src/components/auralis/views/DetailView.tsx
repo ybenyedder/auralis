@@ -1420,6 +1420,7 @@ function AccountSettings() {
   const [busy, setBusy] = useState(false);
 
   const changePassword = async () => {
+    if (busy) return;
     if (!current || !next) return notify("Remplis les champs");
     if (next.length < 6) return notify("Le nouveau mot de passe doit faire au moins 6 caractères");
     if (next !== confirm) return notify("La confirmation ne correspond pas");
@@ -1565,6 +1566,7 @@ function AccountManager() {
   const resetPassword = async (u: ManagedUser) => {
     const pw = window.prompt(`Nouveau mot de passe pour « ${u.username} » (≥ 6 caractères)`);
     if (pw === null) return;
+    if (pw.length < 6) return notify("Le mot de passe doit faire au moins 6 caractères");
     try {
       const res = await fetch(api.url("/api/auth/users"), {
         method: "PUT",
