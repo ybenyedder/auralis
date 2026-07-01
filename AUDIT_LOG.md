@@ -5,6 +5,43 @@ en local via `/loop 5h`. Chaque entrée résume ce qui a été trouvé, corrigé
 qu'il reste à explorer pour la prochaine passe. Ne pas pousser sur un remote — usage
 local uniquement (voir consigne utilisateur : tout reste sur cette machine).
 
+## 2026-07-01 — Passe 12 — même classe de bug trouvée par recherche de motif, pas par audit large
+
+**Méthode** : au lieu d'un nouveau sweep générique, recherche ciblée d'autres composants
+avec le même motif que le bug de la passe 11 (un contrôle de tri/filtre + un label qui
+promet un ordre que le code ne livre pas réellement). `grep` sur `type.*Mode = "` a
+trouvé `FavoritesView.tsx` en plus de `LibraryView.tsx`.
+
+### CORRIGÉ — le tri "Récents" des Favoris ne triait pas vraiment par récence
+`FavoritesView.tsx` : le mode par défaut ("Récents") laissait juste les titres dans
+l'ordre de `tracks.filter(favorites.has(...))` — c'est l'ordre de la BIBLIOTHÈQUE (scan/
+alphabétique), qui n'a aucun rapport avec le moment où un titre a été mis en favori.
+Le vrai ordre de récence existe dans l'ordre d'itération du Set `favorites` lui-même
+(hydraté depuis le serveur en `ORDER BY created_at DESC`), jamais consulté par cette vue.
+
+En creusant plus loin : même en lisant l'ordre du Set directement, ç'aurait été faux pour
+tout titre mis en favori PENDANT la session — `toggleFavorite` faisait `next.add(hash)`
+sur un like, et en sémantique JS Set, `.add()` place toujours le nouvel élément en
+DERNIÈRE position d'itération (l'inverse de "plus récent"). Corrigé aux deux endroits :
+`toggleFavorite` (`store/player.ts`) préfixe désormais le nouveau like au lieu de l'ajouter
+en fin, et `FavoritesView` trie enfin par le rang réel dans le Set au lieu de l'ordre
+incident de la bibliothèque.
+
+**Testé** : `toggleFavorite` vit dans le store (testable sans DOM, comme le fix
+`navigate()` passe 7) — nouveau test dans `player.test.ts` qui vérifie qu'un like frais
+arrive en première position et qu'un un-like ne perturbe pas l'ordre du reste. La
+consommation de cet ordre dans `FavoritesView.tsx` (composant React) reste vérifiée par
+`npm run check` seulement, comme les autres fixes UI-only de cette session.
+
+### Point méthode confirmé une nouvelle fois
+Chercher la MÊME classe de bug ailleurs dans le code (grep ciblé) après en avoir confirmé
+une instance a de nouveau été plus productif qu'un sweep générique sur du terrain neuf —
+2 vrais bugs trouvés sur 2 tentatives avec cette méthode (passe 11 : Library ; passe 12 :
+Favoris), contre un taux de faux positifs élevé sur les sweeps larges des passes 3-5 et 9.
+
+### Validation
+`npm run check` + `npm test` (81/81) verts.
+
 ## 2026-07-01 — Passe 11 — vrai bug confirmé dans LibraryView
 
 **Méthode** : audit ligne par ligne des dernières grosses vues jamais vues (HomeView,
