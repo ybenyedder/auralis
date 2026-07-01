@@ -12,6 +12,7 @@ import androidx.media3.session.SessionToken
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.cancel
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -88,6 +89,10 @@ class PlayerHolder(
         controller?.removeListener(listener)
         controller?.release()
         controller = null
+        // Without this the position ticker's `while (true) { delay(250) }` loop
+        // in startTicker() keeps running forever — it only checks `controller`
+        // per iteration, it never observes that the scope should stop.
+        scope.cancel()
     }
 
     private fun startTicker() {

@@ -5,6 +5,102 @@ en local via `/loop 5h`. Chaque entrée résume ce qui a été trouvé, corrigé
 qu'il reste à explorer pour la prochaine passe. Ne pas pousser sur un remote — usage
 local uniquement (voir consigne utilisateur : tout reste sur cette machine).
 
+## 2026-06-30 — Passe 2 (déclenchée par `/goal continue toute les prochaine passe sans que j te demande`)
+
+**Méthode** : suite du punch-list de la passe 1. Test unitaire écrit pour verrouiller le fix
+N+1, 2 agents d'audit en parallèle pour les zones non couvertes (desktop/ Electron,
+android-native/ Kotlin). **Découverte importante** : le sandbox a un Gradle offline
+fonctionnel (`./gradlew --offline compileDebugKotlin` marche, ~15-20s) — donc les futures
+passes PEUVENT et DOIVENT compiler-vérifier tout changement Kotlin, pas juste éditer à
+l'aveugle. Utilisé ici pour valider le fix PlayerHolder avant commit.
+
+### Test de non-régression — AJOUTÉ
+`test/userState.test.ts` (5 tests) : couvre le fix N+1 de la passe 1 (playlists propres +
+collaboratives, ordre par position, playlist vide, cas zéro-playlist, stress 25 playlists
+pour vérifier que le groupement de la requête `IN (...)` ne mélange pas les trackhashes
+entre playlists). 66/66 tests passent au total.
+
+### Sécurité — CORRIGÉ
+`src/app/api/library/route.ts` était la seule route de tout le projet à renvoyer
+`error.message` brut au client (toutes les autres écrivent un message générique à la main).
+Une erreur fs peut contenir un chemin absolu serveur. Loggé côté serveur via le logger
+existant, message générique renvoyé au client — comportement aligné sur le reste du projet.
+
+### android-native/ — 1 vrai bug corrigé, plusieurs faux positifs écartés après lecture réelle
+- **CORRIGÉ** (`PlayerHolder.kt`) : `release()` ne faisait jamais `scope.cancel()`. Le
+  ticker de position (`while (true) { delay(250) }` dans `startTicker()`) tournait donc
+  indéfiniment après release — coroutine zombie, fuite mémoire + réveil CPU toutes les
+  250ms pour toujours, à chaque destruction de `PlaybackService`/`AppViewModel`. Vérifié :
+  `release()` n'est appelé qu'une seule fois en usage réel (`AppViewModel.onCleared()` →
+  `PlaybackService.onDestroy()`), donc `scope.cancel()` est sûr (pas de réutilisation après
+  release). Compile OK (`compileDebugKotlin`).
+- **FAUX POSITIFS écartés (vérifiés un par un, pas en bloc)** : les "9 icônes sans
+  `contentDescription`" signalées par l'agent d'audit sont TOUTES des icônes décoratives
+  directement accolées à un `Text` qui porte déjà le label (ex: `TrackMenu.MenuRow`,
+  `PlayPill`, icône de recherche dans un `OutlinedTextField` avec placeholder, pochette de
+  fallback à côté du titre de la piste) — `contentDescription = null` y est le pattern
+  recommandé par Google (évite un double-annoncement redondant par TalkBack). Le seul cas
+  où le code ajoute une vraie description (`Shell.kt:200`, bouton icône seul sans texte,
+  `"Lire la sélection"`) confirme que la convention du projet est déjà correcte. Ne pas
+  "corriger" ces 9 occurrences dans une future passe sans relire le contexte réel.
+  `NetworkImage`'s "Box vide sans feedback" est aussi inexact : `CoverArt` lui passe déjà un
+  `fallback` (icône + dégradé), ce n'est pas un blanc vide.
+- **NON MODIFIÉ, INTENTIONNEL** : `android:usesCleartextTraffic="true"` — le README documente
+  explicitement "saisis l'URL de ton serveur Auralis (LAN/VPS)" : c'est un client pour
+  serveur self-hosted, souvent en HTTP simple sur le LAN sans certificat TLS. Désactiver le
+  cleartext casserait la connexion pour la majorité des déploiements réels. Pas un bug.
+- **DIFFÉRÉ (vrai compromis, nécessite un test runtime avec émulateur/appareil que je n'ai
+  pas ici)** : `AuralisApi.appendToken()` met le token en query param (`?token=...`) pour
+  les URLs de stream/image passées telles quelles à ExoPlayer/au chargeur d'images — les
+  appels JSON classiques utilisent déjà correctement `Authorization: Bearer` (ligne ~203).
+  Recommandation concrète pour la prochaine passe : `DefaultHttpDataSource.Factory()
+  .setDefaultRequestProperties(mapOf("Authorization" to "Bearer $token"))` côté ExoPlayer
+  pour le stream, et vérifier si le chargeur d'images (`ArtCache`) a un hook équivalent —
+  sinon le param restera nécessaire pour les images. Nécessite de vérifier que la lecture
+  audio et le chargement d'images fonctionnent toujours après coup (émulateur/device requis).
+- **NOTÉ, pas corrigé (besoin de jugement UX, pas de vérification visuelle possible ici)** :
+  `AppViewModel.fetchReco()` avale silencieusement les erreurs réseau de `/api/recommend`
+  (`runCatching{...}.getOrDefault(EMPTY)`) — la section "Fait pour vous" reste juste vide
+  sans feedback. Amélioration UX légitime mais mineure.
+
+### desktop/ (Electron) — 2 petits fixes corrigés, 1 point noté sans action
+Audit complet : contextIsolation/sandbox/nodeIntegration/CSP/IPC/auto-update tous corrects,
+aucune vulnérabilité Electron directe.
+- **CORRIGÉ** (`main.js`) : `setup:submit` retournait toujours `{ ok: true }` même quand
+  `writeSetup()` échouait à écrire sur le disque (permissions/disque plein) — l'utilisateur
+  n'avait aucun moyen de savoir que sa config ne serait pas mémorisée au prochain lancement.
+  `writeSetup`/`completeSetup` remontent maintenant un booléen `persisted`, inclus dans la
+  réponse IPC (`{ ok: true, persisted }`). La session en cours n'était déjà pas affectée
+  (le cfg en mémoire est utilisé quoi qu'il arrive) — seul le rappel au prochain lancement
+  change. Note : `setup.html` ne lit pas encore ce champ pour afficher un avertissement
+  avant de fermer la fenêtre (la fenêtre se ferme immédiatement au succès) — câblage UI
+  différé, nécessite une vérification visuelle Electron que je ne peux pas faire ici.
+- **CORRIGÉ** : `dialog:pickFolder` n'avait pas de try/catch — une exception de
+  `dialog.showOpenDialog` (rare) aurait fait rejeter la promesse IPC au lieu de renvoyer
+  `null` proprement. Ajouté, vérifié par `node --check`.
+- **NOTÉ, pas corrigé (faible priorité)** : `normalizeSetup()` ne vérifie pas que
+  `musicDir` existe/est un dossier avant de l'accepter — délégué au serveur enfant qui doit
+  de toute façon gérer un `AURALIS_MUSIC_DIR` invalide (même risque en déploiement
+  non-Electron via variable d'env). Pas de renderer non-fiable ici (contextIsolation +
+  sandbox actifs, setup.html est un fichier local livré par l'app, pas du contenu distant).
+
+### Validation
+`npm test` : 66/66 ✅. `./gradlew --offline compileDebugKotlin` : succès ✅.
+`node --check desktop/main.js` : ✅. (Pas de `npm run check` ré-exécuté, aucun fichier
+`src/` web modifié dans cette passe après le commit de la passe 1.)
+
+### Pistes pour la passe 3
+1. android-native/ : implémenter le header Authorization pour le stream ExoPlayer (voir
+   note ci-dessus) — nécessite un device/émulateur pour vérifier que l'audio joue toujours.
+2. desktop/ : câbler `setup.html` pour afficher le `persisted: false` avant de fermer la
+   fenêtre de setup (nécessite vérification visuelle Electron).
+3. Ajouter un feedback UI (toast/état vide explicite) quand `/api/recommend` échoue,
+   web (`ExploreView`/home) ET android (`AppViewModel.fetchReco`).
+4. Repasser sur `src/` avec un angle différent de la passe 1 (composants pas encore
+   audités : lecteur audio bas niveau, store Zustand, service worker/PWA, service SSE).
+5. Revérifier le point mineur passe 1 : taille de body JSON non bornée explicitement dans
+   next.config (repose sur la limite Next.js par défaut).
+
 ## 2026-06-30 — Passe 1
 
 **Méthode** : 3 agents d'audit en parallèle (sécurité API, perf/ressources, micro-bugs UI),

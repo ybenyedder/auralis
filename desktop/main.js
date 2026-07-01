@@ -51,8 +51,10 @@ function writeSetup(cfg) {
   try {
     fs.mkdirSync(app.getPath("userData"), { recursive: true });
     fs.writeFileSync(setupConfigPath(), JSON.stringify(cfg, null, 2));
+    return true;
   } catch (error) {
     console.error("Failed to persist desktop setup:", error);
+    return false;
   }
 }
 
@@ -112,7 +114,7 @@ function runSetup() {
 
 // Resolve the setup promise and tear down the chooser window.
 function completeSetup(cfg) {
-  writeSetup(cfg);
+  const persisted = writeSetup(cfg);
   const resolve = setupResolver;
   setupResolver = null;
   if (setupWindow) {
@@ -121,14 +123,18 @@ function completeSetup(cfg) {
     setupWindow = null;
   }
   if (resolve) resolve(cfg);
+  return persisted;
 }
 
 // Renderer (setup.html) submits the chosen source here.
 ipcMain.handle("setup:submit", async (_e, raw) => {
   const cfg = normalizeSetup(raw);
   if (!cfg) return { ok: false, error: "Configuration invalide." };
-  completeSetup(cfg);
-  return { ok: true };
+  // The chosen source still applies to this running session either way (completeSetup
+  // resolves with the in-memory cfg) — `persisted: false` only means writeSetup()
+  // couldn't save it to disk (e.g. disk full/permissions), so setup will re-run next launch.
+  const persisted = completeSetup(cfg);
+  return { ok: true, persisted };
 });
 ipcMain.on("setup:cancel", () => app.quit());
 
@@ -288,12 +294,17 @@ ipcMain.on("window:close", () => mainWindow?.close());
 
 // Native folder picker so the host can repoint the music library from Settings.
 ipcMain.handle("dialog:pickFolder", async () => {
-  const parent = BrowserWindow.getFocusedWindow() ?? mainWindow ?? setupWindow ?? undefined;
-  const res = await dialog.showOpenDialog(parent, {
-    title: "Choisir le dossier de musique",
-    properties: ["openDirectory"],
-  });
-  return res.canceled || !res.filePaths.length ? null : res.filePaths[0];
+  try {
+    const parent = BrowserWindow.getFocusedWindow() ?? mainWindow ?? setupWindow ?? undefined;
+    const res = await dialog.showOpenDialog(parent, {
+      title: "Choisir le dossier de musique",
+      properties: ["openDirectory"],
+    });
+    return res.canceled || !res.filePaths.length ? null : res.filePaths[0];
+  } catch (error) {
+    console.error("Folder picker failed:", error);
+    return null;
+  }
 });
 
 // Defense in depth: clamp EVERY web contents the app creates — deny popups
