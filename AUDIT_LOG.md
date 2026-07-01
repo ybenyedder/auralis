@@ -80,9 +80,14 @@ PWA (cache de données privées, staleness) ne s'applique, rien à faire.
    ligne par ligne (seulement survolé indirectement jusqu'ici), lyrics/musixmatch,
    forced-align (`alignment.ts`, mentionné dans le warning NFT trace du build — à
    vérifier si c'est un vrai souci ou juste un warning bénin de Next.js).
-4. Élargir la couverture de tests : aucun test ne couvre encore `reco/engine.ts`
-   (scoring), `art.ts` (cache d'images), ou les routes API elles-mêmes (tests actuels =
-   unitaires sur la couche server/lib, pas d'intégration HTTP sur les routes).
+4. Élargir la couverture de tests : `art.ts` (cache d'images) et les routes API
+   elles-mêmes (tests actuels = unitaires sur la couche server/lib, pas d'intégration
+   HTTP sur les routes) n'ont pas de tests dédiés.
+   **Correction** : `reco/engine.ts` a en fait déjà une bonne couverture dans
+   `test/reco.test.ts` (cold start, skip vs complete, dislikes, généralisation par
+   contenu, seeds, recap) — j'avais écrit cette ligne sans vérifier d'abord. Passe 4 y a
+   ajouté le seul vrai trou (la fenêtre de lecture à 180 jours). Toujours grep/lire avant
+   d'affirmer qu'un module n'a "aucun test".
 
 ## 2026-06-30 — Passe 2 (déclenchée par `/goal continue toute les prochaine passe sans que j te demande`)
 
