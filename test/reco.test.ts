@@ -215,3 +215,22 @@ test("recap defaults to the most recent month that actually has data", async () 
   assert.equal(recap.dominantMood, "energetic");
   assert.ok(recap.totalPlays >= 1);
 });
+
+test("events older than the 180-day read window no longer influence scoring", async () => {
+  const { db, invalidateReco, recommend } = await mods();
+  reset(db);
+  addTrack(db, "recent", { mood: "happy", energy: 0.6, bpm: 110 });
+  addTrack(db, "stale", { mood: "happy", energy: 0.6, bpm: 110 });
+  addTrack(db, "neutral", { mood: "happy", energy: 0.6, bpm: 110 });
+  // Well within the engine's read window (EVENTS_WINDOW_MS = 180 * DAY).
+  addEvent(db, "recent", "complete", Date.now() - 10 * DAY, 1);
+  // Inserted directly (bypassing recordPlay's 400-day prune), so this row is still
+  // in play_events — it must be excluded by the query's own window, not by pruning.
+  addEvent(db, "stale", "complete", Date.now() - 200 * DAY, 1);
+  invalidateReco(UID);
+  const { forYou } = recommend(UID, 50);
+  const staleScore = forYou.find((r) => r.trackhash === "stale")?.score ?? 0;
+  const neutralScore = forYou.find((r) => r.trackhash === "neutral")?.score ?? 0;
+  assert.equal(staleScore, neutralScore, "an event past the read window scores identically to no event at all");
+  assert.ok(rankOf(forYou, "recent") < rankOf(forYou, "stale"), "the in-window listen still outranks the windowed-out one");
+});
