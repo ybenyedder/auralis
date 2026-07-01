@@ -5,6 +5,35 @@ en local via `/loop 5h`. Chaque entrée résume ce qui a été trouvé, corrigé
 qu'il reste à explorer pour la prochaine passe. Ne pas pousser sur un remote — usage
 local uniquement (voir consigne utilisateur : tout reste sur cette machine).
 
+## 2026-06-30 — Passe 6 (`/goal` actif)
+
+### ExoPlayer Authorization header — RECOMMANDATION DES PASSES 2-5 CORRIGÉE, pas implémentée
+En creusant pour l'implémenter (compile-check possible via Gradle offline, mais pas de
+device pour tester le runtime), j'ai trouvé un détail de design qui change la donne :
+`AuralisMediaCache.dataSourceFactory()` (`PlaybackService.kt:246-259`) est un
+`CacheDataSource.Factory` **long-lived** créé UNE FOIS dans `onCreate()`, et son
+`CacheKeyFactory` (ligne 254-257) **strip explicitement le `?token` de la clé de cache**
+avec ce commentaire : *"the rotating ?token so a track keeps ONE entry across rotations"*
+— autrement dit, le token-en-query-param est un choix DÉLIBÉRÉ qui anticipe déjà la
+rotation du token (après changement de mot de passe / re-login, cf. `token = json.optString`
+dans `AuralisApi.kt:91`).
+
+`DefaultHttpDataSource.Factory().setDefaultRequestProperties(map)` (la fix que j'avais
+recommandée passes 2-4) fige une Map de headers AU MOMENT de la création de la factory
+(`onCreate()`, une fois pour toute la durée du service). Si le token tourne ensuite
+(reset mdp), soit il faut muter cette même Map partagée en place (comportement non
+garanti/non documenté par media3 sans vérification runtime), soit le header reste
+PÉRIMÉ silencieusement — un bug d'auth qui casserait la lecture APRÈS un changement de
+mot de passe, plus difficile à repérer qu'un simple oubli de header. Risque plus élevé
+que ce que j'avais évalué avant d'avoir lu ce commentaire.
+
+**Non implémenté.** Recommandation révisée pour qui reprend ça avec un device : il faut
+soit (a) une Map mutable partagée mise à jour à chaque rotation de token + vérifier
+empiriquement que media3 relit bien la map à chaque requête plutôt que de la copier à la
+construction, soit (b) un `HttpDataSource.Factory` custom qui lit le token courant depuis
+`Prefs`/`AuralisApi` à chaque `createDataSource()`. Dans les deux cas : test runtime
+obligatoire (lecture avant/après un changement de mot de passe) avant de merger.
+
 ## 2026-06-30 — Passe 5 (`/goal` actif)
 
 **Méthode** : suite du punch-list passe 4 (musixmatch.ts/analysis.ts jamais audités,
