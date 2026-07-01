@@ -5,6 +5,47 @@ en local via `/loop 5h`. Chaque entrée résume ce qui a été trouvé, corrigé
 qu'il reste à explorer pour la prochaine passe. Ne pas pousser sur un remote — usage
 local uniquement (voir consigne utilisateur : tout reste sur cette machine).
 
+## 2026-06-30 — Passe 8 (`/goal` actif) — revue adversariale des fixes déjà appliqués
+
+**Méthode** : suite à la piste #3 de la passe 7, au lieu de chercher une nouvelle zone,
+relecture sceptique des fixes déjà committés cette session. Ça a payé immédiatement :
+
+### CORRIGÉ — vrai bug introduit par MOI passe 6, trouvé par calcul, pas par un agent
+`MAX_JSON_BODY_BYTES = 10MB` (passe 6, `readJsonBody`) est plus PETIT que ce que le
+propre `MAX_COVER_BYTES = 8MB` de la route autorise une fois encodé : le base64 gonfle
+les octets bruts de 4/3, donc une image de 8MB devient ~11.2MB de JSON une fois encodée
+en data URL. Résultat : l'upload de cover exactement à la taille max que le code est
+censé permettre recevait un faux 413 AVANT même d'atteindre le check `MAX_COVER_BYTES`
+de la route. Plafond relevé à 12MB avec marge. Reproduit puis vérifié avec un VRAI test
+d'intégration qui PUT une vraie image de 8MB à travers `/api/state` (pas juste un calcul
+d'octets) — le test échoue avant le fix, passe après.
+
+### Test ajouté pour le fix `navigate()` de la passe 7
+`store/player.ts` n'avait aucun test dédié pour `navigate()`/`back()`. Ajouté :
+même référence d'objet + pas de doublon d'historique sur re-navigation vers la vue
+active, `back()` qui saute bien à la vraie vue précédente (pas coincé sur un doublon),
+`fullscreenPlayer` qui se ferme quand même sur une navigation redondante.
+
+### Point méthode confirmé
+Cette passe valide la piste de la passe 7 : les bugs les plus coûteux de cette session
+(la fuite `checkBodySize`, ce plafond trop petit) n'ont PAS été trouvés par les agents
+d'audit — ils ont été trouvés en écrivant de VRAIS tests d'intégration qui appellent le
+code réellement modifié avec des données réalistes, puis en refaisant le calcul à la
+main. Un agent qui lit du code ne simule pas l'encodage base64 ; un test qui construit
+un vrai payload de 8MB, si.
+
+### Validation
+`npm run check` + `npm test` (80/80) verts après chaque commit.
+
+### Pistes pour la passe 9
+1. Continuer la revue adversariale sur les fixes non testés : SSE `cancel()`/`closed`
+   (passe 3, pas de test dédié — testable via un reader manuel sur le ReadableStream),
+   les fixes Android/Electron (compile-vérifiés seulement, pas de test comportemental
+   possible sans device/émulateur — accepter cette limite).
+2. android-native/ ExoPlayer + desktop/ setup.html : toujours en attente de device.
+3. Zones jamais vues en détail : CommandPalette, menus contextuels, Queue complet,
+   vues Home/Library/Explore de haut niveau.
+
 ## 2026-06-30 — Passe 7 (`/goal` actif)
 
 **Méthode** : dernière grande zone UI non auditée (Sidebar/Shell/TitleBar), agent le plus
