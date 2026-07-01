@@ -43,10 +43,10 @@ test("readCachedArt round-trips the exact bytes and content type just cached", a
   const png = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 9, 9, 9]);
   const hash = cacheArtBuffer(png);
   assert.ok(hash);
-  const art = await readCachedArt(hash!);
+  const art = await readCachedArt(hash);
   assert.ok(art);
-  assert.equal(art!.contentType, "image/png");
-  assert.ok(art!.buffer.equals(png));
+  assert.equal(art.contentType, "image/png");
+  assert.ok(art.buffer.equals(png));
 });
 
 test("readCachedArt rejects a malformed hash instead of touching the filesystem with it", async () => {
