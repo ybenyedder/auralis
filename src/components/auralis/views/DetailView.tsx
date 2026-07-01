@@ -398,6 +398,7 @@ export function PlaylistDetail({ id }: { id: string }) {
       setCoverBusy(true);
       void setPlaylistCover(id, String(reader.result)).finally(() => setCoverBusy(false));
     };
+    reader.onerror = () => window.alert("Impossible de lire cette image.");
     reader.readAsDataURL(file);
   };
   const totalDuration = tracks.reduce(
