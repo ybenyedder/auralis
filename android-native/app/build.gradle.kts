@@ -1,3 +1,5 @@
+import java.util.Properties
+
 plugins {
     id("com.android.application")
     id("org.jetbrains.kotlin.android")
@@ -33,7 +35,7 @@ android {
     // (CI secrets: ANDROID_KEYSTORE_PWD / ANDROID_KEY_ALIAS / ANDROID_KEY_PWD).
     // Regenerate the keystore + passwords — the previous ones were exposed publicly.
     val keystorePropsFile = rootProject.file("keystore.properties")
-    val keystoreProps = java.util.Properties().apply {
+    val keystoreProps = Properties().apply {
         if (keystorePropsFile.exists()) keystorePropsFile.inputStream().use { load(it) }
     }
     fun signingValue(propKey: String, envKey: String): String =
