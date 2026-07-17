@@ -1,0 +1,46 @@
+name: CI
+
+on:
+  push:
+    branches: [main, master]
+  pull_request:
+
+# Least privilege: this workflow only reads the checkout and uses no secrets, so
+# drop the token to read-only (it otherwise inherits the repo's default scopes,
+# which can be read/write). Runs on PRs from forks — no write is ever needed.
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      # better-sqlite3 compiles a native binding during install.
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Typecheck
+        run: npm run typecheck
+
+      - name: Unit tests
+        run: npm test
+
+      - name: Build
+        run: npm run build
+        env:
+          NEXT_TELEMETRY_DISABLED: "1"
+
+  # NOTE: release artifacts (desktop installers + the native Android APK) are built
+  # and attached to the GitHub Release by release.yml, which triggers on `v*` tags.
+  # This workflow only runs on branch/PR pushes, so any tag-gated build job here
+  # would never fire — keep it to `verify`.

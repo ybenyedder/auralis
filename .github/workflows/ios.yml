@@ -1,0 +1,77 @@
+name: iOS
+
+# Builds the native SwiftUI client into an UNSIGNED .ipa on a macOS runner (the app
+# can't be compiled off macOS). Install it by sideloading (AltStore / Sideloadly) or
+# by re-signing with your own Apple developer account in Xcode.
+on:
+  workflow_dispatch:
+  push:
+    tags:
+      - "v*" # attach the .ipa to the tagged release
+    paths:
+      - "ios-native/**"
+      - ".github/workflows/ios.yml"
+
+jobs:
+  build:
+    runs-on: macos-latest
+    permissions:
+      contents: write # allow attaching the .ipa to the release on a tag
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Select latest stable Xcode
+        run: sudo xcode-select -s /Applications/Xcode.app
+
+      - name: Install XcodeGen
+        run: brew install xcodegen
+
+      - name: Generate Xcode project
+        working-directory: ios-native
+        run: xcodegen generate
+
+      - name: Build (unsigned)
+        working-directory: ios-native
+        run: |
+          set -o pipefail
+          xcodebuild \
+            -project Auralis.xcodeproj \
+            -scheme Auralis \
+            -configuration Release \
+            -sdk iphoneos \
+            -derivedDataPath build \
+            CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO CODE_SIGN_IDENTITY="" \
+            build
+
+      - name: Package unsigned IPA
+        working-directory: ios-native
+        run: |
+          APP=$(find build/Build/Products/Release-iphoneos -maxdepth 1 -name "*.app" | head -1)
+          if [ -z "$APP" ]; then echo "No .app produced"; exit 1; fi
+          rm -rf Payload
+          mkdir -p Payload
+          cp -R "$APP" Payload/
+          zip -r Auralis-unsigned.ipa Payload >/dev/null
+          ls -lh Auralis-unsigned.ipa
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: Auralis-ios-unsigned
+          path: ios-native/Auralis-unsigned.ipa
+          if-no-files-found: error
+
+      # On a tag, also attach the .ipa to the GitHub release. The release is created by
+      # the desktop job (release.yml) on the same tag push, so wait for it to appear.
+      - name: Attach .ipa to the release
+        if: startsWith(github.ref, 'refs/tags/v')
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          TAG="${GITHUB_REF_NAME}"
+          for i in $(seq 1 20); do
+            if gh release view "$TAG" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then break; fi
+            echo "Waiting for release $TAG to be created… ($i)"; sleep 30
+          done
+          cp ios-native/Auralis-unsigned.ipa "Auralis-${TAG}-ios-unsigned.ipa"
+          gh release upload "$TAG" "Auralis-${TAG}-ios-unsigned.ipa" --clobber --repo "$GITHUB_REPOSITORY"

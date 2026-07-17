@@ -1,0 +1,761 @@
+@import "tailwindcss";
+@import "tw-animate-css";
+
+@custom-variant dark (&:is(.dark *));
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --font-sans: var(--font-geist-sans);
+  --font-mono: var(--font-geist-mono);
+  --color-sidebar-ring: var(--sidebar-ring);
+  --color-sidebar-border: var(--sidebar-border);
+  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+  --color-sidebar-accent: var(--sidebar-accent);
+  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
+  --color-sidebar-primary: var(--sidebar-primary);
+  --color-sidebar-foreground: var(--sidebar-foreground);
+  --color-sidebar: var(--sidebar);
+  --color-ring: var(--ring);
+  --color-input: var(--input);
+  --color-border: var(--border);
+  --color-destructive: var(--destructive);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-accent: var(--accent);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-muted: var(--muted);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-secondary: var(--secondary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-primary: var(--primary);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-popover: var(--popover);
+  --color-card-foreground: var(--card-foreground);
+  --color-card: var(--card);
+  /* One radius scale, applied semantically everywhere: xs(4) sm(8) md(10)
+     lg(12) xl(16) 2xl(20). No more scattered 9/11/13px one-offs. */
+  --radius-xs: calc(var(--radius) - 8px);
+  --radius-sm: calc(var(--radius) - 4px);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) + 4px);
+  --radius-2xl: calc(var(--radius) + 8px);
+}
+
+:root {
+  --radius: 0.5rem;
+  --font-geist-sans: "Circular Std", "CircularSp", "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Oxygen, Ubuntu, Cantarell, "Open Sans", "Helvetica Neue", sans-serif;
+  --font-geist-mono: "Cascadia Code", "SFMono-Regular", Consolas, "Liberation Mono", monospace;
+
+  /* Spotify-style: charcoal stage, near-black sidebar, green accent. SSR fallback
+     values so the first paint already reads as Spotify; themes.ts re-applies them. */
+  --background: #121212;
+  --foreground: #ffffff;
+  --paper: #ffffff;
+  --ink: #000000;
+  --panel: #181818;
+  --panel-2: #282828;
+  --panel-3: #333333;
+  --line: rgba(255, 255, 255, 0.10);
+  --line-strong: rgba(255, 255, 255, 0.20);
+  --text-muted: #b3b3b3;
+  --text-faint: #828282;
+  --signal: #1ED760;
+  --verdigris: #1DB954;
+  --brass: #b3b3b3;
+  --plum: #b3b3b3;
+
+  --card: var(--panel);
+  --card-foreground: var(--foreground);
+  --popover: #282828;
+  --popover-foreground: var(--foreground);
+  --primary: var(--signal);
+  --primary-foreground: #000000;
+  --primary-soft: #1FDF64;
+  --primary-deep: #1DB954;
+  --secondary: var(--panel-2);
+  --secondary-foreground: var(--foreground);
+  --muted: var(--panel-2);
+  --muted-foreground: var(--text-muted);
+  --accent: rgba(255, 255, 255, 0.07);
+  --accent-foreground: var(--foreground);
+  --destructive: #e25b50;
+  --border: var(--line);
+  --input: var(--line);
+  --ring: rgba(30, 215, 96, 0.5);
+  /* Opaque keyboard-focus ring (themes override per-accent). The translucent
+     --ring is kept for soft glows; focus uses a solid colour for WCAG contrast. */
+  --focus-ring: var(--signal);
+  --emerald: var(--verdigris);
+  --amber: var(--brass);
+
+  --sidebar: #000000;
+  --sidebar-foreground: var(--foreground);
+  --sidebar-primary: var(--signal);
+  --sidebar-primary-foreground: #000000;
+  --sidebar-accent: rgba(255, 255, 255, 0.07);
+  --sidebar-accent-foreground: var(--foreground);
+  --sidebar-border: var(--line);
+  --sidebar-ring: rgba(30, 215, 96, 0.5);
+}
+
+@layer base {
+  * {
+    @apply border-border outline-ring/50;
+  }
+  html, body {
+    @apply bg-background text-foreground;
+    height: 100%;
+  }
+  body {
+    font-feature-settings: "ss01", "cv01", "cv03", "tnum";
+    -webkit-font-smoothing: antialiased;
+    text-rendering: optimizeLegibility;
+    overscroll-behavior: none;
+    -webkit-text-size-adjust: 100%;
+    /* Clean flat surface — no decorative grid lines (those read as a Web-2.0
+       texture). Depth comes from real content + crisp keylines, not wallpaper. */
+    background: var(--background);
+  }
+  button, [role="button"], nav, header, .no-select {
+    -webkit-user-select: none;
+    user-select: none;
+  }
+}
+
+/* Scrollbars */
+.scroll-auralis {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(255, 255, 255, 0.30) transparent;
+}
+.scroll-auralis::-webkit-scrollbar { width: 12px; height: 12px; }
+.scroll-auralis::-webkit-scrollbar-track { background: transparent; }
+.scroll-auralis::-webkit-scrollbar-thumb {
+  background-color: rgba(255, 255, 255, 0.30);
+  border-radius: 9999px;
+  border: 3px solid transparent;
+  background-clip: content-box;
+}
+.scroll-auralis::-webkit-scrollbar-thumb:hover {
+  background-color: rgba(255, 255, 255, 0.3);
+}
+.scroll-auralis::-webkit-scrollbar-corner { background: transparent; }
+
+.scroll-hidden {
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+.scroll-hidden::-webkit-scrollbar { display: none; }
+
+/* Animations */
+/* The "now playing" indicator is a STATIC three-bar glyph (see EqualizerBars in
+   SectionHeader) — no looping fake-spectrum animation. */
+
+@keyframes auralis-fade-up {
+  from { opacity: 0; transform: translateY(6px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+.fade-up { animation: auralis-fade-up 0.28s cubic-bezier(0.22, 1, 0.36, 1) both; }
+
+@keyframes auralis-scale-in {
+  from { opacity: 0; transform: scale(0.97) translateY(3px); }
+  to { opacity: 1; transform: scale(1) translateY(0); }
+}
+.scale-in { animation: auralis-scale-in 0.15s cubic-bezier(0.22, 1, 0.36, 1) both; }
+
+@keyframes auralis-toast-in {
+  from { opacity: 0; transform: translateY(12px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+.toast-in { animation: auralis-toast-in 0.2s cubic-bezier(0.22, 1, 0.36, 1) both; }
+
+/* Heart "pop" the moment a track is favourited — a restrained spring, not a
+   cartoon 1.5× balloon. A single small overshoot reads as confident feedback.
+   Applied transiently (cleared after it runs) so it only fires on the action. */
+@keyframes heart-pop {
+  0% { transform: scale(1); }
+  45% { transform: scale(1.16); }
+  100% { transform: scale(1); }
+}
+.heart-pop { animation: heart-pop 0.32s cubic-bezier(0.34, 1.2, 0.64, 1) both; }
+
+@keyframes auralis-shimmer {
+  0% { background-position: -200% 0; }
+  100% { background-position: 200% 0; }
+}
+.shimmer {
+  background: linear-gradient(90deg, rgba(255, 255, 255, 0.04) 25%, rgba(255, 255, 255, 0.10) 37%, rgba(255, 255, 255, 0.04) 63%);
+  background-size: 200% 100%;
+  animation: auralis-shimmer 1.4s ease-in-out infinite;
+}
+
+/* Product surfaces */
+.app-chrome {
+  background: var(--background);
+}
+
+/* Spotify card: #181818 base, #282828 hover. Soft shadow on hover. */
+.matte-panel {
+  background: var(--panel);
+  border: none;
+  box-shadow: none;
+  transition: background-color 0.3s ease;
+}
+.matte-panel:hover {
+  background: var(--panel-2);
+}
+
+.matte-panel-2 {
+  background: var(--panel-2);
+  border: none;
+}
+
+.keyline-top {
+  border-top: none;
+}
+
+.keyline-right {
+  border-right: none;
+}
+
+.keyline-left {
+  border-left: none;
+}
+
+.section-band {
+  background: var(--panel);
+}
+
+/* Spotify playlist/album hero header */
+.hero-cover {
+  background: linear-gradient(transparent 0, rgba(0,0,0,0.5) 100%), var(--cover-1, #535353);
+}
+
+/* Primary action: a flat, FULL-colour fill in the theme accent — a confident
+   solid block, NOT a washed pastel→accent gradient and NOT a coloured glow bloom
+   (that "AI" look). Just the colour, crisp, with a tight neutral shadow for
+   grounding on glass themes. Hover/active shift brightness only. */
+/* Spotify-style primary: a flat green fill with bold black glyph/label. On hover
+   it SCALES UP (Spotify's signature play-button grow) and brightens slightly —
+   no coloured glow, no drop shadow. Press settles back to rest. */
+.signal-button {
+  background: var(--primary);
+  color: var(--ink);
+  border: none;
+  box-shadow: none;
+  transition: transform 0.12s ease, filter 0.12s ease;
+}
+.signal-button:hover {
+  filter: brightness(1.04);
+  transform: scale(1.04);
+}
+.signal-button:active {
+  filter: brightness(0.96);
+  transform: scale(1);
+}
+
+/* Secondary action: a solid, semantic surface tint (not a stack of barely-there
+   white opacities, which reads "dusty"). Steps up one panel level on hover. */
+.ghost-button {
+  background: var(--panel-2);
+  border: 1px solid var(--line);
+  color: var(--foreground);
+}
+.ghost-button:hover {
+  background: var(--panel-3);
+  border-color: var(--line-strong);
+}
+
+/* Grounding shadow for circular play FABs — a neutral, soft drop. No coloured
+   bloom, no inset ring (that "glowing arcade button" look). */
+.glow-primary {
+  box-shadow: 0 4px 14px -8px rgba(0, 0, 0, 0.55);
+}
+
+/* Vertical fade mask for immersive lyric scrollers (top + bottom feather). */
+.lyrics-fade {
+  -webkit-mask-image: linear-gradient(180deg, transparent, #000 16%, #000 84%, transparent);
+  mask-image: linear-gradient(180deg, transparent, #000 16%, #000 84%, transparent);
+}
+/* Active lyric line — bright and clear. A faint depth shadow keeps it legible
+   over a backdrop; NO coloured neon glow (that destroys the type's crispness). */
+.lyric-glow {
+  text-shadow: 0 1px 10px rgba(0, 0, 0, 0.35);
+}
+
+/* Karaoke active line. Each word is its own inline-block with a dim base layer
+   and a bright fill layer clipped left→right, so the highlight advances WORD BY
+   WORD in reading order — even when the line wraps to 2+ rows (the old single
+   horizontal clip lit a vertical column across both rows at once, which read as
+   "two words at the same time").
+
+   The active line element carries --p (0..1 = progress through that line),
+   written every animation frame by LyricsView's rAF loop reading the live audio
+   clock — that per-frame update IS the animation, so there is no CSS transition
+   to stutter against. Each word owns a [--ws, --we] slice of the line (sized by
+   its character count) and fills only while --p is inside that slice. The custom
+   properties are typed via @property so the calc() math is exact. */
+@property --p {
+  syntax: "<number>";
+  inherits: true;
+  initial-value: 0;
+}
+/* --ws/--we are set on each .lyric-word but consumed by its .lyric-word-fill
+   CHILD, so they must inherit down to it. Each word overrides them, so siblings
+   never bleed into one another. */
+@property --ws {
+  syntax: "<number>";
+  inherits: true;
+  initial-value: 0;
+}
+@property --we {
+  syntax: "<number>";
+  inherits: true;
+  initial-value: 1;
+}
+.lyric-pop {
+  animation: lyric-pop 0.34s cubic-bezier(0.22, 1.4, 0.36, 1) both;
+}
+.lyric-word {
+  position: relative;
+  /* No white-space:pre — words carry no internal spaces, and an overlong token
+     (URL/hashtag/CJK run) must still be able to break instead of overflowing the
+     narrow panel, matching how the plain-text render wraps. */
+  display: inline-block;
+  overflow-wrap: anywhere;
+}
+.lyric-word-base {
+  color: rgba(255, 255, 255, 0.28);
+}
+.lyric-word-fill {
+  position: absolute;
+  inset: 0;
+  color: #fff;
+  /* Crisp white fill with only a soft depth shadow for legibility over the
+     backdrop — no stacked coloured glow that fuzzes the letterforms. */
+  text-shadow: 0 1px 6px rgba(0, 0, 0, 0.38);
+  /* Reveal = reading progress within THIS word, derived from the line --p. A
+     soft-edged mask (rather than a hard clip-path) wipes the word in left→right:
+     it feathers the leading edge AND the glow, so there is no hard vertical seam
+     down the middle of the word that is currently lighting. */
+  --reveal: clamp(0%, (var(--p) - var(--ws)) / (var(--we) - var(--ws)) * 100%, 100%);
+  -webkit-mask-image: linear-gradient(90deg, #000 calc(var(--reveal) - 0.3em), #0000 var(--reveal));
+  mask-image: linear-gradient(90deg, #000 calc(var(--reveal) - 0.3em), #0000 var(--reveal));
+}
+@keyframes lyric-pop {
+  from { transform: scale(0.95); opacity: 0.55; }
+  to { transform: scale(1); opacity: 1; }
+}
+
+/* App badge. Hosts the real Auralis logo mark (an inline SVG that inherits the
+   active theme accent via currentColor) on a restrained neutral tile — no
+   saturated gradient chip, no coloured glow. The mark itself carries the colour. */
+.brand-mark {
+  position: relative;
+  display: inline-grid;
+  place-items: center;
+  inline-size: 30px;
+  block-size: 30px;
+  border-radius: 50%;
+  color: var(--primary);
+  background: var(--panel-2);
+  border: 1px solid var(--line-strong);
+}
+.brand-mark svg {
+  inline-size: 20px;
+  block-size: 20px;
+  display: block;
+}
+/* Letter fallback only when no SVG glyph is supplied (kept for safety). */
+.brand-mark:empty::before {
+  content: "A";
+  color: var(--primary);
+  font-size: 15px;
+  font-weight: 700;
+  letter-spacing: -0.03em;
+}
+
+/* Cover fallback surface — a clean flat panel tone. No diagonal hatch, no
+   stripes; the artwork component paints the colour + initial. */
+.cover-fallback {
+  background: var(--panel-2);
+}
+
+/* Drag */
+.drag-region { -webkit-app-region: drag; app-region: drag; }
+.no-drag { -webkit-app-region: no-drag; app-region: no-drag; }
+
+/* Selection — tracks the active theme accent instead of a pinned Oxide red. */
+::selection {
+  background: color-mix(in srgb, var(--primary), transparent 58%);
+  color: var(--foreground);
+}
+
+/* Focus — opaque 2px ring so the keyboard focus indicator meets WCAG 2.4.7. */
+button:focus-visible,
+[role="button"]:focus-visible,
+[tabindex]:focus-visible,
+a:focus-visible,
+input:focus-visible,
+select:focus-visible {
+  outline: 2px solid var(--focus-ring);
+  outline-offset: 2px;
+  border-radius: inherit;
+}
+
+.focus-auralis:focus-visible {
+  outline: 2px solid var(--focus-ring);
+  outline-offset: 2px;
+  border-radius: inherit;
+}
+
+/* Card hover — a restrained surface/border shift, NOT a physical lift. Moving
+   structural cards upward on hover reads as a 10-year-old web relic and makes a
+   dense grid "jitter". Colour does the talking. */
+.card-lift {
+  transition: background-color 0.18s ease, border-color 0.18s ease;
+}
+
+/* Track row */
+.track-row { position: relative; }
+
+/* Off-screen rows skip layout/paint until scrolled near the viewport. On long
+   library / favorites / album lists (thousands of rows) this is the single biggest
+   scroll-fluidity win on mobile — the browser only renders what's visible.
+   contain-intrinsic-size reserves an estimated height so the scrollbar stays stable
+   and `auto` lets it remember the real height once a row has been rendered once. */
+.track-row,
+.lazy-row {
+  content-visibility: auto;
+  contain-intrinsic-size: auto 52px;
+}
+
+/* Scrubber reset */
+.scrubber {
+  -webkit-appearance: none;
+  appearance: none;
+  background: transparent;
+  cursor: pointer;
+}
+.scrubber:focus { outline: none; }
+
+/* Remove spinner from number inputs */
+input[type="number"]::-webkit-inner-spin-button,
+input[type="number"]::-webkit-outer-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+
+kbd {
+  font-family: var(--font-geist-mono, ui-monospace, SFMono-Regular, Menlo, monospace);
+  font-size: 10px;
+  line-height: 1;
+}
+
+/* ----------------------------------------------------------------------------
+   Mobile chrome — the phone gets a native-feeling shell (bottom tab nav +
+   mini-player + action sheets) instead of the desktop sidebar/title-bar.
+   Surfaces stay matte and opaque: no glass, no glow, no heavy shadow.
+   --------------------------------------------------------------------------- */
+
+/* Safe-area insets (notch / home indicator). On non-notched devices these
+   resolve to 0, so the utilities are inert on the desktop layout. */
+:root {
+  --safe-top: env(safe-area-inset-top, 0px);
+  --safe-bottom: env(safe-area-inset-bottom, 0px);
+  /* Heights of the mobile bottom chrome, consumed as scroll padding so content
+     never hides behind the mini-player + tab bar. These MUST match MobileDock's
+     real geometry: TabBar nav is h-[64px]; the mini-player card is h-14 (56px) +
+     a 2px progress bar, wrapped with pb-2 (8px) → 66px. Underestimating them lets
+     the last rows slide under the dock. */
+  --tabbar-h: 64px;
+  --miniplayer-h: 66px;
+}
+
+.safe-top { padding-top: var(--safe-top); }
+.safe-bottom { padding-bottom: var(--safe-bottom); }
+.safe-px {
+  padding-left: max(env(safe-area-inset-left, 0px), 0px);
+  padding-right: max(env(safe-area-inset-right, 0px), 0px);
+}
+
+/* The opaque matte bar used for the mobile header and bottom navigation.
+   A single hairline keyline carries the separation — no shadow, no blur. */
+.mobile-bar {
+  background: var(--panel);
+}
+
+/* Kill the grey tap flash so taps feel native, then drive feedback ourselves. */
+* { -webkit-tap-highlight-color: transparent; }
+.tap-press { transition: transform 0.12s ease, opacity 0.12s ease, background-color 0.15s ease; }
+.tap-press:active { transform: scale(0.96); opacity: 0.85; }
+
+/* Bottom action sheet (replaces the desktop right-click popover on touch). */
+@keyframes auralis-sheet-up {
+  from { transform: translateY(100%); }
+  to { transform: translateY(0); }
+}
+.sheet-up { animation: auralis-sheet-up 0.26s cubic-bezier(0.22, 1, 0.36, 1) both; }
+
+@keyframes auralis-scrim-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+.scrim-in { animation: auralis-scrim-in 0.2s ease both; }
+
+/* Fullscreen player rises from the bottom like a native now-playing sheet. */
+@keyframes auralis-rise {
+  from { transform: translateY(100%); }
+  to { transform: translateY(0); }
+}
+.rise-in { animation: auralis-rise 0.34s cubic-bezier(0.22, 1, 0.36, 1) both; }
+
+/* Horizontal carousels (home rows) scroll by touch without a visible bar. */
+.snap-x {
+  scroll-snap-type: x mandatory;
+  -webkit-overflow-scrolling: touch;
+}
+.snap-x > * { scroll-snap-align: start; }
+
+/* ==========================================================================
+   ANIMATED THEME BACKDROP (glass themes, all platforms)
+   A theme writes --bd-1..4 + data-backdrop + data-glass on :root (see
+   themes.ts/applyTheme). <ThemeBackdrop/> mounts the fixed layer below — on web,
+   mobile and desktop — and these rules paint each backdrop kind. The chrome
+   already uses translucent --sidebar/--panel vars on glass themes, so it reads
+   through; we only need to make the opaque <main> stage + player band see-through.
+   ========================================================================== */
+.theme-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  overflow: hidden;
+  pointer-events: none;
+  background: var(--bg-solid);
+  contain: strict;
+}
+.bd-canvas { position: absolute; inset: 0; width: 100%; height: 100%; display: block; }
+
+/* Readability veil over the moving art — gentle so stars still show through. */
+.theme-backdrop-scrim {
+  position: absolute;
+  inset: 0;
+  background:
+    radial-gradient(130% 90% at 50% -10%, transparent 46%, rgba(0, 0, 0, 0.18) 100%),
+    linear-gradient(180deg, rgba(0, 0, 0, 0.14) 0%, transparent 30%, transparent 76%, rgba(0, 0, 0, 0.20) 100%);
+}
+
+/* On glass themes, the opaque scroll stage + player band go transparent so the
+   fixed backdrop reads behind the translucent chrome. Non-glass themes keep
+   their flat surfaces (--background / black). */
+.app-stage { background-color: var(--background); }
+.app-playerbar-slot { background-color: #000; }
+:root[data-glass="1"] body { background: var(--bg-solid); }
+:root[data-glass="1"] .app-chrome,
+:root[data-glass="1"] .app-stage,
+:root[data-glass="1"] .app-playerbar-slot { background-color: transparent; }
+/* matte-panel stays FLAT on glass themes too — solid panel tone, no backdrop
+   blur and no drop shadow (depth comes from the surface tint, not a glass lift). */
+
+/* ---- Starfield (CSS, parallax tiles) — used by Nocturne + layered elsewhere */
+.bd-stars {
+  position: absolute;
+  inset: -240px 0;
+  background-repeat: repeat;
+  background-size: 240px 240px;
+  will-change: transform;
+}
+.bd-stars-far {
+  background-image:
+    radial-gradient(1px 1px at 30px 40px, var(--bd-2, #fff), transparent),
+    radial-gradient(1px 1px at 150px 90px, var(--bd-3, #fff), transparent),
+    radial-gradient(1.2px 1.2px at 90px 180px, #fff, transparent),
+    radial-gradient(1px 1px at 200px 150px, var(--bd-2, #fff), transparent);
+  opacity: 0.5;
+  animation: bd-drift 90s linear infinite;
+}
+.bd-stars-mid {
+  background-image:
+    radial-gradient(1.4px 1.4px at 60px 70px, #fff, transparent),
+    radial-gradient(1.2px 1.2px at 180px 40px, var(--bd-1, #fff), transparent),
+    radial-gradient(1.5px 1.5px at 120px 200px, #fff, transparent),
+    radial-gradient(1.1px 1.1px at 20px 150px, var(--bd-3, #fff), transparent);
+  opacity: 0.7;
+  animation: bd-drift 60s linear infinite, bd-twinkle 4s ease-in-out infinite;
+}
+.bd-stars-near {
+  background-image:
+    radial-gradient(1.8px 1.8px at 100px 110px, #fff, transparent),
+    radial-gradient(2px 2px at 210px 210px, var(--bd-1, #fff), transparent),
+    radial-gradient(1.6px 1.6px at 40px 220px, #fff, transparent);
+  opacity: 0.9;
+  animation: bd-drift 38s linear infinite, bd-twinkle 2.6s ease-in-out infinite;
+}
+.bd-stars-glow {
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(60% 50% at 50% 18%, var(--bd-2, transparent), transparent 70%);
+  opacity: 0.16;
+}
+@keyframes bd-drift {
+  from { transform: translate3d(0, 0, 0); }
+  to { transform: translate3d(0, 240px, 0); }
+}
+@keyframes bd-twinkle {
+  0%, 100% { opacity: 0.85; }
+  50% { opacity: 0.45; }
+}
+
+/* ---- Aurora — blurred ribbons drifting near the top */
+.bd-aurora {
+  position: absolute;
+  inset: -25% -25% 35% -25%;
+  filter: blur(58px);
+  mix-blend-mode: screen;
+  will-change: transform, opacity;
+}
+.bd-aurora-1 {
+  background: linear-gradient(115deg, transparent 22%, var(--bd-1) 46%, var(--bd-4) 60%, transparent 82%);
+  opacity: 0.5;
+  animation: bd-aurora-a 16s ease-in-out infinite;
+}
+.bd-aurora-2 {
+  background: linear-gradient(75deg, transparent 28%, var(--bd-2) 52%, transparent 78%);
+  opacity: 0.42;
+  animation: bd-aurora-b 22s ease-in-out infinite;
+}
+.bd-aurora-3 {
+  background: linear-gradient(150deg, transparent 30%, var(--bd-3) 55%, transparent 80%);
+  opacity: 0.34;
+  animation: bd-aurora-a 28s ease-in-out infinite reverse;
+}
+@keyframes bd-aurora-a {
+  0%, 100% { transform: translate3d(-6%, 0, 0) skewX(-8deg) scaleY(1); }
+  50% { transform: translate3d(8%, 4%, 0) skewX(10deg) scaleY(1.18); }
+}
+@keyframes bd-aurora-b {
+  0%, 100% { transform: translate3d(6%, 2%, 0) skewX(6deg) scaleY(1.1); }
+  50% { transform: translate3d(-8%, -3%, 0) skewX(-10deg) scaleY(0.9); }
+}
+
+/* ---- Nebula — big blurred clouds drifting + breathing */
+.bd-blob {
+  position: absolute;
+  border-radius: 50%;
+  filter: blur(72px);
+  mix-blend-mode: screen;
+  will-change: transform;
+}
+.bd-blob-1 {
+  width: 60vmax; height: 60vmax; left: -12%; top: -16%;
+  background: radial-gradient(circle, var(--bd-1), transparent 64%);
+  opacity: 0.55; animation: bd-float-a 26s ease-in-out infinite;
+}
+.bd-blob-2 {
+  width: 52vmax; height: 52vmax; right: -10%; top: 6%;
+  background: radial-gradient(circle, var(--bd-2), transparent 64%);
+  opacity: 0.5; animation: bd-float-b 32s ease-in-out infinite;
+}
+.bd-blob-3 {
+  width: 46vmax; height: 46vmax; left: 24%; bottom: -18%;
+  background: radial-gradient(circle, var(--bd-3), transparent 66%);
+  opacity: 0.45; animation: bd-float-a 38s ease-in-out infinite reverse;
+}
+@keyframes bd-float-a {
+  0%, 100% { transform: translate3d(0, 0, 0) scale(1); }
+  50% { transform: translate3d(8%, 6%, 0) scale(1.14); }
+}
+@keyframes bd-float-b {
+  0%, 100% { transform: translate3d(0, 0, 0) scale(1.08); }
+  50% { transform: translate3d(-9%, 5%, 0) scale(0.92); }
+}
+
+/* ---- Mesh — flowing gradient field (synthwave / ember / prism) + horizon grid */
+.bd-mesh {
+  position: absolute;
+  inset: -35%;
+  mix-blend-mode: screen;
+  filter: blur(42px);
+  will-change: transform;
+}
+.bd-mesh-1 {
+  background:
+    radial-gradient(42% 42% at 20% 28%, var(--bd-1), transparent 70%),
+    radial-gradient(38% 38% at 82% 22%, var(--bd-2), transparent 70%),
+    radial-gradient(46% 46% at 62% 82%, var(--bd-3), transparent 72%);
+  opacity: 0.62; animation: bd-mesh-rot 34s linear infinite;
+}
+.bd-mesh-2 {
+  background:
+    radial-gradient(40% 40% at 70% 40%, var(--bd-4), transparent 70%),
+    radial-gradient(36% 36% at 30% 70%, var(--bd-1), transparent 72%);
+  opacity: 0.45; animation: bd-mesh-rot 48s linear infinite reverse;
+}
+@keyframes bd-mesh-rot {
+  from { transform: rotate(0deg) scale(1.05); }
+  to { transform: rotate(360deg) scale(1.05); }
+}
+.bd-mesh-grid {
+  position: absolute;
+  inset: 58% -40% -20% -40%;
+  background-image:
+    linear-gradient(var(--bd-1) 1px, transparent 1px),
+    linear-gradient(90deg, var(--bd-1) 1px, transparent 1px);
+  background-size: 56px 56px;
+  opacity: 0.12;
+  transform: perspective(360px) rotateX(64deg);
+  transform-origin: center top;
+  mask-image: linear-gradient(180deg, transparent, #000 40%, #000);
+  -webkit-mask-image: linear-gradient(180deg, transparent, #000 40%, #000);
+  animation: bd-grid 7s linear infinite;
+}
+@keyframes bd-grid {
+  from { background-position: 0 0; }
+  to { background-position: 0 56px; }
+}
+
+/* ---- Ocean — slow currents + light shafts */
+.bd-ocean-base {
+  position: absolute; inset: 0;
+  background: linear-gradient(180deg, var(--bd-4) -10%, transparent 55%);
+  opacity: 0.5;
+}
+.bd-wave {
+  position: absolute; left: -50%; right: -50%; height: 70%; bottom: -16%;
+  filter: blur(46px);
+  mix-blend-mode: screen;
+  will-change: transform;
+}
+.bd-wave-1 {
+  background: radial-gradient(60% 100% at 50% 100%, var(--bd-1), transparent 70%);
+  opacity: 0.45; animation: bd-wave-a 18s ease-in-out infinite;
+}
+.bd-wave-2 {
+  background: radial-gradient(70% 100% at 40% 100%, var(--bd-2), transparent 72%);
+  opacity: 0.34; animation: bd-wave-a 26s ease-in-out infinite reverse;
+}
+@keyframes bd-wave-a {
+  0%, 100% { transform: translate3d(-5%, 0, 0) scaleY(1); }
+  50% { transform: translate3d(6%, -4%, 0) scaleY(1.16); }
+}
+.bd-shaft {
+  position: absolute; inset: -10% 0 30% 0;
+  background: linear-gradient(96deg, transparent 30%, var(--bd-3) 48%, transparent 64%);
+  opacity: 0.10;
+  filter: blur(24px);
+  mix-blend-mode: screen;
+  animation: bd-shaft 14s ease-in-out infinite;
+}
+@keyframes bd-shaft {
+  0%, 100% { transform: translateX(-8%) skewX(-6deg); opacity: 0.06; }
+  50% { transform: translateX(8%) skewX(-6deg); opacity: 0.14; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}

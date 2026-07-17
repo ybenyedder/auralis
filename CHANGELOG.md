@@ -1,0 +1,555 @@
+# Changelog
+
+All notable changes to Auralis are documented here. The format is based on
+[Keep a Changelog](https://keepachangelog.com/) and this project adheres to
+[Semantic Versioning](https://semver.org/).
+
+## [1.13.0] - 2026-07-07
+
+### Added
+- **Les fonds animés (étoiles, étoiles filantes…) reviennent partout.** Le fond
+  animé des thèmes cosmiques/ambiances n'était visible que dans l'app de bureau ;
+  il s'affiche désormais sur le web et le mobile aussi (densité de particules et
+  météores réduites sur petit écran pour la batterie, `prefers-reduced-motion`
+  respecté). Contredit volontairement la décision « bureau uniquement » de juin.
+- **~10 nouveaux thèmes.** Ardoise, Mousse (classiques) ; Andromède, Polaire,
+  Éclipse, Voie lactée (cosmiques, avec étoiles) ; Lagon, Ultraviolet (vibrants) ;
+  Lanternes, Orage (ambiances) — entrées de thème pures, sans changement de code.
+- **Visualiseur repensé (touche V).** Trois modes cyclables — spectre radial
+  autour de la pochette, onde, particules réactives — teintés par la palette du
+  thème actif, branchés sur l'analyseur audio réel (FFT plus fine). « V » change
+  de mode (un clic aussi), Échap ferme ; le mode choisi est mémorisé.
+- **Écrans de chargement en skeleton.** L'Accueil, les détails (album/artiste/
+  playlist), la Recherche et l'onglet Playlists affichent des placeholders animés
+  pendant le chargement — fini le flash « Configurer la bibliothèque » et les sauts
+  de mise en page au démarrage, surtout sur mobile.
+- **Client iOS natif (SwiftUI).** Nouvelle app `ios-native/` miroir du client
+  Android : lecture en arrière-plan, Centre de contrôle, paroles synchronisées,
+  favoris/reco/recherche, choix du thème. CI GitHub Actions produisant un `.ipa`
+  non signé (sideload / re-signature).
+
+### Fixed
+- **Bibliothèque à grande échelle (10 000+ titres).** Correction des lignes/cartes
+  vides lors d'un défilement rapide, du saut de scroll au changement d'onglet/filtre
+  et de la dérive de la barre de défilement — la fenêtre de virtualisation est plus
+  robuste (overscan directionnel, clamp, remesure).
+- **Journaux serveur — plus de spam « sidecar write failed ».** L'écriture du
+  fichier `.lrc` à côté de l'audio ne tente plus rien si le fichier audio n'existe
+  plus (dossier déplacé/non monté), et les vraies erreurs de permissions sont
+  dédupliquées. Les paroles restent servies depuis la base — comportement inchangé.
+
+### Changed
+- **Passe « anti-AI look » ciblée.** Remplacement des dégradés décoratifs par des
+  aplats de couleur + voile sobre (tuile « Titres likés », cartes humeurs/genres/
+  blend/mix, panneau récap), retrait des ombres portées sur texte, du flou de la
+  barre de sélection et du reflet spéculaire des pochettes 3D. La tuile « Titres
+  likés » n'est plus une exception au style aplati.
+
+## [1.12.3] - 2026-07-07
+
+### Security
+- **Bureau — moteur mis à jour.** Le shell desktop passe à Electron 42 (Chromium
+  récent, correctifs de sécurité), avec le moteur de base de données recompilé en
+  conséquence. Important surtout en mode connexion à un serveur distant.
+- **Android — le token de session ne circule plus dans les URLs.** Le jeton
+  d'authentification passe désormais par un en-tête HTTP (streaming) au lieu de
+  l'URL, et n'est plus ajouté aux adresses de pochettes (endpoint public). Il ne
+  se retrouve donc plus dans les journaux de serveurs/proxies.
+
+### Changed
+- **Robustesse interne.** Bornage des caches en mémoire (recommandations,
+  alignement des paroles), verrou anti-course sur le chargement du catalogue
+  Android Auto, décodage des grandes pochettes plafonné (moins de pics mémoire),
+  et garde en intégration continue empêchant une release dont l'étiquette ne
+  correspond pas à la version.
+
+## [1.12.2] - 2026-07-07
+
+### Fixed
+- **Android — préférences de lecture restaurées.** La répétition, la lecture
+  aléatoire et le volume choisis sont de nouveau appliqués au démarrage (ils
+  pouvaient être ignorés quand la lecture reprenait avant la connexion du
+  lecteur, l'affichage montrant alors une valeur différente du son réel).
+- **Android — file d'attente fiable.** Taper sur un titre (ou le retirer) dans la
+  file agit bien sur ce titre-là, même quand certains morceaux de la file ne sont
+  plus présents dans la bibliothèque.
+- **Android — moins de plantages.** Ouverture de l'app juste après l'arrêt du
+  service de lecture, recherche avec une adresse de serveur invalide, et
+  vérification d'une mise à jour : ces cas ne font plus planter ni figer l'app.
+- **Paroles — plus de mélange entre deux titres.** En enchaînant rapidement les
+  morceaux, une réponse tardive ne vient plus afficher les paroles (ou le message
+  « instrumental ») du titre précédent sur le titre en cours.
+- **Recherche — indicateur de chargement.** Un discret indicateur s'affiche
+  pendant la recherche, au lieu d'un changement brusque des résultats.
+- **Bureau (Windows/Linux) — écran d'erreur au lieu d'une fenêtre blanche.** Si le
+  serveur est injoignable au lancement, une page « Réessayer » s'affiche ; un
+  arrêt inattendu du serveur embarqué est aussi signalé clairement.
+- **Stabilité serveur.** L'analyse audio ne peut plus se lancer en double,
+  l'écriture des paroles est atomique, et les connexions temps réel (télécommande)
+  ne laissent plus d'appareils fantômes.
+
+## [1.12.1] - 2026-07-04
+
+### Changed
+- **Visualiseur (touche V) refait.** Fini l'anneau de barres qui tourne, l'onde
+  en miroir et le faux disque dégradé. Le visualiseur adopte le langage visuel du
+  lecteur plein écran : vraie pochette floutée en fond + wash de la palette du
+  titre, la vraie pochette au centre qui respire doucement avec l'énergie du son,
+  et un seul spectre bas lissé et discret, teinté à la palette. Barre de
+  progression fine et transport en bas.
+
+## [1.12.0] - 2026-07-03
+
+### Added
+- **Import d'une playlist par lien.** Collez un lien de playlist (ou d'album)
+  **Spotify, Deezer, Apple Music ou YouTube** dans Bibliothèque → Playlists →
+  « Depuis un lien » : Auralis récupère la liste des titres, retrouve ceux
+  présents dans **votre** bibliothèque et crée la playlist automatiquement (avec
+  un retour « X/Y titres retrouvés » quand certains manquent). Les liens directs
+  `.m3u`/`.json` sont aussi acceptés. Aucune clé d'API : la tracklist est lue
+  depuis les pages/APIs publiques des services, et l'appariement tolère le bruit
+  des titres (« (Remastered 2011) », « feat. … », « (Official Video) »…).
+
+## [1.10.0] - 2026-06-30
+
+### Added
+- **Connect.** Télécommande en temps réel entre vos appareils (PC ↔ téléphone,
+  même compte) via un hub SSE : un appareil pilote la lecture d'un autre
+  (lecture/pause, précédent/suivant, recherche dans le morceau) avec un
+  now-playing miroir et un scrubber interpolé. Sélecteur d'appareils façon Spotify
+  dans la barre du lecteur et en plein écran.
+
+### Changed
+- **Plein écran façon Spotify.** Fond thématisé par la pochette (cover floutée +
+  glow de la palette), vue paroles desktop avec la pochette épinglée à gauche, et
+  un voile de lisibilité en haut pour les pochettes claires.
+- **Paroles.** Le mode karaoké (surbrillance mot-à-mot) n'apparaît que pour les
+  paroles synchronisées mot-à-mot (richsync) ; les LRC ligne-à-ligne restent en
+  affichage Standard.
+
+### Fixed
+- **Reprise de session.** Vider la file ou arrêter la lecture efface enfin la
+  session sauvegardée (plus de morceau « ressuscité » à la réouverture), tout en
+  corrigeant la course qui pouvait afficher « Aucune lecture » au démarrage.
+
+## [1.9.0] - 2026-06-29
+
+### Added
+- **Mix IA.** Sélectionnez plusieurs titres (appui long ou ⋮ → « Sélectionner »)
+  puis « Mix IA » : le moteur de goût construit une playlist à partir de votre
+  sélection et de vos habitudes d'écoute (vibe audio des titres choisis × profil
+  de goût), en gardant vos titres en tête puis en ajoutant des recommandations.
+- **Sélection multiple** façon Spotify sur mobile et application native : cases à
+  cocher, barre d'action flottante (lecture de la sélection + Mix IA).
+
+### Changed
+- **Application Android au look Spotify.** Thème Spotify (vert #1ED760 sur noir
+  #121212) appliqué par défaut, barre de navigation à 3 onglets
+  (Accueil / Recherche / Bibliothèque) et « Titres aimés » intégré à la
+  bibliothèque.
+
+## [1.8.0] - 2026-06-29
+
+### Added
+- **Recherche puissante.** Recherche serveur (FTS5) classée et tolérante aux
+  accents, onglets Tout/Titres/Albums/Artistes et carte « Meilleur résultat ».
+- **Radios.** Démarrer une radio personnalisée depuis n'importe quel titre, album
+  ou artiste (similarité audio × goût).
+- **Découverte enrichie.** Mix du jour par humeur, « À découvrir cette semaine »,
+  voyages sonores (radios à trajectoire d'humeur : endormissement, montée en
+  énergie…) et **Blend du foyer** (mix qui mélange les goûts de deux comptes).
+- **Smart-playlists** dynamiques pilotées par l'analyse audio (Énergie haute,
+  Calme du soir, 160+ BPM, Jamais écouté, Récemment ajoutés, Tout en lossless…).
+- **Playlists collaboratives.** Partager une playlist et inviter d'autres comptes
+  du serveur à y ajouter / retirer des titres.
+- **Import / export de playlists** aux formats M3U et JSON.
+- **Filtres de bibliothèque** instantanés + pastilles humeur / lossless / genre,
+  et tri « ajout récent ».
+- **Pochette 3D.** Maintenir la pochette du lecteur l'incline en 3D (reflet + ombre).
+- **Couleur réelle de pochette.** L'ambiance du lecteur reprend la vraie couleur
+  dominante de la jaquette.
+- **Égalisation du volume (ReplayGain).** Niveau homogène entre les titres
+  (réglable : désactivé / par titre / par album).
+- **Visualiseur réellement réactif** (vraie analyse audio FFT, plus une animation).
+- **Fondu enchaîné** réglable entre les titres.
+- **Android Auto.** Auralis apparaît sur l'écran de la voiture (Fait pour vous,
+  Favoris, Récents).
+- **Écoute hors-ligne (Android).** Tout titre déjà écouté rejoue sans connexion
+  (cache média 2 Go).
+- **Multilingue.** Sélecteur de langue (français / anglais).
+
+### Changed
+- **Démarrage plus rapide.** Le catalogue n'est plus re-téléchargé à chaque
+  ouverture (revalidation 304) et les écrans lourds se chargent à la demande.
+- **Accessibilité.** Lien « Aller au contenu », squelettes de chargement et états
+  vides homogènes.
+- **Android.** Gestes natifs sur le lecteur (glisser vers le bas pour fermer,
+  horizontalement pour changer de titre) et pochettes mises en cache sur le disque.
+
+## [1.7.1] - 2026-06-29
+
+### Fixed
+- **Android — la notification de lecture ouvre enfin l'application.** Toucher la
+  notification du média (ou la commande sur l'écran verrouillé) ramène désormais
+  l'app native au premier plan, au lieu de rediriger vers la page web.
+
+### Changed
+- **Barre de recherche (bureau + web) redessinée.** Pastille plus nette et mieux
+  proportionnée ; le raccourci `Ctrl K` n'est plus affiché sur l'interface (le
+  raccourci clavier continue de fonctionner).
+- Empaquetage `.deb` : icônes ré-encodées en RGBA 8 bits et toutes les tailles
+  hicolor incluses pour un affichage correct dans les environnements de bureau.
+
+## [1.6.0] - 2026-06-27
+
+### Added
+- **Mises à jour automatiques sur toutes les plateformes.** L'application se met
+  désormais à jour toute seule.
+  - **Bureau (Windows · Linux).** L'app vérifie au lancement, puis toutes les
+    6 heures, s'il existe une nouvelle version publiée, la télécharge en arrière-plan
+    et l'installe à la fermeture (ou propose un redémarrage immédiat). Couvre
+    l'installeur Windows (NSIS) et l'AppImage Linux ; le paquet `.deb` reste géré
+    par le gestionnaire de paquets du système.
+  - **Android.** Une fois par lancement, l'app compare sa version à la dernière
+    publiée ; si une mise à jour existe, elle propose de la télécharger et lance
+    l'installation, sans passer par un magasin d'applications.
+
+### Changed
+- L'APK Android est désormais signé avec une clé de projet stable et sa version
+  est calquée sur le tag de publication, ce qui permet aux mises à jour de
+  s'installer proprement par-dessus l'installation existante.
+
+## [1.5.1] - 2026-06-26
+
+### Changed
+- **Bibliothèque instantanée à grande échelle.** Le snapshot `/api/library` est
+  désormais un catalogue **indépendant du compte**, construit une seule fois par
+  changement de bibliothèque puis mémoïsé : à 10 000 titres, sa génération côté
+  serveur passe de ~5,5 s à ~0,6 ms entre deux scans. Son ETag ne dépend plus des
+  favoris ni des écoutes, donc chaque réouverture de l'app est un simple 304
+  instantané au lieu d'un re-téléchargement complet du catalogue. Les compteurs
+  d'écoute par artiste/titre sont dérivés côté client à partir de tes propres
+  écoutes (source unique et fiable), et le payload est allégé (plus de couleur ni
+  de champs par-compte par titre).
+- **Moins de travail à chaque rendu.** Résolution des pistes par hash via l'index
+  préconstruit (accueil, playlists, récents) au lieu de reconstruire une table de
+  toute la bibliothèque à chaque appel ; l'écran Analyse ne recopie plus les
+  10 000 objets piste à chaque écoute comptée.
+- **Scan non bloquant.** Le parcours du dossier de musique est désormais
+  asynchrone : il ne gèle plus les requêtes HTTP concurrentes sur les grandes
+  bibliothèques.
+
+### Fixed
+- **Barre latérale (768–1023 px).** Affiche enfin ses libellés, filtres et noms de
+  playlists au lieu d'une colonne de 280 px à moitié vide remplie d'icônes.
+- **Dossiers sur mobile.** Plus de double zone de défilement qui piégeait le
+  geste : la vue défile d'un seul tenant sous `lg`, virtualisation préservée.
+- **Notifications (toasts)** sur deux lignes au lieu d'être tronquées en plein
+  milieu d'une phrase ; **menu « Ajouter à une playlist »** défilant au lieu de
+  rogner les longues listes.
+- **Accessibilité des barres de lecture** : les lecteurs d'écran annoncent
+  désormais la position réelle (« 1:23 sur 3:45 ») au lieu d'un pourcentage brut.
+- Le bandeau d'accueil reprend la couleur d'accent du thème au lieu d'un gris figé.
+
+### Android
+- **Bibliothèque increvable.** Les grilles Albums/Artistes sont enfin fenêtrées
+  (seules les rangées à l'écran sont composées) au lieu de tout composer d'un coup
+  — fini le risque de gel/plantage à l'ouverture d'un grand catalogue.
+- **Pochettes dimensionnées.** Le client demande des miniatures webp adaptées
+  (`?w=`) au lieu de télécharger et décoder l'original pleine résolution (souvent
+  plusieurs Mo) pour une vignette de 46 dp — beaucoup moins de mémoire et de
+  réseau, et le cache d'images en garde bien plus.
+- **Fluidité.** Le mapping des ~10 000 pistes au chargement et la construction de
+  la « radio » de lecture continue (filtre + tri sur toute la bibliothèque)
+  passent hors du thread principal ; correction d'un comparateur de tri non
+  déterministe (risque de crash) ; index de ligne gratuit via `itemsIndexed` ;
+  écritures de session dédupliquées (plus d'écriture disque inutile en pause).
+
+### Security
+- CSP de production durcie : `'unsafe-eval'` (nécessaire seulement au runtime de
+  développement) n'est plus émis en production.
+
+## [1.5.0] — 2026-06-26
+
+### Added
+- **Onglet « J'aime » dans la Bibliothèque.** Tes titres likés sont désormais
+  accessibles directement depuis la Bibliothèque (web, Linux et Windows), en plus
+  de la page Favoris — alimenté en temps réel par tes cœurs.
+
+### Changed
+- **Bibliothèque increvable et instantanée — virtualisation de toutes les listes.**
+  Titres, albums, artistes, favoris, file d'attente, dossiers, résultats de
+  recherche et pages de détail n'affichent plus que ce qui est réellement à
+  l'écran (une trentaine d'éléments), quelle que soit la taille de la collection.
+  Résultat : ouvrir « Bibliothèque » est instantané et l'application ne se fige
+  plus et ne plante plus, même avec des centaines de milliers de titres (vérifié
+  à plus de 6 000 titres : ~20 lignes rendues au lieu de 6 000).
+- **Refonte visuelle « anti-AI look ».** Suppression des effets génériques qui
+  trahissaient une interface générée : survols qui zooment, halos colorés, flous
+  « verre », ombres excessives, dégradés et emoji décoratifs. Surfaces plates,
+  jetons de couleur sémantiques, typographie maîtrisée — un rendu plus épuré et
+  cohérent, fidèle à l'esprit Spotify (les éléments volontairement colorés —
+  cartes genres/humeurs, tuile « titres likés », fonds animés du bureau — sont
+  conservés).
+- **Recherche unifiée** (fini la double barre de recherche sur ordinateur) et
+  **palette de commandes** qui cherche désormais dans tout le catalogue (et non
+  les 40 premiers titres).
+
+### Fixed
+- Pochettes recyclées au défilement qui restaient parfois bloquées sur l'image de
+  repli ; chargement des pochettes sans clignotement (dégradé déterministe en
+  fond).
+- Pluralisation française correcte (« 1 titre » / « N titres »).
+- Onglet Titres affichant « Scan en cours… » pendant l'indexation au lieu d'un
+  message trompeur ; suppression d'un halo orange résiduel de l'ancien thème ;
+  divers correctifs de contraste, d'états vides et de cohérence visuelle.
+
+## [1.4.0] — 2026-06-26
+
+### Added
+- **Recommandations pilotées par tes retours.** Un moteur de goût côté serveur
+  apprend de ton écoute : un titre **skippé** remonte moins (et, via les données
+  audio energy/bpm/humeur, ses voisins de même ambiance aussi), une **écoute
+  complète** ou un **like** le font remonter, un **« Je n'aime pas »** l'exclut.
+  Nouvel endpoint `/api/recommend` (mix « Fait pour vous » + radio) et nouvelle
+  étagère **« Fait pour vous »** sur l'accueil.
+- **Bilan mensuel d'humeur.** À la fin de chaque mois, Auralis te dit l'ambiance
+  dans laquelle tu as le plus vécu (mélancolique, heureuse, électrique…) avec un
+  résumé, la répartition des humeurs, tes titres/artistes du mois et une
+  comparaison au mois précédent — dans **Analyse**, plus une notification en début
+  de mois (`/api/recap`).
+- **Action « Je n'aime pas »** dans le menu d'un titre, et un toggle **« lecture
+  continue »** sur le client natif.
+- **Classification d'humeur audio réelle** (DSP ffmpeg : energy/bpm/brillance →
+  6 humeurs) qui alimente les mixes d'humeur et les recommandations.
+- **Fonds animés par thème** (desktop) et **vignettes de pochettes WebP
+  redimensionnées** (`?w=`) pour un chargement nettement plus rapide.
+
+### Changed
+- **Mobile : application 100 % native.** L'ancienne app Android Capacitor (WebView)
+  est supprimée au profit du **client natif Kotlin/Compose**. L'interface web reste
+  entièrement responsive et installable en PWA : ouvrir l'adresse du serveur depuis
+  un téléphone garde une belle interface mobile.
+- Le **client natif** passe à parité avec le web (recommandations + bilan d'humeur).
+
+## [1.3.2] — 2026-06-26
+
+### Changed
+- **App desktop : démarrage en grand.** La fenêtre s'ouvre désormais
+  **maximisée** au lancement (la taille 1320×860 reste la géométrie de
+  restauration), au lieu d'une petite fenêtre.
+- **App desktop : connexion par URL uniquement.** L'écran de premier lancement
+  ne propose plus de serveur local : on saisit directement l'**URL du serveur
+  Auralis**, exactement comme sur l'application mobile.
+
+## [1.3.1] — 2026-06-26
+
+### Fixed
+- **Barre latérale (desktop) : puces de filtre de la bibliothèque coupées.** La
+  rangée *Favoris / Historique / Dossiers / Analyse* débordait horizontalement et
+  la dernière puce (« Analyse ») était tronquée au bord de la sidebar, sans
+  indication de défilement. Les puces passent désormais à la ligne (`flex-wrap`)
+  et restent toutes visibles.
+
+## [1.3.0] — 2026-06-25
+
+Native mobile rewrite, desktop onboarding and a gentle donation reminder.
+
+### Added
+- **Native Android client (`android-native/`).** A from-scratch **Kotlin / Jetpack
+  Compose** app replacing the Capacitor WebView shell. It talks to a self-hosted
+  Auralis server over the same HTTP API and plays audio natively with
+  **Media3 / ExoPlayer** + a `MediaSessionService` — real background playback,
+  lock-screen controls and audio focus (no more WebView wake-lock workaround).
+  Feature parity with the web app: connect/login, library (sort + grid/list +
+  counts), search (server FTS + genre mixes + history), Home shelves (mix du jour,
+  reprendre, à redécouvrir, découvertes), favourites (5-way sort), folders, insights,
+  album/artist/playlist detail, mini + fullscreen player, queue, synced **karaoke
+  lyrics** (offset + toggle), track ⋮ context menu (play next / queue /
+  add-to-playlist), playlist create/rename/delete/reorder/pin, sleep timer, in-app
+  volume, session resume, streak-milestone toasts, command palette, a visualiser,
+  all 14 themes with an animated Compose backdrop, and full settings (password
+  change, admin user management, rescan, change folder, export/import, reset
+  history). Build with `npm run mobile:native` (offline: `AURALIS_OFFLINE=1`).
+- **Desktop first-run setup.** On first launch the desktop app asks whether to run
+  **locally** (spawns the bundled server on a chosen music folder) or **connect to a
+  remote Auralis server** by URL — re-pickable later from Settings.
+- **Donation reminder.** A dismissible popup invites support on the first launch and
+  then every third launch thereafter (web/desktop and the native app).
+
+## [1.2.0] — 2026-06-25
+
+Engagement, security, ergonomics and homogeneity pass. Adds two forward-only DB
+migrations (v3 `play_events`, v4 `users.token_version`); no manual data migration.
+
+### Added
+- **Engagement loop.** The server already recorded plays/history/favourites but
+  surfaced none of it. New read-only `GET /api/stats` exposes a listening **streak**
+  (consecutive days, computed from a new append-only `play_events` log), today/week
+  play counts and a 7-day sparkline. The Home view gains a **“Mix du jour”** (a
+  deterministic per-day shuffle of what you like/play, stable until midnight), a
+  **“Reprendre l’écoute”** shelf, an **“À redécouvrir”** shelf (favourites you
+  haven’t played lately), a **“Récemment ajoutés”** shelf (new files, from the
+  scanner’s `added_at`) and a time-of-day greeting. A streak chip sits in the
+  sidebar / mobile header and links to a weekly recap in Insights, and crossing a
+  streak milestone (3/7/14/30…) is celebrated once.
+- **Continuous playback (autoplay / radio).** When the queue runs out, the player
+  now auto-appends a continuation of similar tracks (same artist/genre, else a
+  library shuffle) instead of stopping — endless listening, with a Settings toggle
+  (on by default).
+- **PWA shortcuts + deep links.** The installed icon offers Recherche / Favoris /
+  Bibliothèque shortcuts, and the shell resolves `?view=` on load so views are
+  shareable and bookmarkable.
+- **Onboarding.** An empty library now shows a “Configurer la bibliothèque” CTA on
+  the hero instead of a disabled Play button.
+- **More discovery + stats.** A **“Découvertes”** shelf (tracks you own but have
+  never played), **“Tes mix par genre”** on Explore (a one-tap shuffle per
+  well-represented genre), an **“À suivre”** next-track peek in the full-screen
+  player, a **listening-time** stat (week + total) and a **“Tes artistes les plus
+  écoutés”** panel in Insights, and **`L` = like** / **`Q` = queue** shortcuts.
+- **Sleep timer “fin du titre”** — stop playback at the end of the current track.
+- **Resume where you left off.** The current track, play order and playhead position
+  are persisted on close and restored (paused) on reopen — press play to continue.
+- **Share.** A Share action (native share sheet → clipboard fallback) on the track
+  context menu, Now-Playing panel and full-screen player.
+- **Empty states are now actionable** — empty queue → shuffle-all, empty
+  favourites / history → browse the library.
+- **OS lock-screen scrubbing** — `seekbackward` / `seekforward` MediaSession
+  handlers (web + native Android) wired to ±10 s.
+- **Mini-player Previous button** and full keyboard operability + opaque focus ring
+  for the volume slider.
+
+### Security
+- **Revocable sessions.** Session tokens embed a `token_version`; changing a
+  password bumps it so every previously-issued token (incl. a leaked 30-day one)
+  stops validating. The password-change endpoint re-issues a fresh cookie/token so
+  the current device stays signed in while others are signed out.
+- **CSRF / same-origin guard** on cookie-authenticated mutations (`/api/state`,
+  `/api/auth/password`, `/api/auth/users`, `library/source`, `library/scan`).
+  Bearer/`?token=` clients are exempt; reverse-proxy setups are honoured via
+  `X-Forwarded-Host` and an `AURALIS_ALLOWED_ORIGINS` allowlist.
+- **Lyrics egress hardening.** Outbound lookups now use `redirect: "error"`
+  (anti-SSRF) + a 512 KB response cap, concurrent resolves are de-duplicated to a
+  single request, and forced re-fetches are rate-limited (12/min/user).
+- **Native shells.** Electron gains a `will-navigate` origin guard, an app-level
+  `web-contents-created` clamp (no popups / `<webview>`) and `sandbox: true`;
+  Capacitor sets `allowMixedContent: false`.
+- **`/api/health`** trimmed to a minimal liveness probe (no uptime / scan internals
+  on the unauthenticated, CORS-open response).
+- **Data control / privacy.** A **“Réinitialiser l’écoute”** action (Settings → Data)
+  wipes your server-side play counts / recents / event log (favourites + playlists
+  kept), scoped to your own account. A one-time nudge prompts personalising the
+  auto-generated admin password. `robots.txt` now disallows all crawling (Auralis is
+  a private app, not a public site).
+
+### Fixed
+- **Play counts are trustworthy.** A play is counted only after a real listen
+  threshold (min 30 s / 50 %), not on track selection, so skips no longer inflate
+  counts/recents; the client now reconciles to the server’s authoritative count
+  instead of double-incrementing locally.
+- **Biased shuffle** (`Math.random() - 0.5`) replaced with the existing Fisher-Yates
+  shuffle in Favourites and Album detail.
+- **Karaoke timing round-trips** — `serializeLrc` preserves per-word stamps and
+  rolls 100 centiseconds into the next second.
+- **Wrong-song lyrics** — LRCLIB candidate scoring now weighs title/artist
+  similarity (not just duration), so a different track of similar length is no
+  longer attached.
+- **Admin self password-reset** via the accounts list no longer logs the admin out
+  (the session is re-issued, mirroring the self-change endpoint).
+- Visualizer canvas no longer tears down ~4×/s; the global keyboard listener binds
+  once instead of on every track change; the audio stream route uses one async
+  `stat` instead of two blocking sync calls per range request.
+
+### Changed
+- **Homogeneity.** A single per-theme `--primary-foreground` (theme `ink`) fixes
+  dark text on light accents across all 16 themes; toggle/active states unified on
+  `bg-primary/15`; `::selection` and the focus ring now track the active theme.
+- **A11y.** Focus trap + restore for the command palette, keyboard-help, context
+  menu, full-screen player and visualizer (all proper `role=dialog`); palette is a
+  combobox/listbox; `aria-current` on nav; `role=tab` on the now-playing tabs;
+  labelled search inputs; toast carries a tone (success/error/info) with an
+  assertive live region for errors and an optional **Annuler** action (clearing the
+  queue is undoable).
+- Reduced-transparency users get an opaque, blur-free fallback for glass themes.
+- **Fully French UI.** The context menu, command palette and keyboard-help modal
+  (previously English) plus stray English labels/aria are now French throughout,
+  and login/password forms carry the right `autoComplete` hints. The document
+  `lang` is now `fr` (screen readers use the right voice) and the page title,
+  meta description and PWA manifest name/description are French too. A polite
+  live region announces the now-playing track on each change.
+
+## [1.1.0] — 2026-06-24
+
+Security, performance and mobile hardening pass. No data migration required.
+
+### Security
+- **Admin-only host operations.** Repointing the music directory (`/api/library/source`)
+  and triggering scans (`/api/library/scan`) now require an admin account — previously
+  any authenticated user could repoint the library at an arbitrary host path and stream
+  every audio file on the machine (a privilege-escalation + path-escape). New
+  `requireAdmin` guard in `src/server/http.ts`.
+- **Per-user library snapshot.** `is_favorite` / `playcount` JOINs are now scoped to the
+  requesting user id (`trackSelect(uid)`), closing an IDOR that leaked one account's
+  listening activity and favourites into another's view.
+- **Admin password no longer logged.** The generated initial password is written to a
+  `0600` file (`<dataDir>/INITIAL_ADMIN_PASSWORD.txt`) instead of the structured logs.
+- **`/api/health` no longer leaks the absolute `musicDir`** (OS username / FS layout).
+- **Brute-force hardening.** `X-Forwarded-For` is trusted only when
+  `AURALIS_TRUST_PROXY=1`, and a global per-username failure cap stops IP rotation from
+  bypassing the login rate limit.
+
+### Fixed
+- **Android media notification / lock-screen controls now actually appear.** Added the
+  `POST_NOTIFICATIONS` (Android 13+) and `FOREGROUND_SERVICE_MEDIA_PLAYBACK` (Android 14)
+  permissions plus a runtime notification-permission request — without them the media
+  foreground service was silently killed on modern Android.
+- **Mobile auto-reconnect.** The Android connect screen reconnects to a known, reachable
+  server automatically instead of asking on every launch.
+- **"Add to playlist" works on touch.** The context-menu outside-press handler matched
+  only the desktop popover, so taps inside the mobile sheet closed the menu before they
+  registered.
+
+### Changed
+- **Home redesign** — removed the library-stats grid for a cleaner, less "dashboard" hero.
+- **Removed the intrusive donation pop-up** (the *Soutenir Auralis* button remains in Settings).
+- **Major render-performance pass** — every store subscription converted to atomic
+  selectors, list cards memoised, `content-visibility` on long lists, debounced
+  persistence, throttled OS-position updates, isolated full-screen scrubber.
+- Bumped version to `1.1.0` across the app, API and health endpoint.
+
+## [1.0.0] — 2026-06-24
+
+First public release. Auralis is a self-hosted, local-first music platform with
+web, desktop (Linux/Windows) and Android clients served by one server.
+
+### Added
+- **Native Android media notification** via `@jofr/capacitor-media-session` — a real
+  system notification + lock-screen controls (play/pause, prev/next, seek, artwork),
+  fixing the WebView limitation where the web Media Session was not promoted to a
+  system notification on MIUI/Xiaomi. A unified `nativeMedia.ts` layer routes to the
+  native plugin on device and to `navigator.mediaSession` on web/desktop.
+- **One-time support reminder** and a persistent *Soutenir Auralis* button
+  (Settings → About) linking to the project's donation page.
+- Project metadata: `LICENSE` (Auralis Attribution License — use/fork freely with
+  mandatory credit to the author), `CONTRIBUTING.md`, `SECURITY.md`, this changelog
+  and funding info.
+- Documentation: marketing-grade README with desktop + mobile screenshots.
+
+### Security
+- **Removed the hard-coded default password.** The admin password is now random per
+  install (printed once to the logs) or set via `AURALIS_ADMIN_PASSWORD`.
+- **Login rate-limiting** with exponential back-off against brute-force.
+- **Security headers** (CSP, `X-Frame-Options`, `Referrer-Policy`,
+  `X-Content-Type-Options`, `Permissions-Policy`) applied to every response,
+  including the HTML document.
+- **Removed wildcard CORS** from authenticated API responses; only `/api/health`
+  opts back in.
+- **Bounded the state-replace endpoint** (favorites / play counts / playlists /
+  settings size caps + value validation) to block trivial DoS by an authenticated
+  client.
+
+### Changed
+- Bumped version to `1.0.0` across the app, API and health endpoint.
+
+### Removed
+- Unused dependencies `puppeteer-core` and `tailwindcss-animate`.

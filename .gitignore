@@ -1,0 +1,76 @@
+# dependencies
+node_modules
+/.pnp
+.pnp.*
+
+# next.js
+/.next/
+/out/
+
+# desktop (electron) build output
+/dist-desktop/
+
+# android (Capacitor) — keep the native project, ignore build output + generated assets
+/android/.gradle/
+/android/build/
+/android/app/build/
+/android/local.properties
+/android/app/src/main/assets/public/
+/android/app/src/main/assets/capacitor.config.json
+/android/app/src/main/assets/capacitor.plugins.json
+/android/capacitor-cordova-android-plugins/
+
+# android-native (Kotlin/Compose) — build output only
+/android-native/.gradle/
+/android-native/build/
+/android-native/app/build/
+/android-native/local.properties
+
+# runtime data (SQLite db, art cache)
+/data/
+
+# publish scripts containing secrets (GitHub PAT) — never commit
+publish.sh
+upload_linux.sh
+
+# misc
+.DS_Store
+*.log
+npm-debug.log*
+
+# secrets / signing material — never commit new ones. (The one deliberately
+# tracked keystore, android-native/app/auralis.keystore, is a self-signed app
+# key kept in-repo on purpose so the auto-updater's signature stays stable; this
+# guards against ANY other key/cert being added by accident.)
+*.pem
+*.key
+*.jks
+*.keystore
+*.p12
+*.pfx
+local.properties
+
+# env files
+.env
+.env.local
+.env.*
+!.env.example
+
+# typescript / next
+*.tsbuildinfo
+next-env.d.ts
+
+# tooling
+.vercel
+.claude
+.z-ai-config
+/skills/
+.agents/
+
+# Python
+__pycache__/
+*.pyc
+AUDIT_LOG.md
+keystore.properties
+android-native/keystore.properties
+build/

@@ -1,0 +1,133 @@
+{
+  "_comment": "Pterodactyl Egg for Auralis \u2014 https://github.com/ybenyedder/auralis. Author: Youssef Ben yedder <volt@webtvmedia.net>",
+  "meta": {
+    "version": "PTDL_v2",
+    "update_url": null
+  },
+  "exported_at": "2026-06-24T00:00:00+00:00",
+  "name": "Auralis",
+  "author": "volt@webtvmedia.net",
+  "description": "Self-hosted, local-first music platform (Next.js). Scans a music folder, streams it, fetches lyrics and serves a web + native client UI. Builds from source on install and runs with `next start`.",
+  "features": null,
+  "docker_images": {
+    "Node.js 20": "ghcr.io/parkervcp/yolks:nodejs_20",
+    "Node.js 22": "ghcr.io/parkervcp/yolks:nodejs_22"
+  },
+  "file_denylist": [],
+  "startup": "bash deploy/pterodactyl-start.sh",
+  "config": {
+    "files": "{}",
+    "startup": "{\"done\": \"Ready in\"}",
+    "logs": "{}",
+    "stop": "^C"
+  },
+  "scripts": {
+    "installation": {
+      "script": "#!/bin/bash\nset -e\napt-get update\napt-get install -y --no-install-recommends git ca-certificates python3 make g++\nmkdir -p /mnt/server\ncd /mnt/server\n# The install container runs as root but the files belong to the server user, so\n# git would refuse with 'dubious ownership' \u2014 trust the build dir explicitly.\ngit config --global --add safe.directory '*'\nif [ -d .git ]; then\n  echo 'Updating existing checkout...'\n  git fetch --all\n  git reset --hard origin/${GIT_BRANCH:-main}\n  git clean -fd -e music -e data\nelse\n  echo 'Cloning Auralis...'\n  git clone ${GIT_ADDRESS:-https://github.com/ybenyedder/auralis.git} .\n  git checkout ${GIT_BRANCH:-main}\nfi\necho 'Installing dependencies...'\n# The desktop/mobile build tooling (Electron binary ~250MB, Puppeteer) is not\n# needed to run the web server \u2014 skip those heavy downloads so the install fits.\nexport ELECTRON_SKIP_BINARY_DOWNLOAD=1\nexport PUPPETEER_SKIP_DOWNLOAD=1\nexport NEXT_TELEMETRY_DISABLED=1\nnpm ci --no-audit --no-fund\necho 'Building...'\nnpm run build\necho 'Trimming dev dependencies to shrink the runtime footprint...'\nnpm prune --omit=dev --no-audit --no-fund || true\nmkdir -p music data\n# Optional: local forced-alignment (word-by-word karaoke). Installed only when the\n# feature is enabled, and INTO data/ so it survives reinstalls (git clean above\n# preserves music/ and data/). Never aborts the base install (|| true guards).\nif [ \"${AURALIS_LYRICS_FORCED_ALIGN}\" = \"true\" ]; then\n  echo 'Forced-align enabled \u2014 installing the local aligner (torch ~1.5GB + model ~1.2GB, into data/ so it survives reinstalls)...'\n  apt-get install -y --no-install-recommends python3-pip python3-dev || true\n  # Map the runtime data path (/home/container/...) to the install mount (/mnt/server/...).\n  DATA_RT=\"${AURALIS_DATA_DIR:-/home/container/data}\"\n  case \"$DATA_RT\" in\n    /home/container/*) DATA=\"/mnt/server/${DATA_RT#/home/container/}\" ;;\n    *) DATA=\"$DATA_RT\" ;;\n  esac\n  DEPS=\"$DATA/pydeps\"\n  mkdir -p \"$DEPS\"\n  # The runtime container's /tmp is a tiny tmpfs (~100MB) \u2014 point pip's temp at the\n  # volume so the torch download/unpack does not fail with \"No space left on device\".\n  export TMPDIR=\"$DATA/.tmp\"; mkdir -p \"$TMPDIR\"\n  if PYTHONPATH=\"$DEPS\" python3 -c 'import torch, torchaudio' 2>/dev/null; then\n    echo 'Aligner deps already present in data/pydeps \u2014 skipping torch download.'\n  else\n    python3 -m pip install --no-cache-dir --target \"$DEPS\" torch torchaudio --index-url https://download.pytorch.org/whl/cpu \\\n      && python3 -m pip install --no-cache-dir --target \"$DEPS\" numpy \\\n      || echo 'WARNING: aligner deps failed to install; forced align stays off until a successful reinstall.'\n  fi\n  # Pre-download the alignment model so the first on-demand run is fast (cached in data/).\n  TORCH_HOME=\"$DATA/torch-cache\" PYTHONPATH=\"$DEPS\" python3 -c 'import torchaudio; torchaudio.pipelines.MMS_FA.get_model()' \\\n    || echo 'Model pre-download skipped (will fetch on first use).'\n  rm -rf \"$TMPDIR\" 2>/dev/null || true\n  # ffmpeg is already provided by the runtime image (yolks nodejs ships it) \u2014 no download needed.\nfi\n# Optional: deep audio embeddings (timbre/texture) for the recommender. Installed\n# only when enabled, INTO data/pydeps so it survives reinstalls (git clean above\n# preserves music/ and data/). Never aborts the base install (|| true / || echo guards).\nif [ \"${AURALIS_EMBEDDINGS}\" = \"1\" ]; then\n  echo 'Deep embeddings enabled \u2014 installing the extractor deps into data/pydeps...'\n  apt-get install -y --no-install-recommends python3-pip python3-dev || true\n  DATA_RT=\"${AURALIS_DATA_DIR:-/home/container/data}\"\n  case \"$DATA_RT\" in\n    /home/container/*) DATA=\"/mnt/server/${DATA_RT#/home/container/}\" ;;\n    *) DATA=\"$DATA_RT\" ;;\n  esac\n  DEPS=\"$DATA/pydeps\"; mkdir -p \"$DEPS\"\n  # The runtime container's /tmp is a tiny tmpfs (~100MB) \u2014 route pip's temp at the\n  # volume so a wheel unpack does not fail with \"No space left on device\".\n  export TMPDIR=\"$DATA/.tmp\"; mkdir -p \"$TMPDIR\"\n  if [ \"${AURALIS_OPENL3}\" = \"1\" ]; then\n    echo '  backend: OpenL3 (tensorflow \u2014 large, ~1GB).'\n    python3 -m pip install --no-cache-dir --target \"$DEPS\" numpy soundfile resampy openl3 tensorflow-cpu \\\n      || echo 'WARNING: OpenL3 deps failed to install; deep embeddings stay off until a successful reinstall.'\n  else\n    echo '  backend: librosa (light).'\n    python3 -m pip install --no-cache-dir --target \"$DEPS\" numpy scipy soundfile librosa \\\n      || echo 'WARNING: librosa deps failed to install; deep embeddings stay off until a successful reinstall.'\n  fi\n  if [ \"${AURALIS_STEMS}\" = \"1\" ]; then\n    echo '  stems: installing Demucs + torch (CPU) into data/pydeps...'\n    python3 -m pip install --no-cache-dir --target \"$DEPS\" torch torchaudio --index-url https://download.pytorch.org/whl/cpu \\\n      && python3 -m pip install --no-cache-dir --target \"$DEPS\" demucs \\\n      || echo 'WARNING: Demucs deps failed to install; per-stem features stay off.'\n  fi\n  rm -rf \"$TMPDIR\" 2>/dev/null || true\nfi\necho 'Auralis install complete. Upload your audio into the music/ folder.'\n",
+      "container": "node:20-bookworm-slim",
+      "entrypoint": "bash"
+    }
+  },
+  "variables": [
+    {
+      "name": "Git Repository",
+      "description": "Source repository to clone and build.",
+      "env_variable": "GIT_ADDRESS",
+      "default_value": "https://github.com/ybenyedder/auralis.git",
+      "user_viewable": true,
+      "user_editable": false,
+      "rules": "required|string",
+      "field_type": "text"
+    },
+    {
+      "name": "Git Branch",
+      "description": "Branch to build.",
+      "env_variable": "GIT_BRANCH",
+      "default_value": "main",
+      "user_viewable": true,
+      "user_editable": false,
+      "rules": "required|string",
+      "field_type": "text"
+    },
+    {
+      "name": "Music directory",
+      "description": "Folder scanned and streamed. Upload your audio here.",
+      "env_variable": "AURALIS_MUSIC_DIR",
+      "default_value": "/home/container/music",
+      "user_viewable": true,
+      "user_editable": true,
+      "rules": "required|string",
+      "field_type": "text"
+    },
+    {
+      "name": "Data directory",
+      "description": "Writable folder for the SQLite database, cover-art cache and session secret.",
+      "env_variable": "AURALIS_DATA_DIR",
+      "default_value": "/home/container/data",
+      "user_viewable": true,
+      "user_editable": true,
+      "rules": "required|string",
+      "field_type": "text"
+    },
+    {
+      "name": "Admin password",
+      "description": "Initial admin password. Leave blank to get a random one printed once to the console.",
+      "env_variable": "AURALIS_ADMIN_PASSWORD",
+      "default_value": "",
+      "user_viewable": false,
+      "user_editable": true,
+      "rules": "nullable|string",
+      "field_type": "text"
+    },
+    {
+      "name": "Online lyrics",
+      "description": "Fetch missing lyrics from LRCLIB (true/false).",
+      "env_variable": "AURALIS_LYRICS_ONLINE",
+      "default_value": "true",
+      "user_viewable": true,
+      "user_editable": true,
+      "rules": "required|in:true,false",
+      "field_type": "text"
+    },
+    {
+      "name": "Forced-align lyrics (word-by-word)",
+      "description": "Refine line-level lyrics into word-by-word karaoke locally by listening to the audio (no extra services). HEAVY: after setting this to true, press Reinstall \u2014 the install then puts ~1.5GB of ML deps (torch) into data/ (so they survive future reinstalls) and a ~1.2GB model is cached on first use. Needs at least ~4GB RAM. Leave false unless the server is beefy.",
+      "env_variable": "AURALIS_LYRICS_FORCED_ALIGN",
+      "default_value": "false",
+      "user_viewable": true,
+      "user_editable": true,
+      "rules": "required|in:true,false",
+      "field_type": "text"
+    },
+    {
+      "name": "Smart deep embeddings (timbre)",
+      "description": "Learn each track's TIMBRE/texture (not just energy/BPM) for sharper recommendations. HEAVY & opt-in: set to 1 then press Reinstall \u2014 the install puts the audio extractor's Python deps (librosa by default) into data/ so they survive reinstalls, and the extractor then runs in the background after each scan. Leave 0 on small servers; the recommender works great without it.",
+      "env_variable": "AURALIS_EMBEDDINGS",
+      "default_value": "0",
+      "user_viewable": true,
+      "user_editable": true,
+      "rules": "required|in:0,1",
+      "field_type": "text"
+    },
+    {
+      "name": "Embeddings: use OpenL3 (advanced)",
+      "description": "Only read when Smart deep embeddings is on. 1 = use OpenL3 learned embeddings (installs tensorflow, ~1GB, best quality) instead of the default lightweight librosa embedding. Needs more RAM/disk. Do not switch backends on an already-embedded library. Press Reinstall after changing.",
+      "env_variable": "AURALIS_OPENL3",
+      "default_value": "0",
+      "user_viewable": true,
+      "user_editable": true,
+      "rules": "required|in:0,1",
+      "field_type": "text"
+    },
+    {
+      "name": "Embeddings: Demucs stems (advanced)",
+      "description": "Only read when Smart deep embeddings is on. 1 = also run Demucs to summarise each track per instrument stem (vocals/bass/drums/other), appended to the embedding. VERY heavy (installs torch, wants ~6GB RAM). Press Reinstall after changing.",
+      "env_variable": "AURALIS_STEMS",
+      "default_value": "0",
+      "user_viewable": true,
+      "user_editable": true,
+      "rules": "required|in:0,1",
+      "field_type": "text"
+    }
+  ]
+}

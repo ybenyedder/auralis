@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Android Auto media-app descriptor: declares Auralis as a browsable + playable
+     media source for the car head unit (paired with the MediaLibraryService). -->
+<automotiveApp>
+    <uses name="media" />
+</automotiveApp>

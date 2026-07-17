@@ -1,0 +1,58 @@
+# XcodeGen spec — the .xcodeproj is generated from this in CI (and locally with
+# `xcodegen generate`), so no hand-maintained pbxproj lives in the repo.
+name: Auralis
+options:
+  bundleIdPrefix: local.auralis
+  deploymentTarget:
+    iOS: "16.0"
+  createIntermediateGroups: true
+settings:
+  base:
+    MARKETING_VERSION: "1.0.0"
+    CURRENT_PROJECT_VERSION: "1"
+    SWIFT_VERSION: "5.9"
+    # Unsigned CI build — a developer signs it themselves (Xcode automatic signing)
+    # or sideloads via AltStore / Sideloadly.
+    CODE_SIGN_STYLE: Manual
+    CODE_SIGNING_REQUIRED: "NO"
+    CODE_SIGNING_ALLOWED: "NO"
+    CODE_SIGN_IDENTITY: ""
+targets:
+  Auralis:
+    type: application
+    platform: iOS
+    sources:
+      - path: Auralis
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: local.auralis.client
+        TARGETED_DEVICE_FAMILY: "1,2"
+        GENERATE_INFOPLIST_FILE: "NO"
+    info:
+      path: Auralis/Info.plist
+      properties:
+        CFBundleDisplayName: Auralis
+        CFBundleShortVersionString: "1.0.0"
+        CFBundleVersion: "1"
+        UILaunchScreen: {}
+        UIBackgroundModes:
+          - audio
+        # Users connect to their own self-hosted server, typically over plain http
+        # on a LAN / Tailscale address — allow arbitrary loads like the Android client.
+        NSAppTransportSecurity:
+          NSAllowsArbitraryLoads: true
+        UISupportedInterfaceOrientations:
+          - UIInterfaceOrientationPortrait
+        UISupportedInterfaceOrientations~ipad:
+          - UIInterfaceOrientationPortrait
+          - UIInterfaceOrientationLandscapeLeft
+          - UIInterfaceOrientationLandscapeRight
+schemes:
+  Auralis:
+    build:
+      targets:
+        Auralis: all
+    run:
+      config: Debug
+    archive:
+      config: Release
