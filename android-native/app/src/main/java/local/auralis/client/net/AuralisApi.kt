@@ -65,6 +65,18 @@ class AuralisApi {
         return base + (if (path.startsWith("/")) path else "/$path")
     }
 
+    /** Sized variant of [assetUrl] for the media3 session artwork (notification,
+     *  lock-screen AND the car head-unit). A compact `?w=` thumbnail is decisive for
+     *  Bluetooth AVRCP cover-art: head-units like BMW iDrive silently drop the
+     *  full-resolution cover, so only the downsized image actually reaches the dash.
+     *  External (http) art URLs are returned untouched — only our /api/art endpoint
+     *  understands `?w=`. */
+    fun artUrl(image: String?, width: Int): String? {
+        val url = assetUrl(image) ?: return null
+        if (!url.contains("/api/art/")) return url
+        return url + (if (url.contains("?")) "&" else "?") + "w=$width"
+    }
+
     // ---- auth --------------------------------------------------------------
 
     suspend fun health(probeBase: String): Boolean = withContext(Dispatchers.IO) {

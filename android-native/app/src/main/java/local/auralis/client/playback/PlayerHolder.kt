@@ -251,7 +251,7 @@ fun Track.toMediaItem(api: AuralisApi): MediaItem {
         .setTitle(title)
         .setArtist(displayArtist)
         .setAlbumTitle(album)
-        .apply { api.assetUrl(image)?.let { setArtworkUri(Uri.parse(it)) } }
+        .apply { api.artUrl(image, 512)?.let { setArtworkUri(Uri.parse(it)) } }
         .build()
     return MediaItem.Builder()
         .setMediaId(trackhash)

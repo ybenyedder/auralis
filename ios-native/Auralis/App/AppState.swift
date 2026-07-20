@@ -200,7 +200,9 @@ final class AppState: ObservableObject {
     private func startCurrent(reportPlay: Bool) {
         guard let track = currentTrack, let fp = track.filepath,
               let url = AuralisAPI.streamURL(base: base, filepath: fp) else { return }
-        let art = AuralisAPI.assetURL(base: base, image: track.image)
+        // Sized thumbnail (not full-res): CarPlay / Bluetooth cover-art on head-units
+        // like BMW iDrive drops oversized covers — the 512px variant is what shows.
+        let art = AuralisAPI.assetURL(base: base, image: track.image, width: 512)
         Task { let token = await api.token
             player.load(url: url, token: token, title: track.title, artist: track.displayArtist, artworkURL: art)
         }

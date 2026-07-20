@@ -4,6 +4,17 @@ All notable changes to Auralis are documented here. The format is based on
 [Keep a Changelog](https://keepachangelog.com/) and this project adheres to
 [Semantic Versioning](https://semver.org/).
 
+## [1.13.1] - 2026-07-21
+
+### Corrigé
+- **La pochette s'affiche enfin sur l'écran de la voiture.** En Bluetooth (AVRCP
+  Cover Art), en CarPlay et en Android Auto, les autoradios — BMW iDrive en tête —
+  ignoraient silencieusement la pochette parce qu'elle était envoyée en pleine
+  résolution (trop lourde/lente à transférer). Auralis transmet désormais une
+  vignette compacte (512 px) sur les surfaces média du système, exactement comme le
+  font les grandes apps de streaming : la cover apparaît maintenant sur le tableau
+  de bord. Correction appliquée aux trois clients (web, Android natif, iOS natif).
+
 ## [1.13.0] - 2026-07-07
 
 ### Added

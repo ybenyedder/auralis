@@ -179,7 +179,7 @@ class PlaybackService : MediaLibraryService() {
             .setIsBrowsable(false)
             .setIsPlayable(true)
             .setMediaType(MediaMetadata.MEDIA_TYPE_MUSIC)
-            .apply { catalog.api.assetUrl(track.image)?.let { setArtworkUri(Uri.parse(it)) } }
+            .apply { catalog.api.artUrl(track.image, 512)?.let { setArtworkUri(Uri.parse(it)) } }
             .build()
         return MediaItem.Builder().setMediaId(TRACK_PREFIX + track.trackhash).setMediaMetadata(meta).build()
     }

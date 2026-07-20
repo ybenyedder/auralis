@@ -188,7 +188,10 @@ function AuralisShell() {
       return;
     }
     const artistName = currentTrack.artist ?? currentTrack.artists?.map((a) => a.name).join(", ") ?? "";
-    const art = api.assetUrl(currentTrack.image);
+    // Sized thumbnail (not the full-res cover): car head-units fetch the OS media
+    // artwork over Bluetooth AVRCP cover-art, which drops oversized images — a 512px
+    // variant is what makes the cover appear on the dashboard (BMW iDrive & co.).
+    const art = api.assetUrl(currentTrack.image, 512);
     setMediaMetadata({
       title: currentTrack.title,
       artist: artistName,

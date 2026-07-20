@@ -43,6 +43,19 @@ actor AuralisAPI {
         return URL(string: b + (image.hasPrefix("/") ? image : "/\(image)"))
     }
 
+    /// Sized variant of `assetURL` for the Now Playing artwork (lock-screen AND the
+    /// car head-unit). A compact `?w=` thumbnail is decisive over CarPlay / Bluetooth
+    /// cover-art: head-units such as BMW iDrive drop the full-resolution cover, so
+    /// only the downsized image reaches the dashboard. Only our /api/art endpoint
+    /// understands `?w=` — external URLs pass through untouched.
+    nonisolated static func assetURL(base: String, image: String?, width: Int) -> URL? {
+        guard let url = assetURL(base: base, image: image) else { return nil }
+        guard url.absoluteString.contains("/api/art/"),
+              var comps = URLComponents(url: url, resolvingAgainstBaseURL: false) else { return url }
+        comps.queryItems = (comps.queryItems ?? []) + [URLQueryItem(name: "w", value: String(width))]
+        return comps.url ?? url
+    }
+
     // MARK: Auth
 
     func health(probeBase: String) async -> Bool {

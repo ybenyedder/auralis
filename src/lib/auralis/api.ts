@@ -88,10 +88,18 @@ export const api = {
     const encoded = filepath.split(/[\\/]+/).filter(Boolean).map(encodeURIComponent).join("/");
     return this.url(`/api/stream/${encoded}`);
   },
-  /** Resolve an art/image URL coming back from the API against the configured base. */
-  assetUrl(path: string | undefined): string | undefined {
+  /** Resolve an art/image URL coming back from the API against the configured base.
+   *  Pass `width` to request a downsized `?w=` variant from our own /api/art endpoint
+   *  — used for OS media surfaces (lock-screen, car head-unit) where a compact cover
+   *  is mandatory: Bluetooth AVRCP cover-art transfer (BMW iDrive & co.) silently
+   *  drops full-resolution artwork, so the sized thumbnail is what actually shows. */
+  assetUrl(path: string | undefined, width?: number): string | undefined {
     if (!path) return undefined;
     if (/^https?:/.test(path)) return path;
-    return this.url(path);
+    const resolved = this.url(path);
+    if (width && path.includes("/api/art/")) {
+      return resolved + (resolved.includes("?") ? "&" : "?") + `w=${width}`;
+    }
+    return resolved;
   },
 };
