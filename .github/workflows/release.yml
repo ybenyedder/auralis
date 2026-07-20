@@ -85,11 +85,27 @@ jobs:
       - uses: android-actions/setup-android@v3
       - name: Install dependencies
         run: npm ci
+      # The stable app-signing keystore is NO LONGER committed (the old one leaked, so
+      # it was regenerated and gitignored). Restore it from a base64 secret, and feed
+      # the passwords via the env vars build.gradle.kts already reads. Without this the
+      # release build fails at :app:validateSigningRelease ("keystore not found").
+      - name: Restore signing keystore
+        env:
+          ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+        run: |
+          if [ -z "$ANDROID_KEYSTORE_BASE64" ]; then
+            echo "::error::ANDROID_KEYSTORE_BASE64 secret is empty — cannot sign the release APK"
+            exit 1
+          fi
+          echo "$ANDROID_KEYSTORE_BASE64" | base64 -d > android-native/app/auralis.keystore
       - name: Build native Android APK
         # Stamp the APK with the release tag so the in-app updater can compare the
         # running version against the latest GitHub release (see UpdateManager.kt).
         env:
           AURALIS_VERSION: ${{ github.ref_name }}
+          ANDROID_KEYSTORE_PWD: ${{ secrets.ANDROID_KEYSTORE_PWD }}
+          ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          ANDROID_KEY_PWD: ${{ secrets.ANDROID_KEY_PWD }}
         run: npm run mobile:native
       - name: Attach APK to the release
         env:
