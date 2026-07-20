@@ -113,6 +113,16 @@ jobs:
         run: |
           cp android-native/app/build/outputs/apk/release/app-release.apk "Auralis-${GITHUB_REF_NAME}.apk"
           gh release upload "${GITHUB_REF_NAME}" "Auralis-${GITHUB_REF_NAME}.apk" --clobber
+      # electron-builder leaves the GitHub release as a DRAFT on a matrix build (each
+      # runner races to finalize it, so none flips it to published), despite
+      # `releaseType: release`. A draft is invisible to the public, is excluded from
+      # `gh release list` (so the APT job below never indexes the new .deb) AND is not
+      # "latest" (so the Android in-app updater, which queries releases/latest, never
+      # sees it). Un-draft it here — after all assets are attached, before apt-repo.
+      - name: Publish the release (un-draft + mark latest)
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: gh release edit "${GITHUB_REF_NAME}" --draft=false --latest
 
   # Regenerate and redeploy the APT repository once the .deb is attached to the
   # release. The `on: release` trigger in apt-repo.yml never fires here because the
