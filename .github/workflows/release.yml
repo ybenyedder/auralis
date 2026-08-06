@@ -68,7 +68,12 @@ jobs:
   android:
     runs-on: ubuntu-latest
     needs: build
-    if: startsWith(github.ref, 'refs/tags/v')
+    # Runs on a tag push (the normal release path) AND on a manual workflow_dispatch.
+    # Push-triggered runs sometimes don't fire on a repo (transient GitHub event
+    # delivery), so dispatch must be able to drive the full release too. The version
+    # is read from package.json (REL_TAG below) rather than the ref, so a dispatch
+    # from main still stamps/attaches the correct v1.x.y assets.
+    if: startsWith(github.ref, 'refs/tags/v') || github.event_name == 'workflow_dispatch'
     permissions:
       contents: write
     steps:
@@ -98,11 +103,17 @@ jobs:
             exit 1
           fi
           echo "$ANDROID_KEYSTORE_BASE64" | base64 -d > android-native/app/auralis.keystore
+      - name: Resolve release tag from package.json
+        # On a tag push GITHUB_REF_NAME is already v1.x.y; on a workflow_dispatch
+        # from main it's "main". Derive the tag from package.json so dispatch can
+        # produce a correctly-named, correctly-stamped APK without a tag ref.
+        id: reltag
+        run: echo "REL_TAG=v$(node -p "require('./package.json').version")" >> "$GITHUB_OUTPUT"
       - name: Build native Android APK
         # Stamp the APK with the release tag so the in-app updater can compare the
         # running version against the latest GitHub release (see UpdateManager.kt).
         env:
-          AURALIS_VERSION: ${{ github.ref_name }}
+          AURALIS_VERSION: ${{ steps.reltag.outputs.REL_TAG }}
           ANDROID_KEYSTORE_PWD: ${{ secrets.ANDROID_KEYSTORE_PWD }}
           ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
           ANDROID_KEY_PWD: ${{ secrets.ANDROID_KEY_PWD }}
@@ -110,9 +121,10 @@ jobs:
       - name: Attach APK to the release
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          REL_TAG: ${{ steps.reltag.outputs.REL_TAG }}
         run: |
-          cp android-native/app/build/outputs/apk/release/app-release.apk "Auralis-${GITHUB_REF_NAME}.apk"
-          gh release upload "${GITHUB_REF_NAME}" "Auralis-${GITHUB_REF_NAME}.apk" --clobber
+          cp android-native/app/build/outputs/apk/release/app-release.apk "Auralis-${REL_TAG}.apk"
+          gh release upload "${REL_TAG}" "Auralis-${REL_TAG}.apk" --clobber
       # electron-builder leaves the GitHub release as a DRAFT on a matrix build (each
       # runner races to finalize it, so none flips it to published), despite
       # `releaseType: release`. A draft is invisible to the public, is excluded from
@@ -122,7 +134,8 @@ jobs:
       - name: Publish the release (un-draft + mark latest)
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: gh release edit "${GITHUB_REF_NAME}" --draft=false --latest
+          REL_TAG: ${{ steps.reltag.outputs.REL_TAG }}
+        run: gh release edit "${REL_TAG}" --draft=false --latest
 
   # Regenerate and redeploy the APT repository once the .deb is attached to the
   # release. The `on: release` trigger in apt-repo.yml never fires here because the
@@ -133,7 +146,9 @@ jobs:
   apt-repo:
     runs-on: ubuntu-latest
     needs: [build, android]
-    if: startsWith(github.ref, 'refs/tags/v')
+    # Same tag-or-dispatch gate as the android job: keeps the normal tag-triggered
+    # path, and lets a manual dispatch finish the full release (desktop + APK + APT).
+    if: startsWith(github.ref, 'refs/tags/v') || github.event_name == 'workflow_dispatch'
     permissions:
       actions: write
     steps:
