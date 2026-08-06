@@ -202,7 +202,7 @@ private val AuralisType = Typography().let { d ->
 }
 
 @Composable
-fun AuralisTheme(themeId: String = "spotify", content: @Composable () -> Unit) {
+fun AuralisTheme(themeId: String = "spotify", flatBackdrop: Boolean = false, content: @Composable () -> Unit) {
     val def = themeDef(themeId)
     val colors = def.colors
     val scheme = darkColorScheme(
@@ -218,9 +218,14 @@ fun AuralisTheme(themeId: String = "spotify", content: @Composable () -> Unit) {
         error = colors.destructive,
         outline = colors.lineStrong,
     )
+    // "Arrière-plan sobre": when the user opts out of the animated backdrop, swap the
+    // theme's real Backdrop for a flat "none" one. ThemeBackdrop() early-returns on
+    // kind == "none", so neither the star/meteor field nor the flow cloud paints —
+    // the glass UI then sits on the solid theme background, mirroring the web client.
+    val effectiveBackdrop = if (flatBackdrop) def.backdrop.copy(kind = "none", colors = emptyList()) else def.backdrop
     CompositionLocalProvider(
         LocalAuralis provides colors,
-        LocalBackdrop provides def.backdrop,
+        LocalBackdrop provides effectiveBackdrop,
         LocalGlass provides def.glass,
     ) {
         MaterialTheme(colorScheme = scheme, typography = AuralisType, content = content)

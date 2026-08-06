@@ -35,7 +35,14 @@ const CANVAS_KINDS = new Set<BackdropKind>([
 export function ThemeBackdrop() {
   const themeId = usePlayer((s) => s.theme);
   const theme = THEMES[themeId];
-  const kind = theme?.backdrop.kind ?? "none";
+  // The "Arrière-plan sobre" setting (Réglages) flattens every animated theme to a
+  // plain solid base. Forcing kind to "none" here is the single chokepoint that
+  // neutralises BOTH render paths (the CSS layers and the canvas particle engine):
+  // none of the backdrop <div>s mount, so none of the globals.css star/aurora/mesh
+  // rules or the rAF loop ever paint. The catalogue stays intact; only the on-off
+  // of the animated layer flips.
+  const flatBackdrop = usePlayer((s) => s.flatBackdrop);
+  const kind = flatBackdrop ? "none" : theme?.backdrop.kind ?? "none";
 
   // Client-only mount gate. The animated layer is never in the SSR HTML, so we defer
   // rendering it until after hydration — otherwise re-applying the persisted theme on

@@ -14,7 +14,7 @@
 // The Standard/Karaoké switch lives at the top of the pane (synced lyrics only).
 
 import { useEffect, useLayoutEffect, useRef, useState, type CSSProperties } from "react";
-import { Mic2, Captions, Minus, Plus, Timer, Sparkles, Loader2 } from "lucide-react";
+import { Mic2, Captions, Minus, Plus, Timer, Wand2, Loader2 } from "lucide-react";
 import { usePlayer, getAudioTime } from "@/store/player";
 import { usePlayhead } from "@/store/playhead";
 import { cn } from "@/lib/utils";
@@ -377,10 +377,10 @@ function GenerateWordByWord() {
     <button
       onClick={() => !aligning && alignLyrics()}
       disabled={aligning}
-      title="Générer le karaoké mot-à-mot en alignant les paroles sur l'audio (IA locale)"
+      title="Générer le karaoké mot-à-mot en alignant les paroles sur l'audio (traitement local)"
       className="inline-flex items-center gap-1.5 rounded-full bg-[var(--panel-2)] px-3 py-1.5 text-[12px] font-bold text-white/70 transition-all duration-200 hover:bg-white/10 hover:text-white disabled:opacity-60"
     >
-      {aligning ? <Loader2 className="size-3.5 animate-spin" /> : <Sparkles className="size-3.5" />}
+      {aligning ? <Loader2 className="size-3.5 animate-spin" /> : <Wand2 className="size-3.5" />}
       {aligning ? "Alignement…" : "Mot-à-mot"}
     </button>
   );

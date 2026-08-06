@@ -139,7 +139,7 @@ test("recommendFromSeeds: same-vibe mix that excludes the seeds and dislikes", a
   assert.ok(!hashes.includes("banned"), "a disliked track is hard-excluded");
   assert.ok(rankOf(res.tracks, "near") < rankOf(res.tracks, "far"), "the same-vibe track outranks the mismatched one");
   assert.equal(res.mood, "party", "dominant seed mood detected");
-  assert.ok(res.name.includes("Mix IA"), "named as the AI mix");
+  assert.ok(res.name.includes("Mix"), "named as the generated mix");
 });
 
 test("generateFromSeeds persistence: the playlist is led by the hand-picked seeds", async () => {

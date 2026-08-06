@@ -8,7 +8,7 @@ const tmp = fs.mkdtempSync(path.join(os.tmpdir(), "auralis-art-test-"));
 process.env.AURALIS_DATA_DIR = tmp;
 process.on("exit", () => { try { fs.rmSync(tmp, { recursive: true, force: true }); } catch { /* best effort */ } });
 
-import { sniffImageMime, cacheArtBuffer, readCachedArt } from "../src/server/library/art";
+import { sniffImageMime, cacheArtBuffer, readCachedArt, readArtVariant, ART_VARIANT_SIZES } from "../src/server/library/art";
 
 test("sniffImageMime detects common raster formats", () => {
   assert.equal(sniffImageMime(Buffer.from([0xff, 0xd8, 0xff, 0xe0, 0x00])), "image/jpeg");
@@ -61,4 +61,27 @@ test("readCachedArt rejects a malformed hash instead of touching the filesystem 
 
 test("readCachedArt returns null for a well-formed hash that was never cached", async () => {
   assert.equal(await readCachedArt("0".repeat(40)), null);
+});
+
+test("ART_VARIANT_SIZES includes 512 — required for car head-units (BMW iDrive)", () => {
+  // Regression guard: the "send a 512px thumbnail over AVRCP" fix (web/Android/
+  // iOS all request ?w=512) only works if 512 is a real variant bucket. Without
+  // it, readArtVariant() serves the full-res original which the head-unit drops.
+  assert.ok(
+    (ART_VARIANT_SIZES as readonly number[]).includes(512),
+    "512 must be an art variant size so the media-session cover reaches the dashboard",
+  );
+});
+
+test("readArtVariant returns the original bytes for an unknown size (fallback), not a thumbnail", async () => {
+  // An off-catalog size must NOT silently 404 — it serves the original image so
+  // art always renders. (This documents the behaviour the 512 fix leans on, and
+  // confirms the catalogue path is the one actually downsizing.)
+  const png = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 7, 7, 7]);
+  const hash = cacheArtBuffer(png);
+  assert.ok(hash);
+  const art = await readArtVariant(hash, 1234); // not in ART_VARIANT_SIZES
+  assert.ok(art);
+  assert.equal(art.contentType, "image/png");
+  assert.ok(art.buffer.equals(png), "unknown size falls back to the original bytes verbatim");
 });

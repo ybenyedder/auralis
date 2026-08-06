@@ -685,6 +685,8 @@ export function SettingsView() {
   const cancelSleepTimer = usePlayer((s) => s.cancelSleepTimer);
   const theme = usePlayer((s) => s.theme);
   const setTheme = usePlayer((s) => s.setTheme);
+  const flatBackdrop = usePlayer((s) => s.flatBackdrop);
+  const setFlatBackdrop = usePlayer((s) => s.setFlatBackdrop);
   const rightPanelOpen = usePlayer((s) => s.rightPanelOpen);
   const toggleRightPanel = usePlayer((s) => s.toggleRightPanel);
   const locale = usePlayer((s) => s.locale);
@@ -1172,6 +1174,13 @@ export function SettingsView() {
                     type: "toggle",
                     active: rightPanelOpen,
                     onAction: toggleRightPanel,
+                  },
+                  {
+                    label: "Arrière-plan sobre",
+                    value: flatBackdrop ? "Uni" : "Animé",
+                    type: "toggle",
+                    active: flatBackdrop,
+                    onAction: () => setFlatBackdrop(!flatBackdrop),
                   },
                 ]}
               />

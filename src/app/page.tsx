@@ -42,6 +42,8 @@ import { AuthGate } from "@/components/auralis/AuthGate";
 import { MobileHeader } from "@/components/auralis/mobile/MobileHeader";
 import { MobileDock } from "@/components/auralis/mobile/MobileDock";
 import { SelectionBar } from "@/components/auralis/SelectionBar";
+import { ErrorBoundary } from "@/components/auralis/ErrorBoundary";
+import { RemoteLyricsOverlay } from "@/components/auralis/RemoteLyricsOverlay";
 import { SyncManager } from "@/components/auralis/SyncManager";
 import {
   mediaSupported,
@@ -687,9 +689,17 @@ function AuralisShell() {
           <div className="hidden md:block">
             <StickyViewHeader scrollRef={mainRef} />
           </div>
-          <div key={`${view.view}-${view.id ?? ""}`} className="relative fade-up h-full">{viewEl}</div>
+          {/* A render crash inside any view (a malformed track, a virtualised row
+              throwing) is isolated here so the player bar, sidebar and right panel
+              keep working — the user gets a "Réessayer" fallback instead of a white
+              screen + forced reload. resetKey clears the error on navigation. */}
+          <ErrorBoundary area="cet onglet" resetKey={`${view.view}-${view.id ?? ""}`}>
+            <div key={`${view.view}-${view.id ?? ""}`} className="relative fade-up h-full">{viewEl}</div>
+          </ErrorBoundary>
         </main>
-        <NowPlayingPanel />
+        <ErrorBoundary area="du panneau de lecture" compact>
+          <NowPlayingPanel />
+        </ErrorBoundary>
       </div>
 
       <div className="app-playerbar-slot hidden md:block h-[90px] w-full">
@@ -700,8 +710,15 @@ function AuralisShell() {
       <SelectionBar />
       <SyncManager />
 
-      {fullscreenPlayer && <FullscreenPlayer />}
+      {fullscreenPlayer && (
+        <ErrorBoundary area="du lecteur plein écran" compact>
+          <FullscreenPlayer />
+        </ErrorBoundary>
+      )}
       {visualizerOpen && <VisualizerOverlay />}
+      {/* Remote-lyrics overlay (phone drives the PC): shown only when the user
+          opened it from the Connect remote controls while controlling a device. */}
+      <RemoteLyricsOverlay />
       <CommandPalette />
       <ContextMenuHost />
       <ToastHost />

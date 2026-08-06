@@ -62,8 +62,16 @@ function useVirtualWindow(
     const outer = outerRef.current;
     const scroller = scrollerRef.current;
     if (!outer || !scroller || stride <= 0) return;
+    // A detached/zero-size container (e.g. mid-unmount during a tab switch, or a
+    // scroll parent that collapsed to clientHeight 0) yields nonsensical geometry:
+    // offsetTop and rel become garbage, and the computed window can land entirely
+    // off-screen — producing the blank slice + "frozen list" that, combined with a
+    // stray row throw, used to crash the tab. Bail on degenerate measurements so we
+    // leave the last good window in place until real geometry returns.
+    const outerRect = outer.getBoundingClientRect();
+    if (outerRect.width === 0 && outerRect.height === 0) return;
     const scrollerTop = scroller === document.scrollingElement ? 0 : scroller.getBoundingClientRect().top;
-    const offsetTop = outer.getBoundingClientRect().top - scrollerTop + scroller.scrollTop;
+    const offsetTop = outerRect.top - scrollerTop + scroller.scrollTop;
     const viewTop = scroller.scrollTop;
     const viewH = scroller.clientHeight || (typeof window !== "undefined" ? window.innerHeight : 800);
     const rel = viewTop - offsetTop;

@@ -1,15 +1,15 @@
 "use client";
 
-import { Sparkles, Play, X } from "lucide-react";
+import { Wand2, Play, X } from "lucide-react";
 import { usePlayer } from "@/store/player";
 import { tracksForHashes } from "@/store/library";
 import { cn } from "@/lib/utils";
 
 /**
  * Spotify-style floating action bar shown while multi-select mode is active. It is
- * the entry point to the headline feature: pick a few tracks → "Mix IA" asks the
- * server's taste engine to build a playlist from them + your taste. Floats above the
- * mobile dock (or the desktop player bar) so it never hides the bottom chrome.
+ * the entry point to the headline feature: pick a few tracks → "Créer un mix" asks
+ * the server's taste engine to build a playlist from them + your taste. Floats above
+ * the mobile dock (or the desktop player bar) so it never hides the bottom chrome.
  */
 export function SelectionBar() {
   const selectionMode = usePlayer((s) => s.selectionMode);
@@ -68,8 +68,8 @@ export function SelectionBar() {
           disabled={count === 0}
           className="tap-press flex shrink-0 items-center gap-1.5 rounded-full bg-[var(--primary)] px-4 py-2 text-[13px] font-bold text-[var(--primary-foreground)] transition-transform active:scale-95 disabled:opacity-40"
         >
-          <Sparkles className="size-4" />
-          Mix IA
+          <Wand2 className="size-4" />
+          Créer un mix
         </button>
       </div>
     </div>

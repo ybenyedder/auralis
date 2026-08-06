@@ -81,7 +81,13 @@ export async function readCachedArt(hash: string): Promise<CachedArt | null> {
 // nearest one via `?w=`. Falls back to the original bytes if sharp is missing,
 // so art always renders even where the native module can't load.
 // ---------------------------------------------------------------------------
-export const ART_VARIANT_SIZES = [96, 160, 256, 384, 640] as const;
+// 512 MUST be in the set: the OS media surfaces (car head-units over Bluetooth
+// AVRCP cover-art — BMW iDrive & co., CarPlay, Android Auto) all fetch artwork via
+// the web/Android/iOS clients at ?w=512. An absent 512 bucket used to make
+// readArtVariant() fall through to the FULL-resolution original, which those
+// head-units silently drop → the cover never appeared. With 512 present the
+// compact thumbnail is generated + cached on demand and the cover finally shows.
+export const ART_VARIANT_SIZES = [96, 160, 256, 384, 512, 640] as const;
 const VARIANTS = new Set<number>(ART_VARIANT_SIZES);
 
 // Lazy, cached sharp handle. `undefined` = not tried yet, `null` = unavailable.

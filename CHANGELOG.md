@@ -4,6 +4,47 @@ All notable changes to Auralis are documented here. The format is based on
 [Keep a Changelog](https://keepachangelog.com/) and this project adheres to
 [Semantic Versioning](https://semver.org/).
 
+## [1.14.0] - 2026-08-06
+
+### Corrigé
+- **La pochette apparaît enfin sur l'écran BMW (et tous les autoradios).** La
+  correction de la v1.13.1 n'avait jamais réellement fonctionné : les trois clients
+  demandaient bien une vignette `?w=512`, mais le cache d'images ne connaissait que
+  les tailles 96/160/256/384/640 — pas de 512. Le serveur renvoyait donc la cover en
+  pleine résolution, que BMW iDrive (AVRCP Cover Art), CarPlay et Android Auto
+  ignorent silencieusement. Le bucket 512px est désormais généré et mis en cache ;
+  la cover s'affiche maintenant sur le tableau de bord, sur les trois clients.
+- **Le défilement ne fait plus planter l'application.** Aucune frontière d'erreur
+  React n'existait — une exception levée pendant le rendu d'une liste virtualisée
+  faisait s'effondrer tout l'app shell (écran blanc, rechargement imposé). Chaque
+  vue et panneau est désormais encapsulé dans une `ErrorBoundary` qui isole la casse :
+  la barre de lecture et le reste de l'UI restent actifs, et un bouton « Réessayer »
+  remonte la zone fautive sans recharger la page.
+- **Défilement plus stable dans la bibliothèque.** Le reset du scroll au changement
+  d'onglet/filtre passe désormais par une trame (rAF) pour s'appliquer après le
+  remontage de la liste, évitant le blanc de mesure puis le gel. La virtualisation
+  ignore aussi les géométries dégénérées (conteneur replié pendant un changement
+  d'onglet) au lieu de calculer une fenêtre hors-champ.
+
+### Ajouté
+- **Paroles + contrôle à distance depuis le téléphone.** Quand la musique joue sur
+  le PC, le sélecteur « Connect » (depuis le téléphone, même compte) affiche
+  désormais un aperçu de la ligne de paroles en cours, plus un bouton « Paroles »
+  qui ouvre les paroles synchronisées en plein écran (auto-scroll, surlignage de la
+  ligne active, scrubbing qui envoie la commande seek au PC). Les boutons
+  lecture/pause/précédent/suivant pilotaient déjà le PC — l'expérience est
+  désormais complète.
+- **Réglage « Arrière-plan sobre ».** Un interrupteur (Réglages → Apparence) permet
+  de désactiver le fond animé (étoiles, météores, aurores) sur tous les thèmes, pour
+  un rendu uni. Disponible sur le web et sur Android.
+
+### Modifié
+- **Passe anti-« look IA ».** Retrait du branding « IA » / « ✨ » dans l'interface
+  (« Mix IA » → « Mon mix », icône étincelle remplacée par une baguette/réglages,
+  libellés des menus de sélection et du karaoké mot-à-mot assagis). Le moteur de
+  recommandation (la vraie fonctionnalité) est intact — seul le wording et le
+  clinquant visuel changent.
+
 ## [1.13.1] - 2026-07-21
 
 ### Corrigé

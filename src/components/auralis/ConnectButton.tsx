@@ -5,8 +5,9 @@
 // device's now-playing and its transport buttons relay commands over the hub.
 
 import { useEffect, useRef, useState } from "react";
-import { Laptop, Monitor, MonitorSpeaker, Smartphone, Play, Pause, SkipBack, SkipForward, X } from "lucide-react";
+import { Laptop, Monitor, MonitorSpeaker, Smartphone, Play, Pause, SkipBack, SkipForward, X, Mic2 } from "lucide-react";
 import { useSync } from "@/store/sync";
+import { api } from "@/lib/auralis/api";
 import { Artwork } from "./Artwork";
 import { formatDuration } from "@/lib/auralis/brand";
 import { cn } from "@/lib/utils";
@@ -143,6 +144,7 @@ function RemoteControls({ deviceId, onClose }: { deviceId: string; onClose: () =
   const device = useSync((s) => s.devices.find((d) => d.id === deviceId));
   const command = useSync((s) => s.command);
   const control = useSync((s) => s.control);
+  const setRemoteLyricsOpen = useSync((s) => s.setRemoteLyricsOpen);
   const [now, setNow] = useState(() => Date.now());
 
   // Tick ~2×/s while the remote plays so the interpolated clock moves.
@@ -222,8 +224,100 @@ function RemoteControls({ deviceId, onClose }: { deviceId: string; onClose: () =
         </button>
       </div>
 
+      {/* Live lyrics preview (the active line of the controlled device's track),
+          with a button to open the fullscreen remote-lyrics sheet. */}
+      <RemoteLyricsPreview trackhash={np?.trackhash ?? null} livePos={livePos} onOpenFull={() => setRemoteLyricsOpen(true)} />
+
       <button onClick={onClose} className="mt-3 flex w-full items-center justify-center gap-1.5 rounded-lg bg-[var(--panel-3)] py-1.5 text-[11px] text-[var(--text-muted)] transition-colors hover:bg-white/10 hover:text-white">
         <X className="size-3" /> Fermer
+      </button>
+    </div>
+  );
+}
+
+type PreviewLine = { time: number; text: string };
+interface PreviewLyricsResponse {
+  status: "found" | "instrumental" | "notfound";
+  lines: PreviewLine[];
+  plain: string | null;
+  synced: boolean;
+}
+
+// Compact active-line preview for the Connect remote. Fetches the controlled
+// track's synced lyrics (cached server-side) and surfaces the current line plus a
+// one-line lookahead, with a button to open the fullscreen karaoke sheet.
+function RemoteLyricsPreview({
+  trackhash,
+  livePos,
+  onOpenFull,
+}: {
+  trackhash: string | null;
+  livePos: number;
+  onOpenFull: () => void;
+}) {
+  const [lines, setLines] = useState<PreviewLine[]>([]);
+  const [loaded, setLoaded] = useState(false);
+
+  useEffect(() => {
+    let cancelled = false;
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setLines([]);
+    setLoaded(false);
+    if (!trackhash) return;
+    api
+      .get<PreviewLyricsResponse>(`/api/lyrics/${encodeURIComponent(trackhash)}`)
+      .then((res) => {
+        if (cancelled) return;
+        setLines(res.lines ?? []);
+      })
+      .catch(() => {/* offline → no preview */})
+      .finally(() => {
+        if (!cancelled) setLoaded(true);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [trackhash]);
+
+  // Resolve the active line from the interpolated remote position.
+  let active: PreviewLine | null = null;
+  let next: PreviewLine | null = null;
+  if (lines.length) {
+    let idx = -1;
+    for (let i = 0; i < lines.length; i++) {
+      const n = lines[i + 1];
+      if (livePos >= lines[i].time && (!n || livePos < n.time)) {
+        idx = i;
+        break;
+      }
+    }
+    if (idx >= 0) {
+      active = lines[idx];
+      next = lines[idx + 1] ?? null;
+    }
+  }
+
+  // Nothing to show yet: hide the block entirely (no empty chrome).
+  if (!loaded || (lines.length === 0)) return null;
+
+  return (
+    <div className="mt-3 rounded-lg bg-[var(--panel-3)] p-2.5">
+      <div className="min-h-[2.5em] px-1">
+        {active ? (
+          <p className="text-[13px] font-bold leading-snug text-white">{active.text || "♪"}</p>
+        ) : (
+          <p className="text-[12px] italic text-[var(--text-muted)]">
+            {lines.length ? "…" : "Aucune parole synchronisée"}
+          </p>
+        )}
+        {next && <p className="mt-0.5 text-[11px] leading-snug text-[var(--text-muted)]">{next.text || "♪"}</p>}
+      </div>
+      <button
+        onClick={onOpenFull}
+        disabled={lines.length === 0}
+        className="mt-2 flex w-full items-center justify-center gap-1.5 rounded-md bg-white/10 py-1.5 text-[11px] font-bold text-white transition-colors hover:bg-white/20 disabled:opacity-40"
+      >
+        <Mic2 className="size-3.5" /> Paroles
       </button>
     </div>
   );

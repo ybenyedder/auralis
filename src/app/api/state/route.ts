@@ -102,7 +102,7 @@ export async function PUT(request: Request) {
       // (deduped). De-dupe preserves first-seen order, so seeds always lead.
       const trackhashes = [...new Set([...seeds, ...result.tracks.map((t) => t.trackhash)])];
       const name = typeof body.name === "string" && body.name.trim() ? body.name.trim().slice(0, 120) : result.name;
-      const id = upsertPlaylist(uid, { name, description: "Généré par l'IA d'après votre sélection et vos goûts", trackhashes });
+      const id = upsertPlaylist(uid, { name, description: "Mix personnalisé d'après ta sélection et tes goûts", trackhashes });
       return json({ ok: true, id, name, mood: result.mood, trackhashes });
     }
     case "playlist.cover": {

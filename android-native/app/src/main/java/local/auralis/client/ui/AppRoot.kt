@@ -32,7 +32,7 @@ import local.auralis.client.ui.theme.ThemeBackdrop
 @Composable
 fun AppRoot(vm: AppViewModel) {
     val ui by vm.ui.collectAsState()
-    AuralisTheme(themeId = ui.theme) {
+    AuralisTheme(themeId = ui.theme, flatBackdrop = ui.flatBackdrop) {
         androidx.compose.runtime.CompositionLocalProvider(
             local.auralis.client.ui.theme.LocalApiUrl provides { url -> vm.api.assetUrl(url) }
         ) {

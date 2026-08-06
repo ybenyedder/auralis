@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState, type ComponentType } from "react";
-import { Music2, Disc3, UserRound, ListMusic, ArrowDownUp, LayoutGrid, List, History, FolderTree, BarChart3, Settings, ChevronRight, Plus, Heart, Search, X, Upload, Sparkles, Link2, Loader2 } from "lucide-react";
+import { Music2, Disc3, UserRound, ListMusic, ArrowDownUp, LayoutGrid, List, History, FolderTree, BarChart3, Settings, ChevronRight, Plus, Heart, Search, X, Upload, SlidersHorizontal, Link2, Loader2 } from "lucide-react";
 import { parsePlaylistFile, matchLibraryTracks } from "@/lib/auralis/playlistIO";
 import { api } from "@/lib/auralis/api";
 import { SMART_PRESETS } from "@/lib/auralis/smartlist";
@@ -109,8 +109,17 @@ export function LibraryView() {
   // keeps its old scrollTop while a new — often much shorter — list mounts, landing
   // the user in blank space past the end. Sort changes deliberately preserve the
   // position (same list, reordered), so `sort` is intentionally not a dependency.
+  // The reset is deferred one animation frame: the new list mounts on this tick,
+  // and the virtualised window measures against the PREVIOUS scroll position — so
+  // resetting synchronously would briefly compute a window from stale geometry,
+  // producing the blank slice that (combined with a row throw) used to crash the
+  // tab. Flushing after paint lets the new list mount and the window re-measure
+  // against a zeroed scrollTop.
   useEffect(() => {
-    document.getElementById("main-content")?.scrollTo({ top: 0 });
+    const el = document.getElementById("main-content");
+    if (!el) return;
+    const id = requestAnimationFrame(() => el.scrollTo({ top: 0 }));
+    return () => cancelAnimationFrame(id);
   }, [tab, filter, chips]);
 
   // Accent-folded text filter + facet chips (genre / mood / lossless), applied
@@ -488,7 +497,7 @@ export function LibraryView() {
                     className="ghost-button inline-flex min-h-[44px] items-center gap-2 rounded-full px-5 text-[13px] font-bold transition-colors duration-200 hover:bg-white/[0.04] lg:min-h-0 lg:py-2.5"
                     title="Créer une smart playlist (règles dynamiques)"
                   >
-                    <Sparkles className="size-4" /> Smart
+                    <SlidersHorizontal className="size-4" /> Smart
                   </button>
                   <button
                     onClick={() => importRef.current?.click()}

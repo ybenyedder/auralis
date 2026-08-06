@@ -658,7 +658,7 @@ function seedCentroid(agg: Aggregates, seeds: Iterable<string>): FeatureVector |
 }
 
 export interface SeedPlaylist {
-  /** Auto-generated French name, e.g. "Mix IA · Énergique". */
+  /** Auto-generated French name, e.g. "Mix · Énergique". */
   name: string;
   /** Dominant mood id across the seeds (drives the name + a scoring bump), or null. */
   mood: string | null;
@@ -710,7 +710,7 @@ export function recommendFromSeeds(userId: number, seedHashes: string[], limit =
   scored.sort((a, b) => b.score - a.score);
 
   const moodLabel = dominantMood ? moodById(dominantMood)?.label ?? null : null;
-  const name = moodLabel ? `Mix IA · ${moodLabel}` : "Mix IA";
+  const name = moodLabel ? `Mix · ${moodLabel}` : "Mon mix";
   return {
     name,
     mood: dominantMood,

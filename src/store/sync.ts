@@ -56,6 +56,8 @@ interface SyncState {
   nowPlaying: Record<string, LiveNowPlaying>;
   /** Device this tab is remote-controlling (null = controlling itself locally). */
   controllingId: string | null;
+  /** Fullscreen remote-lyrics overlay open (the controlled device's synced lyrics). */
+  remoteLyricsOpen: boolean;
 
   connect: () => void;
   disconnect: () => void;
@@ -65,6 +67,8 @@ interface SyncState {
   control: (deviceId: string | null) => void;
   /** Send a transport command to the controlled device. */
   command: (type: "play" | "pause" | "next" | "prev" | "seek", position?: number) => void;
+  /** Open/close the fullscreen remote-lyrics overlay. */
+  setRemoteLyricsOpen: (open: boolean) => void;
 }
 
 let es: EventSource | null = null;
@@ -95,6 +99,7 @@ export const useSync = create<SyncState>((set, get) => ({
   devices: [],
   nowPlaying: {},
   controllingId: null,
+  remoteLyricsOpen: false,
 
   connect: () => {
     if (typeof window === "undefined" || es) return;
@@ -221,7 +226,7 @@ export const useSync = create<SyncState>((set, get) => ({
     } else {
       // Leaving remote mode: restore local control, then resume the audio we paused
       // on takeover (only if the user hasn't started something else meanwhile).
-      set({ controllingId: null });
+      set({ controllingId: null, remoteLyricsOpen: false });
       if (pausedForRemote) {
         const p = usePlayer.getState();
         if (!p.isPlaying && p.currentTrack) p.togglePlay();
@@ -235,4 +240,6 @@ export const useSync = create<SyncState>((set, get) => ({
     if (!controllingId) return;
     void api.post("/api/sync", { action: "command", target: controllingId, from: deviceId, type, position }).catch(() => {});
   },
+
+  setRemoteLyricsOpen: (open) => set({ remoteLyricsOpen: open }),
 }));

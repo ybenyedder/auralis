@@ -152,6 +152,10 @@ interface PlayerState {
   lyricsOffset: number;
   visualizerOpen: boolean;
   theme: ThemeId;
+  /** Flatten every animated theme backdrop (starfield, meteors, aurora…) to a plain
+   *  solid base. The "Arrière-plan sobre" toggle in Réglages — the de-"AI look" lever.
+   *  Off by default so the existing cosmic themes keep their look unless chosen. */
+  flatBackdrop: boolean;
   contextMenu: ContextMenuState;
   toast: ToastModel | null;
   lyricsLoading: boolean;
@@ -257,6 +261,8 @@ interface PlayerState {
   toggleVisualizer: () => void;
   closeVisualizer: () => void;
   setTheme: (id: ThemeId) => void;
+  /** Toggle the "Arrière-plan sober" setting — flattens animated backdrops. */
+  setFlatBackdrop: (on: boolean) => void;
   reorderCustomPlaylists: (from: number, to: number) => void;
   closeFullscreenPlayer: () => void;
   openContextMenu: (x: number, y: number, track: Track) => void;
@@ -376,6 +382,8 @@ interface Persisted {
   customPlaylists: Playlist[];
   recentTrackhashes: string[];
   theme: ThemeId;
+  /** Flatten animated theme backdrops to a solid base (de-"AI look" toggle). */
+  flatBackdrop?: boolean;
   /** @deprecated pre-0.5 key, read once for migration into `theme`. */
   accent?: string;
   playCounts: Record<string, number>;
@@ -424,6 +432,7 @@ function writePersist(state: PlayerState) {
       customPlaylists: state.customPlaylists,
       recentTrackhashes: state.recentTrackhashes.slice(0, 40),
       theme: state.theme,
+      flatBackdrop: state.flatBackdrop,
       playCounts: state.playCounts,
       karaokeMode: state.karaokeMode,
       lyricsOffset: state.lyricsOffset,
@@ -584,6 +593,7 @@ export const usePlayer = create<PlayerState>((set, get) => {
     lyricsOffset: clampOffset(initial.lyricsOffset ?? DEFAULT_LYRICS_OFFSET),
     visualizerOpen: false,
     theme: initialTheme,
+    flatBackdrop: initial.flatBackdrop ?? false,
     contextMenu: { open: false, x: 0, y: 0 },
     toast: null,
     lyricsLoading: false,
@@ -1264,7 +1274,7 @@ export const usePlayer = create<PlayerState>((set, get) => {
         get().notify("Sélectionnez au moins un titre", { tone: "error" });
         return null;
       }
-      get().notify("Création de votre Mix IA…");
+      get().notify("Création de votre mix…");
       try {
         const res = await api.put<{ ok: boolean; id: string; name: string; trackhashes: string[] }>("/api/state", {
           action: "playlist.generateFromSeeds",
@@ -1278,7 +1288,7 @@ export const usePlayer = create<PlayerState>((set, get) => {
         const pl: Playlist = {
           id: res.id,
           name: res.name,
-          description: "Généré par l'IA d'après votre sélection et vos goûts",
+          description: "Mix personnalisé d'après ta sélection et tes goûts",
           trackcount: res.trackhashes.length,
           color: ["#0b3b24", "#1ED760", "#1DB954"],
           trackhashes: res.trackhashes,
@@ -1294,7 +1304,7 @@ export const usePlayer = create<PlayerState>((set, get) => {
           return upd;
         });
         get().navigate("playlist", res.id);
-        get().notify(`Mix IA « ${res.name} » prêt — ${res.trackhashes.length} titres`, { tone: "success" });
+        get().notify(`Mix « ${res.name} » prêt — ${res.trackhashes.length} titres`, { tone: "success" });
         return res.id;
       } catch {
         get().notify("Impossible de générer la playlist", { tone: "error" });
@@ -1394,6 +1404,11 @@ export const usePlayer = create<PlayerState>((set, get) => {
       void api.put("/api/state", { action: "setting", key: "theme", value: theme }).catch(() => {});
       void api.put("/api/state", { action: "setting", key: "accent", value: theme }).catch(() => {});
     },
+    setFlatBackdrop: (on) => {
+      set({ flatBackdrop: on });
+      persist({ ...get(), flatBackdrop: on });
+      void api.put("/api/state", { action: "setting", key: "flatBackdrop", value: on }).catch(() => {});
+    },
     reorderCustomPlaylists: (from, to) => {
       set((s) => {
         if (from === to || from < 0 || to < 0 || from >= s.customPlaylists.length || to >= s.customPlaylists.length) return {};
@@ -1444,6 +1459,7 @@ export const usePlayer = create<PlayerState>((set, get) => {
         karaokeMode: p.karaokeMode ?? true,
         lyricsOffset: clampOffset(p.lyricsOffset ?? DEFAULT_LYRICS_OFFSET),
         theme,
+        flatBackdrop: p.flatBackdrop ?? false,
         locale: p.locale ?? initialLocale,
       });
       applyTheme(theme);
@@ -1500,6 +1516,10 @@ export const usePlayer = create<PlayerState>((set, get) => {
             local.theme,
         );
         const serverLocale: Locale | undefined = s.settings.locale === "en" ? "en" : s.settings.locale === "fr" ? "fr" : undefined;
+        // flatBackdrop is a boolean setting; only adopt the server's value when it
+        // actually sent one, otherwise keep whatever the local client chose (a fresh
+        // toggle not yet synced shouldn't be reverted on the next hydrate).
+        const serverFlat = typeof s.settings.flatBackdrop === "boolean" ? s.settings.flatBackdrop : null;
         set({
           favorites,
           dislikes,
@@ -1508,6 +1528,7 @@ export const usePlayer = create<PlayerState>((set, get) => {
           customPlaylists,
           theme,
           ...(serverLocale ? { locale: serverLocale } : {}),
+          ...(serverFlat !== null ? { flatBackdrop: serverFlat } : {}),
           syncReady: true,
         });
         applyTheme(theme);
@@ -1624,7 +1645,7 @@ export const usePlayer = create<PlayerState>((set, get) => {
         if (start.state === "ready") {
           await get().fetchLyrics();
           set({ aligning: false });
-          get().notify("Déjà en mot-à-mot ✨", { tone: "info" });
+          get().notify("Déjà en mot-à-mot", { tone: "info" });
           return;
         }
         if (start.state === "no-source") {
@@ -1651,7 +1672,7 @@ export const usePlayer = create<PlayerState>((set, get) => {
           if (st.state === "ok") {
             await get().fetchLyrics();
             set({ aligning: false });
-            get().notify("Karaoké mot-à-mot prêt ✨", { tone: "success" });
+            get().notify("Karaoké mot-à-mot prêt", { tone: "success" });
             return;
           }
           if (st.state === "failed" || st.state === "unavailable") {

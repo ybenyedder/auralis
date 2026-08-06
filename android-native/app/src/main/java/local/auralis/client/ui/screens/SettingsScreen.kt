@@ -152,6 +152,20 @@ fun SettingsScreen(vm: AppViewModel, ui: UiState) {
                         }
                     }
                 }
+                Row(Modifier.fillMaxWidth().padding(top = 12.dp), verticalAlignment = Alignment.CenterVertically) {
+                    Column(Modifier.weight(1f)) {
+                        Text("Arrière-plan sobre", color = colors.foreground, fontSize = 14.sp, fontWeight = FontWeight.SemiBold)
+                        Text("Désactive le fond animé (étoiles, météores) pour un rendu uni", color = colors.textMuted, fontSize = 11.sp)
+                    }
+                    androidx.compose.material3.Switch(
+                        checked = ui.flatBackdrop,
+                        onCheckedChange = { vm.setFlatBackdrop(it) },
+                        colors = androidx.compose.material3.SwitchDefaults.colors(
+                            checkedThumbColor = colors.ink, checkedTrackColor = colors.accent, checkedBorderColor = colors.accent,
+                            uncheckedThumbColor = colors.textMuted, uncheckedTrackColor = colors.panel2, uncheckedBorderColor = colors.lineStrong,
+                        ),
+                    )
+                }
             }
         }
 
