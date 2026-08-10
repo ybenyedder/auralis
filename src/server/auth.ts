@@ -35,7 +35,24 @@ function setSetting(key: string, value: string): void {
   getDb().prepare("INSERT INTO settings (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value").run(key, value);
 }
 
-function hashPassword(password: string, salt: string): string {
+// scrypt is memory-hard (~50–100ms). The Sync variant blocks the event loop on
+// every login / password change / user creation, stalling all other requests.
+// The async callback variant yields to the libuv thread pool so the Node event
+// loop stays free while the KDF runs.
+function hashPassword(password: string, salt: string): Promise<string> {
+  return new Promise((resolve, reject) => {
+    crypto.scrypt(password, salt, 64, (err, derived) => {
+      if (err) reject(err);
+      else resolve(derived.toString("hex"));
+    });
+  });
+}
+
+/** Sync variant, reserved for the ONE-TIME admin seeding at first boot
+ *  (ensureAuth). The hot paths — login, user creation, password change — use the
+ *  async hashPassword so the event loop isn't blocked. Seeding runs once ever,
+ *  before any request is served, so blocking there is harmless. */
+function hashPasswordSync(password: string, salt: string): string {
   return crypto.scryptSync(password, salt, 64).toString("hex");
 }
 
@@ -84,7 +101,7 @@ export function ensureAuth(): void {
     // 0600 file in the data dir and only log WHERE to read it.
     const envPw = process.env.AURALIS_ADMIN_PASSWORD?.trim();
     const initialPw = envPw && envPw.length >= 6 ? envPw : crypto.randomBytes(9).toString("base64url");
-    hash = hashPassword(initialPw, salt);
+    hash = hashPasswordSync(initialPw, salt);
     isDefault = envPw ? 0 : 1;
     if (!envPw) {
       let where = "(impossible d'écrire le fichier)";
@@ -116,11 +133,8 @@ export function ensureAuth(): void {
   ).run(DEFAULT_ADMIN, hash, salt, isDefault, Date.now());
 }
 
-function secret(): string {
-  ensureAuth();
-  const value = getSetting("auth.secret");
-  if (!value) throw new Error("auth secret not initialised");
-  return value;
+export function revokeSessionToken(token: string) {
+  getDb().prepare("DELETE FROM sessions WHERE id = ?").run(token);
 }
 
 export function getUserById(id: number): UserRow | null {
@@ -132,13 +146,13 @@ export function getUserByName(username: string): UserRow | null {
 }
 
 /** Verify a username/password pair. Returns the user row on success, else null. */
-export function verifyCredentials(username: string, password: string): UserRow | null {
+export async function verifyCredentials(username: string, password: string): Promise<UserRow | null> {
   ensureAuth();
   const row = getDb()
     .prepare("SELECT id, username, password_hash, password_salt, is_admin, is_default, created_at FROM users WHERE username = ?")
     .get(username) as (UserRow & { password_hash: string; password_salt: string }) | undefined;
   if (!row) return null;
-  const candidate = hashPassword(password, row.password_salt);
+  const candidate = await hashPassword(password, row.password_salt);
   const a = Buffer.from(candidate, "hex");
   const b = Buffer.from(row.password_hash, "hex");
   if (a.length !== b.length || !crypto.timingSafeEqual(a, b)) return null;
@@ -149,11 +163,26 @@ function validatePassword(pw: string): string | null {
   if (!pw || pw.length < 6) return "Le mot de passe doit faire au moins 6 caractères";
   return null;
 }
+
+export async function isPasswordCompromised(password: string): Promise<boolean> {
+  const hash = crypto.createHash('sha1').update(password).digest('hex').toUpperCase();
+  const prefix = hash.slice(0, 5);
+  const suffix = hash.slice(5);
+  try {
+    const res = await fetch(`https://api.pwnedpasswords.com/range/${prefix}`);
+    if (!res.ok) return false;
+    const text = await res.text();
+    return text.split('\n').some(line => line.split(':')[0] === suffix);
+  } catch {
+    return false;
+  }
+}
+
 function normalizeUsername(name: string): string {
   return name.trim().toLowerCase();
 }
 
-export function createUser(username: string, password: string, isAdmin = false): { ok: boolean; error?: string; id?: number } {
+export async function createUser(username: string, password: string, isAdmin = false): Promise<{ ok: boolean; error?: string; id?: number }> {
   ensureAuth();
   const uname = normalizeUsername(username);
   if (!/^[a-z0-9._-]{2,32}$/.test(uname)) return { ok: false, error: "Identifiant invalide (2–32 caractères : lettres, chiffres, . _ -)" };
@@ -161,7 +190,7 @@ export function createUser(username: string, password: string, isAdmin = false):
   if (pwErr) return { ok: false, error: pwErr };
   if (getUserByName(uname)) return { ok: false, error: "Cet identifiant existe déjà" };
   const salt = crypto.randomBytes(16).toString("hex");
-  const hash = hashPassword(password, salt);
+  const hash = await hashPassword(password, salt);
   const info = getDb()
     .prepare("INSERT INTO users (username, password_hash, password_salt, is_admin, is_default, created_at) VALUES (?, ?, ?, ?, 0, ?)")
     .run(uname, hash, salt, isAdmin ? 1 : 0, Date.now());
@@ -188,6 +217,7 @@ export function deleteUser(id: number): { ok: boolean; error?: string } {
     db.prepare("DELETE FROM user_settings WHERE user_id = ?").run(id);
     db.prepare("DELETE FROM playlist_tracks WHERE playlist_id IN (SELECT id FROM playlists WHERE user_id = ?)").run(id);
     db.prepare("DELETE FROM playlists WHERE user_id = ?").run(id);
+    db.prepare("DELETE FROM sessions WHERE user_id = ?").run(id);
     db.prepare("DELETE FROM users WHERE id = ?").run(id);
   });
   tx();
@@ -195,20 +225,20 @@ export function deleteUser(id: number): { ok: boolean; error?: string } {
 }
 
 /** Set a new password for a user (admin reset or self-change). */
-export function setUserPassword(userId: number, newPassword: string): { ok: boolean; error?: string } {
+export async function setUserPassword(userId: number, newPassword: string): Promise<{ ok: boolean; error?: string }> {
   const pwErr = validatePassword(newPassword);
   if (pwErr) return { ok: false, error: pwErr };
   if (!getUserById(userId)) return { ok: false, error: "Compte introuvable" };
   const salt = crypto.randomBytes(16).toString("hex");
-  const hash = hashPassword(newPassword, salt);
-  // Bump token_version so every session token issued before this password change
-  // stops validating (a leaked 30-day token can't outlive a password reset).
-  getDb().prepare("UPDATE users SET password_hash = ?, password_salt = ?, is_default = 0, token_version = token_version + 1 WHERE id = ?").run(hash, salt, userId);
+  const hash = await hashPassword(newPassword, salt);
+  const db = getDb();
+  db.prepare("UPDATE users SET password_hash = ?, password_salt = ?, is_default = 0, token_version = token_version + 1 WHERE id = ?").run(hash, salt, userId);
+  db.prepare("DELETE FROM sessions WHERE user_id = ?").run(userId);
   return { ok: true };
 }
 
 /** Self password change — requires the current password. */
-export function changePassword(userId: number, currentPassword: string, newPassword: string): { ok: boolean; error?: string } {
+export async function changePassword(userId: number, currentPassword: string, newPassword: string): Promise<{ ok: boolean; error?: string }> {
   const user = getUserById(userId);
   if (!user) return { ok: false, error: "Compte introuvable" };
   if (!verifyCredentials(user.username, currentPassword)) return { ok: false, error: "Mot de passe actuel incorrect" };
@@ -219,42 +249,38 @@ export function isDefaultPassword(userId: number): boolean {
   return getUserById(userId)?.is_default === 1;
 }
 
-function sign(data: string): string {
-  return crypto.createHmac("sha256", secret()).update(data).digest("base64url");
+
+
+
+
+export function createSessionToken(userId: number, request?: Request): string {
+  const token = crypto.randomBytes(32).toString("base64url");
+  const ip = request ? request.headers.get("x-forwarded-for")?.split(',')[0].trim() || "127.0.0.1" : null;
+  const ua = request ? request.headers.get("user-agent") : null;
+  const now = Date.now();
+  
+  getDb().prepare(
+    "INSERT INTO sessions (id, user_id, user_agent, ip_address, created_at, last_used_at) VALUES (?, ?, ?, ?, ?, ?)"
+  ).run(token, userId, ua, ip, now, now);
+  
+  return token;
 }
 
-/** Current session-token version for a user (bumped on password change to revoke
- *  every token issued before it). Missing column / row → 0. */
-function getTokenVersion(userId: number): number {
-  try {
-    const row = getDb().prepare("SELECT token_version FROM users WHERE id = ?").get(userId) as { token_version: number } | undefined;
-    return row?.token_version ?? 0;
-  } catch {
-    return 0; // pre-v4 schema
-  }
-}
-
-export function createSessionToken(userId: number): string {
-  const payload = Buffer.from(
-    JSON.stringify({ uid: userId, tv: getTokenVersion(userId), exp: Date.now() + SESSION_TTL_MS }),
-  ).toString("base64url");
-  return `${payload}.${sign(payload)}`;
-}
-
-/** Verify a session token and return { uid, tv } it carries, or null. */
-function decodeSessionToken(token: string | undefined | null): { uid: number; tv: number } | null {
+/** Verify a session token and return the user ID it carries, or null. */
+function decodeSessionToken(token: string | undefined | null, request?: Request): number | null {
   if (!token) return null;
-  const [payload, signature] = token.split(".");
-  if (!payload || !signature) return null;
-  const expected = sign(payload);
-  const a = Buffer.from(signature);
-  const b = Buffer.from(expected);
-  if (a.length !== b.length || !crypto.timingSafeEqual(a, b)) return null;
   try {
-    const { uid, exp, tv } = JSON.parse(Buffer.from(payload, "base64url").toString()) as { uid?: number; exp: number; tv?: number };
-    if (typeof exp !== "number" || Date.now() >= exp || typeof uid !== "number") return null;
-    // Tokens predating v4 carry no tv → treat as 0 (matches the default column).
-    return { uid, tv: typeof tv === "number" ? tv : 0 };
+    const row = getDb().prepare("SELECT user_id, last_used_at FROM sessions WHERE id = ?").get(token) as { user_id: number; last_used_at: number } | undefined;
+    if (!row) return null;
+    
+    // Update last_used_at if it's older than 1 hour (to avoid constant DB writes)
+    const now = Date.now();
+    if (now - row.last_used_at > 3600000) {
+      const ip = request ? request.headers.get("x-forwarded-for")?.split(',')[0].trim() || "127.0.0.1" : null;
+      const ua = request ? request.headers.get("user-agent") : null;
+      getDb().prepare("UPDATE sessions SET last_used_at = ?, ip_address = coalesce(?, ip_address), user_agent = coalesce(?, user_agent) WHERE id = ?").run(now, ip, ua, token);
+    }
+    return row.user_id;
   } catch {
     return null;
   }
@@ -270,6 +296,14 @@ function parseCookie(header: string | null, name: string): string | null {
   return null;
 }
 
+let queryTokenWarned = false;
+function warnQueryToken(requestUrl: string) {
+  if (!queryTokenWarned) {
+    queryTokenWarned = true;
+    log.warn(`Deprecation: Authentication via '?token=' in URL is deprecated and will be removed in a future release because URLs are logged by proxies. Please use 'Authorization: Bearer <token>' instead. (Seen on: ${new URL(requestUrl).pathname})`);
+  }
+}
+
 /** Resolve the authenticated user for a request (cookie, bearer/?token=, or the
  *  static AURALIS_TOKEN which maps to the first admin). Returns null if none. */
 export function getRequestUser(request: Request): UserRow | null {
@@ -279,11 +313,12 @@ export function getRequestUser(request: Request): UserRow | null {
   const bearer = header?.toLowerCase().startsWith("bearer ") ? header.slice(7).trim() : null;
   const queryToken = new URL(request.url).searchParams.get("token");
 
-  const decoded = decodeSessionToken(cookie) ?? decodeSessionToken(bearer) ?? decodeSessionToken(queryToken);
-  if (decoded) {
-    const user = getUserById(decoded.uid);
-    // Reject tokens whose embedded version is stale (issued before a password change).
-    if (user && getTokenVersion(user.id) === decoded.tv) return user;
+  if (queryToken) warnQueryToken(request.url);
+
+  const uid = decodeSessionToken(cookie, request) ?? decodeSessionToken(bearer, request) ?? decodeSessionToken(queryToken, request);
+  if (uid) {
+    const user = getUserById(uid);
+    if (user) return user;
   }
 
   const { authToken } = getConfig();
@@ -305,11 +340,12 @@ export function getTokenUser(request: Request): UserRow | null {
   const bearer = header?.toLowerCase().startsWith("bearer ") ? header.slice(7).trim() : null;
   const queryToken = new URL(request.url).searchParams.get("token");
 
-  const decoded = decodeSessionToken(bearer) ?? decodeSessionToken(queryToken);
-  if (decoded) {
-    const user = getUserById(decoded.uid);
-    // Reject tokens whose embedded version is stale (issued before a password change).
-    if (user && getTokenVersion(user.id) === decoded.tv) return user;
+  if (queryToken) warnQueryToken(request.url);
+
+  const uid = decodeSessionToken(bearer, request) ?? decodeSessionToken(queryToken, request);
+  if (uid) {
+    const user = getUserById(uid);
+    if (user) return user;
   }
 
   const { authToken } = getConfig();

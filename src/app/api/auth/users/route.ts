@@ -1,6 +1,6 @@
 // Admin-only account management. List, create and delete user accounts; each
 // account carries its own favorites / playlists / history (see userState).
-import { getRequestUser, listUsers, createUser, deleteUser, setUserPassword, createSessionToken, SESSION_COOKIE, sessionCookieOptions } from "@/server/auth";
+import { getRequestUser, listUsers, createUser, deleteUser, setUserPassword, createSessionToken, SESSION_COOKIE, sessionCookieOptions, isPasswordCompromised } from "@/server/auth";
 import { json, checkCsrf, readJsonBody } from "@/server/http";
 
 export const runtime = "nodejs";
@@ -26,9 +26,10 @@ export async function POST(request: Request) {
   const parsed = await readJsonBody<{ username?: string; password?: string; isAdmin?: boolean }>(request);
   if (!parsed.ok) return parsed.response;
   const body = parsed.body;
-  const result = createUser(body.username ?? "", body.password ?? "", Boolean(body.isAdmin));
+  const compromised = await isPasswordCompromised(body.password ?? "");
+  const result = await createUser(body.username ?? "", body.password ?? "", Boolean(body.isAdmin));
   if (!result.ok) return json({ error: result.error }, { status: 400 });
-  return json({ ok: true, id: result.id });
+  return json({ ok: true, id: result.id, pwned: compromised });
 }
 
 export async function PUT(request: Request) {
@@ -43,7 +44,8 @@ export async function PUT(request: Request) {
   if (!parsed.ok) return parsed.response;
   const body = parsed.body;
   if (typeof body.id !== "number") return json({ error: "id required" }, { status: 400 });
-  const result = setUserPassword(body.id, body.password ?? "");
+  const compromised = await isPasswordCompromised(body.password ?? "");
+  const result = await setUserPassword(body.id, body.password ?? "");
   if (!result.ok) return json({ error: result.error }, { status: 400 });
 
   // setUserPassword bumped token_version, invalidating every token for that user.
@@ -52,11 +54,11 @@ export async function PUT(request: Request) {
   // transparently; token clients adopt the returned `token`.
   if (body.id === user.id) {
     const token = createSessionToken(user.id);
-    const res = json({ ok: true, token });
+    const res = json({ ok: true, token, pwned: compromised });
     res.cookies.set(SESSION_COOKIE, token, sessionCookieOptions(request));
     return res;
   }
-  return json({ ok: true });
+  return json({ ok: true, pwned: compromised });
 }
 
 export async function DELETE(request: Request) {

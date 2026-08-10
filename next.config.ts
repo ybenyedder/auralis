@@ -1,4 +1,9 @@
 import type { NextConfig } from "next";
+import bundleAnalyzer from "@next/bundle-analyzer";
+
+const withBundleAnalyzer = bundleAnalyzer({
+  enabled: process.env.ANALYZE === "true",
+});
 
 const nextConfig: NextConfig = {
   reactStrictMode: true,
@@ -67,6 +72,7 @@ const nextConfig: NextConfig = {
   images: {
     unoptimized: true,
   },
+  optimizeFonts: false,
   // Baseline security headers on every response, including the HTML document
   // (the per-route json() helper only covers API responses). The CSP is
   // intentionally same-origin for media/img/connect to shrink the XSS surface
@@ -108,4 +114,4 @@ const nextConfig: NextConfig = {
   },
 };
 
-export default nextConfig;
+export default withBundleAnalyzer(nextConfig);

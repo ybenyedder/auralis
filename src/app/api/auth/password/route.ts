@@ -1,4 +1,4 @@
-import { changePassword, getRequestUser, createSessionToken, SESSION_COOKIE, sessionCookieOptions } from "@/server/auth";
+import { changePassword, getRequestUser, createSessionToken, SESSION_COOKIE, sessionCookieOptions, isPasswordCompromised } from "@/server/auth";
 import { json, checkCsrf, readJsonBody } from "@/server/http";
 
 export const runtime = "nodejs";
@@ -14,7 +14,9 @@ export async function POST(request: Request) {
   if (!parsed.ok) return parsed.response;
   const body = parsed.body;
 
-  const result = changePassword(user.id, body.currentPassword ?? "", body.newPassword ?? "");
+  const compromised = await isPasswordCompromised(body.newPassword ?? "");
+
+  const result = await changePassword(user.id, body.currentPassword ?? "", body.newPassword ?? "");
   if (!result.ok) return json({ error: result.error }, { status: 400 });
 
   // The change bumped token_version, invalidating every existing token (incl. this
@@ -22,7 +24,7 @@ export async function POST(request: Request) {
   // OTHER devices are signed out. Cookie clients update transparently; token
   // clients (Android) read `token` from the body and re-store it.
   const token = createSessionToken(user.id);
-  const res = json({ ok: true, token });
+  const res = json({ ok: true, token, pwned: compromised });
   res.cookies.set(SESSION_COOKIE, token, sessionCookieOptions(request));
   return res;
 }

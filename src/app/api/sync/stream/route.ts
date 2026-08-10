@@ -86,6 +86,8 @@ export async function GET(request: Request) {
       Connection: "keep-alive",
       // Disable proxy buffering (nginx) so events flush immediately.
       "X-Accel-Buffering": "no",
+      "X-Content-Type-Options": "nosniff",
+      "X-Frame-Options": "SAMEORIGIN",
     },
   });
 }
