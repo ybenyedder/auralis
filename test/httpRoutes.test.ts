@@ -3,7 +3,7 @@
 // against a real temporary SQLite database — end to end through auth, body-size
 // guarding, rate limiting and session issuance.
 
-import { test } from "node:test";
+import { test } from "vitest";
 import assert from "node:assert/strict";
 import fs from "fs";
 import os from "os";
@@ -50,7 +50,7 @@ test("login rejects an oversized body with 413 before touching credentials/rate-
 test("login with wrong credentials returns 401 and never sets a session cookie", async () => {
   const { db, createUser, loginPost } = await mods();
   db.exec("DELETE FROM users;");
-  createUser("integrationtest", "correct-horse-battery-staple", false);
+  await createUser("integrationtest", "correct-horse-battery-staple", false);
   const req = new Request(LOGIN_URL, {
     method: "POST",
     headers: { "content-type": "application/json" },
@@ -64,7 +64,7 @@ test("login with wrong credentials returns 401 and never sets a session cookie",
 test("login with correct credentials issues a session token + cookie end to end", async () => {
   const { db, createUser, loginPost } = await mods();
   db.exec("DELETE FROM users;");
-  createUser("integrationtest2", "correct-horse-battery-staple", true);
+  await createUser("integrationtest2", "correct-horse-battery-staple", true);
   const req = new Request(LOGIN_URL, {
     method: "POST",
     headers: { "content-type": "application/json" },
@@ -91,7 +91,7 @@ test("login with an invalid JSON body returns 400, not a 500 crash", async () =>
 test("playlist.cover accepts a legitimate cover right up at the 8MB limit (base64 inflation must fit the JSON body cap)", async () => {
   const { db, createUser, createSessionToken, upsertPlaylist, statePut } = await stateMods();
   db.exec("DELETE FROM users; DELETE FROM playlists;");
-  const created = createUser("coveruser", "correct-horse-battery-staple", false);
+  const created = await createUser("coveruser", "correct-horse-battery-staple", false);
   assert.ok(created.id);
   const uid = created.id;
   const token = createSessionToken(uid);
@@ -117,7 +117,7 @@ test("playlist.cover accepts a legitimate cover right up at the 8MB limit (base6
 test("playlist.cover still rejects a body genuinely over the JSON cap", async () => {
   const { db, createUser, createSessionToken, upsertPlaylist, statePut } = await stateMods();
   db.exec("DELETE FROM users; DELETE FROM playlists;");
-  const created = createUser("coveruser2", "correct-horse-battery-staple", false);
+  const created = await createUser("coveruser2", "correct-horse-battery-staple", false);
   assert.ok(created.id);
   const uid = created.id;
   const token = createSessionToken(uid);

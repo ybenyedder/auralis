@@ -116,11 +116,16 @@ fun Shell(vm: AppViewModel, ui: UiState) {
             Dock(ui.nav.view) { target -> vm.navigate(target) }
         }
 
-        // Fullscreen overlay
+        // Fullscreen overlay — rendered in a forced-dark palette (Apple Music's
+        // now-playing stage is always dark because it is dominated by the cover art).
         if (fullscreen.value && current != null) {
-            Box(Modifier.fillMaxSize()) {
-                local.auralis.client.ui.player.FullscreenPlayer(current, playback, position, ui, vm) {
-                    fullscreen.value = false
+            androidx.compose.runtime.CompositionLocalProvider(
+                local.auralis.client.ui.theme.LocalAuralis provides local.auralis.client.ui.theme.auralisDarkColors(),
+            ) {
+                Box(Modifier.fillMaxSize()) {
+                    local.auralis.client.ui.player.FullscreenPlayer(current, playback, position, ui, vm) {
+                        fullscreen.value = false
+                    }
                 }
             }
         }

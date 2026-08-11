@@ -5,17 +5,13 @@
 // Hashes only on the wire — the client resolves them against its library snapshot.
 
 import { recommend, recommendRadio, recommendTrajectory, recommendDiscovery, recommendBlend } from "@/server/reco/engine";
-import { getRequestUser } from "@/server/auth";
 import { getDb } from "@/server/db";
-import { json } from "@/server/http";
+import { withAuth, json } from "@/server/http";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-export async function GET(request: Request) {
-  const user = getRequestUser(request);
-  if (!user) return json({ error: "Unauthorized" }, { status: 401 });
-
+export const GET = withAuth((request, user) => {
   const { searchParams } = new URL(request.url);
   const seed = searchParams.get("seed");
   // Only clamp when a limit was actually supplied; otherwise leave it undefined so
@@ -49,4 +45,4 @@ export async function GET(request: Request) {
     return json({ seed, tracks: recommendRadio(user.id, seed, limit ?? 25, exclude) });
   }
   return json(recommend(user.id, limit ?? 80));
-}
+});

@@ -3,7 +3,7 @@
 // must come back in the same per-playlist order as before, for both owned
 // and collaborator playlists.
 
-import { test } from "node:test";
+import { test } from "vitest";
 import assert from "node:assert/strict";
 import fs from "fs";
 import os from "os";

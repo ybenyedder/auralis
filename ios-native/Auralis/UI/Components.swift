@@ -39,7 +39,7 @@ struct TrackRowView: View {
                     .frame(width: 48, height: 48)
                 VStack(alignment: .leading, spacing: 2) {
                     Text(track.title).font(.subheadline.weight(.semibold))
-                        .foregroundStyle(isCurrent ? app.accentColor : .white)
+                        .foregroundStyle(isCurrent ? app.accentColor : .primary)
                         .lineLimit(1)
                     Text(track.displayArtist).font(.caption).foregroundStyle(.secondary).lineLimit(1)
                 }
@@ -85,21 +85,23 @@ struct MiniPlayer: View {
                     CoverArt(url: app.artURL(track.image), colors: trackColors(track), corner: 4)
                         .frame(width: 40, height: 40)
                     VStack(alignment: .leading, spacing: 1) {
-                        Text(track.title).font(.footnote.weight(.semibold)).foregroundStyle(.white).lineLimit(1)
+                        Text(track.title).font(.footnote.weight(.semibold)).foregroundStyle(.primary).lineLimit(1)
                         Text(track.displayArtist).font(.caption2).foregroundStyle(.secondary).lineLimit(1)
                     }
                     Spacer()
                     Button { app.togglePlay() } label: {
                         Image(systemName: app.player.isPlaying ? "pause.fill" : "play.fill")
-                            .font(.title3).foregroundStyle(.white)
+                            .font(.title3).foregroundStyle(.primary)
                     }.buttonStyle(.plain)
                     Button { app.playNext(manual: true) } label: {
-                        Image(systemName: "forward.fill").font(.body).foregroundStyle(.white)
+                        Image(systemName: "forward.fill").font(.body).foregroundStyle(.primary)
                     }.buttonStyle(.plain)
                 }
                 .padding(.horizontal, 10)
                 .padding(.vertical, 8)
-                .background(Theme.panel2, in: RoundedRectangle(cornerRadius: 10, style: .continuous))
+                .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+                .overlay(RoundedRectangle(cornerRadius: 14, style: .continuous).stroke(Color.primary.opacity(0.08), lineWidth: 0.5))
+                .shadow(color: .black.opacity(0.28), radius: 12, y: 6)
                 .padding(.horizontal, 8)
             }
             .buttonStyle(.plain)
@@ -111,13 +113,13 @@ struct MiniPlayer: View {
 struct SectionTitle: View {
     let text: String
     var body: some View {
-        Text(text).font(.title3.weight(.bold)).foregroundStyle(.white)
+        Text(text).font(.title3.weight(.bold)).foregroundStyle(.primary)
             .frame(maxWidth: .infinity, alignment: .leading)
     }
 }
 
 extension AppState {
-    var accentColor: Color { Theme.accent(theme) }
+    var accentColor: Color { Theme.accent }
 }
 
 func formatTime(_ seconds: Double) -> String {

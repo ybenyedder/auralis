@@ -2,7 +2,7 @@
 // listening time). Runs against a real temporary SQLite database so the local-day
 // streak math and the play_events × tracks join are exercised end to end.
 
-import { test } from "node:test";
+import { test } from "vitest";
 import assert from "node:assert/strict";
 import fs from "fs";
 import os from "os";

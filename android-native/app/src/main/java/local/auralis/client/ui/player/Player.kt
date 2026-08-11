@@ -50,9 +50,12 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.blur
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.buildAnnotatedString
@@ -68,6 +71,7 @@ import local.auralis.client.playback.PlaybackSnapshot
 import local.auralis.client.ui.AppViewModel
 import local.auralis.client.ui.UiState
 import local.auralis.client.ui.components.CoverArt
+import local.auralis.client.ui.components.NetworkImage
 import local.auralis.client.ui.components.formatDuration
 import local.auralis.client.ui.theme.LocalAuralis
 import kotlin.math.abs
@@ -133,8 +137,31 @@ fun FullscreenPlayer(
     var gDy by remember { mutableStateOf(0f) }
     val (bg, c1, _) = local.auralis.client.ui.components.paletteFor(track.albumhash ?: track.title)
 
+    // Apple Music signature stage: the now-playing screen is layered over a
+    // blown-up, heavily blurred copy of the cover art, dimmed by a vertical scrim
+    // so it reads as an ambient colour field (always dark, like Apple Music).
+    Box(Modifier.fillMaxSize().background(colors.background)) {
+        if (!track.image.isNullOrBlank()) {
+            NetworkImage(
+                track.image,
+                Modifier.fillMaxSize().blur(64.dp),
+                contentScale = ContentScale.Crop,
+            )
+            Box(
+                Modifier.fillMaxSize().background(
+                    Brush.verticalGradient(
+                        listOf(
+                            Color.Black.copy(alpha = 0.50f),
+                            Color.Black.copy(alpha = 0.22f),
+                            Color.Black.copy(alpha = 0.30f),
+                            Color.Black.copy(alpha = 0.66f),
+                        ),
+                    ),
+                ),
+            )
+        }
     Column(
-        Modifier.fillMaxSize().background(colors.background).systemBarsPadding().padding(horizontal = 20.dp),
+        Modifier.fillMaxSize().systemBarsPadding().padding(horizontal = 20.dp),
     ) {
         Row(Modifier.fillMaxWidth().padding(vertical = 10.dp), verticalAlignment = Alignment.CenterVertically) {
             Icon(Icons.Filled.KeyboardArrowDown, "Réduire", tint = colors.foreground,
@@ -282,6 +309,7 @@ fun FullscreenPlayer(
             }
         }
     }
+    } // closes the ambient backdrop Box
 }
 
 @Composable

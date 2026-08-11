@@ -32,9 +32,57 @@ jobs:
       - name: Typecheck
         run: npm run typecheck
 
-      - name: Unit tests
-        run: npm test
+      - name: Unit tests (with coverage)
+        run: npm run test -- --coverage
 
+      - name: Build
+        run: npm run build
+        env:
+          NEXT_TELEMETRY_DISABLED: "1"
+
+      # Fail the build if the first-load JS bundle regresses past the budget.
+      # Next writes per-route stats to .next; we read the / route's uncompressed
+      # first-load JS and assert it stays under 850 KB (down from the 832 KB the
+      # audit flagged — generous ceiling so routine growth doesn't trip it, but a
+      # real regression like accidentally importing a heavy lib does).
+      - name: Bundle-size budget
+        run: node scripts/check-bundle-size.mjs .next 850000
+
+  # Audit for known vulnerabilities in production deps. `--audit-level=high`
+  # fails on high/critical; moderate/lower only warn. Runs separately so a
+  # vulnerability doesn't block unrelated lint/test signal, and so it's clear
+  # WHICH gate failed.
+  audit:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - name: Install dependencies
+        run: npm ci
+      - name: Audit production dependencies
+        run: npm audit --omit=dev --audit-level=high
+        continue-on-error: true # informative for now; flip to hard-fail once current advisories are triaged
+
+  # Cross-platform build sanity: the web build must succeed on all three desktop
+  # OSes (the Electron desktop app ships on Linux + Windows, and contributors are
+  # on macOS). Only builds — lint/type/test run once on ubuntu above.
+  build-matrix:
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-latest]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - name: Install dependencies
+        run: npm ci
       - name: Build
         run: npm run build
         env:
@@ -43,4 +91,4 @@ jobs:
   # NOTE: release artifacts (desktop installers + the native Android APK) are built
   # and attached to the GitHub Release by release.yml, which triggers on `v*` tags.
   # This workflow only runs on branch/PR pushes, so any tag-gated build job here
-  # would never fire — keep it to `verify`.
+  # would never fire — keep it to `verify` / `audit` / `build-matrix`.

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState, type MouseEvent, type PointerEvent as ReactPointerEvent } from "react";
+import { useEffect, useRef, useState, type CSSProperties, type MouseEvent, type PointerEvent as ReactPointerEvent } from "react";
 import {
   Play,
   Pause,
@@ -17,12 +17,10 @@ import {
   Share2,
 } from "lucide-react";
 import { usePlayer } from "@/store/player";
-import { api } from "@/lib/auralis/api";
 import { shareTrack } from "@/lib/auralis/share";
 import { useFocusTrap } from "@/lib/auralis/useFocusTrap";
 import { usePlayhead } from "@/store/playhead";
-import { Artwork, sizedArt } from "./Artwork";
-import { TiltStage } from "./TiltStage";
+import { Artwork } from "./Artwork";
 import { ConnectButton } from "./ConnectButton";
 import { LyricsView } from "./LyricsView";
 import { QueueList } from "./QueueList";
@@ -67,10 +65,6 @@ export function FullscreenPlayer() {
   if (!currentTrack) return null;
 
   const colors = currentTrack.color ?? paletteForName(currentTrack.trackhash);
-  // Small bucket is plenty behind an 80px blur — cheap and cached. `sizedArt`
-  // owns the `?w=` thumbnail-bucket convention (intended×2 → 256 bucket).
-  const coverSrc = currentTrack.image ? api.assetUrl(currentTrack.image) : null;
-  const blurredCover = coverSrc ? sizedArt(coverSrc, 128) : null;
   const onFav = () => { if (!fav) setFavPop(true); toggleFavorite(currentTrack.trackhash); };
 
   const openMore = (event: MouseEvent<HTMLButtonElement>) => {
@@ -112,40 +106,55 @@ export function FullscreenPlayer() {
       // window-move instead of firing the click ("I could see it, it didn't work").
       // Carving the whole overlay out of the drag region restores every control.
       // No-op in the browser/mobile (app-region does nothing there).
-      className="no-drag fixed inset-0 z-[60] bg-[var(--background)]"
+      className="no-drag fixed inset-0 z-[60] bg-black"
       style={{
         transform: dragY ? `translateY(${dragY}px)` : undefined,
-        transition: dragging ? "none" : "transform 0.2s ease"
-      }}
+        transition: dragging ? "none" : "transform 0.2s ease",
+        // The now-playing stage is dominated by the ambient blurred cover, so it
+        // is ALWAYS rendered in a dark palette — even when the app is in light
+        // mode — exactly like Apple Music's full-screen player.
+        "--background": "#000000",
+        "--foreground": "#ffffff",
+        "--text-muted": "#98989f",
+        "--text-faint": "#636366",
+      } as CSSProperties}
     >
-      {/* Spotify-style cover-themed backdrop. Bottom layer: the actual cover blown
-          up and heavily blurred so the whole stage is bathed in the artwork's real
-          tones. Top layer: the server-extracted palette painting a soft glow that
-          gives the wash structure and fades cleanly into the app background. Both
-          cross-fade over 700ms as the cover changes. */}
-      {blurredCover && (
-        <div className="absolute inset-0 overflow-hidden pointer-events-none">
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img
-            key={blurredCover}
-            src={blurredCover}
-            alt=""
+      {/* Apple Music signature backdrop: a blown-up, heavily blurred copy of the
+          cover art — saturated and dimmed so it reads as an ambient colour field
+          behind the now-playing stage. This is the defining visual of Apple Music's
+          full-screen player. Falls back to a palette tint wash when there is no art. */}
+      {currentTrack.image ? (
+        <>
+          <div
             aria-hidden
-            className="absolute inset-0 h-full w-full scale-125 object-cover opacity-45 blur-[80px] saturate-150"
+            className="absolute inset-0 scale-[1.35] pointer-events-none"
+            style={{
+              backgroundImage: `url("${currentTrack.image}")`,
+              backgroundSize: "cover",
+              backgroundPosition: "center",
+              filter: "saturate(1.8) blur(74px) brightness(0.62)",
+              transition: "background-image 0.7s ease",
+            }}
           />
-        </div>
+          {/* Vertical legibility scrim — darker at top/bottom so artwork + text pop,
+              exactly like Apple Music's now-playing gradient overlay. */}
+          <div
+            aria-hidden
+            className="absolute inset-0 pointer-events-none"
+            style={{
+              background:
+                "linear-gradient(to bottom, rgba(0,0,0,0.5) 0%, rgba(0,0,0,0.18) 32%, rgba(0,0,0,0.28) 70%, rgba(0,0,0,0.62) 100%)",
+            }}
+          />
+        </>
+      ) : (
+        <div
+          className="absolute inset-0 pointer-events-none transition-[background] duration-700 ease-out"
+          style={{
+            background: `linear-gradient(to bottom, ${colors[0] || "#1c1c1e"}cc 0%, var(--background) 75%)`,
+          }}
+        />
       )}
-      <div
-        className="absolute inset-0 pointer-events-none transition-[background] duration-700 ease-out"
-        style={{
-          background: `radial-gradient(120% 75% at 50% -8%, ${colors[0] || "#535353"}cc 0%, transparent 58%), radial-gradient(90% 60% at 80% 8%, ${(colors[2] || colors[0] || "#535353")}55 0%, transparent 55%), linear-gradient(to bottom, transparent 0%, ${(colors[0] || "#535353")}33 30%, var(--background) 88%)`,
-        }}
-      />
-      {/* Legibility scrim: the blurred cover + palette wash can be near-white for a
-          light album, washing out the white top-bar controls. A short top-down dark
-          fade keeps the back button / track meta readable on any cover, with no
-          visible effect on dark ones. */}
-      <div className="absolute inset-x-0 top-0 h-32 pointer-events-none bg-gradient-to-b from-black/40 to-transparent" />
 
       <div className="relative z-10 flex h-full flex-col pt-[env(safe-area-inset-top)] pb-[env(safe-area-inset-bottom)]">
 
@@ -155,9 +164,9 @@ export function FullscreenPlayer() {
           type="button"
           onClick={closeFullscreenPlayer}
           aria-label="Réduire le lecteur"
-          className="grid h-10 w-10 place-items-center text-white transition-transform active:scale-90"
+          className="grid h-10 w-10 place-items-center text-foreground transition-transform active:scale-90"
         >
-          <ChevronDown className="size-8" />
+          <ChevronDown className="size-7" strokeWidth={2.25} />
         </button>
         <div
           className="flex-1 cursor-grab select-none text-center active:cursor-grabbing px-2"
@@ -166,17 +175,17 @@ export function FullscreenPlayer() {
           onPointerUp={onDragPointerEnd}
           onPointerCancel={onDragPointerEnd}
         >
-          <p className="text-[10px] font-medium uppercase tracking-[0.08em] text-white/80">
+          <p className="text-[10px] font-medium uppercase tracking-[0.08em] text-[var(--text-muted)]">
             {currentTrack.album ? "LECTURE DE L'ALBUM" : "LECTURE EN COURS"}
           </p>
-          <p className="text-[12px] font-bold text-white truncate">
+          <p className="text-[12px] font-bold text-foreground truncate">
             {currentTrack.album || trackArtist(currentTrack)}
           </p>
         </div>
         <button
           onClick={openMore}
           aria-label="Options du titre"
-          className="grid h-10 w-10 place-items-center text-white"
+          className="grid h-10 w-10 place-items-center text-foreground"
         >
           <MoreHorizontal className="size-6" />
         </button>
@@ -189,21 +198,21 @@ export function FullscreenPlayer() {
              just the paroles, full-bleed. */
           <div className="min-h-0 flex-1 pt-2 lg:grid lg:grid-cols-[minmax(0,400px)_minmax(0,1fr)] lg:items-stretch lg:gap-12 lg:px-2">
             <div className="hidden min-h-0 flex-col justify-center gap-7 lg:flex">
-              <TiltStage radius={10} className="w-full aspect-square shadow-2xl shadow-black/40">
+              <div className="w-full aspect-square overflow-hidden rounded-xl shadow-2xl shadow-black/40">
                 <Artwork
                   fluid
                   title={currentTrack.title}
                   trackhash={currentTrack.trackhash}
                   imgSize={640}
-                  rounded={10}
+                  rounded={14}
                   colors={colors}
                   image={currentTrack.image}
                   className="w-full h-full"
                 />
-              </TiltStage>
+              </div>
               <div className="flex items-center justify-between gap-4">
                 <div className="flex min-w-0 flex-col">
-                  <h1 className="truncate text-[26px] font-bold text-white">{trackTitle(currentTrack)}</h1>
+                  <h1 className="truncate text-[28px] font-bold text-foreground">{trackTitle(currentTrack)}</h1>
                   <p className="truncate text-[17px] font-medium text-[var(--text-muted)]">{trackArtist(currentTrack)}</p>
                 </div>
                 <button
@@ -212,7 +221,7 @@ export function FullscreenPlayer() {
                   className="shrink-0 transition-transform active:scale-90"
                 >
                   <Heart
-                    className={cn("size-[26px]", favPop && "heart-pop", fav ? "fill-[var(--primary)] text-[var(--primary)]" : "text-white")}
+                    className={cn("size-[26px]", favPop && "heart-pop", fav ? "fill-[var(--primary)] text-[var(--primary)]" : "text-foreground")}
                     onAnimationEnd={() => setFavPop(false)}
                   />
                 </button>
@@ -230,22 +239,22 @@ export function FullscreenPlayer() {
           /* Mobile Stage: Artwork + Meta */
           <div className="flex min-h-0 flex-1 flex-col justify-center gap-8">
             <div className="w-full flex justify-center">
-              <TiltStage radius={8} className="w-full max-w-[400px] aspect-square">
+              <div className="w-full max-w-[400px] aspect-square overflow-hidden rounded-xl shadow-2xl shadow-black/40">
                 <Artwork
                   fluid
                   title={currentTrack.title}
                   trackhash={currentTrack.trackhash}
-                  rounded={8}
+                  rounded={14}
                   colors={colors}
                   image={currentTrack.image}
                   className="w-full h-full"
                 />
-              </TiltStage>
+              </div>
             </div>
             
             <div className="flex items-center justify-between">
               <div className="flex flex-col min-w-0 pr-4">
-                <h1 className="truncate text-[24px] font-bold text-white">{trackTitle(currentTrack)}</h1>
+                <h1 className="truncate text-[26px] font-bold text-foreground">{trackTitle(currentTrack)}</h1>
                 <p className="truncate text-[16px] font-medium text-[var(--text-muted)]">{trackArtist(currentTrack)}</p>
               </div>
               <button
@@ -254,7 +263,7 @@ export function FullscreenPlayer() {
                 className="shrink-0 transition-transform active:scale-90"
               >
                 <Heart
-                  className={cn("size-[26px]", favPop && "heart-pop", fav ? "fill-[var(--primary)] text-[var(--primary)]" : "text-white")}
+                  className={cn("size-[26px]", favPop && "heart-pop", fav ? "fill-[var(--primary)] text-[var(--primary)]" : "text-foreground")}
                   onAnimationEnd={() => setFavPop(false)}
                 />
               </button>
@@ -272,30 +281,30 @@ export function FullscreenPlayer() {
       <div className="flex items-center justify-between px-6 pb-4">
         <button
           onClick={toggleShuffle}
-          className={cn("grid h-12 w-12 place-items-center rounded-full transition-transform active:scale-90", shuffle ? "text-[var(--primary)]" : "text-white")}
+          className={cn("grid h-12 w-12 place-items-center rounded-full transition-transform active:scale-90", shuffle ? "text-[var(--primary)]" : "text-foreground")}
           aria-label="Lecture aléatoire"
         >
-          <Shuffle className="size-6" />
+          <Shuffle className="size-5" />
         </button>
-        <button onClick={playPrev} className="grid h-12 w-12 place-items-center rounded-full text-white transition-transform active:scale-90" aria-label="Précédent">
+        <button onClick={playPrev} className="grid h-12 w-12 place-items-center rounded-full text-foreground transition-transform active:scale-90" aria-label="Précédent">
           <SkipBack className="size-7 fill-current" />
         </button>
         <button
           onClick={togglePlay}
           aria-label={isPlaying ? "Pause" : "Lecture"}
-          className="grid h-16 w-16 place-items-center rounded-full bg-white text-black transition-transform active:scale-90"
+          className="grid h-16 w-16 place-items-center rounded-full bg-[var(--primary)] text-white transition-transform active:scale-90"
         >
           {isPlaying ? <Pause className="size-8 fill-current" /> : <Play className="size-8 fill-current ml-1" />}
         </button>
-        <button onClick={playNext} className="grid h-12 w-12 place-items-center rounded-full text-white transition-transform active:scale-90" aria-label="Suivant">
+        <button onClick={playNext} className="grid h-12 w-12 place-items-center rounded-full text-foreground transition-transform active:scale-90" aria-label="Suivant">
           <SkipForward className="size-7 fill-current" />
         </button>
         <button
           onClick={cycleRepeat}
-          className={cn("grid h-12 w-12 place-items-center rounded-full transition-transform active:scale-90", repeat !== "off" ? "text-[var(--primary)]" : "text-white")}
+          className={cn("grid h-12 w-12 place-items-center rounded-full transition-transform active:scale-90", repeat !== "off" ? "text-[var(--primary)]" : "text-foreground")}
           aria-label="Répéter"
         >
-          {repeat === "one" ? <Repeat1 className="size-6" /> : <Repeat className="size-6" />}
+          {repeat === "one" ? <Repeat1 className="size-5" /> : <Repeat className="size-5" />}
         </button>
       </div>
 
@@ -305,7 +314,7 @@ export function FullscreenPlayer() {
           onClick={toggleLyrics}
           aria-label="Paroles"
           aria-pressed={lyricsOpen}
-          className={cn("grid h-10 w-10 place-items-center transition-colors", lyricsOpen ? "text-[var(--primary)]" : "text-white/70 hover:text-white")}
+          className={cn("grid h-10 w-10 place-items-center transition-colors", lyricsOpen ? "text-[var(--primary)]" : "text-[var(--text-muted)] hover:text-foreground")}
         >
           <Mic2 className="size-5" />
         </button>
@@ -314,7 +323,7 @@ export function FullscreenPlayer() {
           <button
             onClick={() => void shareTrack(currentTrack, notify)}
             aria-label="Partager"
-            className="grid h-10 w-10 place-items-center text-white/70 hover:text-white"
+            className="grid h-10 w-10 place-items-center text-[var(--text-muted)] hover:text-foreground"
           >
             <Share2 className="size-5" />
           </button>
@@ -322,7 +331,7 @@ export function FullscreenPlayer() {
             onClick={toggleQueue}
             aria-label="File d'attente"
             aria-pressed={queueOpen}
-            className={cn("grid h-10 w-10 place-items-center transition-colors", queueOpen ? "text-[var(--primary)]" : "text-white/70 hover:text-white")}
+            className={cn("grid h-10 w-10 place-items-center transition-colors", queueOpen ? "text-[var(--primary)]" : "text-[var(--text-muted)] hover:text-foreground")}
           >
             <ListMusic className="size-5" />
           </button>
@@ -382,12 +391,12 @@ function FullscreenScrubber({ seek }: { seek: (time: number) => void }) {
           setScrubPct(null);
         }}
       >
-        <div className="h-1 w-full overflow-hidden rounded-full bg-white/20">
-          <div className="h-full rounded-full bg-white group-hover:bg-[var(--primary)]" style={{ width: `${pct}%` }} />
+        <div className="h-1.5 w-full overflow-hidden rounded-full bg-[var(--surface-3)]">
+          <div className="h-full rounded-full bg-foreground group-hover:bg-[var(--primary)]" style={{ width: `${pct}%` }} />
         </div>
         <div
-          className="pointer-events-none absolute top-1/2 h-3 w-3 -translate-y-1/2 rounded-full bg-white opacity-0 transition-opacity group-hover:opacity-100 group-active:opacity-100 shadow-md"
-          style={{ left: `calc(${pct}% - 6px)` }}
+          className="pointer-events-none absolute top-1/2 h-3.5 w-3.5 -translate-y-1/2 rounded-full bg-foreground opacity-0 transition-opacity group-hover:opacity-100 group-active:opacity-100 shadow-md"
+          style={{ left: `calc(${pct}% - 7px)` }}
         />
       </div>
       <div className="flex items-center justify-between mt-1">

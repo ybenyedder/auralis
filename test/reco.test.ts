@@ -3,7 +3,7 @@
 // feeling-space content generalisation, the hard dislike exclude, and the
 // month-bucketed mood aggregation are all exercised end to end.
 
-import { test } from "node:test";
+import { test } from "vitest";
 import assert from "node:assert/strict";
 import fs from "fs";
 import os from "os";

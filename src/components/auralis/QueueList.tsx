@@ -29,7 +29,7 @@ export function QueueList({ maxHeight }: { maxHeight?: string }) {
         <p className="text-[12px] font-semibold uppercase tracking-[0.06em] text-muted-foreground lg:text-[11px]">{shuffledQueue.length} titres</p>
         <button
           onClick={clearQueue}
-          className="tap-press flex min-h-[40px] items-center gap-1.5 rounded-full px-3 py-1 text-[12px] font-bold text-muted-foreground/70 transition-colors duration-200 hover:bg-white/[0.04] hover:text-foreground lg:min-h-0 lg:gap-1 lg:text-[10.5px]"
+          className="tap-press flex min-h-[40px] items-center gap-1.5 rounded-full px-3 py-1 text-[12px] font-bold text-muted-foreground/70 transition-colors duration-200 hover:bg-[var(--surface-2)] hover:text-foreground lg:min-h-0 lg:gap-1 lg:text-[10.5px]"
         >
           <Trash2 className="size-3.5 lg:size-3" /> Nettoyer
         </button>
@@ -105,7 +105,7 @@ function QueueRow({
   return (
     <div
       className={cn(
-        "group flex items-center gap-2 rounded-sm px-2 py-1.5 transition-all duration-200 lg:py-2 hover:bg-white/[0.10]",
+        "group flex items-center gap-2 rounded-sm px-2 py-1.5 transition-all duration-200 lg:py-2 hover:bg-[var(--surface-2)]",
         active && "text-foreground"
       )}
     >

@@ -4,7 +4,7 @@
 // (window + localStorage) before importing it, and import it lazily inside the
 // tests (the test runner transforms to CJS, which forbids top-level await).
 
-import { test } from "node:test";
+import { test } from "vitest";
 import assert from "node:assert/strict";
 
 const lsStore: Record<string, string> = {};
@@ -125,8 +125,8 @@ test("session restore round-trips track + order + position (paused)", async () =
   const { usePlayer, usePlayhead, useLibraryStore, consumeResumeSeek } = await stores();
   const lib = [mk("t0"), mk("t1"), mk("t2")];
   useLibraryStore.setState({ tracks: lib });
-  lsStore["auralis.vault.v1"] = JSON.stringify({ lastSession: { trackhash: "t1", queueHashes: ["t1", "t0", "t2"], currentIndex: 0, position: 42 } });
   usePlayer.setState({ currentTrack: null, queue: [], shuffledQueue: [] });
+  lsStore["auralis.vault.v1"] = JSON.stringify({ lastSession: { trackhash: "t1", queueHashes: ["t1", "t0", "t2"], currentIndex: 0, position: 42 } });
   usePlayer.getState().restoreLastSession();
   const s = usePlayer.getState();
   assert.equal(s.currentTrack?.trackhash, "t1");
@@ -145,8 +145,8 @@ test("session restore falls back to the single track when it's outside the saved
   const lib = [mk("a"), mk("b"), mk("c")];
   useLibraryStore.setState({ tracks: lib });
   // Simulate an autoplay-truncated window: current track "c" is NOT among queueHashes.
-  lsStore["auralis.vault.v1"] = JSON.stringify({ lastSession: { trackhash: "c", queueHashes: ["a", "b"], currentIndex: 0, position: 30 } });
   usePlayer.setState({ currentTrack: null, queue: [], shuffledQueue: [] });
+  lsStore["auralis.vault.v1"] = JSON.stringify({ lastSession: { trackhash: "c", queueHashes: ["a", "b"], currentIndex: 0, position: 30 } });
   consumeResumeSeek("a"); consumeResumeSeek("c"); // drain any armed state
   usePlayer.getState().restoreLastSession();
   const s = usePlayer.getState();

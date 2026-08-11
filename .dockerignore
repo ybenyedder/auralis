@@ -1,0 +1,16 @@
+.git
+.github
+node_modules
+.next
+dist-desktop
+dist-standalone
+build
+android-native
+ios-native
+desktop
+test
+docs
+*.log
+tsconfig.tsbuildinfo
+Dockerfile
+.dockerignore

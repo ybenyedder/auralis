@@ -31,7 +31,7 @@ import {
 } from "lucide-react";
 import { usePlayer, shuffleArray } from "@/store/player";
 import { useStats } from "@/store/stats";
-import { THEMES, THEME_LIST, THEME_GROUPS, type Theme } from "@/lib/auralis/themes";
+import { type Mode } from "@/lib/auralis/themes";
 import { api } from "@/lib/auralis/api";
 import {
   albumsOfArtistFrom,
@@ -683,10 +683,8 @@ export function SettingsView() {
   const setCrossfade = usePlayer((s) => s.setCrossfade);
   const startSleepTimer = usePlayer((s) => s.startSleepTimer);
   const cancelSleepTimer = usePlayer((s) => s.cancelSleepTimer);
-  const theme = usePlayer((s) => s.theme);
-  const setTheme = usePlayer((s) => s.setTheme);
-  const flatBackdrop = usePlayer((s) => s.flatBackdrop);
-  const setFlatBackdrop = usePlayer((s) => s.setFlatBackdrop);
+  const mode = usePlayer((s) => s.mode);
+  const setMode = usePlayer((s) => s.setMode);
   const rightPanelOpen = usePlayer((s) => s.rightPanelOpen);
   const toggleRightPanel = usePlayer((s) => s.toggleRightPanel);
   const locale = usePlayer((s) => s.locale);
@@ -1114,10 +1112,10 @@ export function SettingsView() {
                 onClick={() => setSection(item.id)}
                 aria-pressed={isActive}
                 className={cn(
-                  "tap-press flex h-11 shrink-0 snap-start items-center gap-2 rounded-full border border-transparent px-4 text-[13px] font-bold transition-all duration-200",
+                  "tap-press flex h-11 shrink-0 snap-start items-center gap-2 rounded-full border border-transparent px-4 text-[13px] font-semibold transition-all duration-200",
                   isActive
-                    ? "bg-white/10 text-white shadow-[inset_0_1px_0_rgba(255,255,255,0.1)]"
-                    : "bg-white/5 text-muted-foreground hover:bg-white/[0.07]",
+                    ? "bg-[var(--surface-3)] text-foreground"
+                    : "bg-[var(--surface-2)] text-muted-foreground hover:text-foreground",
                 )}
               >
                 <Icon
@@ -1158,7 +1156,7 @@ export function SettingsView() {
         <section className="min-w-0 space-y-5">
           {section === "appearance" && (
             <>
-              <ThemeGallery theme={theme} setTheme={setTheme} />
+              <ModeSelector mode={mode} setMode={setMode} />
               <SettingsCard
                 title="Interface"
                 rows={[
@@ -1174,13 +1172,6 @@ export function SettingsView() {
                     type: "toggle",
                     active: rightPanelOpen,
                     onAction: toggleRightPanel,
-                  },
-                  {
-                    label: "Arrière-plan sobre",
-                    value: flatBackdrop ? "Uni" : "Animé",
-                    type: "toggle",
-                    active: flatBackdrop,
-                    onAction: () => setFlatBackdrop(!flatBackdrop),
                   },
                 ]}
               />
@@ -1330,102 +1321,56 @@ function SettingsCard({ title, rows }: { title: string; rows: SettingsRow[] }) {
   );
 }
 
-// --- Theme gallery (appearance settings) -----------------------------------
-function ThemeGallery({ theme, setTheme }: { theme: string; setTheme: (id: string) => void }) {
-  const current = THEMES[theme] ?? THEME_LIST[0];
+// --- Appearance mode selector (dark / light / auto) ------------------------
+function ModeSelector({ mode, setMode }: { mode: Mode; setMode: (m: Mode) => void }) {
+  const options: { id: Mode; label: string; hint: string }[] = [
+    { id: "dark", label: "Sombre", hint: "Fond noir, accents rouges." },
+    { id: "light", label: "Clair", hint: "Fond blanc, lisibilité jour." },
+    { id: "auto", label: "Auto", hint: "Suit la préférence système." },
+  ];
   return (
     <div className="matte-panel rounded-lg p-4">
-      <div className="mb-4 flex items-start justify-between gap-3">
-        <div className="min-w-0">
-          <p className="text-[10px] font-semibold uppercase tracking-[0.06em] text-[var(--brass)]">
-            Thème
-          </p>
-          <h2 className="mt-0.5 text-[18px] font-black leading-tight text-foreground">
-            {current.label}
-          </h2>
-          <p className="mt-1 max-w-md text-[12px] leading-relaxed text-muted-foreground">
-            {current.blurb}
-          </p>
-        </div>
-        <span className="shrink-0 rounded-full border border-transparent bg-white/5 shadow-[inset_0_1px_0_rgba(255,255,255,0.05)] px-3 py-1 text-[10.5px] font-bold text-muted-foreground">
-          {THEME_LIST.length} thèmes
-        </span>
+      <div className="mb-4">
+        <p className="text-[10px] font-semibold uppercase tracking-[0.06em] text-muted-foreground">
+          Apparence
+        </p>
+        <h2 className="mt-0.5 text-[18px] font-black leading-tight text-foreground">
+          {options.find((o) => o.id === mode)?.label ?? "Sombre"}
+        </h2>
+        <p className="mt-1 max-w-md text-[12px] leading-relaxed text-muted-foreground">
+          Une interface épurée inspirée d’Apple Music : surfaces opaques, rouge
+          #FA233B, typographie nette.
+        </p>
       </div>
-
-      <div className="space-y-5">
-        {THEME_GROUPS.map((group) => {
-          const themes = THEME_LIST.filter((t) => t.group === group.id);
-          if (themes.length === 0) return null;
+      <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-3">
+        {options.map((o) => {
+          const active = o.id === mode;
           return (
-            <div key={group.id}>
-              <p className="mb-2 text-[10px] font-semibold uppercase tracking-[0.07em] text-muted-foreground/65">
-                {group.label}
-              </p>
-              <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-3 lg:grid-cols-4">
-                {themes.map((t) => (
-                  <ThemePreview
-                    key={t.id}
-                    theme={t}
-                    active={t.id === theme}
-                    onPick={() => setTheme(t.id)}
-                  />
-                ))}
+            <button
+              key={o.id}
+              onClick={() => setMode(o.id)}
+              aria-pressed={active}
+              className={cn(
+                "group relative flex flex-col gap-1.5 rounded-xl border p-3 text-left transition-all duration-200",
+                active
+                  ? "border-[var(--primary)] bg-[color-mix(in_srgb,var(--primary)_12%,transparent)]"
+                  : "border-transparent bg-white/[0.04] hover:bg-white/[0.07]",
+              )}
+            >
+              <div className="flex items-center justify-between">
+                <span className="text-[13px] font-bold text-foreground">{o.label}</span>
+                {active && (
+                  <span className="grid size-4 place-items-center rounded-full bg-[var(--primary)] text-white">
+                    <CheckCircle2 className="size-3.5" />
+                  </span>
+                )}
               </div>
-            </div>
+              <span className="text-[11px] leading-relaxed text-muted-foreground">{o.hint}</span>
+            </button>
           );
         })}
       </div>
     </div>
-  );
-}
-
-function ThemePreview({ theme, active, onPick }: { theme: Theme; active: boolean; onPick: () => void }) {
-  const glassy = theme.group !== "classic";
-  const [c0, c1, c2] = theme.swatch;
-  const primary = theme.vars.primary;
-  return (
-    <button
-      onClick={onPick}
-      aria-pressed={active}
-      aria-label={theme.label}
-      className={cn(
-        "group relative flex flex-col gap-1.5 rounded-xl border border-transparent p-2 text-left transition-all duration-200",
-        active
-          ? "bg-white/10 shadow-[inset_0_0_0_1px_rgba(255,255,255,0.1)]"
-          : "hover:bg-white/[0.04]",
-      )}
-    >
-      <div
-        className="relative h-16 w-full overflow-hidden rounded-lg lg:h-[72px]"
-        style={{
-          background: `radial-gradient(120% 90% at 24% 18%, ${c1}66, transparent 55%), linear-gradient(150deg, ${c0}, ${c2})`,
-        }}
-      >
-        {/* signal dot — the theme's primary action colour */}
-        <span
-          className="absolute bottom-1.5 left-1.5 h-3.5 w-3.5 rounded-full ring-1 ring-black/30"
-          style={{ background: primary }}
-        />
-        {active && (
-          <span className="absolute right-1.5 top-1.5 grid size-4 place-items-center rounded-full bg-white text-black">
-            <CheckCircle2 className="size-3.5" />
-          </span>
-        )}
-        {glassy && (
-          <span className="absolute right-1.5 bottom-1.5 rounded-sm bg-black/45 px-1.5 py-0.5 text-[8.5px] font-semibold uppercase tracking-[0.04em] text-white/90">
-            Verre
-          </span>
-        )}
-      </div>
-      <span
-        className={cn(
-          "truncate px-0.5 text-[11.5px] font-bold",
-          active ? "text-foreground" : "text-muted-foreground group-hover:text-foreground",
-        )}
-      >
-        {theme.label}
-      </span>
-    </button>
   );
 }
 

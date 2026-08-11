@@ -11,7 +11,6 @@ import { NowPlayingPanel } from "@/components/auralis/NowPlayingPanel";
 import { ContextMenuHost } from "@/components/auralis/ContextMenu";
 import { ToastHost } from "@/components/auralis/Toast";
 import { StickyViewHeader } from "@/components/auralis/StickyViewHeader";
-import { ThemeBackdrop } from "@/components/auralis/ThemeBackdrop";
 import { HomeView } from "@/components/auralis/views/HomeView";
 import { ExploreView } from "@/components/auralis/views/ExploreView";
 import { LibraryView } from "@/components/auralis/views/LibraryView";
@@ -87,7 +86,6 @@ function AuralisShell() {
   const setHelpOpen = usePlayer((s) => s.setHelpOpen);
   const toggleVisualizer = usePlayer((s) => s.toggleVisualizer);
   const notify = usePlayer((s) => s.notify);
-  const hydrateLocal = usePlayer((s) => s.hydrateLocal);
   const hydrateFromServer = usePlayer((s) => s.hydrateFromServer);
   const fetchLyrics = usePlayer((s) => s.fetchLyrics);
 
@@ -101,10 +99,9 @@ function AuralisShell() {
   // Apply persisted local state after mount (avoids SSR hydration mismatch), then
   // reconcile with the server's shared state.
   useEffect(() => {
-    hydrateLocal();
     void hydrateFromServer();
     void useStats.getState().fetchStats();
-  }, [hydrateLocal, hydrateFromServer]);
+  }, [hydrateFromServer]);
 
   // Restore the last session (current track + queue, paused) once the library is
   // ready to resolve the saved hashes. No-ops if the user already started playing.
@@ -643,8 +640,7 @@ function AuralisShell() {
 
   return (
     <>
-      <ThemeBackdrop />
-      <div className="app-chrome relative z-[1] flex h-[100dvh] w-screen flex-col overflow-hidden bg-black text-foreground">
+      <div className="app-chrome relative z-[1] flex h-[100dvh] w-screen flex-col overflow-hidden bg-background text-foreground" suppressHydrationWarning>
       {/* Keyboard skip-link: first tab stop jumps straight to the main content,
           past the title bar / sidebar (WCAG 2.4.1 bypass blocks). */}
       <a

@@ -1,5 +1,15 @@
 import type { ReactNode } from "react";
+import { Inter } from "next/font/google";
 import "./globals.css";
+
+// Inter as a legal, redistributable approximation of SF Pro. On Apple platforms
+// the --font-sans stack in globals.css still resolves to the native SF Pro first
+// (via -apple-system); Inter fills in everywhere else and powers --font-inter.
+const inter = Inter({
+  subsets: ["latin"],
+  display: "swap",
+  variable: "--font-inter",
+});
 
 export const metadata = {
   title: "Auralis — Ton coffre musical personnel",
@@ -21,8 +31,8 @@ export const metadata = {
 };
 
 export const viewport = {
-  // Matches the default theme (Spotify) so the OS chrome doesn't pop a different
-  // colour on first paint (applyTheme overrides this at runtime per selected theme).
+  // Dark by default so the OS chrome doesn't flash white on first paint;
+  // applyMode overrides this at runtime when light/auto is chosen.
   themeColor: "#000000",
   width: "device-width",
   initialScale: 1,
@@ -31,14 +41,22 @@ export const viewport = {
   viewportFit: "cover" as const,
 };
 
+// Inline script (runs before paint) to apply the persisted appearance mode from
+// localStorage and avoid a FOUC flash of the wrong palette. Mirrors the logic in
+// themes.ts#applyMode but without the React import graph. Keep it tiny.
+const appearanceBootstrap = `(function(){try{var k='auralis-appearance';var m=localStorage.getItem(k)||'dark';if(m==='auto'){m=window.matchMedia&&window.matchMedia('(prefers-color-scheme: light)').matches?'light':'dark';}var r=document.documentElement;r.dataset.mode=m;r.classList.toggle('light',m==='light');r.classList.toggle('dark',m==='dark');}catch(e){var r=document.documentElement;r.dataset.mode='dark';r.classList.add('dark');}})();`;
+
 export default function RootLayout({
   children,
 }: Readonly<{
   children: ReactNode;
 }>) {
   return (
-    <html lang="fr" suppressHydrationWarning className="dark">
-      <body className="bg-background font-sans text-foreground antialiased">
+    <html lang="fr" suppressHydrationWarning>
+      <head>
+        <script dangerouslySetInnerHTML={{ __html: appearanceBootstrap }} />
+      </head>
+      <body className={`${inter.variable} bg-background font-sans text-foreground antialiased`} suppressHydrationWarning>
         {children}
       </body>
     </html>

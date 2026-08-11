@@ -176,17 +176,10 @@ export function HomeView() {
 
   return (
     <div className="relative fade-up min-h-full pb-8">
-      {/* Home accent wash — tinted from the active theme's primary so it belongs to
-          the current theme instead of a fixed grey (Spotify-style top fade). */}
-      <div
-        className="absolute inset-0 h-[332px] pointer-events-none opacity-30 z-0"
-        style={{ background: "linear-gradient(to bottom, var(--primary), transparent)" }}
-      />
-      
       <div className="relative z-10 px-4 py-4 lg:px-6 lg:py-6 space-y-8 lg:space-y-10">
-        {/* Spotify-style greeting + quick-access grid */}
+        {/* iOS Large Title greeting + quick-access grid (Apple Music home) */}
         <section>
-          <h1 className="text-[24px] font-bold tracking-tight text-white lg:text-[32px] mb-4">{greeting}</h1>
+          <h1 className="text-[28px] font-bold tracking-tight text-foreground lg:text-[34px] mb-4">{greeting}</h1>
           {error && <p className="mt-2 max-w-xl text-[12px] font-medium text-[var(--text-muted)]">{error}</p>}
 
           {tracks.length === 0 ? (
@@ -266,7 +259,7 @@ export function HomeView() {
               </button>
             </div>
             <div className="mt-4 grid grid-cols-2 gap-3 xl:grid-cols-4">
-              {moodRecs.recs.map((t, i) => (
+              {moodRecs.recs.map((t: import("@/lib/auralis/types").Track, i: number) => (
                 <QuickTile
                   key={t.trackhash}
                   title={trackTitle(t)}
@@ -376,7 +369,7 @@ function QuickTile({
         />
       )}
       <span className="flex min-w-0 flex-1 flex-col pr-2">
-        <span className="truncate text-[14px] font-bold text-white">{title}</span>
+        <span className="truncate text-[14px] font-semibold text-foreground">{title}</span>
         {subtitle && <span className="truncate text-[12px] font-medium text-[var(--text-muted)]">{subtitle}</span>}
       </span>
       <button

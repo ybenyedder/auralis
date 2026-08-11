@@ -2,7 +2,7 @@
 // attaching the WRONG song's lyrics when only the duration happened to be close.
 // pickBestLrclibHit is a pure function, so no database is needed.
 
-import { test } from "node:test";
+import { test } from "vitest";
 import assert from "node:assert/strict";
 import fs from "node:fs";
 import os from "node:os";

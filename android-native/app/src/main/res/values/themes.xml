@@ -1,11 +1,15 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <!-- Splash/host theme. The actual UI is fully Compose; this only styles the
-         window before Compose takes over (dark, edge-to-edge). -->
+         window before Compose takes over (dark, edge-to-edge, Apple-Music red
+         accent). The status / nav bars are opaque black so the splash matches
+         the dark Compose stage with no flash. -->
     <style name="Theme.Auralis" parent="android:Theme.Material.NoActionBar">
         <item name="android:windowBackground">@color/auralis_background</item>
-        <item name="android:statusBarColor">@android:color/transparent</item>
-        <item name="android:navigationBarColor">@android:color/transparent</item>
+        <item name="android:colorPrimary">@color/auralis_primary</item>
+        <item name="android:colorAccent">@color/auralis_primary</item>
+        <item name="android:statusBarColor">@color/auralis_background</item>
+        <item name="android:navigationBarColor">@color/auralis_background</item>
         <item name="android:windowLightStatusBar">false</item>
     </style>
 </resources>

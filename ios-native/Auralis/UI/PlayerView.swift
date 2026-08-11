@@ -35,16 +35,29 @@ struct PlayerView: View {
                 controls
             }
         }
-        .preferredColorScheme(.dark)
     }
 
+    /// Apple Music signature backdrop: a blown-up, heavily blurred copy of the cover
+    /// art, dimmed by a vertical scrim so the now-playing stage reads as an ambient
+    /// colour field (always dark, like Apple Music's full-screen player). The stage
+    /// text is forced to white above, so it stays legible in light + dark mode.
     private var backdrop: some View {
-        ZStack {
-            LinearGradient(colors: (app.currentTrack.map(trackColors) ?? [.black, .black]),
-                           startPoint: .top, endPoint: .bottom)
-            Rectangle().fill(.ultraThinMaterial)
-            Color.black.opacity(0.35)
-        }.ignoresSafeArea()
+        let colors = app.currentTrack.map(trackColors) ?? [.gray, .black]
+        return ZStack {
+            Theme.background.ignoresSafeArea()
+            CoverArt(url: app.artURL(app.currentTrack?.image), colors: colors, corner: 0)
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+                .scaleEffect(1.25)
+                .blur(radius: 55)
+                .opacity(0.85)
+                .ignoresSafeArea()
+            LinearGradient(
+                colors: [.black.opacity(0.50), .black.opacity(0.18), .black.opacity(0.30), .black.opacity(0.66)],
+                startPoint: .top,
+                endPoint: .bottom
+            )
+            .ignoresSafeArea()
+        }
     }
 
     private var cover: some View {

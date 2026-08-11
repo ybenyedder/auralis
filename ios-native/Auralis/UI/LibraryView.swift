@@ -56,7 +56,7 @@ struct LibraryView: View {
             Button { showCreate = true } label: {
                 Label("Nouvelle playlist", systemImage: "plus")
                     .font(.subheadline.weight(.bold)).padding(.horizontal, 16).padding(.vertical, 10)
-                    .background(Theme.panel2, in: Capsule()).foregroundStyle(.white)
+                    .background(Theme.panel2, in: Capsule()).foregroundStyle(.primary)
             }.buttonStyle(.plain)
             playlistList(app.user.playlists)
         }
@@ -66,7 +66,7 @@ struct LibraryView: View {
         NavigationLink(value: route) {
             HStack(spacing: 12) {
                 Image(systemName: icon).foregroundStyle(.secondary).frame(width: 22)
-                Text(title).font(.subheadline.weight(.semibold)).foregroundStyle(.white)
+                Text(title).font(.subheadline.weight(.semibold)).foregroundStyle(.primary)
                 Spacer()
                 Image(systemName: "chevron.right").font(.caption).foregroundStyle(.secondary)
             }
@@ -88,7 +88,7 @@ struct LibraryView: View {
                     VStack(alignment: .leading, spacing: 6) {
                         CoverArt(url: app.artURL(album.image), colors: palette(for: album.albumhash), corner: 8)
                             .aspectRatio(1, contentMode: .fit)
-                        Text(album.title).font(.footnote.weight(.semibold)).foregroundStyle(.white).lineLimit(1)
+                        Text(album.title).font(.footnote.weight(.semibold)).foregroundStyle(.primary).lineLimit(1)
                         Text(album.artistName).font(.caption2).foregroundStyle(.secondary).lineLimit(1)
                     }
                 }.buttonStyle(.plain)
@@ -103,7 +103,7 @@ struct LibraryView: View {
                     VStack(spacing: 6) {
                         CoverArt(url: app.artURL(artist.image), colors: palette(for: artist.artisthash), corner: 100)
                             .aspectRatio(1, contentMode: .fit).clipShape(Circle())
-                        Text(artist.name).font(.footnote.weight(.semibold)).foregroundStyle(.white).lineLimit(1)
+                        Text(artist.name).font(.footnote.weight(.semibold)).foregroundStyle(.primary).lineLimit(1)
                     }
                 }.buttonStyle(.plain)
             }
@@ -119,7 +119,7 @@ struct LibraryView: View {
                         CoverArt(url: app.artURL(pl.imageHash.map { "/api/art/\($0)" }), colors: palette(for: pl.id), corner: 6)
                             .frame(width: 52, height: 52)
                         VStack(alignment: .leading, spacing: 2) {
-                            Text(pl.name).font(.subheadline.weight(.semibold)).foregroundStyle(.white).lineLimit(1)
+                            Text(pl.name).font(.subheadline.weight(.semibold)).foregroundStyle(.primary).lineLimit(1)
                             Text("\(pl.trackhashes.count) titres").font(.caption).foregroundStyle(.secondary)
                         }
                         Spacer()

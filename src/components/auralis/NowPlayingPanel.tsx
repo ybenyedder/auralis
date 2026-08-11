@@ -4,7 +4,6 @@ import { X, Heart, MoreHorizontal } from "lucide-react";
 import { usePlayer } from "@/store/player";
 import { LyricsView } from "./LyricsView";
 import { Artwork } from "./Artwork";
-import { TiltStage } from "./TiltStage";
 import { QueueList } from "./QueueList";
 import { formatDuration, trackArtist, trackTitle } from "@/lib/auralis/brand";
 import { cn } from "@/lib/utils";
@@ -28,7 +27,7 @@ export function NowPlayingPanel() {
     <aside className="hidden w-[320px] lg:w-[380px] shrink-0 flex-col rounded-lg bg-[var(--background)] xl:flex">
       {/* Header */}
       <div className="flex h-16 items-center justify-between px-4 pt-2">
-        <h2 className="text-[16px] font-bold text-white">
+        <h2 className="text-[16px] font-bold text-foreground">
           {tab === "queue" ? "File d'attente" : tab === "lyrics" ? "Paroles" : currentTrack?.album || "Lecture en cours"}
         </h2>
         <div className="flex items-center gap-2">
@@ -41,7 +40,7 @@ export function NowPlayingPanel() {
                 }
               }}
               aria-label="Options du titre"
-              className="grid h-8 w-8 place-items-center rounded-full text-[var(--text-muted)] transition-colors hover:bg-[var(--panel-2)] hover:text-white"
+              className="grid h-8 w-8 place-items-center rounded-full text-[var(--text-muted)] transition-colors hover:bg-[var(--panel-2)] hover:text-foreground"
             >
               <MoreHorizontal className="size-5" />
             </button>
@@ -49,7 +48,7 @@ export function NowPlayingPanel() {
           <button
             onClick={toggleRightPanel}
             aria-label="Fermer le panneau"
-            className="grid h-8 w-8 place-items-center rounded-full text-[var(--text-muted)] transition-colors hover:bg-[var(--panel-2)] hover:text-white"
+            className="grid h-8 w-8 place-items-center rounded-full text-[var(--text-muted)] transition-colors hover:bg-[var(--panel-2)] hover:text-foreground"
           >
             <X className="size-5" />
           </button>
@@ -63,18 +62,18 @@ export function NowPlayingPanel() {
             <>
               {/* Cover */}
               <div className="w-full pb-4 pt-2">
-                <TiltStage radius={8} className="w-full aspect-square">
+                <div className="w-full aspect-square overflow-hidden rounded-xl shadow-2xl shadow-black/30">
                   <Artwork
                     fluid
                     title={currentTrack.title}
                     trackhash={currentTrack.trackhash}
                     imgSize={400}
-                    rounded={8}
+                    rounded={14}
                     colors={currentTrack.color}
                     image={currentTrack.image}
                     className="w-full h-full"
                   />
-                </TiltStage>
+                </div>
               </div>
 
               {/* Track info & Add to Fav */}
@@ -82,7 +81,7 @@ export function NowPlayingPanel() {
                 <div className="flex min-w-0 flex-col">
                   <button
                     onClick={() => currentTrack.albumhash && navigate("album", currentTrack.albumhash)}
-                    className="block w-full truncate text-left text-[24px] font-bold tracking-tight text-white transition-colors hover:underline"
+                    className="block w-full truncate text-left text-[24px] font-bold tracking-tight text-foreground transition-colors hover:underline"
                   >
                     {trackTitle(currentTrack)}
                   </button>
@@ -90,7 +89,7 @@ export function NowPlayingPanel() {
                     onClick={() => { const ah = currentTrack.artists?.[0]?.artisthash; if (ah) navigate("artist", ah); }}
                     className={cn(
                       "block w-full truncate text-left text-[16px] font-medium text-[var(--text-muted)] mt-0.5",
-                      currentTrack.artists?.[0]?.artisthash && "hover:text-white hover:underline"
+                      currentTrack.artists?.[0]?.artisthash && "hover:text-foreground hover:underline"
                     )}
                   >
                     {trackArtist(currentTrack)}
@@ -101,13 +100,13 @@ export function NowPlayingPanel() {
                   aria-label={fav ? "Retirer des favoris" : "Ajouter aux favoris"}
                   className="ml-4 flex shrink-0 items-center justify-center transition-transform active:scale-100"
                 >
-                  <Heart className={cn("size-6", fav ? "fill-[var(--primary)] text-[var(--primary)]" : "text-[var(--text-muted)] hover:text-white")} />
+                  <Heart className={cn("size-6", fav ? "fill-[var(--primary)] text-[var(--primary)]" : "text-[var(--text-muted)] hover:text-foreground")} />
                 </button>
               </div>
 
               {/* Auralis Metadata Card (Spotify style About the artist / Credits cards) */}
               <div className="mb-4 rounded-lg bg-[var(--panel-2)] p-4">
-                <h3 className="text-[16px] font-bold text-white mb-4">À propos du titre</h3>
+                <h3 className="text-[16px] font-bold text-foreground mb-4">À propos du titre</h3>
                 <div className="flex flex-col gap-3">
                   {currentTrack.album && (
                     <MetaLine label="Album" value={currentTrack.album} />
@@ -150,7 +149,7 @@ export function NowPlayingPanel() {
 function MetaLine({ label, value }: { label: string; value: string }) {
   return (
     <div className="flex flex-col">
-      <span className="text-[16px] font-bold text-white">{value}</span>
+      <span className="text-[16px] font-bold text-foreground">{value}</span>
       <span className="text-[14px] font-medium text-[var(--text-muted)]">{label}</span>
     </div>
   );

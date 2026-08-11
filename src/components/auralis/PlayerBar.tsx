@@ -97,7 +97,7 @@ export function PlayerBar() {
             <div className="flex min-w-0 flex-col justify-center">
               <button
                 onClick={toggleFullscreenPlayer}
-                className="block truncate text-left text-[14px] font-medium text-white transition-colors hover:underline"
+                className="block truncate text-left text-[13px] font-semibold text-foreground transition-colors hover:underline"
               >
                 {trackTitle(currentTrack)}
               </button>
@@ -107,7 +107,7 @@ export function PlayerBar() {
                     const h = currentTrack.artists?.[0]?.artisthash;
                     if (h) navigate("artist", h);
                   }}
-                  className="block truncate text-left text-[12px] text-[var(--text-muted)] transition-colors hover:text-white hover:underline"
+                  className="block truncate text-left text-[12px] text-[var(--text-muted)] transition-colors hover:text-foreground hover:underline"
                 >
                   {trackArtist(currentTrack)}
                 </button>
@@ -152,7 +152,7 @@ export function PlayerBar() {
             onClick={togglePlay}
             disabled={!currentTrack}
             aria-label={isPlaying ? "Pause" : "Lecture"}
-            className="grid h-8 w-8 place-items-center rounded-full bg-white text-black transition-transform duration-100 hover:scale-105 active:scale-100 disabled:opacity-30 disabled:hover:scale-100"
+            className="grid h-9 w-9 place-items-center rounded-full bg-[var(--primary)] text-white transition-transform duration-100 hover:scale-105 active:scale-100 disabled:opacity-30 disabled:hover:scale-100"
           >
             {isPlaying
               ? <Pause className="size-4 fill-current" />
@@ -345,10 +345,10 @@ function ProgressBar({
       tabIndex={disabled ? -1 : 0}
       className={cn("group relative flex flex-1 items-center justify-center cursor-pointer h-4 touch-none focus-auralis rounded-full", disabled && "pointer-events-none opacity-30")}
     >
-      <div className={cn("relative w-full rounded-full bg-[#4d4d4d]", "h-[4px]")}>
+      <div className={cn("relative w-full rounded-full bg-[var(--surface-3)]", "h-[4px]")}>
         <div
           className="absolute inset-y-0 left-0 rounded-full"
-          style={{ width: `${value}%`, background: active ? "var(--primary)" : "#ffffff" }}
+          style={{ width: `${value}%`, background: active ? "var(--primary)" : "var(--foreground)" }}
         />
         <div
           className="pointer-events-none absolute top-1/2 -translate-y-1/2 aspect-square rounded-full bg-white transition-all ease-out"
@@ -415,10 +415,10 @@ function VolumeSlider({ value, onChange }: { value: number; onChange: (v: number
       aria-valuenow={Math.round(value * 100)}
       aria-valuetext={`${Math.round(value * 100)} %`}
     >
-      <div className="relative w-full rounded-full bg-[#4d4d4d] h-[4px]">
+      <div className="relative w-full rounded-full bg-[var(--surface-3)] h-[4px]">
         <div
           className="absolute inset-y-0 left-0 rounded-full"
-          style={{ width: `${value * 100}%`, background: active ? "var(--primary)" : "#ffffff" }}
+          style={{ width: `${value * 100}%`, background: active ? "var(--primary)" : "var(--foreground)" }}
         />
         <div
           className="pointer-events-none absolute top-1/2 -translate-y-1/2 aspect-square rounded-full bg-white transition-all ease-out"
@@ -465,8 +465,8 @@ function SleepPopover({ active, minutes, remaining, afterTrackActive, onPick, on
             key={m}
             onClick={() => onPick(m)}
             className={cn(
-              "rounded-sm py-1.5 text-[12px] font-semibold transition-colors",
-              active && !afterTrackActive && minutes === m ? "bg-[var(--primary)] text-black" : "bg-[var(--panel-3)] text-white hover:bg-[var(--accent)]"
+              "rounded-md py-1.5 text-[12px] font-semibold transition-colors",
+              active && !afterTrackActive && minutes === m ? "bg-[var(--primary)] text-white" : "bg-[var(--surface-3)] text-foreground hover:bg-[var(--accent)]"
             )}
           >
             {m}m
@@ -476,8 +476,8 @@ function SleepPopover({ active, minutes, remaining, afterTrackActive, onPick, on
       <button
         onClick={onAfterTrack}
         className={cn(
-          "mt-1 w-full rounded-sm py-1.5 text-[11.5px] font-semibold transition-colors",
-          afterTrackActive ? "bg-[var(--primary)] text-black" : "bg-[var(--panel-3)] text-white hover:bg-[var(--accent)]"
+          "mt-1 w-full rounded-md py-1.5 text-[11.5px] font-semibold transition-colors",
+          afterTrackActive ? "bg-[var(--primary)] text-white" : "bg-[var(--surface-3)] text-foreground hover:bg-[var(--accent)]"
         )}
       >
         Fin du titre
@@ -485,7 +485,7 @@ function SleepPopover({ active, minutes, remaining, afterTrackActive, onPick, on
       {active && (
         <button
           onClick={onCancel}
-          className="mt-1.5 flex w-full items-center justify-center gap-1.5 rounded-sm bg-[var(--panel-3)] py-1.5 text-[11.5px] text-[var(--text-muted)] transition-colors hover:bg-[var(--accent)] hover:text-white"
+          className="mt-1.5 flex w-full items-center justify-center gap-1.5 rounded-md bg-[var(--surface-3)] py-1.5 text-[11.5px] text-[var(--text-muted)] transition-colors hover:bg-[var(--accent)] hover:text-foreground"
         >
           <X className="size-3" /> Annuler
         </button>

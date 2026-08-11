@@ -2,7 +2,6 @@ package local.auralis.client.ui.screens
 
 import android.content.Intent
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -17,8 +16,6 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.LazyRow
-import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -51,8 +48,6 @@ import local.auralis.client.ui.UiState
 import local.auralis.client.ui.components.Eyebrow
 import local.auralis.client.ui.components.formatLongDuration
 import local.auralis.client.ui.theme.LocalAuralis
-import local.auralis.client.ui.theme.THEME_GROUPS
-import local.auralis.client.ui.theme.THEME_LIST
 import org.json.JSONArray
 
 @Composable
@@ -135,36 +130,11 @@ fun SettingsScreen(vm: AppViewModel, ui: UiState) {
 
         item {
             Card("Apparence") {
-                THEME_GROUPS.forEach { (groupId, groupLabel) ->
-                    Text(groupLabel, color = colors.textMuted, fontSize = 12.sp, modifier = Modifier.padding(top = 6.dp, bottom = 6.dp))
-                    LazyRow(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                        items(THEME_LIST.filter { it.group == groupId }) { th ->
-                            val active = ui.theme == th.id
-                            Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                                Box(
-                                    Modifier.size(44.dp).clip(CircleShape).background(th.colors.accent)
-                                        .then(if (active) Modifier.border(3.dp, colors.foreground, CircleShape) else Modifier)
-                                        .clickable { vm.setTheme(th.id) },
-                                )
-                                Spacer(Modifier.height(4.dp))
-                                Text(th.label, color = if (active) colors.foreground else colors.textMuted, fontSize = 10.sp)
-                            }
-                        }
-                    }
-                }
-                Row(Modifier.fillMaxWidth().padding(top = 12.dp), verticalAlignment = Alignment.CenterVertically) {
+                Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
                     Column(Modifier.weight(1f)) {
-                        Text("Arrière-plan sobre", color = colors.foreground, fontSize = 14.sp, fontWeight = FontWeight.SemiBold)
-                        Text("Désactive le fond animé (étoiles, météores) pour un rendu uni", color = colors.textMuted, fontSize = 11.sp)
+                        Text("Thème", color = colors.foreground, fontSize = 14.sp, fontWeight = FontWeight.SemiBold)
+                        Text("Sombre ou clair selon votre système", color = colors.textMuted, fontSize = 11.sp)
                     }
-                    androidx.compose.material3.Switch(
-                        checked = ui.flatBackdrop,
-                        onCheckedChange = { vm.setFlatBackdrop(it) },
-                        colors = androidx.compose.material3.SwitchDefaults.colors(
-                            checkedThumbColor = colors.ink, checkedTrackColor = colors.accent, checkedBorderColor = colors.accent,
-                            uncheckedThumbColor = colors.textMuted, uncheckedTrackColor = colors.panel2, uncheckedBorderColor = colors.lineStrong,
-                        ),
-                    )
                 }
             }
         }

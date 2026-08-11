@@ -29,7 +29,7 @@ export async function POST(request: Request) {
     );
   }
 
-  const user = verifyCredentials(username, password);
+  const user = await verifyCredentials(username, password);
   if (!user) {
     rateLimitFail(ipKey);
     rateLimitFail(userKey);
@@ -38,7 +38,7 @@ export async function POST(request: Request) {
   rateLimitReset(ipKey);
   rateLimitReset(userKey);
 
-  const token = createSessionToken(user.id);
+  const token = createSessionToken(user.id, request);
   // Return the token so the client can persist it (localStorage) and present it
   // as a bearer on later launches — this keeps WebView clients logged in even
   // when the session cookie is dropped on app restart.

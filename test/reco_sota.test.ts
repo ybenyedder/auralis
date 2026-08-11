@@ -4,7 +4,7 @@
 // lyric-sentiment dissonance. Pure modules are exercised directly; the two
 // end-to-end cases run against a real temporary SQLite DB (like reco.test.ts).
 
-import { test } from "node:test";
+import { test } from "vitest";
 import assert from "node:assert/strict";
 import fs from "fs";
 import os from "os";

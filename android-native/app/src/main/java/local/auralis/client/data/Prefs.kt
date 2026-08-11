@@ -30,8 +30,6 @@ class Prefs(context: Context) {
         val autoplay: Boolean,
         val karaoke: Boolean,
         val lyricsOffset: Float,
-        val theme: String,
-        val flatBackdrop: Boolean,
     )
 
     suspend fun load(): Snapshot {
@@ -46,8 +44,6 @@ class Prefs(context: Context) {
             autoplay = p[AUTOPLAY] ?: true,
             karaoke = p[KARAOKE] ?: true,
             lyricsOffset = p[LYRICS_OFFSET] ?: 0.15f,
-            theme = p[THEME] ?: "spotify",
-            flatBackdrop = p[FLAT_BACKDROP] ?: false,
         )
     }
 
@@ -70,8 +66,6 @@ class Prefs(context: Context) {
         autoplay: Boolean? = null,
         karaoke: Boolean? = null,
         lyricsOffset: Float? = null,
-        theme: String? = null,
-        flatBackdrop: Boolean? = null,
     ) {
         store.edit {
             volume?.let { v -> it[VOLUME] = v }
@@ -80,8 +74,6 @@ class Prefs(context: Context) {
             autoplay?.let { v -> it[AUTOPLAY] = v }
             karaoke?.let { v -> it[KARAOKE] = v }
             lyricsOffset?.let { v -> it[LYRICS_OFFSET] = v }
-            theme?.let { v -> it[THEME] = v }
-            flatBackdrop?.let { v -> it[FLAT_BACKDROP] = v }
         }
     }
 
@@ -108,7 +100,6 @@ class Prefs(context: Context) {
     suspend fun setRecapSeen(month: String) { store.edit { it[RECAP_SEEN] = month } }
 
     val themeFlow = store.data.map { it[THEME] ?: "spotify" }
-    val flatBackdropFlow = store.data.map { it[FLAT_BACKDROP] ?: false }
 
     companion object {
         private val SERVER_BASE = stringPreferencesKey("server_base")
@@ -121,7 +112,6 @@ class Prefs(context: Context) {
         private val KARAOKE = booleanPreferencesKey("karaoke")
         private val LYRICS_OFFSET = floatPreferencesKey("lyrics_offset")
         private val THEME = stringPreferencesKey("theme")
-        private val FLAT_BACKDROP = booleanPreferencesKey("flat_backdrop")
         private val LAUNCH_COUNT = intPreferencesKey("launch_count")
         private val LAST_SESSION = stringPreferencesKey("last_session")
         private val MILESTONE = intPreferencesKey("streak_milestone")

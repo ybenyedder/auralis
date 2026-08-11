@@ -4,6 +4,7 @@
 
 import { getDb } from "./db";
 import { runScan, getScanProgress } from "./library/scanner";
+import { initWatcher } from "./library/watcher";
 
 let kicked = false;
 
@@ -17,6 +18,8 @@ export function ensureLibraryReady(): void {
     if (count === 0 && !scannedAt && getScanProgress().status !== "scanning") {
       void runScan();
     }
+    
+    initWatcher();
   } catch {
     // never block the request on bootstrap problems
   }

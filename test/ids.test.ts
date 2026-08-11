@@ -1,4 +1,4 @@
-import { test } from "node:test";
+import { test } from "vitest";
 import assert from "node:assert/strict";
 import { artistHash, albumHash, trackHashForPath, normalizeName } from "../src/server/library/ids";
 

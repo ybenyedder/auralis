@@ -1,7 +1,10 @@
 import type { Config } from "tailwindcss";
 
 const config: Config = {
-  darkMode: "class",
+  // Mode is driven by data-mode on <html> (set by applyMode in themes.ts).
+  // We keep "class" as the strategy but key it off [data-mode="dark"] so the
+  // dark: variant works alongside the CSS-vars palette in globals.css.
+  darkMode: ["class", '[data-mode="dark"]'],
   content: [
     "./src/pages/**/*.{js,ts,jsx,tsx,mdx}",
     "./src/components/**/*.{js,ts,jsx,tsx,mdx}",
@@ -9,9 +12,21 @@ const config: Config = {
   ],
   theme: {
     extend: {
+      fontFamily: {
+        // Inter is injected via next/font in layout.tsx as --font-inter; the
+        // full stack (SF Pro on Apple platforms → Inter elsewhere) lives in
+        // globals.css :root --font-sans.
+        sans: ["var(--font-sans)"],
+        mono: ["var(--font-mono)"],
+      },
       colors: {
         background: "var(--background)",
         foreground: "var(--foreground)",
+        // Apple Music surface tiers (iOS system backgrounds).
+        "surface-1": "var(--surface-1)",
+        "surface-2": "var(--surface-2)",
+        "surface-3": "var(--surface-3)",
+        ink: "var(--ink)",
         card: {
           DEFAULT: "var(--card)",
           foreground: "var(--card-foreground)",
@@ -40,13 +55,14 @@ const config: Config = {
         border: "var(--border)",
         input: "var(--input)",
         ring: "var(--ring)",
-        emerald: "var(--emerald)",
-        amber: "var(--amber)",
       },
       borderRadius: {
-        lg: "var(--radius)",
-        md: "calc(var(--radius) - 2px)",
-        sm: "calc(var(--radius) - 4px)",
+        xs: "var(--radius-xs)",
+        sm: "var(--radius-sm)",
+        md: "var(--radius-md)",
+        lg: "var(--radius-lg)",
+        xl: "var(--radius-xl)",
+        "2xl": "var(--radius-2xl)",
       },
     },
   },

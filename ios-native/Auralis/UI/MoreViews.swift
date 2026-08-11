@@ -41,7 +41,7 @@ struct FoldersView: View {
                         HStack(spacing: 10) {
                             Image(systemName: "folder.fill").foregroundStyle(app.accentColor)
                             Text(row.node.name.isEmpty ? row.node.path : row.node.name)
-                                .font(.subheadline).foregroundStyle(.white).lineLimit(1)
+                                .font(.subheadline).foregroundStyle(.primary).lineLimit(1)
                             Spacer()
                             Text("\(row.node.trackcount)").font(.caption).foregroundStyle(.secondary)
                         }
@@ -77,9 +77,9 @@ struct InsightsView: View {
                     SectionTitle(text: r.label + (r.inProgress ? " · en cours" : ""))
                     VStack(alignment: .leading, spacing: 10) {
                         Text(r.moodWord ?? Moods.byId[r.dominantMood ?? ""]?.label ?? "—")
-                            .font(.title.weight(.black)).foregroundStyle(.white)
+                            .font(.title.weight(.black)).foregroundStyle(.primary)
                         if !r.narrative.isEmpty {
-                            Text(r.narrative).font(.subheadline).foregroundStyle(.white.opacity(0.85))
+                            Text(r.narrative).font(.subheadline).foregroundStyle(.secondary)
                         }
                         ForEach(r.moods.prefix(6)) { m in
                             HStack(spacing: 8) {
@@ -106,7 +106,7 @@ struct InsightsView: View {
 
     private func tile(_ v: String, _ l: String) -> some View {
         VStack(spacing: 2) {
-            Text(v).font(.title3.weight(.heavy)).foregroundStyle(.white)
+            Text(v).font(.title3.weight(.heavy)).foregroundStyle(.primary)
             Text(l).font(.caption2).foregroundStyle(.secondary).multilineTextAlignment(.center)
         }
         .frame(maxWidth: .infinity).padding(.vertical, 16)
@@ -132,7 +132,7 @@ struct AdminUsersView: View {
                 ForEach(users) { u in
                     HStack {
                         Image(systemName: u.isAdmin ? "person.badge.key.fill" : "person.fill").foregroundStyle(app.accentColor)
-                        Text(u.username).font(.subheadline.weight(.semibold)).foregroundStyle(.white)
+                        Text(u.username).font(.subheadline.weight(.semibold)).foregroundStyle(.primary)
                         if u.id == me { Text("vous").font(.caption2).foregroundStyle(.secondary) }
                         Spacer()
                         if u.id != me {
@@ -148,10 +148,10 @@ struct AdminUsersView: View {
                 VStack(spacing: 10) {
                     TextField("Identifiant", text: $newName)
                         .textInputAutocapitalization(.never).autocorrectionDisabled()
-                        .padding(12).background(Theme.panel, in: RoundedRectangle(cornerRadius: 10)).foregroundStyle(.white)
+                        .padding(12).background(Theme.panel, in: RoundedRectangle(cornerRadius: 10)).foregroundStyle(.primary)
                     SecureField("Mot de passe", text: $newPass)
-                        .padding(12).background(Theme.panel, in: RoundedRectangle(cornerRadius: 10)).foregroundStyle(.white)
-                    Toggle("Administrateur", isOn: $newAdmin).tint(app.accentColor).foregroundStyle(.white)
+                        .padding(12).background(Theme.panel, in: RoundedRectangle(cornerRadius: 10)).foregroundStyle(.primary)
+                    Toggle("Administrateur", isOn: $newAdmin).tint(app.accentColor).foregroundStyle(.primary)
                     Button {
                         busy = true
                         Task {
@@ -163,7 +163,7 @@ struct AdminUsersView: View {
                     } label: {
                         Text(busy ? "Création…" : "Créer le compte")
                             .font(.subheadline.weight(.bold)).frame(maxWidth: .infinity).padding(.vertical, 12)
-                            .background(app.accentColor, in: Capsule()).foregroundStyle(.black)
+                            .background(app.accentColor, in: Capsule()).foregroundStyle(.white)
                     }
                     .disabled(newName.isEmpty || newPass.isEmpty || busy)
                 }

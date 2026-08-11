@@ -3,7 +3,7 @@
 // called directly (as other tests might) can't exercise the process.on() wiring
 // or prove the process exits promptly instead of hanging / needing a SIGKILL.
 
-import { test } from "node:test";
+import { test } from "vitest";
 import assert from "node:assert/strict";
 import { spawn } from "node:child_process";
 import fs from "fs";

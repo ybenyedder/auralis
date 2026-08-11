@@ -2,6 +2,7 @@
 
 import { usePlayer } from "@/store/player";
 import { CheckCircle2, AlertTriangle, Info, X } from "lucide-react";
+import { useT } from "@/lib/auralis/i18n";
 import { cn } from "@/lib/utils";
 
 export function ToastHost() {
@@ -11,6 +12,7 @@ export function ToastHost() {
   // that also extends the window when the toast carries an action.)
   const toast = usePlayer((s) => s.toast);
   const dismissToast = usePlayer((s) => s.dismissToast);
+  const t = useT();
 
   if (!toast) return null;
 
@@ -41,14 +43,14 @@ export function ToastHost() {
         {action && (
           <button
             onClick={() => { action.run(); dismissToast(); }}
-            className="shrink-0 rounded-full bg-white/10 px-3 py-1 text-[11px] font-bold text-white transition-colors duration-200 hover:bg-white/20"
+            className="shrink-0 rounded-full bg-[var(--surface-3)] px-3 py-1 text-[11px] font-bold text-foreground transition-colors duration-200 hover:bg-[var(--surface-3)]"
           >
             {action.label}
           </button>
         )}
         <button
           onClick={dismissToast}
-          aria-label="Fermer"
+          aria-label={t("toast.close", "Fermer")}
           className="grid size-5 shrink-0 place-items-center rounded-sm text-muted-foreground transition-colors hover:bg-[var(--panel-3)] hover:text-foreground"
         >
           <X className="size-3" />

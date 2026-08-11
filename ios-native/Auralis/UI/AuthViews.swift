@@ -12,7 +12,7 @@ struct ConnectView: View {
             Spacer()
             VStack(spacing: 8) {
                 Image(systemName: "waveform.circle.fill").font(.system(size: 56)).foregroundStyle(app.accentColor)
-                Text("Auralis").font(.largeTitle.weight(.heavy)).foregroundStyle(.white)
+                Text("Auralis").font(.largeTitle.weight(.heavy)).foregroundStyle(.primary)
                 Text("Connectez-vous à votre serveur").font(.subheadline).foregroundStyle(.secondary)
             }
             VStack(spacing: 12) {
@@ -22,7 +22,7 @@ struct ConnectView: View {
                     .keyboardType(.URL)
                     .padding(14)
                     .background(Theme.panel, in: RoundedRectangle(cornerRadius: 12))
-                    .foregroundStyle(.white)
+                    .foregroundStyle(.primary)
                 if let err = app.errorMessage {
                     Text(err).font(.caption).foregroundStyle(.red)
                 }
@@ -32,7 +32,7 @@ struct ConnectView: View {
                 } label: {
                     Text(busy ? "Connexion…" : "Continuer")
                         .font(.headline).frame(maxWidth: .infinity).padding(.vertical, 14)
-                        .background(app.accentColor, in: Capsule()).foregroundStyle(.black)
+                        .background(app.accentColor, in: Capsule()).foregroundStyle(.white)
                 }
                 .disabled(url.trimmingCharacters(in: .whitespaces).isEmpty || busy)
             }
@@ -53,7 +53,7 @@ struct LoginView: View {
     var body: some View {
         VStack(spacing: 20) {
             Spacer()
-            Text("Connexion").font(.largeTitle.weight(.heavy)).foregroundStyle(.white)
+            Text("Connexion").font(.largeTitle.weight(.heavy)).foregroundStyle(.primary)
             Text(app.base).font(.caption).foregroundStyle(.secondary)
 
             if !accounts.isEmpty {
@@ -65,7 +65,7 @@ struct LoginView: View {
                                     .font(.subheadline.weight(.semibold))
                                     .padding(.horizontal, 14).padding(.vertical, 8)
                                     .background(username == name ? app.accentColor : Theme.panel2, in: Capsule())
-                                    .foregroundStyle(username == name ? .black : .white)
+                                    .foregroundStyle(username == name ? .white : .primary)
                             }.buttonStyle(.plain)
                         }
                     }.padding(.horizontal, 2)
@@ -75,9 +75,9 @@ struct LoginView: View {
             VStack(spacing: 12) {
                 TextField("Identifiant", text: $username)
                     .textInputAutocapitalization(.never).autocorrectionDisabled()
-                    .padding(14).background(Theme.panel, in: RoundedRectangle(cornerRadius: 12)).foregroundStyle(.white)
+                    .padding(14).background(Theme.panel, in: RoundedRectangle(cornerRadius: 12)).foregroundStyle(.primary)
                 SecureField("Mot de passe", text: $password)
-                    .padding(14).background(Theme.panel, in: RoundedRectangle(cornerRadius: 12)).foregroundStyle(.white)
+                    .padding(14).background(Theme.panel, in: RoundedRectangle(cornerRadius: 12)).foregroundStyle(.primary)
                 if let err = app.errorMessage {
                     Text(err).font(.caption).foregroundStyle(.red)
                 }
@@ -87,7 +87,7 @@ struct LoginView: View {
                 } label: {
                     Text(busy ? "Connexion…" : "Se connecter")
                         .font(.headline).frame(maxWidth: .infinity).padding(.vertical, 14)
-                        .background(app.accentColor, in: Capsule()).foregroundStyle(.black)
+                        .background(app.accentColor, in: Capsule()).foregroundStyle(.white)
                 }
                 .disabled(username.isEmpty || busy)
 

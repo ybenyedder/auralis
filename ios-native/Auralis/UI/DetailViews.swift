@@ -15,10 +15,10 @@ private struct DetailScaffold<Header: View>: View {
                     Button { app.playAll(tracks) } label: {
                         Label("Lire", systemImage: "play.fill")
                             .font(.subheadline.weight(.bold)).padding(.horizontal, 20).padding(.vertical, 10)
-                            .background(app.accentColor, in: Capsule()).foregroundStyle(.black)
+                            .background(app.accentColor, in: Capsule()).foregroundStyle(.white)
                     }.buttonStyle(.plain)
                     Button { app.playAll(tracks, shuffled: true) } label: {
-                        Image(systemName: "shuffle").font(.headline).foregroundStyle(.white)
+                        Image(systemName: "shuffle").font(.headline).foregroundStyle(.primary)
                             .padding(12).background(Theme.panel2, in: Circle())
                     }.buttonStyle(.plain)
                 }
@@ -76,7 +76,7 @@ private func heroArt(url: URL?, colors: [Color], title: String, subtitle: String
             .clipShape(RoundedRectangle(cornerRadius: circle ? 100 : 10, style: .continuous))
             .shadow(color: .black.opacity(0.4), radius: 16, y: 8)
         VStack(spacing: 4) {
-            Text(title).font(.title2.weight(.heavy)).foregroundStyle(.white).multilineTextAlignment(.center)
+            Text(title).font(.title2.weight(.heavy)).foregroundStyle(.primary).multilineTextAlignment(.center)
             Text(subtitle).font(.subheadline).foregroundStyle(.secondary)
         }
     }

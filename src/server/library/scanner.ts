@@ -312,12 +312,32 @@ export async function runScan(): Promise<ScanProgress> {
       const removeTrack = db.prepare("DELETE FROM tracks WHERE filepath = ?");
       const removeFtsByHash = db.prepare("DELETE FROM track_fts WHERE trackhash = ?");
       const selectHash = db.prepare("SELECT trackhash FROM tracks WHERE filepath = ?");
+      // Cascade: a pruned track must not leave orphan rows behind in every table
+      // that references trackhash. Without this, deleting a file accumulates dead
+      // references in favorites / playcounts / recents / playlists / play_events /
+      // lyrics / dislikes / art_colors over time — filtered client-side but still
+      // bloat. Run them all inside the same transaction so a prune is atomic.
+      const cascadeByHash = db.transaction((hashes: string[]) => {
+        for (const h of hashes) {
+          removeFtsByHash.run(h);
+          db.prepare("DELETE FROM favorites WHERE trackhash = ?").run(h);
+          db.prepare("DELETE FROM dislikes WHERE trackhash = ?").run(h);
+          db.prepare("DELETE FROM playcounts WHERE trackhash = ?").run(h);
+          db.prepare("DELETE FROM recents WHERE trackhash = ?").run(h);
+          db.prepare("DELETE FROM play_events WHERE trackhash = ?").run(h);
+          db.prepare("DELETE FROM playlist_tracks WHERE trackhash = ?").run(h);
+          db.prepare("DELETE FROM lyrics WHERE trackhash = ?").run(h);
+          db.prepare("DELETE FROM art_colors WHERE trackhash = ?").run(h);
+        }
+      });
       const prune = db.transaction((paths: string[]) => {
+        const removedHashes: string[] = [];
         for (const p of paths) {
           const hit = selectHash.get(p) as { trackhash: string } | undefined;
-          if (hit) removeFtsByHash.run(hit.trackhash);
+          if (hit) removedHashes.push(hit.trackhash);
           removeTrack.run(p);
         }
+        if (removedHashes.length) cascadeByHash(removedHashes);
       });
       prune(toRemove);
     }
@@ -408,11 +428,53 @@ function rebuildAggregates(db: ReturnType<typeof getDb>) {
   }
 
   const tx = db.transaction(() => {
-    db.exec("DELETE FROM albums; DELETE FROM artists;");
-    const insAlbum = db.prepare("INSERT INTO albums (albumhash, title, albumartist, artisthash, year, genre, arthash) VALUES (?, ?, ?, ?, ?, ?, ?)");
-    const insArtist = db.prepare("INSERT INTO artists (artisthash, name, arthash) VALUES (?, ?, ?)");
-    for (const [albumhash, a] of albums) insAlbum.run(albumhash, a.title, a.albumartist, a.artisthash, a.year, a.genre, a.arthash);
-    for (const [artisthash, a] of artists) insArtist.run(artisthash, a.name, a.arthash);
+    const existingAlbums = new Set((db.prepare("SELECT albumhash FROM albums").all() as {albumhash:string}[]).map(r => r.albumhash));
+    const existingArtists = new Set((db.prepare("SELECT artisthash FROM artists").all() as {artisthash:string}[]).map(r => r.artisthash));
+
+    const insAlbum = db.prepare(`
+      INSERT INTO albums (albumhash, title, albumartist, artisthash, year, genre, arthash) 
+      VALUES (?, ?, ?, ?, ?, ?, ?)
+      ON CONFLICT(albumhash) DO UPDATE SET 
+        title = excluded.title, 
+        albumartist = excluded.albumartist, 
+        artisthash = excluded.artisthash, 
+        year = excluded.year, 
+        genre = excluded.genre, 
+        arthash = excluded.arthash
+      WHERE title IS NOT excluded.title 
+         OR albumartist IS NOT excluded.albumartist 
+         OR artisthash IS NOT excluded.artisthash 
+         OR year IS NOT excluded.year 
+         OR genre IS NOT excluded.genre 
+         OR arthash IS NOT excluded.arthash
+    `);
+    const insArtist = db.prepare(`
+      INSERT INTO artists (artisthash, name, arthash) 
+      VALUES (?, ?, ?)
+      ON CONFLICT(artisthash) DO UPDATE SET 
+        name = excluded.name, 
+        arthash = excluded.arthash
+      WHERE name IS NOT excluded.name 
+         OR arthash IS NOT excluded.arthash
+    `);
+
+    for (const [albumhash, a] of albums) {
+      insAlbum.run(albumhash, a.title, a.albumartist, a.artisthash, a.year, a.genre, a.arthash);
+      existingAlbums.delete(albumhash);
+    }
+    for (const [artisthash, a] of artists) {
+      insArtist.run(artisthash, a.name, a.arthash);
+      existingArtists.delete(artisthash);
+    }
+
+    if (existingAlbums.size > 0) {
+      const delAlbum = db.prepare("DELETE FROM albums WHERE albumhash = ?");
+      for (const albumhash of existingAlbums) delAlbum.run(albumhash);
+    }
+    if (existingArtists.size > 0) {
+      const delArtist = db.prepare("DELETE FROM artists WHERE artisthash = ?");
+      for (const artisthash of existingArtists) delArtist.run(artisthash);
+    }
   });
   tx();
 }

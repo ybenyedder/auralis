@@ -147,8 +147,32 @@ Everything has a sane default — see [`.env.example`](.env.example).
 | `AURALIS_TOKEN` | empty | Require this bearer token on every `/api` call |
 | `AURALIS_LYRICS_ONLINE` | `true` | Allow LRCLIB lookups |
 | `AURALIS_LYRICS_SIDECAR` | `true` | Write fetched lyrics back as `.lrc` |
+| `AURALIS_ALIGN` | `false` | Upgrade line lyrics to word-by-word karaoke via local forced alignment (needs Python, see below) |
+| `AURALIS_EMBEDDINGS` | `false` | Deep recommendation embeddings (needs Python, see below) |
+| `AURALIS_WATCH` | `false` | Watch the music dir for live re-scans (inotify/fsevents) |
+
+### Optional ML features (word-by-word lyrics & deep recommendations)
+
+Two features run as opt-in Python sidecars — the app works perfectly without
+them, the recommendation engine degrades gracefully, and line-level lyrics still
+work. They just add extra richness:
+
+- **Word-by-word karaoke** (`scripts/forced_align.py`) — upgrades line-level
+  `.lrc` to word-synced lyrics using forced alignment. Enable with `AURALIS_ALIGN=1`.
+- **Deep recommendations** (`scripts/extract_embeddings.py`) — extracts audio
+  embeddings to power the "deep" similarity axis of the taste engine. Enable with
+  `AURALIS_EMBEDDINGS=1`.
+
+Requires Python 3.10+. Install the dependencies in one command:
+
+```bash
+./scripts/install-python-deps.sh
+```
+
+Then set the flags above and restart Auralis. A rescan picks up the new analysis.
 
 ---
+
 
 ## Hardened by design
 

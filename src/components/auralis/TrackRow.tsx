@@ -100,10 +100,10 @@ export const TrackRow = memo(function TrackRow({
   return (
     <div
       className={cn(
-        "lazy-row group relative grid cursor-pointer items-center gap-3 rounded-sm px-2 transition-colors",
+        "lazy-row group relative grid cursor-pointer items-center gap-3 rounded-md px-2 transition-colors",
         compact ? "grid-cols-[20px_1fr_auto] py-1.5" : "grid-cols-[24px_minmax(0,1fr)_auto] py-2.5 lg:py-2",
         showAlbum && !compact && "md:grid-cols-[24px_minmax(0,1.6fr)_minmax(0,1fr)_auto]",
-        selected ? "bg-primary/15 hover:bg-primary/20" : "active:bg-white/[0.06] lg:hover:bg-white/[0.10]",
+        selected ? "bg-primary/15 hover:bg-primary/20" : "active:bg-[var(--surface-2)] lg:hover:bg-[var(--surface-2)]",
       )}
       onClick={handleRowClick}
       onContextMenu={(e) => onContext(e, track)}
@@ -163,7 +163,7 @@ export const TrackRow = memo(function TrackRow({
           />
         )}
         <div className="min-w-0">
-          <p className={cn("truncate text-[14px] font-bold leading-snug lg:text-[13px]", isCurrent ? "text-primary" : "text-foreground/90")}>
+          <p className={cn("truncate text-[14px] font-medium leading-snug lg:text-[13px]", isCurrent ? "text-primary" : "text-foreground/90")}>
             {trackTitle(track)}
           </p>
           <p className="truncate text-[12px] text-muted-foreground leading-snug mt-0.5 lg:text-[11.5px]">

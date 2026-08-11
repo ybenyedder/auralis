@@ -8,8 +8,7 @@ struct AuralisApp: App {
         WindowGroup {
             RootView()
                 .environmentObject(app)
-                .preferredColorScheme(.dark)
-                .tint(Theme.accent(app.theme))
+                .tint(Theme.accent)
                 .task { await app.bootstrap() }
         }
     }
@@ -44,8 +43,8 @@ struct RootView: View {
 struct LoadingView: View {
     var body: some View {
         VStack(spacing: 16) {
-            ProgressView().tint(.white)
-            Text("Auralis").font(.title3.weight(.heavy)).foregroundStyle(.white.opacity(0.8))
+            ProgressView().tint(Theme.accent)
+            Text("Auralis").font(.title3.weight(.heavy)).foregroundStyle(.secondary)
         }
     }
 }

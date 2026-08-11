@@ -169,7 +169,7 @@ function TopTracks() {
           <button
             key={ref.trackhash}
             onClick={() => playList(list, i)}
-            className="tap-press flex w-full items-center gap-2.5 rounded-md p-1 text-left hover:bg-white/[0.04]"
+            className="tap-press flex w-full items-center gap-2.5 rounded-md p-1 text-left hover:bg-[var(--surface-2)]"
           >
             <span className="w-3 shrink-0 text-right text-[11px] tabular-nums text-muted-foreground/60">{i + 1}</span>
             <Artwork title={track.title} trackhash={track.trackhash} image={track.image} colors={track.color} size={32} rounded={6} />

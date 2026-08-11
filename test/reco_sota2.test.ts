@@ -4,7 +4,7 @@
 // end-to-end engine behaviours (UCB exploration + lyric dissonance) plus the
 // lyric-sentiment background pass writing to the DB.
 
-import { test } from "node:test";
+import { test } from "vitest";
 import assert from "node:assert/strict";
 import fs from "fs";
 import os from "os";

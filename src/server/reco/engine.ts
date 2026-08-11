@@ -53,36 +53,26 @@ import { buildGraphAffinity } from "./graph";
 import { decodeEmbedding, deepCentroid, deepAffinity } from "./embedding";
 import { ucbBonus } from "./bandit";
 import { mmrRerank, type RankItem } from "./diversity";
-
-const DAY = 86_400_000;
-const HALF_LIFE_MS = 21 * DAY; // taste relevance half-life
-const RECENT_HALF_LIFE_MS = 1.5 * DAY; // "just heard it" fatigue half-life
-// Events older than this decay to <0.3% of their original weight (8.5+ half-lives),
-// so excluding them from the read leaves aggregates unchanged while bounding query
-// cost for long-time users (the table itself is separately pruned at 400 days).
-const EVENTS_WINDOW_MS = 180 * DAY;
-
-// Base signal strengths before time-decay.
-const FAVORITE_WEIGHT = 2.5;
-const DISLIKE_WEIGHT = 3.5;
-
-// Score-axis weights. W_DIRECT/W_CONTENT/W_MOOD are the validated core; the rest
-// are modest additive enrichments, each 0 when its data is missing.
-const W_DIRECT = 1.0;
-const W_CONTENT = 0.85;
-const W_MOOD = 0.6;
-const W_SESSION = 0.35;
-const W_TRANS = 0.3;
-const W_TIME = 0.22;
-const W_GRAPH = 0.3;
-const W_DEEP = 0.5;
-const W_DISS = 0.12;
-
-// MMR diversity re-rank is skipped for tiny result sets (reordering noise + it
-// would fight the deliberate ordering of unit-test-sized fixtures); real slates
-// get diversified.
-const MMR_MIN = 8;
-const MMR_LAMBDA = 0.82; // relevance-heavy: diversify without dropping strong picks
+// All tuning knobs (half-lives, signal weights, MMR params) live in ./config so
+// the model's full knob set is visible in one place. See config.ts for rationale.
+import {
+  HALF_LIFE_MS,
+  RECENT_HALF_LIFE_MS,
+  EVENTS_WINDOW_MS,
+  FAVORITE_WEIGHT,
+  DISLIKE_WEIGHT,
+  W_DIRECT,
+  W_CONTENT,
+  W_MOOD,
+  W_SESSION,
+  W_TRANS,
+  W_TIME,
+  W_GRAPH,
+  W_DEEP,
+  W_DISS,
+  MMR_MIN,
+  MMR_LAMBDA,
+} from "./config";
 
 interface TrackRow {
   trackhash: string;

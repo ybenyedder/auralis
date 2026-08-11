@@ -2,7 +2,7 @@
 // Verifies auth/CSRF gating AND that the downloaded bytes are a real, openable
 // SQLite database containing the actual data (not just "some response came back").
 
-import { test } from "node:test";
+import { test } from "vitest";
 import assert from "node:assert/strict";
 import fs from "fs";
 import os from "os";
@@ -32,7 +32,7 @@ async function mods() {
 test("a non-admin bearer token gets 403, not a backup", async () => {
   const { db, createUser, createSessionToken, backupPost } = await mods();
   db.exec("DELETE FROM users;");
-  const created = createUser("backupuser", "correct-horse-battery-staple", false);
+  const created = await createUser("backupuser", "correct-horse-battery-staple", false);
   assert.ok(created.id);
   const token = createSessionToken(created.id);
 
@@ -51,7 +51,7 @@ test("an unauthenticated cross-origin POST is rejected by CSRF before admin/auth
 test("an admin bearer token gets a real, openable SQLite snapshot containing the actual users table", async () => {
   const { db, createUser, createSessionToken, backupPost } = await mods();
   db.exec("DELETE FROM users;");
-  const created = createUser("backupadmin", "correct-horse-battery-staple", true);
+  const created = await createUser("backupadmin", "correct-horse-battery-staple", true);
   assert.ok(created.id);
   const token = createSessionToken(created.id);
 
@@ -82,7 +82,7 @@ test("an admin bearer token gets a real, openable SQLite snapshot containing the
 test("backups are rate-limited — a burst beyond the cap gets 429", async () => {
   const { db, createUser, createSessionToken, backupPost } = await mods();
   db.exec("DELETE FROM users;");
-  const created = createUser("backupburst", "correct-horse-battery-staple", true);
+  const created = await createUser("backupburst", "correct-horse-battery-staple", true);
   assert.ok(created.id);
   const token = createSessionToken(created.id);
 

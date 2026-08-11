@@ -57,7 +57,7 @@ export function StickyViewHeader({ scrollRef }: { scrollRef: RefObject<HTMLDivEl
           onClick={back}
           disabled={!canBack}
           aria-label="Retour"
-          className="grid size-7 place-items-center rounded-full text-muted-foreground transition-colors duration-200 hover:bg-white/[0.04] hover:text-white disabled:cursor-default"
+          className="grid size-7 place-items-center rounded-full text-muted-foreground transition-colors duration-200 hover:bg-[var(--surface-2)] hover:text-foreground disabled:cursor-default"
         >
           <ChevronLeft className="size-4" />
         </button>

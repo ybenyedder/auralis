@@ -1,5 +1,8 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <color name="auralis_background">#121212</color>
-    <color name="ic_launcher_background">#121212</color>
+    <!-- Auralis Apple-Music palette. Compose is the source of truth for the UI;
+         these only colour the window / splash / status bar before Compose loads. -->
+    <color name="auralis_background">#000000</color>
+    <color name="auralis_primary">#FA233B</color>
+    <color name="ic_launcher_background">#000000</color>
 </resources>

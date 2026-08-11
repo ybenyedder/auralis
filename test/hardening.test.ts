@@ -4,7 +4,7 @@
 //  - upsertPlaylist()/setSetting() bound hostile oversized input.
 // Uses an isolated temp data dir so it never touches a real library DB.
 
-import { test } from "node:test";
+import { test } from "vitest";
 import assert from "node:assert/strict";
 import fs from "fs";
 import os from "os";

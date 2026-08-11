@@ -5,20 +5,22 @@ import { usePlayer, type ViewId } from "@/store/player";
 import { usePlayhead } from "@/store/playhead";
 import { Artwork } from "../Artwork";
 import { trackArtist, trackTitle } from "@/lib/auralis/brand";
+import { useT } from "@/lib/auralis/i18n";
 import { cn } from "@/lib/utils";
 
 interface Tab {
   id: ViewId;
-  label: string;
+  labelKey: string;
+  labelFallback: string;
   icon: React.ComponentType<{ className?: string; fill?: string }>;
   owns: ViewId[];
 }
 
 // Spotify mobile app has 3 main tabs: Home, Search, Your Library
 const TABS: Tab[] = [
-  { id: "home", label: "Accueil", icon: Home, owns: ["home"] },
-  { id: "explore", label: "Recherche", icon: Search, owns: ["explore"] },
-  { id: "library", label: "Bibliothèque", icon: Library, owns: ["library", "album", "artist", "playlist", "folders", "recents", "insights", "settings", "favorites"] },
+  { id: "home", labelKey: "mobile.home", labelFallback: "Accueil", icon: Home, owns: ["home"] },
+  { id: "explore", labelKey: "mobile.search", labelFallback: "Recherche", icon: Search, owns: ["explore"] },
+  { id: "library", labelKey: "mobile.library", labelFallback: "Bibliothèque", icon: Library, owns: ["library", "album", "artist", "playlist", "folders", "recents", "insights", "settings", "favorites"] },
 ];
 
 export function MobileDock() {
@@ -41,6 +43,7 @@ function MiniPlayer() {
   const openFullscreen = usePlayer((s) => s.toggleFullscreenPlayer);
   const toggleFavorite = usePlayer((s) => s.toggleFavorite);
   const fav = usePlayer((s) => (currentTrack ? s.favorites.has(currentTrack.trackhash) : false));
+  const t = useT();
 
   if (!currentTrack) return null;
 
@@ -52,7 +55,7 @@ function MiniPlayer() {
         <button
           onClick={openFullscreen}
           className="flex min-w-0 flex-1 items-center gap-3 text-left"
-          aria-label="Ouvrir le lecteur"
+          aria-label={t("mobile.openPlayer", "Ouvrir le lecteur")}
         >
           <Artwork
             title={currentTrack.title}
@@ -63,7 +66,7 @@ function MiniPlayer() {
             image={currentTrack.image}
           />
           <div className="min-w-0 flex-1">
-            <span className="block truncate text-[13px] font-bold leading-tight text-white">
+            <span className="block truncate text-[13px] font-semibold leading-tight text-foreground">
               {trackTitle(currentTrack)}
             </span>
             <span className="block truncate text-[12px] font-medium leading-tight text-[var(--text-muted)]">
@@ -75,15 +78,15 @@ function MiniPlayer() {
         <div className="flex shrink-0 items-center gap-1 pr-1">
           <button
             onClick={() => toggleFavorite(currentTrack.trackhash)}
-            aria-label={fav ? "Retirer des favoris" : "Ajouter aux favoris"}
+            aria-label={fav ? t("mobile.removeFavorite", "Retirer des favoris") : t("mobile.addFavorite", "Ajouter aux favoris")}
             className="tap-press grid h-11 w-11 place-items-center rounded-full transition-transform active:scale-90"
           >
-            <Heart className={cn("size-5", fav ? "fill-[var(--primary)] text-[var(--primary)]" : "text-[var(--text-muted)] hover:text-white")} />
+            <Heart className={cn("size-5", fav ? "fill-[var(--primary)] text-[var(--primary)]" : "text-[var(--text-muted)] hover:text-foreground")} />
           </button>
           <button
             onClick={togglePlay}
-            aria-label={isPlaying ? "Pause" : "Lecture"}
-            className="tap-press grid h-11 w-11 place-items-center rounded-full text-white transition-transform active:scale-90"
+            aria-label={isPlaying ? t("mobile.pause", "Pause") : t("mobile.play", "Lecture")}
+            className="tap-press grid h-11 w-11 place-items-center rounded-full text-foreground transition-transform active:scale-90"
           >
             {isPlaying ? <Pause className="size-6 fill-current" /> : <Play className="size-6 fill-current ml-0.5" />}
           </button>
@@ -109,9 +112,10 @@ function MiniProgress() {
 function TabBar() {
   const view = usePlayer((s) => s.view);
   const navigate = usePlayer((s) => s.navigate);
+  const t = useT();
 
   return (
-    <nav aria-label="Navigation principale" className="flex h-[64px] items-stretch justify-around px-2 bg-[var(--sidebar)]">
+    <nav aria-label={t("mobile.mainNav", "Navigation principale")} className="flex h-[64px] items-stretch justify-around px-2 bg-[var(--sidebar)]">
       {TABS.map((tab) => {
         const Icon = tab.icon;
         const active = tab.owns.includes(view.view);
@@ -125,17 +129,17 @@ function TabBar() {
             <Icon
               className={cn(
                 "size-6 transition-colors",
-                active ? "text-white" : "text-[var(--text-muted)]",
+                active ? "text-[var(--primary)]" : "text-[var(--text-muted)]",
               )}
               fill={active ? "currentColor" : "none"}
             />
             <span
               className={cn(
                 "text-[10px] font-medium leading-none transition-colors",
-                active ? "text-white" : "text-[var(--text-muted)]",
+                active ? "text-[var(--primary)]" : "text-[var(--text-muted)]",
               )}
             >
-              {tab.label}
+              {t(tab.labelKey, tab.labelFallback)}
             </span>
           </button>
         );

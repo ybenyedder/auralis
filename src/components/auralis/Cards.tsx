@@ -52,7 +52,7 @@ export const AlbumCard = memo(function AlbumCard({ album, onOpen }: AlbumCardPro
         }
       }}
       onContextMenu={(e) => onContext(e, album)}
-      className="group matte-panel relative flex cursor-pointer flex-col gap-2.5 rounded-lg p-3 text-left transition-colors hover:bg-[var(--panel-2)] focus-auralis"
+      className="group matte-panel relative flex cursor-pointer flex-col gap-2.5 rounded-xl p-3 text-left transition-colors focus-auralis"
     >
       <div className="relative">
         <Artwork
@@ -79,13 +79,13 @@ export const AlbumCard = memo(function AlbumCard({ album, onOpen }: AlbumCardPro
         <button
           onClick={onMore}
           aria-label="Plus d'options"
-          className="absolute right-2 top-2 grid h-8 w-8 place-items-center rounded-full bg-black/50 text-white/90 shadow-[0_4px_12px_rgba(0,0,0,0.3)] transition-all duration-200 hover:bg-black/70 hover:text-white lg:h-7 lg:w-7 lg:opacity-0 lg:group-hover:opacity-100"
+          className="absolute right-2 top-2 grid h-8 w-8 place-items-center rounded-full bg-black/55 text-white shadow-[0_4px_12px_rgba(0,0,0,0.3)] transition-all duration-200 hover:bg-black/75 lg:h-7 lg:w-7 lg:opacity-0 lg:group-hover:opacity-100"
         >
           <MoreVertical className="size-4 lg:size-3.5" />
         </button>
       </div>
       <div className="min-w-0">
-        <p className="truncate text-[15px] font-bold leading-tight text-foreground">{album.title}</p>
+        <p className="truncate text-[15px] font-semibold leading-tight text-foreground">{album.title}</p>
         <p className="mt-1 truncate text-[13px] leading-snug text-muted-foreground">
           {albumArtist(album)} · {album.year ?? "année inconnue"}
         </p>
@@ -111,7 +111,7 @@ export const ArtistCard = memo(function ArtistCard({ artist }: { artist: Artist 
         }
       }}
       onContextMenu={(e) => onContext(e, artist)}
-      className="group matte-panel relative flex cursor-pointer flex-col gap-2.5 rounded-lg p-3 text-left transition-colors hover:bg-[var(--panel-2)] focus-auralis"
+      className="group matte-panel relative flex cursor-pointer flex-col gap-2.5 rounded-xl p-3 text-left transition-colors focus-auralis"
     >
       <div className="relative">
         {artist.image ? (
@@ -140,13 +140,13 @@ export const ArtistCard = memo(function ArtistCard({ artist }: { artist: Artist 
             openArtistContextMenu(e.clientX, e.clientY, artist);
           }}
           aria-label="Plus d'options"
-          className="absolute right-2 top-2 grid h-8 w-8 place-items-center rounded-full bg-black/50 text-white/90 shadow-[0_4px_12px_rgba(0,0,0,0.3)] transition-all duration-200 hover:bg-black/70 hover:text-white lg:h-7 lg:w-7 lg:opacity-0 lg:group-hover:opacity-100"
+          className="absolute right-2 top-2 grid h-8 w-8 place-items-center rounded-full bg-black/55 text-white shadow-[0_4px_12px_rgba(0,0,0,0.3)] transition-all duration-200 hover:bg-black/75 lg:h-7 lg:w-7 lg:opacity-0 lg:group-hover:opacity-100"
         >
           <MoreVertical className="size-4 lg:size-3.5" />
         </button>
       </div>
       <div className="min-w-0">
-        <p className="truncate text-[15px] font-bold leading-tight text-foreground">{artist.name}</p>
+        <p className="truncate text-[15px] font-semibold leading-tight text-foreground">{artist.name}</p>
         <p className="mt-1 text-[13px] leading-snug text-muted-foreground">
           {artist.playcount ? `${formatCount(artist.playcount)} écoutes · Artiste` : "Artiste"}
         </p>
@@ -178,7 +178,7 @@ export const PlaylistTile = memo(function PlaylistTile({ playlist }: { playlist:
           navigate("playlist", String(playlist.id));
         }
       }}
-      className="group matte-panel relative flex cursor-pointer flex-col gap-2.5 rounded-lg p-3 text-left transition-colors hover:bg-[var(--panel-2)] focus-auralis"
+      className="group matte-panel relative flex cursor-pointer flex-col gap-2.5 rounded-xl p-3 text-left transition-colors focus-auralis"
     >
       <div className="relative">
         {coverImage ? (
@@ -216,7 +216,7 @@ export const PlaylistTile = memo(function PlaylistTile({ playlist }: { playlist:
         </button>
       </div>
       <div className="min-w-0">
-        <p className="truncate text-[15px] font-bold leading-tight text-foreground">{playlist.name}</p>
+        <p className="truncate text-[15px] font-semibold leading-tight text-foreground">{playlist.name}</p>
         <p className="mt-1 truncate text-[13px] leading-snug text-muted-foreground">
           {plural(playlist.trackcount ?? 0, "titre")}
         </p>

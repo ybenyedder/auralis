@@ -73,8 +73,6 @@ data class UiState(
     val karaoke: Boolean = true,
     val lyricsOffset: Float = 0.15f,
 
-    val theme: String = "spotify",
-    val flatBackdrop: Boolean = false,
     val donateDue: Boolean = false,
     val contextTrack: Track? = null,
 
@@ -139,7 +137,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
             // it (launches 1, 4, 7, …). Shown once the app reaches the library.
             val launches = prefs.bumpLaunchCount()
             val donateDue = launches == 1 || (launches - 1) % 3 == 0
-            _ui.update { it.copy(theme = p.theme, flatBackdrop = p.flatBackdrop, karaoke = p.karaoke, lyricsOffset = p.lyricsOffset, donateDue = donateDue, volume = p.volume, autoplay = p.autoplay) }
+            _ui.update { it.copy(karaoke = p.karaoke, lyricsOffset = p.lyricsOffset, donateDue = donateDue, volume = p.volume, autoplay = p.autoplay) }
             player.setRepeat(p.repeat)
             player.setShuffle(p.shuffle)
             player.setVolume(p.volume)
@@ -1004,23 +1002,6 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     // ---- theme -------------------------------------------------------------
-
-    fun setTheme(id: String) {
-        _ui.update { it.copy(theme = id) }
-        viewModelScope.launch {
-            prefs.setPlayback(theme = id)
-            api.putState(JSONObject().put("action", "setting").put("key", "theme").put("value", id))
-        }
-    }
-
-    /** Toggle the "Arrière-plan sobre" setting — flattens animated backdrops. */
-    fun setFlatBackdrop(on: Boolean) {
-        _ui.update { it.copy(flatBackdrop = on) }
-        viewModelScope.launch {
-            prefs.setPlayback(flatBackdrop = on)
-            api.putState(JSONObject().put("action", "setting").put("key", "flatBackdrop").put("value", on))
-        }
-    }
 
     override fun onCleared() {
         player.release()

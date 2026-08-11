@@ -307,22 +307,22 @@ private class QuickTileItem(
     val liked: Boolean, val onOpen: () -> Unit, val onPlay: () -> Unit,
 )
 
-/** Spotify's "quick access" tile: a squat horizontal card (art flush-left, bold title)
- * with a green circular play FAB — the home screen's most recognisable element. */
+/** Apple Music–style "quick access" tile: a squat horizontal card (art flush-left,
+ * bold title) with a red circular play button — the home screen's quick-jump row. */
 @Composable
 private fun QuickTile(tile: QuickTileItem, modifier: Modifier = Modifier) {
     val colors = LocalAuralis.current
     Row(
         modifier
             .height(56.dp)
-            .clip(RoundedCornerShape(4.dp))
+            .clip(RoundedCornerShape(8.dp))
             .background(colors.panel2)
             .clickable { tile.onOpen() },
         verticalAlignment = Alignment.CenterVertically,
     ) {
         if (tile.liked) {
             Box(
-                Modifier.size(56.dp).background(Brush.linearGradient(listOf(Color(0xFF450AF5), Color(0xFF8E8EE5), Color(0xFFC4B9E8)))),
+                Modifier.size(56.dp).background(Brush.linearGradient(listOf(Color(0xFFFA233B), Color(0xFFFC5C7A), Color(0xFFFFAEBE)))),
                 contentAlignment = Alignment.Center,
             ) {
                 Icon(Icons.Filled.Favorite, null, tint = Color.White, modifier = Modifier.size(22.dp))

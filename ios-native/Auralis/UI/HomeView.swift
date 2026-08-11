@@ -16,7 +16,7 @@ struct HomeView: View {
         ScrollView {
             VStack(alignment: .leading, spacing: 24) {
                 HStack {
-                    Text(greeting).font(.largeTitle.weight(.heavy)).foregroundStyle(.white)
+                    Text(greeting).font(.largeTitle.weight(.heavy)).foregroundStyle(.primary)
                     Spacer()
                     NavigationLink(value: SettingsRoute()) {
                         Image(systemName: "gearshape.fill").font(.title3).foregroundStyle(.secondary)
@@ -54,7 +54,7 @@ struct HomeView: View {
                     HStack(spacing: 8) {
                         CoverArt(url: app.artURL(track.image), colors: trackColors(track), corner: 4)
                             .frame(width: 48, height: 48)
-                        Text(track.title).font(.footnote.weight(.semibold)).foregroundStyle(.white)
+                        Text(track.title).font(.footnote.weight(.semibold)).foregroundStyle(.primary)
                             .lineLimit(2).multilineTextAlignment(.leading)
                         Spacer(minLength: 0)
                     }
@@ -75,7 +75,7 @@ struct HomeView: View {
                             VStack(alignment: .leading, spacing: 6) {
                                 CoverArt(url: app.artURL(track.image), colors: trackColors(track), corner: 8)
                                     .frame(width: 140, height: 140)
-                                Text(track.title).font(.footnote.weight(.semibold)).foregroundStyle(.white).lineLimit(1)
+                                Text(track.title).font(.footnote.weight(.semibold)).foregroundStyle(.primary).lineLimit(1)
                                 Text(track.displayArtist).font(.caption2).foregroundStyle(.secondary).lineLimit(1)
                             }.frame(width: 140)
                         }.buttonStyle(.plain)
@@ -95,7 +95,7 @@ struct HomeView: View {
                             VStack(alignment: .leading, spacing: 6) {
                                 CoverArt(url: app.artURL(album.image), colors: albumColors(album), corner: 8)
                                     .frame(width: 140, height: 140)
-                                Text(album.title).font(.footnote.weight(.semibold)).foregroundStyle(.white).lineLimit(1)
+                                Text(album.title).font(.footnote.weight(.semibold)).foregroundStyle(.primary).lineLimit(1)
                                 Text(album.artistName).font(.caption2).foregroundStyle(.secondary).lineLimit(1)
                             }.frame(width: 140)
                         }.buttonStyle(.plain)

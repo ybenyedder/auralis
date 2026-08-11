@@ -12,18 +12,18 @@ interface SectionHeaderProps {
 }
 
 export function SectionHeader({ title, action, onAction, className }: SectionHeaderProps) {
-  // Spotify shelf header: just a big bold title (hover-underlines) on the left and
-  // a muted "Tout afficher" link on the right. No eyebrow, no accent icon — those
-  // props are still accepted for call-site stability but intentionally not rendered.
+  // Apple Music shelf header: a big bold title (no hover underline) on the left and
+  // an accent-red "Tout afficher" link on the right. Apple Music renders "See All"
+  // in the accent colour, not as a muted uppercase label.
   return (
     <div className={cn("flex items-end justify-between gap-3", className)}>
-      <h2 className="min-w-0 truncate text-[20px] font-bold tracking-[-0.02em] text-foreground hover:underline lg:text-[24px]">
+      <h2 className="min-w-0 truncate text-[20px] font-bold tracking-[-0.02em] text-foreground lg:text-[24px]">
         {title}
       </h2>
       {action && (
         <button
           onClick={onAction}
-          className="no-drag shrink-0 text-[11px] font-semibold uppercase tracking-[0.08em] text-muted-foreground transition-colors hover:text-foreground"
+          className="no-drag shrink-0 text-[13px] font-medium text-[var(--primary)] transition-opacity hover:opacity-70"
         >
           {action}
         </button>

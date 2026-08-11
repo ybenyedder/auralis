@@ -45,12 +45,12 @@ export function SelectionBar() {
         <button
           onClick={exitSelection}
           aria-label="Quitter la sélection"
-          className="grid size-9 shrink-0 place-items-center rounded-full text-[var(--text-muted)] transition-colors hover:bg-white/10 hover:text-white"
+          className="grid size-9 shrink-0 place-items-center rounded-full text-[var(--text-muted)] transition-colors hover:bg-[var(--surface-2)] hover:text-foreground"
         >
           <X className="size-5" />
         </button>
 
-        <span className="min-w-0 flex-1 truncate text-[13px] font-bold text-white">
+        <span className="min-w-0 flex-1 truncate text-[13px] font-bold text-foreground">
           {count > 0 ? `${count} sélectionné${count > 1 ? "s" : ""}` : "Choisissez des titres"}
         </span>
 
@@ -58,7 +58,7 @@ export function SelectionBar() {
           onClick={playSelection}
           disabled={count === 0}
           aria-label="Lire la sélection"
-          className="grid size-9 shrink-0 place-items-center rounded-full text-white transition-colors hover:bg-white/10 disabled:opacity-40"
+          className="grid size-9 shrink-0 place-items-center rounded-full text-foreground transition-colors hover:bg-[var(--surface-2)] disabled:opacity-40"
         >
           <Play className="size-5 fill-current" />
         </button>

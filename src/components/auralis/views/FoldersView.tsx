@@ -107,7 +107,7 @@ export function FoldersView() {
                     onClick={() => setCurrentPath(child.path)}
                     className="group tap-press flex min-h-[44px] w-full items-center gap-3 rounded-xl px-2 py-2 text-left transition-colors hover:bg-[var(--panel-3)]"
                   >
-                    <span className="grid h-10 w-10 shrink-0 place-items-center rounded-full border border-transparent bg-white/5 lg:h-9 lg:w-9">
+                    <span className="grid h-10 w-10 shrink-0 place-items-center rounded-full border border-transparent bg-[var(--surface-2)] lg:h-9 lg:w-9">
                       <Folder className="size-4 text-primary-soft" />
                     </span>
                     <div className="min-w-0 flex-1">

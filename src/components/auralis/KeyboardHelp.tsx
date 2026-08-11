@@ -73,7 +73,7 @@ export function KeyboardHelp() {
           <button
             onClick={() => setHelpOpen(false)}
             aria-label="Fermer"
-            className="grid size-7 place-items-center rounded-full text-muted-foreground transition-colors duration-200 hover:bg-white/[0.04] hover:text-foreground"
+            className="grid size-7 place-items-center rounded-full text-muted-foreground transition-colors duration-200 hover:bg-[var(--surface-2)] hover:text-foreground"
           >
             <X className="size-4" />
           </button>

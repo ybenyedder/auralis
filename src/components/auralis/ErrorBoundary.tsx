@@ -2,6 +2,8 @@
 
 import { Component, type ErrorInfo, type ReactNode } from "react";
 import { RefreshCw, AlertTriangle } from "lucide-react";
+import { translate } from "@/lib/auralis/i18n";
+import { usePlayer } from "@/store/player";
 
 // The crash-isolation boundary. Before this existed, ANY throw during render of
 // a virtualised row / a detail view / a now-playing panel bubbled all the way up
@@ -69,21 +71,28 @@ export class ErrorBoundary extends Component<Props, State> {
 
   render(): ReactNode {
     const { error, retryCount } = this.state;
-    const { children, area = "cet onglet", compact = false } = this.props;
+    const { children, area, compact = false } = this.props;
 
     if (!error) return <>{children}</>;
+
+    // Class component: read the live locale from the store (rather than the
+    // useT() hook, which only works inside function components) and bind a tiny
+    // translator so the fallback UI follows the active language.
+    const locale = usePlayer.getState().locale;
+    const t = (key: string, fallback?: string) => translate(locale, key, fallback);
+    const areaLabel = area ?? t("error.area", "cet onglet");
 
     if (compact) {
       return (
         <div className="flex flex-col items-center justify-center gap-3 px-6 py-8 text-center">
           <AlertTriangle className="size-6 text-[var(--text-muted)]" />
-          <p className="text-[13px] text-[var(--text-muted)]">Indisponible</p>
+          <p className="text-[13px] text-[var(--text-muted)]">{t("error.unavailable", "Indisponible")}</p>
           <button
             onClick={this.retry}
             key={retryCount}
             className="inline-flex items-center gap-1.5 rounded-full bg-[var(--panel-2)] px-3 py-1.5 text-[11px] font-bold text-foreground transition-colors hover:bg-[var(--panel-3)]"
           >
-            <RefreshCw className="size-3" /> Réessayer
+            <RefreshCw className="size-3" /> {t("error.retry", "Réessayer")}
           </button>
         </div>
       );
@@ -95,8 +104,8 @@ export class ErrorBoundary extends Component<Props, State> {
           <AlertTriangle className="size-6" />
         </div>
         <div>
-          <p className="text-[15px] font-bold text-foreground">Une erreur est survenue dans {area}</p>
-          <p className="mt-1 text-[13px] text-[var(--text-muted)]">La suite de l&apos;application continue de fonctionner.</p>
+          <p className="text-[15px] font-bold text-foreground">{t("error.title", "Une erreur est survenue dans")} {areaLabel}</p>
+          <p className="mt-1 text-[13px] text-[var(--text-muted)]">{t("error.message", "La suite de l'application continue de fonctionner.")}</p>
         </div>
         <div className="flex items-center gap-2">
           <button
@@ -104,13 +113,13 @@ export class ErrorBoundary extends Component<Props, State> {
             key={retryCount}
             className="inline-flex items-center gap-1.5 rounded-full bg-white px-4 py-2 text-[13px] font-bold text-black transition-transform active:scale-95"
           >
-            <RefreshCw className="size-4" /> Réessayer
+            <RefreshCw className="size-4" /> {t("error.retry", "Réessayer")}
           </button>
           <button
             onClick={this.reload}
             className="inline-flex items-center gap-1.5 rounded-full bg-[var(--panel-2)] px-4 py-2 text-[13px] font-bold text-foreground transition-colors hover:bg-[var(--panel-3)]"
           >
-            Recharger
+            {t("error.reload", "Recharger")}
           </button>
         </div>
       </div>

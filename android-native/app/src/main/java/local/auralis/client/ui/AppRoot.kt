@@ -27,17 +27,15 @@ import local.auralis.client.ui.screens.ConnectScreen
 import local.auralis.client.ui.screens.LoginScreen
 import local.auralis.client.ui.theme.AuralisTheme
 import local.auralis.client.ui.theme.LocalAuralis
-import local.auralis.client.ui.theme.ThemeBackdrop
 
 @Composable
 fun AppRoot(vm: AppViewModel) {
     val ui by vm.ui.collectAsState()
-    AuralisTheme(themeId = ui.theme, flatBackdrop = ui.flatBackdrop) {
+    AuralisTheme {
         androidx.compose.runtime.CompositionLocalProvider(
             local.auralis.client.ui.theme.LocalApiUrl provides { url -> vm.api.assetUrl(url) }
         ) {
             Box(Modifier.fillMaxSize().background(LocalAuralis.current.background)) {
-                ThemeBackdrop()
                 when (ui.phase) {
                     Phase.BOOT, Phase.LOADING -> LoadingScreen()
                     Phase.CONNECT -> ConnectScreen(ui.connecting, ui.message, ui.serverBase, vm::connect)

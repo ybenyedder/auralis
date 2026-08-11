@@ -648,7 +648,7 @@ function MenuItem({
         sheet
           ? "tap-press min-h-[48px] gap-3 px-3 text-[15px] active:bg-[var(--panel-2)]"
           : "gap-2.5 px-2.5 py-2 text-[12.5px]",
-        active ? "bg-white/5 text-foreground" : "text-foreground/90 hover:bg-white/[0.04]",
+        active ? "bg-[var(--surface-2)] text-foreground" : "text-foreground/90 hover:bg-[var(--surface-2)]",
         accent === "primary" && "text-primary",
       )}
     >

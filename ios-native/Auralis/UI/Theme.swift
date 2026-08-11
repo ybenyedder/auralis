@@ -1,25 +1,20 @@
 import SwiftUI
 
-// Colour helpers. The app ships a dark, Spotify-like skin; the theme id chosen in
-// Settings only swaps the accent tint (the web client's full CSS-var theming is out of
-// scope for the first native cut — parity is on screens + playback, not every backdrop).
+// Colour helpers. The app ships a single opaque Apple-Music-style palette that
+// follows the system appearance (dark + light) — the multi-accent "cosmic"
+// catalogue and dark-only Spotify skin have been retired for parity with the
+// redesigned web client (see docs/design-system.md).
 enum Theme {
-    static let background = Color(hex: "#0b0b0d") ?? .black
-    static let panel = Color(hex: "#181818") ?? Color(white: 0.09)
-    static let panel2 = Color(hex: "#222225") ?? Color(white: 0.13)
+    /// Apple Music red accent (#FA233B) — used for the play FAB, active rows,
+    /// sliders, hearts, etc. Same value in dark and light.
+    static let accent = Color(red: 0xFA/255, green: 0x23/255, blue: 0x3B/255)
 
-    private static let accents: [String: String] = [
-        "spotify": "#1ED760", "galaxy": "#a855f7", "meteor": "#22d3ee", "comet": "#34d399",
-        "cobalt": "#3b82f6", "mars": "#f97316", "oxide": "#D95F45", "verdigris": "#6EB29E",
-        "brass": "#C6A15B", "aurora": "#34d399", "nebula": "#fb7185", "ocean": "#38bdf8",
-        "slate": "#7A8CA3", "moss": "#8A9A5B", "andromeda": "#c084fc", "polaris": "#cbd5e1",
-        "eclipse": "#f59e0b", "milkyway": "#a5b4fc", "lagoon": "#14b8a6", "ultraviolet": "#8b5cf6",
-        "lanterns": "#fbbf24", "storm": "#60a5fa",
-    ]
-
-    static func accent(_ theme: String) -> Color {
-        Color(hex: accents[theme] ?? "#1ED760") ?? .green
-    }
+    /// App stage. Opaque system background so dark + light both resolve.
+    static let background = Color(.systemBackground)
+    /// Card / panel tier — iOS secondarySystemBackground (surface-1).
+    static let panel = Color(.secondarySystemBackground)
+    /// Elevated / pressed tier — iOS tertiarySystemBackground (surface-2/3).
+    static let panel2 = Color(.tertiarySystemBackground)
 }
 
 extension Color {

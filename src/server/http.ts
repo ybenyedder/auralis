@@ -2,7 +2,7 @@
 // hardening, consistent JSON responses and baseline security headers.
 
 import { NextResponse } from "next/server";
-import { isAuthenticated, getRequestUser, getTokenUser } from "./auth";
+import { isAuthenticated, getRequestUser, getTokenUser, type UserRow } from "./auth";
 
 const SECURITY_HEADERS: Record<string, string> = {
   "X-Content-Type-Options": "nosniff",
@@ -34,6 +34,45 @@ export function requireAdmin(request: Request): NextResponse | null {
   if (!user) return json({ error: "Unauthorized" }, { status: 401 });
   if (user.is_admin !== 1) return json({ error: "Réservé à l'administrateur" }, { status: 403 });
   return null;
+}
+
+/** Authenticated user shape handed to withAuth / withAdmin handlers. */
+export type AuthUser = UserRow;
+
+/**
+ * Route-handler wrapper that authenticates the request once and passes the
+ * resolved user to the handler, returning 401 for unauthenticated callers. This
+ * replaces the three divergent patterns that had crept in (getRequestUser +
+ * manual null-check, checkAuth without the user, inline getRequestUser), so
+ * every authenticated route resolves the user the same way:
+ *
+ *   export const GET = withAuth(async (req, user) => { ... });
+ *
+ * The returned Response is passed through untouched (it already carries the
+ * security headers set by json() / NextResponse).
+ */
+export function withAuth(
+  handler: (request: Request, user: AuthUser) => Response | Promise<Response>,
+): (request: Request) => Promise<Response> {
+  return async (request: Request) => {
+    const user = getRequestUser(request);
+    if (!user) return json({ error: "Unauthorized" }, { status: 401 });
+    return handler(request, user);
+  };
+}
+
+/**
+ * Like withAuth but additionally requires an admin account (403 otherwise). Use
+ * for destructive / host-level operations (repointing the music dir, triggering
+ * scans, user management).
+ */
+export function withAdmin(
+  handler: (request: Request, user: AuthUser) => Response | Promise<Response>,
+): (request: Request) => Promise<Response> {
+  return withAuth(async (request, user) => {
+    if (user.is_admin !== 1) return json({ error: "Réservé à l'administrateur" }, { status: 403 });
+    return handler(request, user);
+  });
 }
 
 /**

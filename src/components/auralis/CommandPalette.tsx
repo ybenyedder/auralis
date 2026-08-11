@@ -231,7 +231,7 @@ export function CommandPalette() {
                       }}
                       className={cn(
                         "group flex w-full items-center gap-3 rounded-md px-2.5 py-2 text-left transition-all duration-200",
-                        isActive ? "bg-white/5" : "hover:bg-white/[0.04]",
+                        isActive ? "bg-[var(--surface-2)]" : "hover:bg-[var(--surface-2)]",
                       )}
                     >
                       <span

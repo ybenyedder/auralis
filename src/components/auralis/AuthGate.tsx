@@ -31,7 +31,7 @@ export function AuthGate({ children }: { children: ReactNode }) {
   }, []);
 
   if (phase === "checking") {
-    return <div className="grid h-screen w-screen place-items-center bg-background text-muted-foreground/70 text-[12px]">…</div>;
+    return <div suppressHydrationWarning className="grid h-screen w-screen place-items-center bg-background text-muted-foreground/70 text-[12px]">…</div>;
   }
   if (phase === "locked") {
     return <LoginScreen onUnlock={() => setPhase("unlocked")} />;
@@ -109,7 +109,7 @@ function LoginScreen({ onUnlock }: { onUnlock: () => void }) {
   const profiles = accounts.length > 0 ? accounts : ["admin"];
 
   return (
-    <div className="relative grid h-screen w-screen place-items-center overflow-hidden bg-[#101010] px-6 text-foreground">
+    <div className="relative grid h-screen w-screen place-items-center overflow-hidden bg-[#101010] px-6 text-foreground" suppressHydrationWarning>
       {/* Brand, top-left. */}
       <div className="absolute left-6 top-6 flex items-center gap-2.5 lg:left-10 lg:top-8">
         <span className="grid h-8 w-8 place-items-center text-[var(--primary)]">

@@ -304,14 +304,14 @@ export function LibraryView() {
             <div className="matte-panel flex items-center gap-0.5 rounded-full p-1 lg:p-1">
               <button
                 onClick={() => setGrid(true)}
-                className={cn("grid h-8 w-8 place-items-center rounded-full transition-all duration-200 lg:h-7 lg:w-7", grid ? "bg-white text-black shadow-sm" : "text-muted-foreground hover:bg-white/10 hover:text-foreground")}
+                className={cn("grid h-8 w-8 place-items-center rounded-full transition-all duration-200 lg:h-7 lg:w-7", grid ? "bg-[var(--surface-3)] text-foreground shadow-sm" : "text-muted-foreground hover:bg-[var(--surface-2)] hover:text-foreground")}
                 aria-label="Vue grille"
               >
                 <LayoutGrid className="size-4 lg:size-3.5" />
               </button>
               <button
                 onClick={() => setGrid(false)}
-                className={cn("grid h-8 w-8 place-items-center rounded-full transition-all duration-200 lg:h-7 lg:w-7", !grid ? "bg-white text-black shadow-sm" : "text-muted-foreground hover:bg-white/10 hover:text-foreground")}
+                className={cn("grid h-8 w-8 place-items-center rounded-full transition-all duration-200 lg:h-7 lg:w-7", !grid ? "bg-[var(--surface-3)] text-foreground shadow-sm" : "text-muted-foreground hover:bg-[var(--surface-2)] hover:text-foreground")}
                 aria-label="Vue liste"
               >
                 <List className="size-4 lg:size-3.5" />
@@ -339,7 +339,7 @@ export function LibraryView() {
             >
               <Icon className={cn("size-3.5 shrink-0", item.id === "likes" && active && "fill-primary text-primary")} />
               <span className="truncate">{item.label}</span>
-              <span className="hidden rounded-full bg-white/10 px-2 py-0.5 text-[10px] tabular-nums text-muted-foreground sm:inline-block">{item.count}</span>
+              <span className="hidden rounded-full bg-[var(--surface-3)] px-2 py-0.5 text-[10px] tabular-nums text-muted-foreground sm:inline-block">{item.count}</span>
               {active && <span className="absolute inset-x-2 -bottom-px h-0.5 bg-primary" />}
             </button>
           );
@@ -349,7 +349,7 @@ export function LibraryView() {
       {/* Instant filter + facet chips (chips only apply to the track tabs). */}
       {tab !== "playlists" && (
         <div className="mb-4 space-y-3">
-          <div className="flex h-10 max-w-[360px] items-center gap-2 rounded-full border border-transparent bg-[var(--panel-2)] px-4 transition-colors focus-within:border-white">
+          <div className="flex h-10 max-w-[360px] items-center gap-2 rounded-full border border-transparent bg-[var(--surface-2)] px-4 transition-colors focus-within:border-[var(--line-strong)]">
             <Search className="size-4 text-muted-foreground" />
             <input
               value={filter}
@@ -636,7 +636,7 @@ function AlbumListRow({ album, index }: { album: Album; index: number }) {
   const navigate = usePlayer((s) => s.navigate);
   return (
     <button
-      className="track-row group grid w-full cursor-pointer grid-cols-[28px_minmax(0,1fr)_auto] items-center gap-3 rounded-xl px-2 py-2 text-left transition-all hover:bg-white/[0.04]"
+      className="track-row group grid w-full cursor-pointer grid-cols-[28px_minmax(0,1fr)_auto] items-center gap-3 rounded-xl px-2 py-2 text-left transition-all hover:bg-[var(--surface-2)]"
       onClick={() => navigate("album", album.albumhash)}
     >
       <span className="text-center text-[12px] tabular-nums text-muted-foreground">{index + 1}</span>
@@ -660,7 +660,7 @@ function ArtistListRow({ artist, index }: { artist: Artist; index: number }) {
   const colors = paletteForName(artist.name);
   return (
     <button
-      className="track-row group grid w-full cursor-pointer grid-cols-[28px_minmax(0,1fr)_auto] items-center gap-3 rounded-xl px-2 py-2 text-left transition-all hover:bg-white/[0.04]"
+      className="track-row group grid w-full cursor-pointer grid-cols-[28px_minmax(0,1fr)_auto] items-center gap-3 rounded-xl px-2 py-2 text-left transition-all hover:bg-[var(--surface-2)]"
       onClick={() => navigate("artist", artist.artisthash)}
     >
       <span className="text-center text-[12px] tabular-nums text-muted-foreground">{index + 1}</span>

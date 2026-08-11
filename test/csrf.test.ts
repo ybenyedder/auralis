@@ -1,7 +1,7 @@
 // Tests for the CSRF / same-origin guard (checkCsrf). Pure header logic — no DB —
 // so it imports cleanly without touching the SQLite connection other tests use.
 
-import { test } from "node:test";
+import { test } from "vitest";
 import assert from "node:assert/strict";
 import { checkCsrf } from "../src/server/http";
 

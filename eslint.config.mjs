@@ -6,10 +6,13 @@ const eslintConfig = [
   ...nextTypescript,
   {
     rules: {
-      "@typescript-eslint/no-explicit-any": "warn",
+      // Type-safety rules are promoted to ERROR. An audit confirmed src/ has zero
+      // `: any`, zero `as any`, zero `@ts-ignore`, and zero `!` non-null assertions
+      // — so these are now locked-in guardrails, not aspirational warns.
+      "@typescript-eslint/no-explicit-any": "error",
       "@typescript-eslint/no-unused-vars": ["warn", { "argsIgnorePattern": "^_", "varsIgnorePattern": "^_" }],
-      "@typescript-eslint/no-non-null-assertion": "warn",
-      "@typescript-eslint/ban-ts-comment": "warn",
+      "@typescript-eslint/no-non-null-assertion": "error",
+      "@typescript-eslint/ban-ts-comment": "error",
       "react-hooks/exhaustive-deps": "warn",
       "react/no-unescaped-entities": "warn",
       "@next/next/no-img-element": "warn",

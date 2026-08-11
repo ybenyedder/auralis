@@ -75,7 +75,7 @@ struct SearchView: View {
         HStack(spacing: 12) {
             CoverArt(url: app.artURL(artist.image), colors: palette(for: artist.artisthash), corner: 24)
                 .frame(width: 48, height: 48).clipShape(Circle())
-            Text(artist.name).font(.subheadline.weight(.semibold)).foregroundStyle(.white)
+            Text(artist.name).font(.subheadline.weight(.semibold)).foregroundStyle(.primary)
             Spacer()
         }
     }
@@ -85,7 +85,7 @@ struct SearchView: View {
             CoverArt(url: app.artURL(album.image), colors: palette(for: album.albumhash), corner: 4)
                 .frame(width: 48, height: 48)
             VStack(alignment: .leading, spacing: 2) {
-                Text(album.title).font(.subheadline.weight(.semibold)).foregroundStyle(.white).lineLimit(1)
+                Text(album.title).font(.subheadline.weight(.semibold)).foregroundStyle(.primary).lineLimit(1)
                 Text(album.artistName).font(.caption).foregroundStyle(.secondary).lineLimit(1)
             }
             Spacer()

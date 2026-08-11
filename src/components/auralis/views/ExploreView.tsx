@@ -156,7 +156,7 @@ export function ExploreView() {
         value={searchQuery}
         onChange={(event) => setSearch(event.target.value)}
         placeholder="Que souhaitez-vous écouter ?"
-        className="min-h-[28px] w-full bg-transparent text-[14px] font-medium text-white placeholder:text-[var(--text-muted)] outline-none"
+        className="min-h-[28px] w-full bg-transparent text-[14px] font-medium text-foreground placeholder:text-[var(--text-muted)] outline-none"
       />
       {sticky && searching && query && <Loader2 className="size-4 shrink-0 animate-spin text-[var(--text-muted)]" aria-label="Recherche en cours" />}
       {sticky && searchQuery && (

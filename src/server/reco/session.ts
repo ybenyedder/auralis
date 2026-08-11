@@ -25,11 +25,10 @@
 
 import { featureSimilarity, type FeatureVector } from "@/lib/auralis/reco";
 import { softmax } from "@/lib/auralis/vector";
+import { TRANSITION_HALF_LIFE_MS } from "./config";
 
 const MINUTE = 60_000;
 const SESSION_GAP_MS = 30 * MINUTE; // a >30-min silence starts a new session
-const DAY = 86_400_000;
-const TRANSITION_HALF_LIFE_MS = 30 * DAY; // old habits fade
 const ATTENTION_WINDOW = 8; // how many recent tracks the attention head sees
 const ATTENTION_TEMP = 3.0; // sharpness of the attention distribution
 

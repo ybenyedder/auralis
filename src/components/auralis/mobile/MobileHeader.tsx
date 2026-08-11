@@ -3,6 +3,7 @@
 import { ChevronLeft, Search, Settings, Flame } from "lucide-react";
 import { usePlayer, type ViewId } from "@/store/player";
 import { useStats } from "@/store/stats";
+import { useT } from "@/lib/auralis/i18n";
 import { BrandMark } from "../BrandMark";
 
 // The three real mobile root tabs (the bottom dock). Everything else — including
@@ -12,15 +13,15 @@ const ROOT_TABS: ViewId[] = ["home", "explore", "library"];
 
 // Compact category label shown on detail / secondary screens. Root tabs show the
 // wordmark instead, because each root view renders its own large title.
-const VIEW_LABEL: Partial<Record<ViewId, string>> = {
-  album: "Album",
-  artist: "Artiste",
-  playlist: "Playlist",
-  favorites: "Favoris",
-  recents: "Historique",
-  folders: "Dossiers",
-  insights: "Analyse",
-  settings: "Réglages",
+const VIEW_LABEL: Partial<Record<ViewId, { key: string; fallback: string }>> = {
+  album: { key: "mobile.album", fallback: "Album" },
+  artist: { key: "mobile.artist", fallback: "Artiste" },
+  playlist: { key: "mobile.playlist", fallback: "Playlist" },
+  favorites: { key: "mobile.favorites", fallback: "Favoris" },
+  recents: { key: "mobile.history", fallback: "Historique" },
+  folders: { key: "mobile.folders", fallback: "Dossiers" },
+  insights: { key: "mobile.analysis", fallback: "Analyse" },
+  settings: { key: "mobile.settings", fallback: "Réglages" },
 };
 
 /**
@@ -34,9 +35,10 @@ export function MobileHeader() {
   const navigate = usePlayer((s) => s.navigate);
   const back = usePlayer((s) => s.back);
   const streak = useStats((s) => s.streak);
+  const t = useT();
 
   const isRoot = ROOT_TABS.includes(view.view);
-  const label = VIEW_LABEL[view.view];
+  const labelEntry = VIEW_LABEL[view.view];
 
   return (
     <header className="mobile-bar safe-top safe-px z-30 flex shrink-0 items-center gap-1 border-b border-[var(--line)] px-2 md:hidden">
@@ -49,7 +51,7 @@ export function MobileHeader() {
         ) : (
           <button
             onClick={back}
-            aria-label="Retour"
+            aria-label={t("mobile.back", "Retour")}
             className="tap-press grid h-11 w-11 place-items-center rounded-full text-foreground"
           >
             <ChevronLeft className="size-6" />
@@ -57,9 +59,9 @@ export function MobileHeader() {
         )}
       </div>
 
-      {label && (
+      {labelEntry && (
         <span className="min-w-0 flex-1 truncate text-[15px] font-bold tracking-tight text-foreground">
-          {label}
+          {t(labelEntry.key, labelEntry.fallback)}
         </span>
       )}
 
@@ -67,7 +69,7 @@ export function MobileHeader() {
         {streak > 0 && (
           <button
             onClick={() => navigate("insights")}
-            aria-label={`Série d'écoute : ${streak} jours`}
+            aria-label={`${t("mobile.streak", "Série d'écoute")} : ${streak} ${t("mobile.days", "jours")}`}
             className="tap-press mr-0.5 flex items-center gap-1 rounded-full bg-primary/15 px-2.5 py-1.5 text-[12px] font-semibold text-primary-soft"
           >
             <Flame className="size-3.5" /> {streak}
@@ -76,7 +78,7 @@ export function MobileHeader() {
         {view.view !== "explore" && (
           <button
             onClick={() => navigate("explore")}
-            aria-label="Rechercher"
+            aria-label={t("mobile.search", "Rechercher")}
             className="tap-press grid h-11 w-11 place-items-center rounded-full text-muted-foreground/80"
           >
             <Search className="size-[21px]" />
@@ -84,7 +86,7 @@ export function MobileHeader() {
         )}
         <button
           onClick={() => navigate("settings")}
-          aria-label="Réglages"
+          aria-label={t("mobile.settings", "Réglages")}
           className="tap-press grid h-11 w-11 place-items-center rounded-full text-muted-foreground/80"
         >
           <Settings className="size-[21px]" />
