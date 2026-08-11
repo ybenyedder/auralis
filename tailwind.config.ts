@@ -16,8 +16,8 @@ const config: Config = {
         // Inter is injected via next/font in layout.tsx as --font-inter; the
         // full stack (SF Pro on Apple platforms → Inter elsewhere) lives in
         // globals.css :root --font-sans.
-        sans: ["var(--font-sans)"],
-        mono: ["var(--font-mono)"],
+        sans: ["var(--font-sans)", "system-ui", "sans-serif"],
+        mono: ["var(--font-mono)", "monospace"],
       },
       colors: {
         background: "var(--background)",
