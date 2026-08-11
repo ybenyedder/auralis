@@ -9,4 +9,4 @@ const hash = crypto.pbkdf2Sync(initialPw, salt, 100000, 64, 'sha512').toString('
 
 db.prepare("UPDATE users SET password_hash = ?, password_salt = ? WHERE username = 'admin'").run(hash, salt);
 
-console.log("Password reset to admin1234");
+console.error("Password reset to admin1234");
