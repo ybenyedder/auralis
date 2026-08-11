@@ -42,6 +42,16 @@ export function initWatcher() {
   });
 
   const queueScan = (event: string, path: string) => {
+    // Only react to audio files or directory add/remove. A bind-mounted library
+    // often colocates non-music churn (SQLite WAL/SHM when the data dir sits
+    // inside the music tree, cover.jpg, .lrc sidecars, logs) which would
+    // otherwise retrigger a full scan on every poll. The scanner itself reads
+    // tags for every audio file, so gating on extension here is both cheap and
+    // sufficient.
+    const isDir = event === "addDir" || event === "unlinkDir";
+    const isAudio = /\.(mp3|flac|opus|ogg|oga|m4a|aac|wma|wav|alac|aiff?|dsf|dsd)$/i.test(path);
+    if (!isDir && !isAudio) return;
+
     log.info("fs event detected", { event, path });
     if (timeout) clearTimeout(timeout);
     // Debounce the full scan by 5 seconds
