@@ -1,5 +1,5 @@
-const Database = require('better-sqlite3');
-const crypto = require('crypto');
+import Database from 'better-sqlite3';
+import crypto from 'crypto';
 
 const db = new Database('/home/pc/.local/share/auralis/auralis.db');
 
