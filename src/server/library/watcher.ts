@@ -12,10 +12,18 @@ export function initWatcher() {
   if (watcherInstance) return;
 
   const { musicDir } = getConfig();
-  log.info("starting watch mode", { musicDir });
+  // Polling mode bypasses inotify — required when the library is a Docker bind
+  // mount written to from the host (or another container, e.g. deemix) since
+  // inotify events don't reliably cross that boundary. Costs a periodic stat()
+  // sweep of the tree; default interval is 30s.
+  const usePolling = process.env.AURALIS_WATCH_POLL === "1";
+  const pollInterval = Number(process.env.AURALIS_WATCH_POLL_INTERVAL ?? 30000);
+  log.info("starting watch mode", { musicDir, usePolling, pollInterval });
 
   watcherInstance = watch(musicDir, {
     ignoreInitial: true,
+    usePolling,
+    interval: pollInterval,
     awaitWriteFinish: {
       stabilityThreshold: 2000,
       pollInterval: 100,
