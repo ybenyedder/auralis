@@ -147,7 +147,7 @@ class PlayerHolder(
         val ids = (0 until c.mediaItemCount).map { c.getMediaItemAt(it).mediaId }
         _snapshot.value = PlaybackSnapshot(
             currentId = c.currentMediaItem?.mediaId,
-            isPlaying = c.isPlaying,
+            isPlaying = c.playWhenReady,
             shuffle = c.shuffleModeEnabled,
             repeat = when (c.repeatMode) {
                 Player.REPEAT_MODE_ALL -> "all"
@@ -169,6 +169,7 @@ class PlayerHolder(
         c.setMediaItems(tracks.map { it.toMediaItem(api) }, startIndex.coerceIn(0, tracks.lastIndex), 0L)
         c.prepare()
         c.playWhenReady = true
+        pushSnapshot()
     }
 
     fun appendTracks(tracks: List<Track>) {
@@ -202,14 +203,16 @@ class PlayerHolder(
     fun togglePlay() {
         val c = controller ?: return
         if (c.isPlaying) c.pause() else { c.prepare(); c.play() }
+        pushSnapshot()
     }
 
-    fun play() { controller?.play() }
-    fun pause() { controller?.pause() }
-    fun next() { controller?.seekToNextMediaItem() }
+    fun play() { controller?.play(); pushSnapshot() }
+    fun pause() { controller?.pause(); pushSnapshot() }
+    fun next() { controller?.seekToNextMediaItem(); pushSnapshot() }
     fun prev() {
         val c = controller ?: return
         if (c.currentPosition > 3000) c.seekTo(0) else c.seekToPreviousMediaItem()
+        pushSnapshot()
     }
     fun seekTo(ms: Long) { controller?.seekTo(ms.coerceAtLeast(0L)) }
     fun seekBy(deltaMs: Long) {
@@ -218,7 +221,7 @@ class PlayerHolder(
     }
     fun jumpTo(index: Int) {
         val c = controller ?: return
-        if (index in 0 until c.mediaItemCount) { c.seekTo(index, 0L); c.play() }
+        if (index in 0 until c.mediaItemCount) { c.seekTo(index, 0L); c.play(); pushSnapshot() }
     }
     fun removeAt(index: Int) {
         val c = controller ?: return

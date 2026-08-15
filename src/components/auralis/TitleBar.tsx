@@ -25,7 +25,7 @@ export function TitleBar() {
   return (
     <header
       onDoubleClick={() => (window as unknown as { auralisDesktop?: { maximize?: () => void } }).auralisDesktop?.maximize?.()}
-      className="relative z-40 flex h-12 items-center gap-3 border-b border-[var(--line)] bg-[var(--sidebar)] px-3 select-none"
+      className="relative z-40 flex h-12 items-center gap-3 border-b border-[var(--glass-border)] glass px-3 select-none"
     >
       {/* Brand — draggable (no interactive children). */}
       <div className="drag-region flex items-center gap-2 pr-2">
@@ -41,10 +41,10 @@ export function TitleBar() {
           aria-label="Retour"
           title="Retour"
           className={cn(
-            "grid h-8 w-8 place-items-center rounded-full transition-colors duration-200",
+            "grid h-8 w-8 place-items-center rounded-full transition-all duration-200 active:scale-95",
             canBack
               ? "text-[var(--primary)] hover:bg-[var(--sidebar-accent)]"
-              : "text-[var(--text-faint)] cursor-default",
+              : "text-[var(--text-faint)] cursor-default active:scale-100",
           )}
         >
           <ChevronLeft className="size-5" strokeWidth={2.5} />
@@ -70,7 +70,7 @@ export function TitleBar() {
           onClick={() => setCommandOpen(true)}
           aria-label="Rechercher dans la bibliothèque"
           title="Rechercher"
-          className="group flex h-9 w-full items-center gap-2.5 rounded-full bg-[var(--surface-2)] pl-3.5 pr-4 text-left text-[var(--text-muted)] transition-colors duration-200 hover:bg-[var(--surface-3)] hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--focus-ring)]"
+          className="group flex h-9 w-full items-center gap-2.5 rounded-full bg-[var(--surface-2)] pl-3.5 pr-4 text-left text-[var(--text-muted)] transition-all duration-200 hover:bg-[var(--surface-3)] hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--focus-ring)] active:scale-[0.98]"
         >
           <Search className="size-4 shrink-0 transition-colors duration-200 group-hover:text-foreground" />
           <span className="flex-1 truncate text-[13px]">Rechercher</span>
@@ -87,7 +87,7 @@ export function TitleBar() {
           aria-label={rightPanelOpen ? "Masquer le panneau" : "Afficher le panneau"}
           title={rightPanelOpen ? "Masquer le panneau" : "Afficher le panneau"}
           className={cn(
-            "hidden xl:grid h-8 w-8 place-items-center rounded-full transition-colors duration-200 hover:bg-[var(--sidebar-accent)]",
+            "hidden xl:grid h-8 w-8 place-items-center rounded-full transition-all duration-200 hover:bg-[var(--sidebar-accent)] active:scale-95",
             rightPanelOpen ? "text-[var(--primary)]" : "text-[var(--text-muted)] hover:text-foreground",
           )}
         >
@@ -98,7 +98,7 @@ export function TitleBar() {
           onClick={() => navigate("settings")}
           aria-label="Profil et réglages"
           title="Profil"
-          className="mr-1 grid h-8 w-8 place-items-center rounded-full bg-[var(--surface-2)] text-foreground transition-colors hover:bg-[var(--surface-3)]"
+          className="mr-1 grid h-8 w-8 place-items-center rounded-full bg-[var(--surface-2)] text-foreground transition-all duration-200 hover:bg-[var(--surface-3)] active:scale-95"
         >
           <User className="size-4" />
         </button>

@@ -52,7 +52,7 @@ export const AlbumCard = memo(function AlbumCard({ album, onOpen }: AlbumCardPro
         }
       }}
       onContextMenu={(e) => onContext(e, album)}
-      className="group matte-panel relative flex cursor-pointer flex-col gap-2.5 rounded-xl p-3 text-left transition-colors focus-auralis"
+      className="group matte-panel card-lift relative flex cursor-pointer flex-col gap-2.5 rounded-xl p-3 text-left focus-auralis"
     >
       <div className="relative">
         <Artwork
@@ -111,7 +111,7 @@ export const ArtistCard = memo(function ArtistCard({ artist }: { artist: Artist 
         }
       }}
       onContextMenu={(e) => onContext(e, artist)}
-      className="group matte-panel relative flex cursor-pointer flex-col gap-2.5 rounded-xl p-3 text-left transition-colors focus-auralis"
+      className="group matte-panel card-lift relative flex cursor-pointer flex-col gap-2.5 rounded-xl p-3 text-left focus-auralis"
     >
       <div className="relative">
         {artist.image ? (
@@ -178,7 +178,7 @@ export const PlaylistTile = memo(function PlaylistTile({ playlist }: { playlist:
           navigate("playlist", String(playlist.id));
         }
       }}
-      className="group matte-panel relative flex cursor-pointer flex-col gap-2.5 rounded-xl p-3 text-left transition-colors focus-auralis"
+      className="group matte-panel card-lift relative flex cursor-pointer flex-col gap-2.5 rounded-xl p-3 text-left focus-auralis"
     >
       <div className="relative">
         {coverImage ? (

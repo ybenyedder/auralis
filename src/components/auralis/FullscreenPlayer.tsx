@@ -294,7 +294,16 @@ export function FullscreenPlayer() {
           aria-label={isPlaying ? "Pause" : "Lecture"}
           className="grid h-16 w-16 place-items-center rounded-full bg-[var(--primary)] text-white transition-transform active:scale-90"
         >
-          {isPlaying ? <Pause className="size-8 fill-current" /> : <Play className="size-8 fill-current ml-1" />}
+          {isPlaying ? (
+            <svg viewBox="0 0 24 24" fill="currentColor" className="size-8" xmlns="http://www.w3.org/2000/svg">
+              <rect x="6" y="4" width="4" height="16" rx="1" />
+              <rect x="14" y="4" width="4" height="16" rx="1" />
+            </svg>
+          ) : (
+            <svg viewBox="0 0 24 24" fill="currentColor" className="size-8 ml-1" xmlns="http://www.w3.org/2000/svg">
+              <path d="M8 5.14v13.72a1 1 0 0 0 1.5.86l11-6.86a1 1 0 0 0 0-1.72l-11-6.86a1 1 0 0 0-1.5.86Z" />
+            </svg>
+          )}
         </button>
         <button onClick={playNext} className="grid h-12 w-12 place-items-center rounded-full text-foreground transition-transform active:scale-90" aria-label="Suivant">
           <SkipForward className="size-7 fill-current" />

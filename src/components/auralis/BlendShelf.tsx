@@ -40,15 +40,16 @@ export function BlendShelf() {
           return (
             <button
               key={u}
+              type="button"
               onClick={() => void startBlend(u, u)}
               aria-label={`Blend avec ${u}`}
               className="group relative flex flex-col justify-end overflow-hidden rounded-lg p-4 text-left aspect-[1.1]"
               style={{ background: c0 }}
             >
-              <span className="absolute inset-0 bg-black/20" aria-hidden />
-              <Users className="relative size-7 text-white" />
-              <span className="relative mt-2 block truncate text-[16px] font-bold text-white">Blend avec {u}</span>
-              <span className="relative mt-0.5 block text-[12px] font-semibold text-white/80">Vos goûts mélangés</span>
+              <span className="pointer-events-none absolute inset-0 bg-black/20" aria-hidden />
+              <Users className="pointer-events-none relative size-7 text-white" />
+              <span className="pointer-events-none relative mt-2 block truncate text-[16px] font-bold text-white">Blend avec {u}</span>
+              <span className="pointer-events-none relative mt-0.5 block text-[12px] font-semibold text-white/80">Vos goûts mélangés</span>
               <span className="signal-button absolute bottom-3 right-3 grid h-11 w-11 place-items-center rounded-full opacity-0 transition-opacity duration-200 group-hover:opacity-100">
                 <Play className="size-5 fill-current ml-0.5" />
               </span>

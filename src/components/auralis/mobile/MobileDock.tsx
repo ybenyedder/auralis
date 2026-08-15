@@ -29,7 +29,7 @@ export function MobileDock() {
       <div className="w-full px-2 pb-2 pointer-events-auto">
         <MiniPlayer />
       </div>
-      <div className="w-full bg-[var(--sidebar)] pointer-events-auto pb-[env(safe-area-inset-bottom)]">
+      <div className="w-full pointer-events-auto pb-[env(safe-area-inset-bottom)] glass">
         <TabBar />
       </div>
     </div>
@@ -49,7 +49,7 @@ function MiniPlayer() {
 
   return (
     <div 
-      className="relative flex flex-col overflow-hidden rounded-md bg-[var(--panel-2)] shadow-md"
+      className="relative flex flex-col overflow-hidden rounded-md matte-panel-2 shadow-[0_4px_16px_rgba(0,0,0,0.2)]"
     >
       <div className="flex h-14 items-center gap-2 px-2 py-1">
         <button
@@ -88,7 +88,16 @@ function MiniPlayer() {
             aria-label={isPlaying ? t("mobile.pause", "Pause") : t("mobile.play", "Lecture")}
             className="tap-press grid h-11 w-11 place-items-center rounded-full text-foreground transition-transform active:scale-90"
           >
-            {isPlaying ? <Pause className="size-6 fill-current" /> : <Play className="size-6 fill-current ml-0.5" />}
+            {isPlaying ? (
+              <svg viewBox="0 0 24 24" fill="currentColor" className="size-6" xmlns="http://www.w3.org/2000/svg">
+                <rect x="6" y="4" width="4" height="16" rx="1" />
+                <rect x="14" y="4" width="4" height="16" rx="1" />
+              </svg>
+            ) : (
+              <svg viewBox="0 0 24 24" fill="currentColor" className="size-6 ml-0.5" xmlns="http://www.w3.org/2000/svg">
+                <path d="M8 5.14v13.72a1 1 0 0 0 1.5.86l11-6.86a1 1 0 0 0 0-1.72l-11-6.86a1 1 0 0 0-1.5.86Z" />
+              </svg>
+            )}
           </button>
         </div>
       </div>
@@ -115,7 +124,7 @@ function TabBar() {
   const t = useT();
 
   return (
-    <nav aria-label={t("mobile.mainNav", "Navigation principale")} className="flex h-[64px] items-stretch justify-around px-2 bg-[var(--sidebar)]">
+    <nav aria-label={t("mobile.mainNav", "Navigation principale")} className="flex h-[64px] items-stretch justify-around px-2">
       {TABS.map((tab) => {
         const Icon = tab.icon;
         const active = tab.owns.includes(view.view);

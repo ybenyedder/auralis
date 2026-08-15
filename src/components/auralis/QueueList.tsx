@@ -2,7 +2,8 @@
 
 import { useRef, type CSSProperties } from "react";
 import { ArrowDown, ArrowUp, X, Trash2, Shuffle } from "lucide-react";
-import { usePlayer, shuffleArray } from "@/store/player";
+import { usePlayer } from "@/store/player";
+import { shuffleArray } from "@/store/slices/helpers";
 import { useLibraryStore } from "@/store/library";
 import { Artwork } from "./Artwork";
 import { VirtualList } from "./Virtualized";

@@ -636,7 +636,7 @@ function AlbumListRow({ album, index }: { album: Album; index: number }) {
   const navigate = usePlayer((s) => s.navigate);
   return (
     <button
-      className="track-row group grid w-full cursor-pointer grid-cols-[28px_minmax(0,1fr)_auto] items-center gap-3 rounded-xl px-2 py-2 text-left transition-all hover:bg-[var(--surface-2)]"
+      className="track-row group grid w-full cursor-pointer grid-cols-[28px_minmax(0,1fr)_auto] items-center gap-3 rounded-xl px-2 py-2 text-left transition-all hover:bg-[var(--surface-2)] focus-auralis active:scale-[0.99]"
       onClick={() => navigate("album", album.albumhash)}
     >
       <span className="text-center text-[12px] tabular-nums text-muted-foreground">{index + 1}</span>
@@ -660,7 +660,7 @@ function ArtistListRow({ artist, index }: { artist: Artist; index: number }) {
   const colors = paletteForName(artist.name);
   return (
     <button
-      className="track-row group grid w-full cursor-pointer grid-cols-[28px_minmax(0,1fr)_auto] items-center gap-3 rounded-xl px-2 py-2 text-left transition-all hover:bg-[var(--surface-2)]"
+      className="track-row group grid w-full cursor-pointer grid-cols-[28px_minmax(0,1fr)_auto] items-center gap-3 rounded-xl px-2 py-2 text-left transition-all hover:bg-[var(--surface-2)] focus-auralis active:scale-[0.99]"
       onClick={() => navigate("artist", artist.artisthash)}
     >
       <span className="text-center text-[12px] tabular-nums text-muted-foreground">{index + 1}</span>

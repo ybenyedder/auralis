@@ -2,7 +2,8 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { Play, Settings, Heart, Music2 } from "lucide-react";
-import { usePlayer, shuffleArray } from "@/store/player";
+import { usePlayer } from "@/store/player";
+import { shuffleArray } from "@/store/slices/helpers";
 import { useLibraryStore, tracksFromIndex, artistPlayTotals } from "@/store/library";
 import { useStats } from "@/store/stats";
 import { useReco } from "@/store/reco";
@@ -350,7 +351,7 @@ function QuickTile({
       tabIndex={0}
       onClick={onOpen}
       onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); onOpen(); } }}
-      className="group relative flex h-[64px] cursor-pointer items-center gap-3 overflow-hidden rounded-xs bg-[var(--panel-2)] transition-colors duration-200 hover:bg-[var(--panel-3)]"
+      className="group relative flex h-[64px] cursor-pointer items-center gap-3 overflow-hidden rounded-lg matte-panel-2 card-lift focus-auralis transition-all duration-300"
     >
       {liked ? (
         <span

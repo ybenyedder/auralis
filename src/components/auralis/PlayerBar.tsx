@@ -76,12 +76,12 @@ export function PlayerBar() {
   const fav = usePlayer((s) => (currentTrack ? s.favorites.has(currentTrack.trackhash) : false));
 
   return (
-    <footer className="relative z-30 flex h-full w-full items-center justify-between bg-[var(--sidebar)] px-4">
+    <footer className="relative z-30 flex h-full w-full items-center justify-between bg-transparent px-4">
       {/* Left: Track Info */}
       <div className="flex min-w-0 items-center justify-start gap-4" style={{ width: "30%" }}>
         {currentTrack ? (
           <>
-            <button onClick={toggleFullscreenPlayer} aria-label="Agrandir" className="shrink-0 group relative overflow-hidden rounded-sm">
+            <button onClick={toggleFullscreenPlayer} aria-label="Agrandir" className="shrink-0 group relative overflow-hidden rounded-md focus-auralis active:scale-95 transition-all">
               <Artwork
                 title={currentTrack.title}
                 trackhash={currentTrack.trackhash}
@@ -120,7 +120,7 @@ export function PlayerBar() {
             <button
               onClick={() => toggleFavorite(currentTrack.trackhash)}
               aria-label={fav ? "Retirer des favoris" : "Ajouter aux favoris"}
-              className="ml-2 flex shrink-0 items-center justify-center"
+              className="ml-2 flex shrink-0 items-center justify-center rounded-full p-1 focus-auralis active:scale-95 transition-all"
             >
               <Heart className={cn("size-4", fav ? "fill-[var(--primary)] text-[var(--primary)]" : "text-[var(--text-muted)] hover:text-white")} />
             </button>
@@ -136,7 +136,7 @@ export function PlayerBar() {
           <button
             onClick={toggleShuffle}
             aria-label="Lecture aléatoire"
-            className={cn("flex items-center justify-center transition-colors hover:text-white", shuffle ? "text-[var(--primary)]" : "text-[var(--text-muted)]")}
+            className={cn("flex items-center justify-center rounded-full p-1 transition-all active:scale-95 hover:text-white", shuffle ? "text-[var(--primary)]" : "text-[var(--text-muted)]")}
           >
             <Shuffle className="size-4" />
           </button>
@@ -169,7 +169,7 @@ export function PlayerBar() {
           <button
             onClick={cycleRepeat}
             aria-label="Répéter"
-            className={cn("flex items-center justify-center transition-colors hover:text-white", repeat !== "off" ? "text-[var(--primary)]" : "text-[var(--text-muted)]")}
+            className={cn("flex items-center justify-center rounded-full p-1 transition-all active:scale-95 hover:text-white", repeat !== "off" ? "text-[var(--primary)]" : "text-[var(--text-muted)]")}
           >
             {repeat === "one" ? <Repeat1 className="size-4" /> : <Repeat className="size-4" />}
           </button>
@@ -186,7 +186,7 @@ export function PlayerBar() {
           <button
             onClick={() => setSleepOpen((v) => !v)}
             aria-label="Minuteur de veille"
-            className={cn("flex items-center justify-center transition-colors", sleepTimer.active ? "text-[var(--primary)]" : "text-[var(--text-muted)] hover:text-white")}
+            className={cn("flex items-center justify-center rounded-full p-1 transition-all active:scale-95", sleepTimer.active ? "text-[var(--primary)]" : "text-[var(--text-muted)] hover:text-white")}
           >
             <Moon className="size-[18px]" />
           </button>
@@ -208,7 +208,7 @@ export function PlayerBar() {
           onClick={toggleLyrics}
           aria-label="Paroles"
           aria-pressed={lyricsOpen}
-          className={cn("flex items-center justify-center transition-colors", lyricsOpen ? "text-[var(--primary)]" : "text-[var(--text-muted)] hover:text-white")}
+          className={cn("flex items-center justify-center rounded-full p-1 transition-all active:scale-95", lyricsOpen ? "text-[var(--primary)]" : "text-[var(--text-muted)] hover:text-white")}
         >
           <Mic2 className="size-[18px]" />
         </button>
@@ -217,7 +217,7 @@ export function PlayerBar() {
           onClick={toggleQueue}
           aria-label="File d'attente"
           aria-pressed={queueOpen}
-          className={cn("flex items-center justify-center transition-colors", queueOpen ? "text-[var(--primary)]" : "text-[var(--text-muted)] hover:text-white")}
+          className={cn("flex items-center justify-center rounded-full p-1 transition-all active:scale-95", queueOpen ? "text-[var(--primary)]" : "text-[var(--text-muted)] hover:text-white")}
         >
           <ListMusic className="size-[18px]" />
         </button>
@@ -230,7 +230,7 @@ export function PlayerBar() {
           <button
             onClick={toggleMute}
             aria-label={muted ? "Rétablir le son" : "Couper le son"}
-            className="flex items-center justify-center text-[var(--text-muted)] transition-colors hover:text-white"
+            className="flex items-center justify-center rounded-full p-1 text-[var(--text-muted)] transition-all active:scale-95 hover:text-white"
           >
             {muted || vol === 0 ? <VolumeX className="size-[18px]" /> : <Volume2 className="size-[18px]" />}
           </button>
@@ -240,7 +240,7 @@ export function PlayerBar() {
         <button
           onClick={toggleFullscreenPlayer}
           aria-label="Plein écran"
-          className="flex items-center justify-center text-[var(--text-muted)] transition-colors hover:text-white"
+          className="flex items-center justify-center rounded-full p-1 text-[var(--text-muted)] transition-all active:scale-95 hover:text-white"
         >
           <Maximize2 className="size-[16px]" />
         </button>

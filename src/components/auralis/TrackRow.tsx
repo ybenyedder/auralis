@@ -99,13 +99,16 @@ export const TrackRow = memo(function TrackRow({
 
   return (
     <div
+      role="button"
+      tabIndex={0}
       className={cn(
-        "lazy-row group relative grid cursor-pointer items-center gap-3 rounded-md px-2 transition-colors",
+        "lazy-row group relative grid cursor-pointer items-center gap-3 rounded-md px-2 transition-all focus-auralis active:scale-[0.99]",
         compact ? "grid-cols-[20px_1fr_auto] py-1.5" : "grid-cols-[24px_minmax(0,1fr)_auto] py-2.5 lg:py-2",
         showAlbum && !compact && "md:grid-cols-[24px_minmax(0,1.6fr)_minmax(0,1fr)_auto]",
-        selected ? "bg-primary/15 hover:bg-primary/20" : "active:bg-[var(--surface-2)] lg:hover:bg-[var(--surface-2)]",
+        selected ? "bg-primary/15 hover:bg-primary/20" : "hover:bg-[var(--surface-2)]",
       )}
       onClick={handleRowClick}
+      onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); handleRowClick(); } }}
       onContextMenu={(e) => onContext(e, track)}
       onPointerDown={onPointerDown}
       onPointerUp={cancelLongPress}

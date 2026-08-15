@@ -29,7 +29,8 @@ import {
   Volume2,
   type LucideIcon,
 } from "lucide-react";
-import { usePlayer, shuffleArray } from "@/store/player";
+import { usePlayer } from "@/store/player";
+import { shuffleArray } from "@/store/slices/helpers";
 import { useStats } from "@/store/stats";
 import { type Mode } from "@/lib/auralis/themes";
 import { api } from "@/lib/auralis/api";

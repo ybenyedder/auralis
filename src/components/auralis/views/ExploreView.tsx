@@ -2,7 +2,8 @@
 
 import { useEffect, useMemo, useState, useDeferredValue } from "react";
 import { Search, X, Play, Loader2 } from "lucide-react";
-import { usePlayer, shuffleArray } from "@/store/player";
+import { usePlayer } from "@/store/player";
+import { shuffleArray } from "@/store/slices/helpers";
 import { useLibraryStore, artistPlayTotals } from "@/store/library";
 import { api } from "@/lib/auralis/api";
 import { paletteForName, trackArtist, trackTitle } from "@/lib/auralis/brand";
@@ -174,7 +175,7 @@ export function ExploreView() {
   if (!query) {
     return (
       <div className="fade-up px-4 py-4 lg:px-6 lg:py-5">
-        <div className="safe-px sticky top-0 z-10 -mx-4 mb-5 bg-[var(--background)] px-4 pt-4 md:hidden">
+        <div className="safe-px sticky top-0 z-10 -mx-4 mb-5 glass border-b-0 px-4 pt-4 md:hidden">
           {searchBar(false)}
         </div>
 
@@ -198,16 +199,17 @@ export function ExploreView() {
                 return (
                   <button
                     key={genre}
+                    type="button"
                     onClick={() => playList(shuffleArray(gt), 0)}
                     aria-label={`Lire un mix ${genre}`}
                     className="group relative aspect-[1.1] overflow-hidden rounded-lg p-4 text-left"
                     style={{ background: c0 }}
                   >
-                    <span className="absolute inset-0 bg-black/20" aria-hidden />
-                    <span className="relative block max-w-[80%] text-[18px] font-black leading-tight text-white">{genre}</span>
+                    <span className="pointer-events-none absolute inset-0 bg-black/20" aria-hidden />
+                    <span className="pointer-events-none relative block max-w-[80%] text-[18px] font-black leading-tight text-white">{genre}</span>
                     {/* Tilted thumbnail in the bottom-right corner — Spotify's category-card motif. */}
                     <span
-                      className="absolute -bottom-2 -right-3 h-[72px] w-[72px] rotate-[25deg] rounded-xs border border-black/20"
+                      className="pointer-events-none absolute -bottom-2 -right-3 h-[72px] w-[72px] rotate-[25deg] rounded-xs border border-black/20"
                       style={{ background: c1 }}
                     />
                   </button>
@@ -264,7 +266,7 @@ export function ExploreView() {
 
   return (
     <div className="fade-up px-4 py-4 lg:px-6 lg:py-5">
-      <div className="safe-px sticky top-0 z-10 -mx-4 mb-4 bg-[var(--background)] px-4 lg:static lg:mx-0 lg:mb-5 lg:bg-transparent lg:px-0 pt-4">
+      <div className="safe-px sticky top-0 z-10 -mx-4 mb-4 glass border-b-0 px-4 lg:static lg:mx-0 lg:mb-5 lg:!bg-transparent lg:!backdrop-filter-none lg:px-0 pt-4">
         {searchBar(true)}
       </div>
 

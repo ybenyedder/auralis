@@ -2,7 +2,8 @@
 
 import { useMemo } from "react";
 import { Play, Zap, Flame, Sun, Headphones, Moon, CloudRain, Music2, Route, type LucideIcon } from "lucide-react";
-import { usePlayer, shuffleArray } from "@/store/player";
+import { usePlayer } from "@/store/player";
+import { shuffleArray } from "@/store/slices/helpers";
 import { useLibraryStore } from "@/store/library";
 import { MOODS, groupByMood } from "@/lib/auralis/mood";
 
@@ -53,15 +54,16 @@ export function MoodMixes({ title = "Selon votre humeur" }: { title?: string }) 
           return (
             <button
               key={tr.id}
+              type="button"
               onClick={() => void startTrajectory(tr.id, tr.label)}
               aria-label={`Démarrer : ${tr.label}`}
               className="group relative aspect-[1.1] overflow-hidden rounded-lg p-4 text-left"
               style={{ background: tr.colors[0] }}
             >
-              <span className="absolute inset-0 bg-black/20" aria-hidden />
-              <Icon className="relative size-7 text-white" />
-              <span className="relative mt-2 block max-w-[85%] text-[16px] font-bold leading-tight text-white">{tr.label}</span>
-              <span className="relative mt-0.5 block text-[12px] font-semibold text-white/80">{tr.blurb}</span>
+              <span className="pointer-events-none absolute inset-0 bg-black/20" aria-hidden />
+              <Icon className="pointer-events-none relative size-7 text-white" />
+              <span className="pointer-events-none relative mt-2 block max-w-[85%] text-[16px] font-bold leading-tight text-white">{tr.label}</span>
+              <span className="pointer-events-none relative mt-0.5 block text-[12px] font-semibold text-white/80">{tr.blurb}</span>
               <span className="signal-button absolute bottom-3 right-3 grid h-11 w-11 place-items-center rounded-full opacity-0 transition-opacity duration-200 group-hover:opacity-100">
                 <Route className="size-5" />
               </span>
@@ -79,15 +81,16 @@ export function MoodMixes({ title = "Selon votre humeur" }: { title?: string }) 
           return (
           <button
             key={mood.id}
+            type="button"
             onClick={() => playList(shuffleArray(mt), 0)}
             aria-label={`Lire un mix ${mood.label}`}
             className="group relative aspect-[1.1] overflow-hidden rounded-lg p-4 text-left"
             style={{ background: mood.colors[0] }}
           >
-            <span className="absolute inset-0 bg-black/20" aria-hidden />
-            <Icon className="relative size-7 text-white" />
-            <span className="relative mt-2 block max-w-[80%] text-[18px] font-bold leading-tight text-white">{mood.label}</span>
-            <span className="relative mt-0.5 block text-[12px] font-semibold text-white/80">{mood.blurb}</span>
+            <span className="pointer-events-none absolute inset-0 bg-black/20" aria-hidden />
+            <Icon className="pointer-events-none relative size-7 text-white" />
+            <span className="pointer-events-none relative mt-2 block max-w-[80%] text-[18px] font-bold leading-tight text-white">{mood.label}</span>
+            <span className="pointer-events-none relative mt-0.5 block text-[12px] font-semibold text-white/80">{mood.blurb}</span>
             {/* Play FAB fades in on hover — the recognisable Spotify card affordance. */}
             <span className="signal-button absolute bottom-3 right-3 grid h-11 w-11 place-items-center rounded-full opacity-0 transition-opacity duration-200 group-hover:opacity-100">
               <Play className="size-5 fill-current" />

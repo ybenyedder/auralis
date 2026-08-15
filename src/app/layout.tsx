@@ -36,6 +36,8 @@ export const viewport = {
   themeColor: "#000000",
   width: "device-width",
   initialScale: 1,
+  maximumScale: 1,
+  userScalable: false,
   // Cover the notch / home-indicator so the mobile chrome can paint into the
   // safe-area insets instead of leaving system letterboxing.
   viewportFit: "cover" as const,

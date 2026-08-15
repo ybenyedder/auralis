@@ -137,12 +137,13 @@ function MixCard({
 }) {
   return (
     <button
+      type="button"
       onClick={onPlay}
       aria-label={`Lire ${label}`}
       className="group relative flex flex-col overflow-hidden rounded-lg bg-[var(--panel)] p-3 text-left transition-colors duration-200 hover:bg-[var(--panel-2)]"
     >
       <div
-        className="relative mb-3 aspect-square w-full overflow-hidden rounded-md"
+        className="pointer-events-none relative mb-3 aspect-square w-full overflow-hidden rounded-md"
         style={{ background: colors[0] }}
       >
         {covers.length >= 4 ? (
@@ -160,8 +161,8 @@ function MixCard({
           <Play className="size-5 fill-current ml-0.5" />
         </span>
       </div>
-      <span className="truncate text-[14px] font-bold text-foreground">{label}</span>
-      <span className="truncate text-[12px] font-medium text-muted-foreground">{sublabel}</span>
+      <span className="pointer-events-none truncate text-[14px] font-bold text-foreground">{label}</span>
+      <span className="pointer-events-none truncate text-[12px] font-medium text-muted-foreground">{sublabel}</span>
     </button>
   );
 }

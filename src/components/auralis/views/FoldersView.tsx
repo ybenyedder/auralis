@@ -2,7 +2,8 @@
 
 import { useMemo, useRef, useState } from "react";
 import { Folder, ChevronRight, Music2, Play, Shuffle, Home } from "lucide-react";
-import { usePlayer, shuffleArray } from "@/store/player";
+import { usePlayer } from "@/store/player";
+import { shuffleArray } from "@/store/slices/helpers";
 import { useLibraryStore } from "@/store/library";
 import { TrackRow, TrackListHeader } from "../TrackRow";
 import { VirtualList } from "../Virtualized";

@@ -58,7 +58,7 @@ export function Sidebar() {
   return (
     <nav
       aria-label="Primary"
-      className="flex h-full w-full flex-col bg-[var(--sidebar)] select-none"
+      className="flex h-full w-full flex-col bg-[var(--sidebar)] glass rounded-xl overflow-hidden select-none"
     >
       {/* Apple Music section */}
       <Section label="Apple Music">
@@ -186,7 +186,7 @@ function NavRow({
       title={item.label}
       aria-current={active ? "page" : undefined}
       className={cn(
-        "group flex w-full items-center gap-3.5 rounded-md px-3 py-2 text-left transition-colors duration-150",
+        "group flex w-full items-center gap-3.5 rounded-md px-3 py-2 text-left transition-all duration-150 focus-auralis active:scale-[0.98]",
         active
           ? "text-[var(--primary)]"
           : "text-[var(--text-muted)] hover:text-foreground hover:bg-[var(--sidebar-accent)]",
@@ -218,7 +218,7 @@ function PlaylistRow({
     <button
       onClick={onClick}
       className={cn(
-        "group flex w-full items-center gap-3 rounded-md p-2 text-left transition-colors duration-150",
+        "group flex w-full items-center gap-3 rounded-md p-2 text-left transition-all duration-150 focus-auralis active:scale-[0.98]",
         active
           ? "bg-[var(--sidebar-accent)]"
           : "hover:bg-[var(--sidebar-accent)]",

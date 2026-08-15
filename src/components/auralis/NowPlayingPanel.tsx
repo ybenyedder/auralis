@@ -24,7 +24,7 @@ export function NowPlayingPanel() {
   if (!rightPanelOpen) return null;
 
   return (
-    <aside className="hidden w-[320px] lg:w-[380px] shrink-0 flex-col rounded-lg bg-[var(--background)] xl:flex">
+    <aside className="hidden w-[320px] lg:w-[380px] shrink-0 flex-col glass rounded-xl overflow-hidden xl:flex">
       {/* Header */}
       <div className="flex h-16 items-center justify-between px-4 pt-2">
         <h2 className="text-[16px] font-bold text-foreground">
@@ -105,7 +105,7 @@ export function NowPlayingPanel() {
               </div>
 
               {/* Auralis Metadata Card (Spotify style About the artist / Credits cards) */}
-              <div className="mb-4 rounded-lg bg-[var(--panel-2)] p-4">
+              <div className="mb-4 rounded-xl matte-panel-2 p-4">
                 <h3 className="text-[16px] font-bold text-foreground mb-4">À propos du titre</h3>
                 <div className="flex flex-col gap-3">
                   {currentTrack.album && (
