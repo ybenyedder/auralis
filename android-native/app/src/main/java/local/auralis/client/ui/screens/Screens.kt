@@ -1,6 +1,7 @@
 package local.auralis.client.ui.screens
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -8,6 +9,7 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
@@ -23,8 +25,12 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Album
 import androidx.compose.material.icons.filled.Favorite
+import androidx.compose.material.icons.filled.MusicNote
+import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.PlayArrow
+import androidx.compose.material.icons.filled.QueueMusic
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.Icon
 import androidx.compose.material3.OutlinedTextField
@@ -41,6 +47,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -52,12 +59,13 @@ import local.auralis.client.ui.UiState
 import local.auralis.client.ui.ViewId
 import local.auralis.client.ui.components.Eyebrow
 import local.auralis.client.ui.components.GhostPill
+import local.auralis.client.ui.components.LargeTitle
 import local.auralis.client.ui.components.PlayPill
 import local.auralis.client.ui.components.SectionHeader
 import local.auralis.client.ui.components.TrackRow
 import local.auralis.client.ui.components.formatLongDuration
+import local.auralis.client.ui.theme.AMType
 import local.auralis.client.ui.theme.LocalAuralis
-import java.util.Calendar
 
 private val bottomPad = PaddingValues(start = 16.dp, end = 16.dp, top = 12.dp, bottom = 170.dp)
 
@@ -86,8 +94,6 @@ private fun currentTrackOf(vm: AppViewModel): String? {
 @Composable
 fun HomeScreen(vm: AppViewModel, ui: UiState) {
     val colors = LocalAuralis.current
-    val hour = Calendar.getInstance().get(Calendar.HOUR_OF_DAY)
-    val greeting = if (hour in 5..17) "Bonjour" else "Bonsoir"
 
     val recentsTracks = remember(ui.recents, ui.trackByHash) { ui.recents.mapNotNull { ui.trackByHash[it] } }
     val daySeed = System.currentTimeMillis() / 86_400_000L
@@ -135,9 +141,10 @@ fun HomeScreen(vm: AppViewModel, ui: UiState) {
     }
 
     LazyColumn(contentPadding = bottomPad) {
+        // Large title + streak chips (Apple Music opens each tab with a 34pt title).
         item {
-            Column(Modifier.padding(top = 8.dp, bottom = 8.dp)) {
-                Text(greeting, fontSize = 24.sp, fontWeight = FontWeight.Bold, color = colors.foreground)
+            Column(Modifier.padding(top = 6.dp, bottom = 12.dp)) {
+                LargeTitle("Accueil")
                 if (ui.stats.streak > 0) {
                     Spacer(Modifier.height(8.dp))
                     Row(verticalAlignment = Alignment.CenterVertically) {
@@ -159,9 +166,22 @@ fun HomeScreen(vm: AppViewModel, ui: UiState) {
             return@LazyColumn
         }
 
-        // Spotify "quick access" grid: Liked Songs (purple) + recently played, 2 columns.
+        // "Pour vous" — Apple Music's top hero shelf: large editorial cards.
+        if (ui.forYou.isNotEmpty()) {
+            item {
+                SectionHeader("Pour vous", "Tout lire") { vm.playList(ui.forYou) }
+                LazyRow(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                    items(ui.forYou.take(10), key = { it.trackhash }) { t ->
+                        HeroTrackCard(t, t.trackhash == current) { vm.playTrack(t, ui.forYou, ui.forYou.indexOf(t)) }
+                    }
+                }
+            }
+        }
+
+        // Quick-access grid: Liked songs (red) + recently played, 2 columns.
         if (quickTiles.isNotEmpty()) {
             item {
+                Spacer(Modifier.height(20.dp))
                 Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     quickTiles.chunked(2).forEach { row ->
                         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -173,12 +193,11 @@ fun HomeScreen(vm: AppViewModel, ui: UiState) {
             }
         }
 
+        // Mix du jour — a daily 5-track starter list.
         if (mix.isNotEmpty()) {
             item {
-                Spacer(Modifier.height(16.dp))
-                SectionHeader("Mix du jour")
-                PlayPill("Lire le mix") { vm.playList(mix) }
-                Spacer(Modifier.height(10.dp))
+                Spacer(Modifier.height(24.dp))
+                SectionHeader("Mix du jour", "Tout lire") { vm.playList(mix) }
             }
             items(mix.take(5), key = { it.trackhash }) { t ->
                 TrackRow(
@@ -189,24 +208,10 @@ fun HomeScreen(vm: AppViewModel, ui: UiState) {
             }
         }
 
-        if (ui.forYou.isNotEmpty()) {
-            item {
-                Spacer(Modifier.height(20.dp))
-                SectionHeader("Fait pour vous")
-                PlayPill("Lire le mix") { vm.playList(ui.forYou) }
-                Spacer(Modifier.height(10.dp))
-                LazyRow(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                    items(ui.forYou, key = { it.trackhash }) { t ->
-                        MiniTrackCard(t, t.trackhash == current) { vm.playTrack(t, ui.forYou, ui.forYou.indexOf(t)) }
-                    }
-                }
-            }
-        }
-
         if (recentsTracks.isNotEmpty()) {
             item {
-                Spacer(Modifier.height(20.dp))
-                SectionHeader("Reprendre l'écoute", "Tout voir") { vm.navigate(ViewId.RECENTS) }
+                Spacer(Modifier.height(24.dp))
+                SectionHeader("Écoutés récemment", "Tout afficher") { vm.navigate(ViewId.RECENTS) }
                 LazyRow(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                     items(recentsTracks.take(10), key = { it.trackhash }) { t ->
                         MiniTrackCard(t, t.trackhash == current) { vm.playTrack(t, recentsTracks, recentsTracks.indexOf(t)) }
@@ -217,8 +222,8 @@ fun HomeScreen(vm: AppViewModel, ui: UiState) {
 
         if (recentlyAdded.isNotEmpty()) {
             item {
-                Spacer(Modifier.height(20.dp))
-                SectionHeader("Récemment ajoutés")
+                Spacer(Modifier.height(24.dp))
+                SectionHeader("Ajouts récents", "Tout afficher") { vm.navigate(ViewId.NEW) }
                 LazyRow(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                     items(recentlyAdded, key = { it.trackhash }) { t ->
                         MiniTrackCard(t, t.trackhash == current) { vm.playTrack(t, recentlyAdded, recentlyAdded.indexOf(t)) }
@@ -229,8 +234,8 @@ fun HomeScreen(vm: AppViewModel, ui: UiState) {
 
         if (rediscover.isNotEmpty()) {
             item {
-                Spacer(Modifier.height(20.dp))
-                SectionHeader("À redécouvrir")
+                Spacer(Modifier.height(24.dp))
+                SectionHeader("À redécouvrir", "Tout lire") { vm.playList(rediscover) }
                 LazyRow(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                     items(rediscover, key = { it.trackhash }) { t ->
                         MiniTrackCard(t, t.trackhash == current) { vm.playTrack(t, rediscover, rediscover.indexOf(t)) }
@@ -241,8 +246,8 @@ fun HomeScreen(vm: AppViewModel, ui: UiState) {
 
         if (discoveries.isNotEmpty()) {
             item {
-                Spacer(Modifier.height(20.dp))
-                SectionHeader("Découvertes")
+                Spacer(Modifier.height(24.dp))
+                SectionHeader("Découvertes", "Tout afficher") { vm.navigate(ViewId.RADIO) }
                 LazyRow(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                     items(discoveries, key = { it.trackhash }) { t ->
                         MiniTrackCard(t, t.trackhash == current) { vm.playTrack(t, discoveries, discoveries.indexOf(t)) }
@@ -251,21 +256,9 @@ fun HomeScreen(vm: AppViewModel, ui: UiState) {
             }
         }
 
-        if (ui.albums.isNotEmpty()) {
-            item {
-                Spacer(Modifier.height(20.dp))
-                SectionHeader("Albums", "Tout voir") { vm.navigate(ViewId.LIBRARY) }
-                LazyRow(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                    items(ui.albums.take(12), key = { it.albumhash }) { a ->
-                        AlbumCard(a, onPlay = { vm.playList(ui.tracks.filter { t -> t.albumhash == a.albumhash }) }) { vm.navigate(ViewId.ALBUM, a.albumhash) }
-                    }
-                }
-            }
-        }
-
         if (topTracks.isNotEmpty()) {
             item {
-                Spacer(Modifier.height(20.dp))
+                Spacer(Modifier.height(24.dp))
                 SectionHeader("Titres forts")
             }
             items(topTracks, key = { it.trackhash }) { t ->
@@ -279,14 +272,220 @@ fun HomeScreen(vm: AppViewModel, ui: UiState) {
 
         if (ui.artists.isNotEmpty()) {
             item {
-                Spacer(Modifier.height(20.dp))
-                SectionHeader("Artistes")
+                Spacer(Modifier.height(24.dp))
+                SectionHeader("Artistes", "Tout afficher") { vm.navigate(ViewId.LIBRARY) }
                 LazyRow(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                     items(ui.artists.take(12), key = { it.artisthash }) { a ->
                         ArtistCard(
                             a,
                             onPlay = { vm.playList(ui.tracks.filter { t -> t.primaryArtistHash == a.artisthash }) },
                         ) { vm.navigate(ViewId.ARTIST, a.artisthash) }
+                    }
+                }
+            }
+        }
+    }
+}
+
+/** Apple Music "top picks" hero card: near-full-width editorial art with the
+ *  red play control overlaid, title + artist beneath. */
+@Composable
+private fun HeroTrackCard(t: Track, isCurrent: Boolean, onClick: () -> Unit) {
+    val colors = LocalAuralis.current
+    Column(Modifier.width(290.dp).clickable { onClick() }) {
+        Box {
+            local.auralis.client.ui.components.CoverArt(
+                t.image, t.albumhash ?: t.title,
+                Modifier.fillMaxWidth().aspectRatio(1.6f), cornerRadius = 12,
+            )
+            Box(
+                Modifier
+                    .align(Alignment.BottomEnd)
+                    .padding(10.dp)
+                    .size(38.dp)
+                    .clip(CircleShape)
+                    .background(colors.accent)
+                    .clickable { onClick() },
+                contentAlignment = Alignment.Center,
+            ) {
+                Icon(Icons.Filled.PlayArrow, "Lire", tint = colors.ink, modifier = Modifier.size(20.dp))
+            }
+        }
+        Text(
+            t.title, color = if (isCurrent) colors.accent else colors.foreground,
+            style = AMType.Headline, maxLines = 1, overflow = TextOverflow.Ellipsis,
+            modifier = Modifier.padding(top = 8.dp),
+        )
+        Text(t.displayArtist, color = colors.textMuted, style = AMType.Subhead, maxLines = 1, overflow = TextOverflow.Ellipsis)
+    }
+}
+
+// ============================ NOUVEAU ======================================
+
+/** The "Nouveau" tab — Apple Music's New section: fresh albums, recent tracks,
+ *  and genre highlights derived from what the scanner picked up lately. */
+@Composable
+fun NewScreen(vm: AppViewModel, ui: UiState) {
+    val current = currentTrackOf(vm)
+    val recentAlbums = remember(ui.tracks, ui.albums) {
+        val newestPerAlbum = ui.tracks.filter { it.addedAt != null }
+            .sortedByDescending { it.addedAt }
+            .distinctBy { it.albumhash }
+            .mapNotNull { t -> ui.albums.firstOrNull { it.albumhash == t.albumhash } }
+        newestPerAlbum.ifEmpty { ui.albums.sortedByDescending { it.year ?: 0 } }
+    }
+    val recentTracks = remember(ui.tracks) {
+        ui.tracks.filter { it.addedAt != null }.sortedByDescending { it.addedAt }.take(15)
+    }
+    val genres = remember(ui.tracks) {
+        ui.tracks.filter { !it.genre.isNullOrBlank() }
+            .groupBy { it.genre!! }
+            .entries.sortedByDescending { it.value.size }
+    }
+    val daySeed = System.currentTimeMillis() / 86_400_000L
+    val neverPlayed = remember(ui.tracks, ui.playCounts) { ui.tracks.filter { (ui.playCounts[it.trackhash] ?: 0) == 0 } }
+    val discoveries = remember(neverPlayed, daySeed) {
+        if (neverPlayed.size >= 4) seededShuffle(neverPlayed, daySeed + 7).take(12) else emptyList()
+    }
+
+    LazyColumn(contentPadding = bottomPad) {
+        item {
+            Column(Modifier.padding(top = 6.dp, bottom = 12.dp)) { LargeTitle("Nouveau") }
+        }
+        if (recentAlbums.isEmpty()) {
+            item { EmptyHint("Rien de neuf", "Lance un scan serveur pour indexer de nouveaux fichiers.") }
+            return@LazyColumn
+        }
+        if (recentAlbums.isNotEmpty()) {
+            item {
+                SectionHeader("Nouveaux albums", "Tout afficher") { vm.navigate(ViewId.LIBRARY) }
+                LazyRow(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                    items(recentAlbums.take(12), key = { it.albumhash }) { a ->
+                        AlbumCard(a, onPlay = { vm.playList(ui.tracks.filter { t -> t.albumhash == a.albumhash }) }) { vm.navigate(ViewId.ALBUM, a.albumhash) }
+                    }
+                }
+            }
+        }
+        if (recentTracks.isNotEmpty()) {
+            item { Spacer(Modifier.height(24.dp)); SectionHeader("Ajouts récents") }
+            items(recentTracks, key = { it.trackhash }) { t ->
+                TrackRow(
+                    t, isCurrent = t.trackhash == current, isFavorite = ui.favorites.contains(t.trackhash),
+                    onClick = { vm.playTrack(t, recentTracks, recentTracks.indexOf(t)) },
+                    onToggleFavorite = { vm.toggleFavorite(t.trackhash) }, onMore = { vm.openTrackMenu(t) },
+                )
+            }
+        }
+        if (discoveries.isNotEmpty()) {
+            item {
+                Spacer(Modifier.height(24.dp))
+                SectionHeader("Fraîchement découverts", "Tout lire") { vm.playList(discoveries) }
+                LazyRow(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                    items(discoveries, key = { it.trackhash }) { t ->
+                        MiniTrackCard(t, t.trackhash == current) { vm.playTrack(t, discoveries, discoveries.indexOf(t)) }
+                    }
+                }
+            }
+        }
+        if (genres.isNotEmpty()) {
+            item {
+                Spacer(Modifier.height(24.dp))
+                SectionHeader("Nouveautés par genre")
+                LazyRow(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                    items(genres.take(10), key = { it.key }) { e -> GenreCard(e.key, e.value.size) { vm.playShuffled(e.value) } }
+                }
+            }
+        }
+    }
+}
+
+// ============================ RADIO ========================================
+
+/** The "Radio" tab — Apple Music's station hub: a daily mix hero, personalised
+ *  station cards and genre stations that shuffle-play their pool. */
+@Composable
+fun RadioScreen(vm: AppViewModel, ui: UiState) {
+    val colors = LocalAuralis.current
+    val current = currentTrackOf(vm)
+    val daySeed = System.currentTimeMillis() / 86_400_000L
+    val pool = remember(ui.tracks, ui.favorites, ui.playCounts) {
+        ui.tracks.filter { it.isFavorite || (ui.playCounts[it.trackhash] ?: 0) > 0 }.ifEmpty { ui.tracks }
+    }
+    val mix = remember(pool, daySeed) { seededShuffle(pool, daySeed).take(30) }
+    val genres = remember(ui.tracks) {
+        ui.tracks.filter { !it.genre.isNullOrBlank() }
+            .groupBy { it.genre!! }
+            .entries.filter { it.value.size >= 3 }
+            .sortedByDescending { it.value.size }
+    }
+
+    LazyColumn(contentPadding = bottomPad) {
+        item {
+            Column(Modifier.padding(top = 6.dp, bottom = 12.dp)) { LargeTitle("Radio") }
+        }
+        if (ui.tracks.isEmpty()) {
+            item { EmptyHint("Aucun titre indexé", "Configure le dossier de musique sur ton serveur puis relance le scan.") }
+            return@LazyColumn
+        }
+
+        // Station hero — the daily mix as a big red editorial card.
+        if (mix.isNotEmpty()) {
+            item {
+                Box(
+                    Modifier
+                        .fillMaxWidth()
+                        .height(180.dp)
+                        .clip(RoundedCornerShape(14.dp))
+                        .background(
+                            Brush.linearGradient(
+                                listOf(Color(0xFFFA233B), Color(0xFFFC5C7A), Color(0xFFFFAEBE)),
+                            ),
+                        )
+                        .clickable { vm.playList(mix) }
+                        .padding(20.dp),
+                ) {
+                    Column(Modifier.align(Alignment.BottomStart)) {
+                        Text("Mix du jour", color = Color.White, style = AMType.Title1)
+                        Spacer(Modifier.height(4.dp))
+                        Text(
+                            "30 titres piochés dans tes goûts · change chaque jour",
+                            color = Color.White.copy(alpha = 0.85f), style = AMType.Subhead,
+                        )
+                    }
+                    Icon(
+                        Icons.Filled.PlayArrow, "Lire le mix du jour",
+                        tint = Color.White, modifier = Modifier.align(Alignment.BottomEnd).size(44.dp),
+                    )
+                }
+            }
+        }
+
+        // Personalised station shelf.
+        if (ui.forYou.isNotEmpty()) {
+            item {
+                Spacer(Modifier.height(24.dp))
+                SectionHeader("Fait pour vous", "Tout lire") { vm.playList(ui.forYou) }
+                LazyRow(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                    items(ui.forYou.take(10), key = { it.trackhash }) { t ->
+                        HeroTrackCard(t, t.trackhash == current) { vm.playTrack(t, ui.forYou, ui.forYou.indexOf(t)) }
+                    }
+                }
+            }
+        }
+
+        // Genre stations — Apple Music's colourful browse tiles.
+        if (genres.isNotEmpty()) {
+            item {
+                Spacer(Modifier.height(24.dp))
+                SectionHeader("Stations par genre")
+                Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    genres.take(12).chunked(2).forEach { row ->
+                        Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                            row.forEach { e ->
+                                GenreCard(e.key, e.value.size, Modifier.weight(1f)) { vm.playShuffled(e.value) }
+                            }
+                            if (row.size == 1) Spacer(Modifier.weight(1f))
+                        }
                     }
                 }
             }
@@ -354,17 +553,34 @@ private fun QuickTile(tile: QuickTileItem, modifier: Modifier = Modifier) {
 @Composable
 private fun MiniTrackCard(t: Track, isCurrent: Boolean, onClick: () -> Unit) {
     val colors = LocalAuralis.current
-    Column(Modifier.width(130.dp).clickable { onClick() }) {
-        local.auralis.client.ui.components.CoverArt(
-            t.image, t.albumhash ?: t.title,
-            Modifier.size(130.dp), cornerRadius = 12,
-        )
+    Column(Modifier.width(160.dp).clickable { onClick() }) {
+        Box {
+            local.auralis.client.ui.components.CoverArt(
+                t.image, t.albumhash ?: t.title,
+                Modifier.size(160.dp), cornerRadius = 12,
+            )
+            // Frosted play affordance, like the AM shelves.
+            Box(
+                Modifier
+                    .align(Alignment.BottomEnd)
+                    .padding(8.dp)
+                    .size(32.dp)
+                    .clip(CircleShape)
+                    .background(Color.Black.copy(alpha = 0.32f))
+                    .border(0.75.dp, Color.White.copy(alpha = 0.28f), CircleShape)
+                    .clickable { onClick() },
+                contentAlignment = Alignment.Center,
+            ) {
+                Icon(Icons.Filled.PlayArrow, "Lire", tint = Color.White, modifier = Modifier.size(15.dp))
+            }
+        }
         Text(
             t.title, color = if (isCurrent) colors.accent else colors.foreground,
-            fontSize = 13.sp, fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis,
+            style = AMType.Subhead, fontWeight = FontWeight.SemiBold,
+            maxLines = 1, overflow = TextOverflow.Ellipsis,
             modifier = Modifier.padding(top = 8.dp),
         )
-        Text(t.displayArtist, color = colors.textMuted, fontSize = 12.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+        Text(t.displayArtist, color = colors.textMuted, style = AMType.Footnote, maxLines = 1, overflow = TextOverflow.Ellipsis)
     }
 }
 
@@ -378,19 +594,22 @@ fun EmptyHint(title: String, body: String) {
     }
 }
 
+/** Apple Music genre tile: a squat colourful gradient card, bold white label. */
 @Composable
-private fun GenreCard(genre: String, count: Int, onClick: () -> Unit) {
-    val colors = LocalAuralis.current
+private fun GenreCard(genre: String, count: Int, modifier: Modifier = Modifier, onClick: () -> Unit) {
     val (bg, c1, _) = local.auralis.client.ui.components.paletteFor(genre)
-    Column(
-        Modifier.width(150.dp).height(90.dp).clip(RoundedCornerShape(14.dp))
-            .background(androidx.compose.ui.graphics.Brush.linearGradient(listOf(bg, c1.copy(alpha = 0.6f))))
+    Box(
+        modifier
+            .height(88.dp)
+            .clip(RoundedCornerShape(12.dp))
+            .background(androidx.compose.ui.graphics.Brush.linearGradient(listOf(bg, c1)))
             .clickable { onClick() }
             .padding(12.dp),
-        verticalArrangement = Arrangement.Bottom,
     ) {
-        Text(genre, color = colors.foreground, fontSize = 15.sp, fontWeight = FontWeight.Black, maxLines = 1, overflow = TextOverflow.Ellipsis)
-        Text("$count titres", color = colors.foreground.copy(alpha = 0.8f), fontSize = 11.sp)
+        Column(Modifier.align(Alignment.BottomStart)) {
+            Text(genre, color = Color.White, style = AMType.Headline, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            Text("$count titres", color = Color.White.copy(alpha = 0.8f), style = AMType.Caption1)
+        }
     }
 }
 
@@ -401,14 +620,17 @@ fun SearchScreen(vm: AppViewModel, ui: UiState) {
     val colors = LocalAuralis.current
     val current = currentTrackOf(vm)
     Column(Modifier.fillMaxWidth().padding(horizontal = 16.dp)) {
+        Spacer(Modifier.height(6.dp))
+        LargeTitle("Recherche")
         Spacer(Modifier.height(10.dp))
+        // Apple Music's rounded grey search field (10pt radius, no border).
         OutlinedTextField(
             value = ui.searchQuery,
             onValueChange = { vm.setSearch(it) },
-            placeholder = { Text("Rechercher titres, albums, artistes", color = colors.textFaint) },
-            leadingIcon = { Icon(Icons.Filled.Search, null, tint = colors.foreground) },
+            placeholder = { Text("Artistes, titres, albums", color = colors.textFaint) },
+            leadingIcon = { Icon(Icons.Filled.Search, null, tint = colors.textMuted) },
             singleLine = true,
-            shape = RoundedCornerShape(999.dp),
+            shape = RoundedCornerShape(10.dp),
             modifier = Modifier.fillMaxWidth(),
             colors = OutlinedTextFieldDefaults.colors(
                 focusedBorderColor = Color.Transparent,
@@ -417,32 +639,22 @@ fun SearchScreen(vm: AppViewModel, ui: UiState) {
                 unfocusedContainerColor = colors.panel2,
                 focusedTextColor = colors.foreground,
                 unfocusedTextColor = colors.foreground,
-                cursorColor = colors.foreground,
+                cursorColor = colors.accent,
             ),
         )
         Spacer(Modifier.height(8.dp))
         val res = ui.searchResult
         if (ui.searchQuery.isBlank()) {
-            val catalogue = remember(ui.tracks) { ui.tracks.take(40) }
             val genres = remember(ui.tracks) {
                 ui.tracks.filter { !it.genre.isNullOrBlank() }
-                    .groupBy { it.genre!! }.filter { it.value.size >= 5 }
+                    .groupBy { it.genre!! }.filter { it.value.size >= 3 }
                     .entries.sortedByDescending { it.value.size }.take(12)
             }
             val history = remember(ui.recents, ui.trackByHash) { ui.recents.mapNotNull { ui.trackByHash[it] }.take(12) }
             LazyColumn(contentPadding = PaddingValues(bottom = 170.dp)) {
-                if (genres.isNotEmpty()) {
-                    item { SectionHeader("Tes mix par genre") }
-                    item {
-                        LazyRow(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                            items(genres) { e -> GenreCard(e.key, e.value.size) { vm.playShuffled(e.value) } }
-                        }
-                        Spacer(Modifier.height(14.dp))
-                    }
-                }
                 if (history.isNotEmpty()) {
-                    item { SectionHeader("Historique") }
-                    items(history) { t ->
+                    item { SectionHeader("Écoutés récemment") }
+                    items(history, key = { it.trackhash }) { t ->
                         TrackRow(
                             t, isCurrent = t.trackhash == current, isFavorite = ui.favorites.contains(t.trackhash),
                             onClick = { vm.playTrack(t, history, history.indexOf(t)) },
@@ -450,13 +662,20 @@ fun SearchScreen(vm: AppViewModel, ui: UiState) {
                         )
                     }
                 }
-                item { SectionHeader("Catalogue") }
-                items(catalogue) { t ->
-                    TrackRow(
-                        t, isCurrent = t.trackhash == current, isFavorite = ui.favorites.contains(t.trackhash),
-                        onClick = { vm.playTrack(t, catalogue, catalogue.indexOf(t)) },
-                        onToggleFavorite = { vm.toggleFavorite(t.trackhash) }, onMore = { vm.openTrackMenu(t) },
-                    )
+                if (genres.isNotEmpty()) {
+                    item {
+                        if (history.isNotEmpty()) Spacer(Modifier.height(24.dp))
+                        SectionHeader("Parcourir tout")
+                        // Apple Music's colourful genre grid, two columns.
+                        Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                            genres.chunked(2).forEach { row ->
+                                Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                                    row.forEach { e -> GenreCard(e.key, e.value.size, Modifier.weight(1f)) { vm.playShuffled(e.value) } }
+                                    if (row.size == 1) Spacer(Modifier.weight(1f))
+                                }
+                            }
+                        }
+                    }
                 }
             }
         } else {
@@ -481,7 +700,7 @@ fun SearchScreen(vm: AppViewModel, ui: UiState) {
                 }
                 if (res.tracks.isNotEmpty()) {
                     item { SectionHeader("Titres") }
-                    items(res.tracks) { t ->
+                    items(res.tracks, key = { it.trackhash }) { t ->
                         TrackRow(
                             t, isCurrent = t.trackhash == current, isFavorite = ui.favorites.contains(t.trackhash),
                             onClick = { vm.playTrack(t, res.tracks, res.tracks.indexOf(t)) },
@@ -507,7 +726,14 @@ fun LibraryScreen(vm: AppViewModel, ui: UiState) {
     var newName by remember { mutableStateOf("") }
     var sort by remember { mutableStateOf(0) }
     var grid by remember { mutableStateOf(true) }
-    val tabs = listOf("Albums", "Artistes", "Titres", "Playlists")
+    // Apple Music's library order: Playlists first, then Artists, Albums, Songs.
+    data class LTab(val label: String, val icon: ImageVector)
+    val tabs = listOf(
+        LTab("Playlists", Icons.Filled.QueueMusic),
+        LTab("Artistes", Icons.Filled.Person),
+        LTab("Albums", Icons.Filled.Album),
+        LTab("Titres", Icons.Filled.MusicNote),
+    )
     val current = currentTrackOf(vm)
 
     if (showCreate) {
@@ -564,37 +790,26 @@ fun LibraryScreen(vm: AppViewModel, ui: UiState) {
     }
 
     Column(Modifier.fillMaxWidth()) {
-        Row(Modifier.padding(horizontal = 16.dp, vertical = 12.dp), horizontalArrangement = Arrangement.spacedBy(20.dp)) {
-            tabs.forEachIndexed { i, label ->
-                val active = i == tab
-                val count = when (i) { 0 -> ui.albums.size; 1 -> ui.artists.size; 2 -> ui.tracks.size; else -> ui.playlists.size }
-                Column(
-                    Modifier.width(androidx.compose.foundation.layout.IntrinsicSize.Min).clickable { tab = i },
-                    horizontalAlignment = Alignment.CenterHorizontally,
-                ) {
-                    Text(
-                        "$label · $count",
-                        color = if (active) colors.foreground else colors.textMuted,
-                        fontSize = 14.sp,
-                        fontWeight = if (active) FontWeight.Bold else FontWeight.Medium,
-                    )
-                    Spacer(Modifier.height(6.dp))
-                    Box(
-                        Modifier
-                            .height(2.dp)
-                            .fillMaxWidth()
-                            .background(if (active) colors.foreground else Color.Transparent),
-                    )
-                }
-            }
+        // Large title + the red "new playlist" action beside it (Apple Music header).
+        Row(
+            Modifier.fillMaxWidth().padding(start = 16.dp, end = 16.dp, top = 6.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            LargeTitle("Bibliothèque", Modifier.weight(1f))
+            Box(
+                Modifier
+                    .clip(CircleShape)
+                    .background(colors.accent)
+                    .clickable { showCreate = true }
+                    .padding(horizontal = 14.dp, vertical = 8.dp),
+            ) { Text("+ Nouvelle", color = colors.ink, style = AMType.Footnote, fontWeight = FontWeight.Bold) }
         }
         // Secondary destinations (also reachable here, mirroring the web's "Plus" hub).
-        // "Titres aimés" leads the list — it's the library's pinned Liked-Songs entry now
-        // that Favourites is no longer a bottom-nav tab (Spotify-style).
+        // "Titres aimés" leads the list — the library's pinned Liked-Songs entry.
         Row(
             Modifier
                 .horizontalScroll(rememberScrollState())
-                .padding(start = 16.dp, end = 16.dp, bottom = 6.dp),
+                .padding(start = 16.dp, end = 16.dp, top = 10.dp, bottom = 6.dp),
             horizontalArrangement = Arrangement.spacedBy(8.dp),
         ) {
             PlusChip("❤ Titres aimés") { vm.navigate(ViewId.FAVORITES) }
@@ -602,16 +817,45 @@ fun LibraryScreen(vm: AppViewModel, ui: UiState) {
             PlusChip("Dossiers") { vm.navigate(ViewId.FOLDERS) }
             PlusChip("Analyse") { vm.navigate(ViewId.INSIGHTS) }
         }
-        if (tab != 3) {
+        // Apple Music's library tabs: icon + label, active one in the red accent.
+        Row(
+            Modifier
+                .horizontalScroll(rememberScrollState())
+                .padding(start = 16.dp, end = 16.dp, top = 4.dp, bottom = 4.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            tabs.forEachIndexed { i, t ->
+                val active = i == tab
+                Row(
+                    Modifier
+                        .clip(CircleShape)
+                        .background(if (active) colors.accent.copy(alpha = 0.14f) else Color.Transparent)
+                        .clickable { tab = i }
+                        .padding(horizontal = 12.dp, vertical = 7.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Icon(t.icon, null, tint = if (active) colors.accent else colors.textMuted, modifier = Modifier.size(18.dp))
+                    Spacer(Modifier.width(6.dp))
+                    Text(
+                        t.label,
+                        color = if (active) colors.accent else colors.textMuted,
+                        style = AMType.Subhead,
+                        fontWeight = if (active) FontWeight.SemiBold else FontWeight.Normal,
+                    )
+                }
+                if (i != tabs.lastIndex) Spacer(Modifier.width(4.dp))
+            }
+        }
+        if (tab != 0) {
             Row(
                 Modifier
                     .horizontalScroll(rememberScrollState())
                     .padding(start = 16.dp, end = 16.dp, bottom = 6.dp),
                 horizontalArrangement = Arrangement.spacedBy(8.dp),
             ) {
-                val sortLabel = when (sort) { 1 -> "Z→A"; 2 -> if (tab == 0) "Année" else "Écoutes"; else -> "A→Z" }
+                val sortLabel = when (sort) { 1 -> "Z→A"; 2 -> if (tab == 2) "Année" else "Écoutes"; else -> "A→Z" }
                 PlusChip("Tri : $sortLabel") { sort = (sort + 1) % 3 }
-                if (tab == 0 || tab == 1) PlusChip(if (grid) "Vue liste" else "Vue grille") { grid = !grid }
+                if (tab == 1 || tab == 2) PlusChip(if (grid) "Vue liste" else "Vue grille") { grid = !grid }
             }
         }
         // Chunk grid cards into rows so they can be WINDOWED by the LazyColumn (only
@@ -621,17 +865,21 @@ fun LibraryScreen(vm: AppViewModel, ui: UiState) {
         val albumRows = remember(sortedAlbums) { sortedAlbums.chunked(2) }
         val artistRows = remember(sortedArtists) { sortedArtists.chunked(3) }
         when (tab) {
-            0 -> LazyColumn(contentPadding = bottomPad) {
-                if (grid) itemsIndexed(albumRows, key = { _, row -> row.first().albumhash }) { i, rowItems ->
-                    Row(
-                        Modifier.fillMaxWidth().padding(top = if (i == 0) 0.dp else 16.dp),
-                        horizontalArrangement = Arrangement.spacedBy(16.dp),
-                    ) {
-                        rowItems.forEach { a -> Box(Modifier.weight(1f)) { AlbumCard(a, Modifier.fillMaxWidth()) { vm.navigate(ViewId.ALBUM, a.albumhash) } } }
-                        if (rowItems.size == 1) Spacer(Modifier.weight(1f))
+            0 -> {
+                val ordered = remember(ui.playlists) { ui.playlists.sortedWith(compareByDescending { it.pinned }) }
+                LazyColumn(contentPadding = bottomPad) {
+                    items(ordered, key = { it.id }) { pl ->
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Box(Modifier.weight(1f)) {
+                                PlaylistTile(if (pl.pinned) "📌 ${pl.name}" else pl.name, pl.trackhashes.size, pl.id) { vm.navigate(ViewId.PLAYLIST, pl.id) }
+                            }
+                            Text(if (pl.pinned) "📌" else "📍", fontSize = 14.sp, modifier = Modifier.clickable { vm.togglePin(pl.id) }.padding(6.dp))
+                            Text("▲", color = colors.textMuted, fontSize = 14.sp, modifier = Modifier.clickable { vm.movePlaylist(pl.id, -1) }.padding(6.dp))
+                            Text("▼", color = colors.textMuted, fontSize = 14.sp, modifier = Modifier.clickable { vm.movePlaylist(pl.id, 1) }.padding(6.dp))
+                        }
                     }
+                    if (ui.playlists.isEmpty()) item { EmptyHint("Aucune playlist", "Touche « + Nouvelle », ou ⋮ sur un titre pour l'ajouter à une playlist.") }
                 }
-                else items(sortedAlbums, key = { it.albumhash }) { a -> AlbumRow(a) { vm.navigate(ViewId.ALBUM, a.albumhash) } }
             }
             1 -> LazyColumn(contentPadding = bottomPad) {
                 if (grid) itemsIndexed(artistRows, key = { _, row -> row.first().artisthash }) { i, rowItems ->
@@ -646,37 +894,24 @@ fun LibraryScreen(vm: AppViewModel, ui: UiState) {
                 else items(sortedArtists, key = { it.artisthash }) { a -> ArtistRow(a) { vm.navigate(ViewId.ARTIST, a.artisthash) } }
             }
             2 -> LazyColumn(contentPadding = bottomPad) {
+                if (grid) itemsIndexed(albumRows, key = { _, row -> row.first().albumhash }) { i, rowItems ->
+                    Row(
+                        Modifier.fillMaxWidth().padding(top = if (i == 0) 0.dp else 16.dp),
+                        horizontalArrangement = Arrangement.spacedBy(16.dp),
+                    ) {
+                        rowItems.forEach { a -> Box(Modifier.weight(1f)) { AlbumCard(a, Modifier.fillMaxWidth()) { vm.navigate(ViewId.ALBUM, a.albumhash) } } }
+                        if (rowItems.size == 1) Spacer(Modifier.weight(1f))
+                    }
+                }
+                else items(sortedAlbums, key = { it.albumhash }) { a -> AlbumRow(a) { vm.navigate(ViewId.ALBUM, a.albumhash) } }
+            }
+            3 -> LazyColumn(contentPadding = bottomPad) {
                 itemsIndexed(sortedTracks, key = { _, t -> t.trackhash }) { idx, t ->
                     TrackRow(
-                        t, isCurrent = t.trackhash == current, isFavorite = ui.favorites.contains(t.trackhash),
+                        t, index = idx, isCurrent = t.trackhash == current, isFavorite = ui.favorites.contains(t.trackhash),
                         onClick = { vm.playTrack(t, sortedTracks, idx) },
                         onToggleFavorite = { vm.toggleFavorite(t.trackhash) }, onMore = { vm.openTrackMenu(t) },
                     )
-                }
-            }
-            3 -> {
-                val ordered = remember(ui.playlists) { ui.playlists.sortedWith(compareByDescending { it.pinned }) }
-                LazyColumn(contentPadding = bottomPad) {
-                    item {
-                        Row(Modifier.fillMaxWidth().padding(bottom = 8.dp), verticalAlignment = Alignment.CenterVertically) {
-                            Text("Playlists", fontSize = 18.sp, fontWeight = FontWeight.Black, color = colors.foreground, modifier = Modifier.weight(1f))
-                            Box(
-                                Modifier.clip(CircleShape).background(colors.accent).clickable { showCreate = true }
-                                    .padding(horizontal = 14.dp, vertical = 8.dp),
-                            ) { Text("+ Nouvelle", color = colors.ink, fontSize = 13.sp, fontWeight = FontWeight.Bold) }
-                        }
-                    }
-                    items(ordered, key = { it.id }) { pl ->
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Box(Modifier.weight(1f)) {
-                            PlaylistTile(if (pl.pinned) "📌 ${pl.name}" else pl.name, pl.trackhashes.size, pl.id) { vm.navigate(ViewId.PLAYLIST, pl.id) }
-                        }
-                        Text(if (pl.pinned) "📌" else "📍", fontSize = 14.sp, modifier = Modifier.clickable { vm.togglePin(pl.id) }.padding(6.dp))
-                        Text("▲", color = colors.textMuted, fontSize = 14.sp, modifier = Modifier.clickable { vm.movePlaylist(pl.id, -1) }.padding(6.dp))
-                        Text("▼", color = colors.textMuted, fontSize = 14.sp, modifier = Modifier.clickable { vm.movePlaylist(pl.id, 1) }.padding(6.dp))
-                    }
-                }
-                if (ui.playlists.isEmpty()) item { EmptyHint("Aucune playlist", "Touche « + Nouvelle », ou ⋮ sur un titre pour l'ajouter à une playlist.") }
                 }
             }
         }
@@ -760,7 +995,7 @@ fun FavoritesScreen(vm: AppViewModel, ui: UiState) {
         item {
             Column(Modifier.padding(vertical = 10.dp)) {
                 Eyebrow("Favoris")
-                Text("Tes titres aimés", fontSize = 26.sp, fontWeight = FontWeight.Black, color = colors.foreground)
+                Text("Tes titres aimés", style = AMType.Title1, color = colors.foreground)
                 Spacer(Modifier.height(4.dp))
                 Text("${favTracks.size} titres · ${formatLongDuration(totalDur)}", color = colors.textMuted, fontSize = 13.sp)
                 Spacer(Modifier.height(14.dp))
@@ -793,7 +1028,7 @@ fun RecentsScreen(vm: AppViewModel, ui: UiState) {
         item {
             Column(Modifier.padding(vertical = 10.dp)) {
                 Eyebrow("Historique")
-                Text("Récents", fontSize = 26.sp, fontWeight = FontWeight.Black, color = colors.foreground)
+                Text("Récents", style = AMType.Title1, color = colors.foreground)
                 Text("${recents.size} lus", color = colors.textMuted, fontSize = 13.sp)
             }
         }

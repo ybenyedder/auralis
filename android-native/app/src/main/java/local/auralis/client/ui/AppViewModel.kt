@@ -30,7 +30,10 @@ import org.json.JSONObject
 
 enum class Phase { BOOT, CONNECT, LOGIN, LOADING, READY, ERROR }
 
-enum class ViewId { HOME, EXPLORE, LIBRARY, FAVORITES, RECENTS, FOLDERS, INSIGHTS, ALBUM, ARTIST, PLAYLIST, SETTINGS }
+enum class ViewId { HOME, NEW, RADIO, EXPLORE, LIBRARY, FAVORITES, RECENTS, FOLDERS, INSIGHTS, ALBUM, ARTIST, PLAYLIST, SETTINGS }
+
+/** The five Apple Music tab roots — tapping one starts a fresh navigation stack. */
+val rootViewIds = setOf(ViewId.HOME, ViewId.NEW, ViewId.RADIO, ViewId.EXPLORE, ViewId.LIBRARY)
 
 data class NavTarget(val view: ViewId, val id: String? = null)
 
@@ -279,8 +282,11 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
 
     fun navigate(view: ViewId, id: String? = null) {
         _ui.update {
+            // Switching tabs (Apple Music's five roots) resets the stack — each tab
+            // is a fresh navigation context; pushing a tab would otherwise bury it.
+            val switchTab = view in rootViewIds
             it.copy(
-                backStack = (it.backStack + it.nav).takeLast(24),
+                backStack = if (switchTab) emptyList() else (it.backStack + it.nav).takeLast(24),
                 nav = NavTarget(view, id),
             )
         }

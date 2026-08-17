@@ -43,6 +43,7 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -50,6 +51,7 @@ import androidx.compose.ui.unit.sp
 import local.auralis.client.model.Track
 import local.auralis.client.ui.theme.EyebrowStyle
 import local.auralis.client.ui.theme.LocalAuralis
+import dev.chrisbanes.haze.hazeEffect
 import kotlin.math.abs
 
 // ---- multi-select ----------------------------------------------------------
@@ -63,6 +65,25 @@ data class SelectionController(
     val begin: (String) -> Unit = {},
 )
 val LocalSelection = staticCompositionLocalOf { SelectionController() }
+
+// ---- frosted surfaces (Apple Music glass) -----------------------------------
+// Real backdrop blur via Haze. The Shell provides the HazeState (over the
+// scrolling content) and the AM-tinted HazeStyle; components below render with
+// [amFrosted]. When the locals are absent (previews, tests) the modifier falls
+// back to a solid panel color, so every call site stays preview-safe.
+val LocalHazeState = staticCompositionLocalOf<dev.chrisbanes.haze.HazeState?> { null }
+val LocalHazeStyle = staticCompositionLocalOf<dev.chrisbanes.haze.HazeStyle?> { null }
+
+/** Apple Music's frosted material: clips to [shape], then blurs whatever scrolls
+ *  behind. Falls back to a solid [fallback] fill when blur isn't available. */
+@Composable
+fun Modifier.amFrosted(shape: Shape? = null, fallback: Color): Modifier {
+    val haze = LocalHazeState.current
+    val style = LocalHazeStyle.current
+    var m = this
+    if (shape != null) m = m.clip(shape)
+    return if (haze != null && style != null) m.hazeEffect(haze, style) else m.background(fallback)
+}
 
 // ---- formatting ------------------------------------------------------------
 
@@ -152,21 +173,35 @@ fun Eyebrow(text: String, modifier: Modifier = Modifier) {
     )
 }
 
+/** The 34pt bold large title that opens each tab's content (Apple Music). */
+@Composable
+fun LargeTitle(text: String, modifier: Modifier = Modifier) {
+    Text(
+        text,
+        style = local.auralis.client.ui.theme.AMType.LargeTitle,
+        color = LocalAuralis.current.foreground,
+        modifier = modifier,
+    )
+}
+
+/** Apple Music shelf header: bold Title3 on the left, red "Tout afficher" link on the right. */
 @Composable
 fun SectionHeader(title: String, action: String? = null, onAction: (() -> Unit)? = null) {
     Row(
-        Modifier.fillMaxWidth().padding(bottom = 12.dp),
+        Modifier.fillMaxWidth().padding(bottom = 10.dp),
         horizontalArrangement = Arrangement.SpaceBetween,
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        Text(title, fontSize = 20.sp, fontWeight = FontWeight.Bold, letterSpacing = (-0.3).sp, color = LocalAuralis.current.foreground)
+        Text(
+            title,
+            style = local.auralis.client.ui.theme.AMType.Title3,
+            color = LocalAuralis.current.foreground,
+        )
         if (action != null && onAction != null) {
             Text(
-                action.uppercase(),
-                fontSize = 11.sp,
-                fontWeight = FontWeight.SemiBold,
-                letterSpacing = 0.8.sp,
-                color = LocalAuralis.current.textMuted,
+                action,
+                style = local.auralis.client.ui.theme.AMType.Subhead,
+                color = LocalAuralis.current.accent,
                 modifier = Modifier.clickable { onAction() },
             )
         }

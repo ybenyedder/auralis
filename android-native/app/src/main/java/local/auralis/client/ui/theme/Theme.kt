@@ -11,9 +11,11 @@ import androidx.compose.runtime.Immutable
 import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.text.font.Font
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.sp
+import local.auralis.client.R
 
 // Auralis design system: a single opaque Apple-Music-inspired palette in two
 // modes (dark + light), driven by the system setting. The old 14-theme engine
@@ -110,21 +112,69 @@ val LocalAuralis = staticCompositionLocalOf { darkColors() }
  */
 val LocalApiUrl = staticCompositionLocalOf<(String?) -> String?> { { url: String? -> url } }
 
-val EyebrowStyle = TextStyle(fontSize = 10.sp, fontWeight = FontWeight.SemiBold, letterSpacing = 1.2.sp)
+// ---- Apple Music type scale -------------------------------------------------
+// The iOS text-rhythm (Large Title → Caption2), mirroring SF Pro metrics.
+// SF Pro is not redistributable, so Inter — the type community's de-facto
+// SF substitute (near-identical x-height/rhythm) — ships in res/font and is
+// wired through every style, AMType and Material alike.
 
-// System default font only: Roboto on Android (no SF Pro redistribution; the
-// web uses Inter, but native stays on the platform font).
+/** The app-wide SF Pro stand-in: Inter 400/500/600/700 (res/font, OFL). */
+val AMFont = FontFamily(
+    Font(R.font.inter_regular, FontWeight.Normal),
+    Font(R.font.inter_medium, FontWeight.Medium),
+    Font(R.font.inter_semibold, FontWeight.SemiBold),
+    Font(R.font.inter_bold, FontWeight.Bold),
+)
+
+object AMType {
+    /** Navigation large title (each tab's collapsed identity). */
+    val LargeTitle = TextStyle(fontFamily = AMFont, fontWeight = FontWeight.Bold, fontSize = 34.sp, lineHeight = 41.sp, letterSpacing = 0.4.sp)
+
+    /** Screen titles: playlist/album hero names, big headers. */
+    val Title1 = TextStyle(fontFamily = AMFont, fontWeight = FontWeight.Bold, fontSize = 28.sp, lineHeight = 34.sp, letterSpacing = 0.3.sp)
+
+    /** Now-playing song title, section heroes. */
+    val Title2 = TextStyle(fontFamily = AMFont, fontWeight = FontWeight.Bold, fontSize = 22.sp, lineHeight = 28.sp, letterSpacing = 0.2.sp)
+
+    /** Shelf headers ("Écoutés récemment"), now-playing artist. */
+    val Title3 = TextStyle(fontFamily = AMFont, fontWeight = FontWeight.SemiBold, fontSize = 20.sp, lineHeight = 25.sp)
+
+    /** Row titles, collapsed nav-bar title. */
+    val Headline = TextStyle(fontFamily = AMFont, fontWeight = FontWeight.SemiBold, fontSize = 17.sp, lineHeight = 22.sp)
+
+    /** Default reading size (labels, list primary text). */
+    val Body = TextStyle(fontFamily = AMFont, fontWeight = FontWeight.Normal, fontSize = 17.sp, lineHeight = 22.sp)
+
+    /** Secondary rows, card subtitles. */
+    val Subhead = TextStyle(fontFamily = AMFont, fontWeight = FontWeight.Normal, fontSize = 15.sp, lineHeight = 20.sp)
+
+    /** "Tout afficher" links, small metadata. */
+    val Footnote = TextStyle(fontFamily = AMFont, fontWeight = FontWeight.Normal, fontSize = 13.sp, lineHeight = 18.sp)
+
+    /** Tab-bar labels, timers. */
+    val Caption1 = TextStyle(fontFamily = AMFont, fontWeight = FontWeight.Normal, fontSize = 12.sp, lineHeight = 16.sp)
+
+    /** Smallest legal text. */
+    val Caption2 = TextStyle(fontFamily = AMFont, fontWeight = FontWeight.Normal, fontSize = 11.sp, lineHeight = 13.sp)
+}
+
+val EyebrowStyle = TextStyle(fontSize = 11.sp, fontWeight = FontWeight.SemiBold, letterSpacing = 0.6.sp)
+
+// Inter everywhere (the SF Pro stand-in), so raw Text() calls that inherit the
+// Material style land on the same family as AMType. Weights follow the
+// Apple Music hierarchy — Bold for large titles, SemiBold for headers — no
+// Black anywhere (the pre-redesign stack over-weighted everything).
 private val AuralisType = Typography().let { d ->
-    val f = FontFamily.SansSerif
+    val f = AMFont
     Typography(
-        displayLarge = d.displayLarge.copy(fontFamily = f, fontWeight = FontWeight.Black),
-        headlineMedium = d.headlineMedium.copy(fontFamily = f, fontWeight = FontWeight.Black),
-        titleLarge = d.titleLarge.copy(fontFamily = f, fontWeight = FontWeight.Bold),
-        titleMedium = d.titleMedium.copy(fontFamily = f, fontWeight = FontWeight.SemiBold),
-        bodyLarge = d.bodyLarge.copy(fontFamily = f),
-        bodyMedium = d.bodyMedium.copy(fontFamily = f),
-        labelLarge = d.labelLarge.copy(fontFamily = f, fontWeight = FontWeight.SemiBold),
-        labelSmall = d.labelSmall.copy(fontFamily = f, fontWeight = FontWeight.SemiBold),
+        displayLarge = d.displayLarge.copy(fontFamily = f, fontWeight = FontWeight.Bold, fontSize = 34.sp),
+        headlineMedium = d.headlineMedium.copy(fontFamily = f, fontWeight = FontWeight.Bold, fontSize = 28.sp),
+        titleLarge = d.titleLarge.copy(fontFamily = f, fontWeight = FontWeight.Bold, fontSize = 22.sp),
+        titleMedium = d.titleMedium.copy(fontFamily = f, fontWeight = FontWeight.SemiBold, fontSize = 20.sp),
+        bodyLarge = d.bodyLarge.copy(fontFamily = f, fontSize = 17.sp),
+        bodyMedium = d.bodyMedium.copy(fontFamily = f, fontSize = 15.sp),
+        labelLarge = d.labelLarge.copy(fontFamily = f, fontWeight = FontWeight.SemiBold, fontSize = 15.sp),
+        labelSmall = d.labelSmall.copy(fontFamily = f, fontWeight = FontWeight.Medium, fontSize = 11.sp),
     )
 }
 

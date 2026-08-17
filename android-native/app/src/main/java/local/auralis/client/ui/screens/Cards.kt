@@ -1,6 +1,7 @@
 package local.auralis.client.ui.screens
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -19,6 +20,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
@@ -28,22 +30,24 @@ import local.auralis.client.model.Album
 import local.auralis.client.model.Artist
 import local.auralis.client.ui.components.CoverArt
 import local.auralis.client.ui.components.paletteFor
+import local.auralis.client.ui.theme.AMType
 import local.auralis.client.ui.theme.LocalAuralis
 
-/** Green circular play FAB pinned bottom-right of a card cover — Spotify's
- * signature card control. Always shown (no hover on touch), bottom layer tap target. */
+/** Apple Music's card play affordance: a translucent frosted-dark circle pinned
+ *  bottom-right of the cover (never a solid accent — the art stays the hero).
+ *  Always shown on touch, bottom layer of the tap stack. */
 @Composable
 private fun CardPlayFab(onPlay: () -> Unit, modifier: Modifier = Modifier) {
-    val colors = LocalAuralis.current
     Box(
         modifier
-            .size(36.dp)
+            .size(32.dp)
             .clip(CircleShape)
-            .background(colors.accent)
+            .background(Color.Black.copy(alpha = 0.32f))
+            .border(0.75.dp, Color.White.copy(alpha = 0.28f), CircleShape)
             .clickable { onPlay() },
         contentAlignment = Alignment.Center,
     ) {
-        Icon(Icons.Filled.PlayArrow, "Lire", tint = colors.ink, modifier = Modifier.size(18.dp))
+        Icon(Icons.Filled.PlayArrow, "Lire", tint = Color.White, modifier = Modifier.size(15.dp))
     }
 }
 
@@ -59,13 +63,13 @@ fun AlbumCard(album: Album, modifier: Modifier = Modifier.width(150.dp), onPlay:
         }
         Text(
             album.title,
-            color = colors.foreground, fontSize = 14.sp, fontWeight = FontWeight.Bold,
+            color = colors.foreground, style = AMType.Subhead, fontWeight = FontWeight.SemiBold,
             maxLines = 1, overflow = TextOverflow.Ellipsis,
             modifier = Modifier.padding(top = 8.dp),
         )
         Text(
             album.artistName,
-            color = colors.textMuted, fontSize = 12.sp, maxLines = 1, overflow = TextOverflow.Ellipsis,
+            color = colors.textMuted, style = AMType.Footnote, maxLines = 1, overflow = TextOverflow.Ellipsis,
         )
     }
 }
@@ -88,7 +92,7 @@ fun ArtistCard(artist: Artist, modifier: Modifier = Modifier.width(130.dp), onPl
         }
         Text(
             artist.name,
-            color = colors.foreground, fontSize = 14.sp, fontWeight = FontWeight.Bold,
+            color = colors.foreground, style = AMType.Subhead, fontWeight = FontWeight.SemiBold,
             maxLines = 1, overflow = TextOverflow.Ellipsis, textAlign = TextAlign.Center,
             modifier = Modifier.padding(top = 8.dp).fillMaxWidth(),
         )

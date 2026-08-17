@@ -128,4 +128,8 @@ dependencies {
     implementation("androidx.media3:media3-exoplayer:$media3Ver")
     implementation("androidx.media3:media3-session:$media3Ver")
     implementation("androidx.media3:media3-common:$media3Ver")
+
+    // Real backdrop blur (Apple Music's frosted tab bar / mini player). Falls back
+    // to a translucent scrim below Android 12 — Haze handles that internally.
+    implementation("dev.chrisbanes.haze:haze:1.5.3")
 }
