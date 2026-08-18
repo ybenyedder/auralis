@@ -1,6 +1,6 @@
 "use client";
 
-import { Radio, Broadcast, TrendingUp } from "lucide-react";
+import { Radio, Music, TrendingUp } from "lucide-react";
 import { SectionHeader } from "../SectionHeader";
 import { AlbumCard, ArtistCard } from "../Cards";
 import { useLibraryStore, artistPlayTotals } from "@/store/library";
