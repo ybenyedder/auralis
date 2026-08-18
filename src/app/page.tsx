@@ -17,6 +17,7 @@ import { LibraryView } from "@/components/auralis/views/LibraryView";
 import { FavoritesView } from "@/components/auralis/views/FavoritesView";
 import { RecentsView } from "@/components/auralis/views/RecentsView";
 import { FoldersView } from "@/components/auralis/views/FoldersView";
+import { RadioView } from "@/components/auralis/views/RadioView";
 
 // Heavy / conditionally-mounted surfaces are code-split out of the initial bundle.
 // They're "use client" overlays + secondary views (DetailView is the single biggest
@@ -155,7 +156,7 @@ function AuralisShell() {
   useEffect(() => {
     if (typeof window === "undefined") return;
     const v = new URLSearchParams(window.location.search).get("view");
-    const valid: ViewId[] = ["explore", "library", "favorites", "recents", "folders", "insights", "settings"];
+    const valid: ViewId[] = ["explore", "library", "favorites", "recents", "folders", "insights", "settings", "radio", "search"];
     if (v && (valid as string[]).includes(v)) {
       usePlayer.getState().navigate(v as ViewId);
     }
@@ -615,6 +616,10 @@ function AuralisShell() {
         return <HomeView />;
       case "explore":
         return <ExploreView />;
+      case "radio":
+        return <RadioView />;
+      case "search":
+        return <ExploreView />;
       case "library":
         return <LibraryView />;
       case "favorites":
@@ -690,7 +695,7 @@ function AuralisShell() {
               keep working — the user gets a "Réessayer" fallback instead of a white
               screen + forced reload. resetKey clears the error on navigation. */}
           <ErrorBoundary area="cet onglet" resetKey={`${view.view}-${view.id ?? ""}`}>
-            <div key={`${view.view}-${view.id ?? ""}`} className="relative fade-up h-full">{viewEl}</div>
+            <div key={`${view.view}-${view.id ?? ""}`} className="relative am-push-enter h-full">{viewEl}</div>
           </ErrorBoundary>
         </main>
         <ErrorBoundary area="du panneau de lecture" compact>

@@ -17,13 +17,13 @@ export function SectionHeader({ title, action, onAction, className }: SectionHea
   // in the accent colour, not as a muted uppercase label.
   return (
     <div className={cn("flex items-end justify-between gap-3", className)}>
-      <h2 className="min-w-0 truncate text-[20px] font-bold tracking-[-0.02em] text-foreground lg:text-[24px]">
+      <h2 className="min-w-0 truncate am-title3 lg:am-title2 text-foreground">
         {title}
       </h2>
       {action && (
         <button
           onClick={onAction}
-          className="no-drag shrink-0 text-[13px] font-medium text-[var(--primary)] transition-opacity hover:opacity-70"
+          className="no-drag shrink-0 am-footnote text-[var(--primary)] transition-opacity hover:opacity-70"
         >
           {action}
         </button>

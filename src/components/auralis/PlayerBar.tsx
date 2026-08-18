@@ -132,13 +132,13 @@ export function PlayerBar() {
 
       {/* Center: Controls & Scrubber */}
       <div className="flex flex-col items-center justify-center max-w-[722px]" style={{ width: "40%" }}>
-        <div className="flex w-full items-center justify-center gap-5 mb-1">
+        <div className="flex w-full items-center justify-center gap-4 mb-1">
           <button
             onClick={toggleShuffle}
             aria-label="Lecture aléatoire"
-            className={cn("flex items-center justify-center rounded-full p-1 transition-all active:scale-95 hover:text-white", shuffle ? "text-[var(--primary)]" : "text-[var(--text-muted)]")}
+            className={cn("flex items-center justify-center rounded-full p-1.5 transition-all active:scale-95 hover:text-white", shuffle ? "text-[var(--primary)]" : "text-[var(--text-muted)]")}
           >
-            <Shuffle className="size-4" />
+            <Shuffle className="size-[18px]" />
           </button>
           <button
             onClick={playPrev}
@@ -152,11 +152,11 @@ export function PlayerBar() {
             onClick={togglePlay}
             disabled={!currentTrack}
             aria-label={isPlaying ? "Pause" : "Lecture"}
-            className="grid h-9 w-9 place-items-center rounded-full bg-[var(--primary)] text-white transition-transform duration-100 hover:scale-105 active:scale-100 disabled:opacity-30 disabled:hover:scale-100"
+            className="grid h-10 w-10 place-items-center rounded-full bg-[var(--primary)] text-white transition-transform duration-100 hover:scale-105 active:scale-100 disabled:opacity-30 disabled:hover:scale-100"
           >
             {isPlaying
-              ? <Pause className="size-4 fill-current" />
-              : <Play className="size-4 fill-current ml-0.5" />}
+              ? <Pause className="size-[18px] fill-current" />
+              : <Play className="size-[18px] fill-current ml-0.5" />}
           </button>
           <button
             onClick={playNext}
@@ -169,9 +169,9 @@ export function PlayerBar() {
           <button
             onClick={cycleRepeat}
             aria-label="Répéter"
-            className={cn("flex items-center justify-center rounded-full p-1 transition-all active:scale-95 hover:text-white", repeat !== "off" ? "text-[var(--primary)]" : "text-[var(--text-muted)]")}
+            className={cn("flex items-center justify-center rounded-full p-1.5 transition-all active:scale-95 hover:text-white", repeat !== "off" ? "text-[var(--primary)]" : "text-[var(--text-muted)]")}
           >
-            {repeat === "one" ? <Repeat1 className="size-4" /> : <Repeat className="size-4" />}
+            {repeat === "one" ? <Repeat1 className="size-[18px]" /> : <Repeat className="size-[18px]" />}
           </button>
         </div>
         <div className="w-full flex items-center justify-center">

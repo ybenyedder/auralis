@@ -7,6 +7,7 @@ import { Artwork } from "../Artwork";
 import { trackArtist, trackTitle } from "@/lib/auralis/brand";
 import { useT } from "@/lib/auralis/i18n";
 import { cn } from "@/lib/utils";
+import { FrostedSurface } from "../FrostedSurface";
 
 interface Tab {
   id: ViewId;
@@ -16,11 +17,13 @@ interface Tab {
   owns: ViewId[];
 }
 
-// Spotify mobile app has 3 main tabs: Home, Search, Your Library
+// Apple Music 5-tab dock: Accueil, Parcourir, Radio, Bibliothèque, Rechercher
 const TABS: Tab[] = [
   { id: "home", labelKey: "mobile.home", labelFallback: "Accueil", icon: Home, owns: ["home"] },
-  { id: "explore", labelKey: "mobile.search", labelFallback: "Recherche", icon: Search, owns: ["explore"] },
+  { id: "explore", labelKey: "mobile.browse", labelFallback: "Parcourir", icon: Search, owns: ["explore"] },
+  { id: "radio", labelKey: "mobile.radio", labelFallback: "Radio", icon: Play, owns: ["radio"] },
   { id: "library", labelKey: "mobile.library", labelFallback: "Bibliothèque", icon: Library, owns: ["library", "album", "artist", "playlist", "folders", "recents", "insights", "settings", "favorites"] },
+  { id: "search", labelKey: "mobile.search", labelFallback: "Rechercher", icon: Search, owns: ["search"] },
 ];
 
 export function MobileDock() {
@@ -29,9 +32,9 @@ export function MobileDock() {
       <div className="w-full px-2 pb-2 pointer-events-auto">
         <MiniPlayer />
       </div>
-      <div className="w-full pointer-events-auto pb-[env(safe-area-inset-bottom)] glass">
+      <FrostedSurface className="w-full pointer-events-auto pb-[env(safe-area-inset-bottom)]">
         <TabBar />
-      </div>
+      </FrostedSurface>
     </div>
   );
 }

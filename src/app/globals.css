@@ -113,6 +113,89 @@
   --glass-blur: 24px;
 }
 
+/* ==========================================================================
+   APPLE MUSIC TYPOGRAPHY SCALE
+   ========================================================================== */
+@layer utilities {
+  /* Large Title (34pt) — collapsing header */
+  .am-largetitle {
+    font-size: 34px;
+    line-height: 1.2;
+    font-weight: 700;
+    letter-spacing: -0.015em;
+  }
+  /* Title 1 (28pt) — section headers */
+  .am-title1 {
+    font-size: 28px;
+    line-height: 1.3;
+    font-weight: 700;
+    letter-spacing: -0.01em;
+  }
+  /* Title 2 (22pt) — subsection headers */
+  .am-title2 {
+    font-size: 22px;
+    line-height: 1.3;
+    font-weight: 600;
+    letter-spacing: -0.005em;
+  }
+  /* Title 3 (20pt) — card titles */
+  .am-title3 {
+    font-size: 20px;
+    line-height: 1.35;
+    font-weight: 600;
+    letter-spacing: 0;
+  }
+  /* Headline (17pt semibold) — emphasis text */
+  .am-headline {
+    font-size: 17px;
+    line-height: 1.35;
+    font-weight: 600;
+    letter-spacing: 0;
+  }
+  /* Body (17pt regular) — base text */
+  .am-body {
+    font-size: 17px;
+    line-height: 1.4;
+    font-weight: 400;
+    letter-spacing: 0;
+  }
+  /* Callout (16pt) — secondary text */
+  .am-callout {
+    font-size: 16px;
+    line-height: 1.4;
+    font-weight: 400;
+    letter-spacing: 0;
+  }
+  /* Subhead (15pt semibold) — compact headers */
+  .am-subhead {
+    font-size: 15px;
+    line-height: 1.45;
+    font-weight: 600;
+    letter-spacing: 0.005em;
+  }
+  /* Footnote (13pt) — metadata */
+  .am-footnote {
+    font-size: 13px;
+    line-height: 1.45;
+    font-weight: 400;
+    letter-spacing: 0.01em;
+  }
+  /* Caption 1 (12pt semibold) — labels */
+  .am-caption1 {
+    font-size: 12px;
+    line-height: 1.5;
+    font-weight: 600;
+    letter-spacing: 0.015em;
+  }
+  /* Caption 2 (11pt) — tiny labels */
+  .am-caption2 {
+    font-size: 11px;
+    line-height: 1.5;
+    font-weight: 500;
+    letter-spacing: 0.02em;
+  }
+}
+
 @layer utilities {
   .glass {
     background: var(--surface-1);
@@ -127,6 +210,13 @@
     backdrop-filter: blur(var(--glass-blur));
     -webkit-backdrop-filter: blur(var(--glass-blur));
     border: 1px solid var(--glass-border);
+  }
+
+  /* Frosted surface Apple Music — blur progressif au scroll */
+  .frosted-surface {
+    position: relative;
+    border-top: 1px solid var(--glass-border);
+    transition: backdrop-filter 0.3s ease, background-color 0.3s ease;
   }
 }
 
@@ -182,6 +272,65 @@
 /* Animations */
 /* The "now playing" indicator is a STATIC three-bar glyph (see EqualizerBars in
    SectionHeader) — no looping fake-spectrum animation. */
+
+/* Apple Music-style push transition (slide from right) */
+@keyframes am-push-in {
+  from {
+    opacity: 0;
+    transform: translateX(100%);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+@keyframes am-push-out {
+  from {
+    opacity: 1;
+    transform: translateX(0);
+  }
+  to {
+    opacity: 0;
+    transform: translateX(-30%);
+  }
+}
+
+/* Apple Music-style tab crossfade */
+@keyframes am-crossfade-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes am-crossfade-out {
+  from {
+    opacity: 1;
+  }
+  to {
+    opacity: 0;
+  }
+}
+
+/* Utility classes for AM transitions */
+.am-push-enter {
+  animation: am-push-in 0.26s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+.am-push-exit {
+  animation: am-push-out 0.20s cubic-bezier(0.4, 0, 1, 1) both;
+}
+
+.am-crossfade-enter {
+  animation: am-crossfade-in 0.14s ease both;
+}
+
+.am-crossfade-exit {
+  animation: am-crossfade-out 0.14s ease both;
+}
 
 @keyframes auralis-fade-up {
   from { opacity: 0; transform: translateY(6px); }
