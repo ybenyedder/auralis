@@ -17,52 +17,62 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
       - name: Set up JDK
         uses: actions/setup-java@v4
         with:
           distribution: 'temurin'
-          java-version: '17'
+          java-version: '21'
 
       - name: Setup Android SDK
         uses: android-actions/setup-android@v3
 
-      - name: Grant execute permission for gradlew
-        run: |
-          cd android-native
-          chmod +x gradlew
+      - name: Install dependencies
+        run: npm ci
 
-      - name: Build Debug APK
-        run: |
-          cd android-native
-          ./gradlew assembleDebug
+      - name: Resolve release tag from package.json
+        id: reltag
+        run: echo "REL_TAG=v$(node -p "require('./package.json').version")" >> "$GITHUB_OUTPUT"
 
-      - name: Build Release APK
-        run: |
-          cd android-native
-          ./gradlew assembleRelease
-
-      - name: Find APK files
-        id: find_apks
-        run: |
-          echo "debug_apk=$(find android-native/app/build/outputs/apk/debug -name '*.apk' | head -1)" >> $GITHUB_OUTPUT
-          echo "release_apk=$(find android-native/app/build/outputs/apk/release -name '*.apk' | head -1)" >> $GITHUB_OUTPUT
-
-      - name: Upload Debug APK to Release
-        if: steps.find_apks.outputs.debug_apk != ''
-        uses: softprops/action-gh-release@v1
-        with:
-          files: ${{ steps.find_apks.outputs.debug_apk }}
-          draft: false
-          prerelease: false
+      - name: Restore signing keystore
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+        run: |
+          if [ -z "$ANDROID_KEYSTORE_BASE64" ]; then
+            echo "::warning::ANDROID_KEYSTORE_BASE64 secret is empty — building unsigned APK"
+          else
+            echo "$ANDROID_KEYSTORE_BASE64" | base64 -d > android-native/app/auralis.keystore
+          fi
 
-      - name: Upload Release APK to Release
-        if: steps.find_apks.outputs.release_apk != ''
-        uses: softprops/action-gh-release@v1
-        with:
-          files: ${{ steps.find_apks.outputs.release_apk }}
-          draft: false
-          prerelease: false
+      - name: Build native Android APK
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          AURALIS_VERSION: ${{ steps.reltag.outputs.REL_TAG }}
+          ANDROID_KEYSTORE_PWD: ${{ secrets.ANDROID_KEYSTORE_PWD }}
+          ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          ANDROID_KEY_PWD: ${{ secrets.ANDROID_KEY_PWD }}
+        run: npm run mobile:native
+
+      - name: Attach APK to the release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          REL_TAG: ${{ steps.reltag.outputs.REL_TAG }}
+        run: |
+          if [ -f "android-native/app/build/outputs/apk/release/app-release.apk" ]; then
+            cp android-native/app/build/outputs/apk/release/app-release.apk "Auralis-${REL_TAG}.apk"
+            gh release upload "${REL_TAG}" "Auralis-${REL_TAG}.apk" --clobber
+          else
+            echo "::warning::Release APK not found"
+          fi
+
+      - name: Upload build artifacts (for debugging)
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: android-build-outputs
+          path: android-native/app/build/outputs/
+          retention-days: 7
