@@ -1,0 +1,68 @@
+name: Build Android APK
+
+on:
+  push:
+    tags:
+      - 'v*' # Trigger on version tags (e.g., v1.18.0)
+  workflow_dispatch: # Allow manual trigger from GitHub Actions UI
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    permissions:
+      contents: write # Allow publishing to releases
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up JDK
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '17'
+
+      - name: Setup Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Grant execute permission for gradlew
+        run: |
+          cd android-native
+          chmod +x gradlew
+
+      - name: Build Debug APK
+        run: |
+          cd android-native
+          ./gradlew assembleDebug
+
+      - name: Build Release APK
+        run: |
+          cd android-native
+          ./gradlew assembleRelease
+
+      - name: Find APK files
+        id: find_apks
+        run: |
+          echo "debug_apk=$(find android-native/app/build/outputs/apk/debug -name '*.apk' | head -1)" >> $GITHUB_OUTPUT
+          echo "release_apk=$(find android-native/app/build/outputs/apk/release -name '*.apk' | head -1)" >> $GITHUB_OUTPUT
+
+      - name: Upload Debug APK to Release
+        if: steps.find_apks.outputs.debug_apk != ''
+        uses: softprops/action-gh-release@v1
+        with:
+          files: ${{ steps.find_apks.outputs.debug_apk }}
+          draft: false
+          prerelease: false
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Upload Release APK to Release
+        if: steps.find_apks.outputs.release_apk != ''
+        uses: softprops/action-gh-release@v1
+        with:
+          files: ${{ steps.find_apks.outputs.release_apk }}
+          draft: false
+          prerelease: false
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
