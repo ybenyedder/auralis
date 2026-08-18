@@ -10,6 +10,8 @@ export type NormalizationMode = "off" | "track" | "album";
 export type ViewId =
   | "home"
   | "explore"
+  | "radio"
+  | "search"
   | "library"
   | "favorites"
   | "recents"

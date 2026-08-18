@@ -95,6 +95,8 @@ export interface Playlist {
 export type ViewId =
   | "home"
   | "explore"
+  | "radio"
+  | "search"
   | "library"
   | "favorites"
   | "recents"
