@@ -44,7 +44,6 @@ export function RadioView() {
       {/* Header */}
       <SectionHeader
         title={t("radio.title", "Radio")}
-        description={t("radio.description", "Stations et playlists thématiques")}
       />
 
       {/* Stations en tendance */}
