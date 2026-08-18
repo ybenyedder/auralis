@@ -16,9 +16,11 @@ import kotlinx.coroutines.cancel
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.launch
 import local.auralis.client.model.Track
 import local.auralis.client.net.AuralisApi
+import local.auralis.client.sync.SyncManager
 
 data class PlaybackSnapshot(
     val currentId: String? = null,
@@ -37,6 +39,7 @@ data class PlaybackSnapshot(
 class PlayerHolder(
     private val context: Context,
     private val api: AuralisApi,
+    private val syncManager: SyncManager
 ) {
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main)
     private var controller: MediaController? = null
@@ -65,6 +68,23 @@ class PlayerHolder(
     /** Invoked when the queue runs dry while autoplay should continue. */
     var onNeedContinuation: (() -> Unit)? = null
 
+    /** Handle incoming command from remote device via Auralis Connect */
+    fun handleRemoteCommand(command: String, position: Long? = null) {
+        when (command) {
+            "play" -> play()
+            "pause" -> pause()
+            "toggle" -> togglePlay()
+            "next" -> next()
+            "prev" -> prev()
+            "shuffle_on" -> setShuffle(true)
+            "shuffle_off" -> setShuffle(false)
+            "repeat_all" -> setRepeat("all")
+            "repeat_one" -> setRepeat("one")
+            "repeat_off" -> setRepeat("off")
+            "seek" -> if (position != null) seekTo(position)
+        }
+    }
+
     private val listener = object : Player.Listener {
         override fun onEvents(player: Player, events: Player.Events) {
             pushSnapshot()
@@ -82,6 +102,15 @@ class PlayerHolder(
 
     fun connect() {
         if (controller != null) return
+        syncManager.connect() // Start SSE connection for Auralis Connect
+
+        // Listen for incoming commands from remote devices
+        scope.launch {
+            syncManager.incomingCommands.collect { command ->
+                command?.let { handleRemoteCommand(it.type, it.position) }
+            }
+        }
+
         val token = SessionToken(context, ComponentName(context, PlaybackService::class.java))
         val future = MediaController.Builder(context, token).buildAsync()
         future.addListener({
@@ -117,6 +146,7 @@ class PlayerHolder(
         controller?.removeListener(listener)
         controller?.release()
         controller = null
+        syncManager.disconnect() // Stop SSE connection
         // Without this the position ticker's `while (true) { delay(250) }` loop
         // in startTicker() keeps running forever — it only checks `controller`
         // per iteration, it never observes that the scope should stop.
@@ -158,6 +188,18 @@ class PlayerHolder(
             currentIndex = c.currentMediaItemIndex,
             durationMs = c.duration.coerceAtLeast(0L),
             hasItems = c.mediaItemCount > 0,
+        )
+
+        // Publish sync state for Auralis Connect
+        val currentTrack = c.currentMediaItem?.mediaMetadata
+        syncManager.publishState(
+            trackhash = c.currentMediaItem?.mediaId,
+            title = currentTrack?.title?.toString(),
+            artist = currentTrack?.artist?.toString(),
+            image = currentTrack?.artworkUri?.toString(),
+            position = c.currentPosition.coerceAtLeast(0L),
+            duration = c.duration.coerceAtLeast(0L),
+            isPlaying = c.playWhenReady
         )
     }
 

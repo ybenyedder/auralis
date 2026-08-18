@@ -25,6 +25,7 @@ import local.auralis.client.model.Track
 import local.auralis.client.net.AuralisApi
 import local.auralis.client.playback.PlaybackSnapshot
 import local.auralis.client.playback.PlayerHolder
+import local.auralis.client.sync.SyncManager
 import org.json.JSONArray
 import org.json.JSONObject
 
@@ -107,7 +108,8 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
 
     private val prefs = Prefs(app)
     val api = AuralisApi()
-    val player = PlayerHolder(app, api)
+    private val syncManager = SyncManager(api, app)
+    val player = PlayerHolder(app, api, syncManager)
 
     private val _ui = MutableStateFlow(UiState())
     val ui: StateFlow<UiState> = _ui.asStateFlow()

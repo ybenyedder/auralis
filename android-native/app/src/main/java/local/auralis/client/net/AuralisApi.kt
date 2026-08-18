@@ -176,6 +176,50 @@ class AuralisApi {
     /** PUT /api/state with an action payload. Returns the response JSON (or empty). */
     suspend fun putState(payload: JSONObject): JSONObject = put("/api/state", payload)
 
+    // ---- sync (Auralis Connect) -------------------------------------------
+
+    /** Publish this device's now-playing snapshot to the sync hub. */
+    suspend fun publishSyncState(
+        deviceId: String,
+        trackhash: String?,
+        title: String?,
+        artist: String?,
+        image: String?,
+        position: Long,
+        duration: Long,
+        isPlaying: Boolean
+    ): JSONObject = withContext(Dispatchers.IO) {
+        val payload = JSONObject().apply {
+            put("action", "state")
+            put("deviceId", deviceId)
+            put("trackhash", trackhash)
+            put("title", title)
+            put("artist", artist)
+            put("image", image)
+            put("position", position)
+            put("duration", duration)
+            put("isPlaying", isPlaying)
+        }
+        post("/api/sync", payload)
+    }
+
+    /** Send a transport command to a remote device via the sync hub. */
+    suspend fun sendSyncCommand(
+        targetDeviceId: String,
+        fromDeviceId: String,
+        command: String,
+        position: Long? = null
+    ): JSONObject = withContext(Dispatchers.IO) {
+        val payload = JSONObject().apply {
+            put("action", "command")
+            put("target", targetDeviceId)
+            put("from", fromDeviceId)
+            put("type", command)
+            position?.let { put("position", it) }
+        }
+        post("/api/sync", payload)
+    }
+
     // ---- generic verbs (settings, admin, library ops) ----------------------
 
     suspend fun getObj(path: String): JSONObject = withContext(Dispatchers.IO) {
