@@ -23,19 +23,17 @@ jobs:
           node-version: 22
           cache: npm
 
-      - name: Set up JDK
+      - name: Set up JDK 17
         uses: actions/setup-java@v4
         with:
           distribution: 'temurin'
-          java-version: '21'
+          java-version: '17'
 
       - name: Setup Android SDK
         uses: android-actions/setup-android@v3
 
-      - name: Set ANDROID_HOME environment variable
-        run: |
-          echo "ANDROID_HOME=$ANDROID_SDK_ROOT" >> $GITHUB_ENV
-          echo "ANDROID_SDK_ROOT=$ANDROID_SDK_ROOT" >> $GITHUB_ENV
+      - name: Grant execute permission for gradlew
+        run: chmod +x android-native/gradlew
 
       - name: Install dependencies
         run: npm ci
@@ -54,30 +52,38 @@ jobs:
             echo "$ANDROID_KEYSTORE_BASE64" | base64 -d > android-native/app/auralis.keystore
           fi
 
-      - name: Build native Android APK
+      - name: Build debug APK (unsigned, no keystore required)
+        run: |
+          cd android-native
+          ./gradlew assembleDebug --stacktrace
+
+      - name: Build release APK (signed, requires keystore)
+        if: env.ANDROID_KEYSTORE_BASE64 != ''
         env:
-          AURALIS_VERSION: ${{ steps.reltag.outputs.REL_TAG }}
           ANDROID_KEYSTORE_PWD: ${{ secrets.ANDROID_KEYSTORE_PWD }}
           ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
           ANDROID_KEY_PWD: ${{ secrets.ANDROID_KEY_PWD }}
-          ANDROID_HOME: ${{ env.ANDROID_SDK_ROOT }}
-          ANDROID_SDK_ROOT: ${{ env.ANDROID_SDK_ROOT }}
         run: |
-          echo "ANDROID_HOME: $ANDROID_HOME"
-          echo "ANDROID_SDK_ROOT: $ANDROID_SDK_ROOT"
-          ls -la "$ANDROID_HOME"
-          npm run mobile:native
+          cd android-native
+          ./gradlew assembleRelease --stacktrace
 
-      - name: Attach APK to the release
+      - name: Upload APKs to release
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           REL_TAG: ${{ steps.reltag.outputs.REL_TAG }}
         run: |
+          # Upload debug APK
+          if [ -f "android-native/app/build/outputs/apk/debug/app-debug.apk" ]; then
+            cp android-native/app/build/outputs/apk/debug/app-debug.apk "Auralis-${REL_TAG}-debug.apk"
+            gh release upload "${REL_TAG}" "Auralis-${REL_TAG}-debug.apk" --clobber
+            echo "Uploaded debug APK"
+          fi
+
+          # Upload release APK (if built)
           if [ -f "android-native/app/build/outputs/apk/release/app-release.apk" ]; then
             cp android-native/app/build/outputs/apk/release/app-release.apk "Auralis-${REL_TAG}.apk"
             gh release upload "${REL_TAG}" "Auralis-${REL_TAG}.apk" --clobber
-          else
-            echo "::warning::Release APK not found"
+            echo "Uploaded release APK"
           fi
 
       - name: Upload build artifacts (for debugging)
