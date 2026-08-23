@@ -16,7 +16,6 @@ import kotlinx.coroutines.cancel
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
-import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.launch
 import local.auralis.client.model.Track
 import local.auralis.client.net.AuralisApi
@@ -68,19 +67,14 @@ class PlayerHolder(
     /** Invoked when the queue runs dry while autoplay should continue. */
     var onNeedContinuation: (() -> Unit)? = null
 
-    /** Handle incoming command from remote device via Auralis Connect */
+    /** Handle an incoming transport command from a remote device (Auralis Connect).
+     *  The hub protocol carries play/pause/next/prev/seek — see src/store/sync.ts. */
     fun handleRemoteCommand(command: String, position: Long? = null) {
         when (command) {
             "play" -> play()
             "pause" -> pause()
-            "toggle" -> togglePlay()
             "next" -> next()
             "prev" -> prev()
-            "shuffle_on" -> setShuffle(true)
-            "shuffle_off" -> setShuffle(false)
-            "repeat_all" -> setRepeat("all")
-            "repeat_one" -> setRepeat("one")
-            "repeat_off" -> setRepeat("off")
             "seek" -> if (position != null) seekTo(position)
         }
     }
@@ -102,11 +96,11 @@ class PlayerHolder(
 
     fun connect() {
         if (controller != null) return
-        syncManager.connect() // Start SSE connection for Auralis Connect
+        syncManager.connect() // Auralis Connect: register on the hub + hear commands
 
-        // Listen for incoming commands from remote devices
+        // Execute transport commands from remote devices as they arrive.
         scope.launch {
-            syncManager.incomingCommands.collect { command ->
+            syncManager.incomingCommand.collect { command ->
                 command?.let { handleRemoteCommand(it.type, it.position) }
             }
         }

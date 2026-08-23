@@ -2,429 +2,321 @@ package local.auralis.client.sync
 
 import android.content.Context
 import android.content.SharedPreferences
-import android.net.Uri
+import android.util.Log
+import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import local.auralis.client.net.AuralisApi
 import local.auralis.client.util.DeviceIdUtil
-import local.auralis.client.util.logDebug
-import local.auralis.client.util.logInfo
-import okhttp3.*
-import okhttp3.sse.EventSource
-import okhttp3.sse.EventSourceListener
+import okhttp3.MediaType.Companion.toMediaType
+import okhttp3.OkHttpClient
+import okhttp3.Request
+import okhttp3.RequestBody.Companion.toRequestBody
 import org.json.JSONArray
 import org.json.JSONObject
-import java.io.IOException
-import java.util.concurrent.TimeUnit
-import org.json.JSONObject
-import java.io.IOException
+import java.io.BufferedReader
 import java.util.concurrent.TimeUnit
 
 /**
- * Real-time sync manager for Auralis Connect (Spotify Connect-like feature).
- * Manages SSE connection to /api/sync/stream, publishes device state,
- * and handles incoming remote commands from other devices.
+ * Realtime sync client for Auralis Connect (Spotify Connect-like), mirroring the
+ * web client's src/store/sync.ts. One long-lived SSE connection to /api/sync/stream
+ * carries the device roster, every device's now-playing snapshot and transport
+ * commands aimed at us; we publish our own snapshot over POST /api/sync.
  *
- * This allows an Android phone to control/be controlled by other Auralis instances
- * (desktop web, mobile web, etc.) running on the same user account.
+ * SSE is parsed by hand over the streaming response body — the okhttp-sse artifact
+ * isn't in the offline Gradle cache this project pins its deps to, and the wire
+ * format is just "event:"/"data:" lines, so a tiny parser avoids the dependency.
  */
 class SyncManager(
     private val api: AuralisApi,
-    private val context: Context
+    context: Context,
 ) {
     companion object {
-        private const val KEY_DEVICE_ID = "auralis_device_id"
-        private const val KEY_DEVICE_NAME = "auralis_device_name"
-        private const val PREFS_NAME = "auralis_sync"
-
-        fun getDefaultDeviceName(): String = "Android"
+        private const val TAG = "AuralisSync"
+        private const val PREFS = "auralis_sync"
+        private const val KEY_ID = "device_id"
+        private const val KEY_NAME = "device_name"
+        private const val DEFAULT_NAME = "Téléphone"
+        /** Minimum gap between two state POSTs (the listener fires on every event). */
+        private const val PUBLISH_MIN_INTERVAL_MS = 1500L
     }
 
-    private val prefs: SharedPreferences = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+    private val prefs: SharedPreferences = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
+    private val appContext = context.applicationContext
+    private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
 
     private val client = OkHttpClient.Builder()
-        .connectTimeout(10, TimeUnit.SECONDS)
-        .readTimeout(30, TimeUnit.SECONDS)
-        .writeTimeout(10, TimeUnit.SECONDS)
+        .connectTimeout(15, TimeUnit.SECONDS)
+        // The SSE stream is idle between heartbeats (25s server-side), so the read
+        // timeout must exceed that or OkHttp kills a perfectly healthy connection.
+        .readTimeout(60, TimeUnit.SECONDS)
+        .writeTimeout(15, TimeUnit.SECONDS)
         .build()
 
-    private var eventSource: EventSource? = null
     private var deviceId: String? = null
+    private var streamJob: Job? = null
 
-    // Device info
-    private val _deviceName = MutableStateFlow(getDefaultDeviceName())
-    val deviceName: StateFlow<String> = _deviceName
+    @Volatile private var wantConnected = false
 
-    // Connected devices list
-    private val _devices = MutableStateFlow<List<SyncDevice>>(emptyList())
-    val devices: StateFlow<List<SyncDevice>> = _devices
-
-    // Now playing snapshots from other devices
-    private val _nowPlaying = MutableStateFlow<Map<String, RemoteNowPlaying>>(emptyMap())
-    val nowPlaying: StateFlow<Map<String, RemoteNowPlaying>> = _nowPlaying
-
-    // Whether we're controlling another device
-    private val _controllingId = MutableStateFlow<String?>(null)
-    val controllingId: StateFlow<String?> = _controllingId
-
-    // Connection state
     private val _connected = MutableStateFlow(false)
     val connected: StateFlow<Boolean> = _connected
 
-    // Remote commands we receive (play, pause, next, prev, seek)
-    private val _remoteCommand = MutableStateFlow<RemoteCommand?>(null)
-    val remoteCommand: StateFlow<RemoteCommand?> = _remoteCommand
+    private val _devices = MutableStateFlow<List<SyncDevice>>(emptyList())
+    val devices: StateFlow<List<SyncDevice>> = _devices
 
-    // Incoming commands flow for PlayerHolder to collect
-    private val _incomingCommands = MutableStateFlow<RemoteCommand?>(null)
-    val incomingCommands: StateFlow<RemoteCommand?> = _incomingCommands
+    private val _nowPlaying = MutableStateFlow<Map<String, RemoteNowPlaying>>(emptyMap())
+    val nowPlaying: StateFlow<Map<String, RemoteNowPlaying>> = _nowPlaying
 
-    /**
-     * Initialize or get the device ID from persistent storage.
-     */
+    /** Device this app is remote-controlling (null = local playback). */
+    private val _controllingId = MutableStateFlow<String?>(null)
+    val controllingId: StateFlow<String?> = _controllingId
+
+    /** Transport commands aimed at this device, for PlayerHolder to execute. */
+    private val _incomingCommand = MutableStateFlow<RemoteCommand?>(null)
+    val incomingCommand: StateFlow<RemoteCommand?> = _incomingCommand
+
+    // Publish throttling: pushSnapshot() fires on every player event, but the hub
+    // only needs a snapshot when the track/transport actually changes. The last
+    // published (trackhash + isPlaying) pair forces an immediate re-publish on
+    // change; everything else waits out PUBLISH_MIN_INTERVAL_MS.
+    private var lastPublishAt = 0L
+    private var lastPublishedKey: String? = null
+
     fun getOrCreateDeviceId(): String {
         deviceId?.let { return it }
-        val id = prefs.getString(KEY_DEVICE_ID, null)
-        if (id != null) {
-            deviceId = id
-            return id
+        val stored = prefs.getString(KEY_ID, null)
+        val id = stored ?: DeviceIdUtil.getDeviceId(appContext).also {
+            prefs.edit().putString(KEY_ID, it).apply()
         }
-        val newId = DeviceIdUtil.getDeviceId(context)
-        prefs.edit().putString(KEY_DEVICE_ID, newId).apply()
-        deviceId = newId
-        return newId
+        deviceId = id
+        return id
     }
 
-    /**
-     * Set a custom device name (shown to other users).
-     */
+    fun deviceName(): String = prefs.getString(KEY_NAME, null) ?: DEFAULT_NAME
+
     fun setDeviceName(name: String) {
-        prefs.edit().putString(KEY_DEVICE_NAME, name).apply()
-        _deviceName.value = name
-        // Reconnect to update the server
-        if (_connected.value) {
-            disconnect()
-            connect()
-        }
+        prefs.edit().putString(KEY_NAME, name).apply()
+        // Re-register under the new name (the roster shows the query-param name).
+        if (wantConnected) { wantConnected = false; streamJob?.cancel(); connect() }
     }
 
-    /**
-     * Connect to the sync hub and start listening for events.
-     * Call this when the user logs in or when the app foregrounds.
-     */
+    /** Open (or re-open, forever with backoff) the SSE stream. Safe to call repeatedly. */
     fun connect() {
-        if (_connected.value) return
-
-        val id = getOrCreateDeviceId()
-        val name = prefs.getString(KEY_DEVICE_NAME, getDefaultDeviceName())
-        val baseUrl = api.base
-
-        // Build SSE URL with query params (EventSource can't set headers, so we use ?token=)
-        val token = api.token
-        val url = Uri.parse("$baseUrl/api/sync/stream")
-            .buildUpon()
-            .appendQueryParameter("device", id)
-            .appendQueryParameter("name", name)
-            .appendQueryParameter("kind", "mobile")
-            .appendQueryParameter("token", token) // Auth via query for SSE
-            .build()
-            .toString()
-
-        logInfo("SyncManager connecting to: $url")
-
-        val request = Request.Builder()
-            .url(url)
-            .get()
-            .build()
-
-        eventSource = EventSourceFactory.createEventSource(request, object : EventSourceListener {
-            override fun onOpen(eventSource: EventSource, response: Response) {
-                logInfo("SyncManager SSE connection opened")
-                _connected.value = true
-            }
-
-            override fun onClosed(eventSource: EventSource) {
-                logInfo("SyncManager SSE connection closed")
-                _connected.value = false
-                // Clear state
-                _devices.value = emptyList()
-                _nowPlaying.value = emptyMap()
-                _controllingId.value = null
-            }
-
-            override fun onEvent(
-                eventSource: EventSource,
-                id: String?,
-                type: String?,
-                data: String
-            ) {
-                logDebug("SyncManager event: $type | data: $data")
-                when (type) {
-                    "ready" -> handleReady(data)
-                    "devices" -> handleDevices(data)
-                    "nowPlaying" -> handleNowPlaying(data)
-                    "command" -> handleCommand(data)
-                    "heartbeat" -> { /* keep-alive */ }
-                }
-            }
-
-            override fun onMessage(
-                eventSource: EventSource,
-                message: String?
-            ) {
-                // Raw SSE message (should be handled in onEvent)
-                logDebug("SyncManager raw message: $message")
-            }
-
-            override fun onFailure(
-                eventSource: EventSource,
-                e: IOException?,
-                response: Response?
-            ) {
-                logDebug("SyncManager connection failed: $e")
-                _connected.value = false
-            }
-
-            override fun onRetry(
-                eventSource: EventSource,
-                originalRequest: Request
-            ): Request {
-                // Retry with backoff
-                return originalRequest
-            }
-        })
-
-        // Start the SSE connection (blocks in a separate thread)
-        eventSource?.start()
+        if (wantConnected) return
+        wantConnected = true
+        streamJob = scope.launch { streamLoop() }
     }
 
-    /**
-     * Disconnect from the sync hub.
-     * Call this when the user logs out or when the app backgrounds.
-     */
     fun disconnect() {
-        eventSource?.close()
-        eventSource = null
+        wantConnected = false
+        streamJob?.cancel()
+        streamJob = null
         _connected.value = false
         _devices.value = emptyList()
         _nowPlaying.value = emptyMap()
         _controllingId.value = null
     }
 
-    /**
-     * Publish the current playback state to the sync hub.
-     * Call this whenever the track changes or play/pause toggles.
-     */
-    suspend fun publishState(
-        trackhash: String?,
-        title: String?,
-        artist: String?,
-        image: String?,
-        position: Long,
-        duration: Long,
-        isPlaying: Boolean
-    ) {
-        publishNowPlaying(trackhash, title, artist, image, position, duration, isPlaying)
+    /** Start/stop remote-controlling another device. */
+    fun control(deviceId: String?) {
+        _controllingId.value = deviceId?.takeIf { it != getOrCreateDeviceId() }
     }
 
     /**
-     * Internal method to publish the current playback state to the sync hub.
+     * Push this device's playback snapshot to the hub. Fire-and-forget: called from
+     * PlayerHolder's listener callbacks (not a coroutine), so it launches its own
+     * IO job and throttles repeats.
      */
-    private suspend fun publishNowPlaying(
+    fun publishState(
         trackhash: String?,
         title: String?,
         artist: String?,
         image: String?,
         position: Long,
         duration: Long,
-        isPlaying: Boolean
+        isPlaying: Boolean,
     ) {
-        if (!_connected.value) return
+        if (!wantConnected) return // hub doesn't know us until the stream registers
+        if (_controllingId.value != null) return // remote mode: don't speak for the phone
+        val now = System.currentTimeMillis()
+        val key = "$trackhash|$isPlaying"
+        if (key == lastPublishedKey && now - lastPublishAt < PUBLISH_MIN_INTERVAL_MS) return
+        lastPublishAt = now
+        lastPublishedKey = key
+        val payload = JSONObject()
+            .put("action", "state")
+            .put("deviceId", getOrCreateDeviceId())
+            .put("trackhash", trackhash ?: JSONObject.NULL)
+            .put("title", title ?: JSONObject.NULL)
+            .put("artist", artist ?: JSONObject.NULL)
+            .put("image", image ?: JSONObject.NULL)
+            .put("position", position)
+            .put("duration", duration)
+            .put("isPlaying", isPlaying)
+        scope.launch {
+            runCatching { postSync(payload) }
+                .onFailure { Log.d(TAG, "publishState failed: ${it.message}") }
+        }
+    }
 
-        val deviceId = getOrCreateDeviceId()
-        try {
-            val payload = JSONObject().apply {
-                put("action", "state")
-                put("deviceId", deviceId)
-                put("trackhash", trackhash)
-                put("title", title)
-                put("artist", artist)
-                put("image", image)
-                put("position", position)
-                put("duration", duration)
-                put("isPlaying", isPlaying)
+    /** Send a transport command (play/pause/next/prev/seek) to the controlled device. */
+    fun sendCommand(type: String, position: Long? = null) {
+        val target = _controllingId.value ?: return
+        val payload = JSONObject()
+            .put("action", "command")
+            .put("target", target)
+            .put("from", getOrCreateDeviceId())
+            .put("type", type)
+            .apply { position?.let { put("position", it) } }
+        scope.launch {
+            runCatching { postSync(payload) }
+                .onFailure { Log.d(TAG, "sendCommand failed: ${it.message}") }
+        }
+    }
+
+    private suspend fun postSync(payload: JSONObject) = withContext(Dispatchers.IO) {
+        val token = api.token ?: throw IllegalStateException("not logged in")
+        val req = Request.Builder()
+            .url("${api.base}/api/sync")
+            .header("Authorization", "Bearer $token")
+            .post(payload.toString().toRequestBody("application/json".toMediaType()))
+            .build()
+        client.newCall(req).execute().use { resp ->
+            if (!resp.isSuccessful) throw IllegalStateException("HTTP ${resp.code}")
+        }
+    }
+
+    /**
+     * Keep a live stream up while [wantConnected]: waits for login when the token
+     * isn't configured yet, then blocks reading SSE frames; on any drop, reconnects
+     * with exponential backoff (mirrors the web client's error handler).
+     */
+    private suspend fun streamLoop() {
+        var backoff = 1000L
+        while (wantConnected) {
+            val token = api.token
+            if (api.base.isBlank() || token.isNullOrBlank()) {
+                delay(5000) // pre-login: PlayerHolder connects before boot() finishes
+                continue
             }
+            try {
+                readStream(token)
+                backoff = 1000L // clean server close: reset
+            } catch (e: kotlinx.coroutines.CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                Log.d(TAG, "stream dropped: ${e.message}")
+            }
+            _connected.value = false
+            if (!wantConnected) break
+            delay(backoff)
+            backoff = (backoff * 2).coerceAtMost(30_000L)
+        }
+    }
 
-            withContext(Dispatchers.IO) {
-                val url = Uri.parse("${api.base}/api/sync").build().toString()
-                val mediaType = MediaType.parse("application/json; charset=utf-8")
-                val body = payload.toString().toRequestBody(mediaType)
-                val request = Request.Builder()
-                    .url(url)
-                    .header("Authorization", "Bearer ${api.token}")
-                    .post(body)
-                    .build()
-
-                client.newCall(request).execute().use { response ->
-                    if (!response.isSuccessful) {
-                        logDebug("Failed to publish now-playing: ${response.code}")
+    private suspend fun readStream(token: String) = withContext(Dispatchers.IO) {
+        val qs = "device=${getOrCreateDeviceId()}&name=${deviceName()}&kind=mobile&token=$token"
+        val url = "${api.base}/api/sync/stream?$qs"
+        val req = Request.Builder().url(url).get().build()
+        client.newCall(req).execute().use { resp ->
+            if (!resp.isSuccessful) throw IllegalStateException("stream HTTP ${resp.code}")
+            _connected.value = true
+            Log.i(TAG, "sync stream connected as ${deviceName()}")
+            val reader = BufferedReader(resp.body?.charStream() ?: throw IllegalStateException("empty body"))
+            var event = "message"
+            val data = StringBuilder()
+            while (wantConnected) {
+                // A blocking read can't be cancelled by Job.cancel(); readLine only
+                // unblocks on real data / stream close, so the 60s read timeout is
+                // what actually bounds shutdown latency here.
+                val line = reader.readLine() ?: break
+                when {
+                    line.startsWith("event:") -> event = line.removePrefix("event:").trim()
+                    line.startsWith("data:") -> {
+                        if (data.isNotEmpty()) data.append('\n')
+                        data.append(line.removePrefix("data:").trim())
+                    }
+                    line.isEmpty() && data.isNotEmpty() -> {
+                        handleFrame(event, data.toString())
+                        event = "message"
+                        data.setLength(0)
                     }
                 }
             }
-        } catch (e: Exception) {
-            logDebug("Error publishing now-playing: ${e.message}")
         }
     }
 
-    /**
-     * Send a transport command to a remote device.
-     */
-    suspend fun sendCommand(
-        targetDeviceId: String,
-        command: String,
-        position: Long? = null
-    ): Boolean {
-        if (!_connected.value) return false
-
-        try {
-            val deviceId = getOrCreateDeviceId()
-            val payload = JSONObject().apply {
-                put("action", "command")
-                put("target", targetDeviceId)
-                put("from", deviceId)
-                put("type", command)
-                position?.let { put("position", it) }
-            }
-
-            withContext(Dispatchers.IO) {
-                val url = Uri.parse("${api.base}/api/sync").build().toString()
-                val mediaType = MediaType.parse("application/json; charset=utf-8")
-                val body = payload.toString().toRequestBody(mediaType)
-                val request = Request.Builder()
-                    .url(url)
-                    .header("Authorization", "Bearer ${api.token}")
-                    .post(body)
-                    .build()
-
-                client.newCall(request).execute().use { response ->
-                    response.isSuccessful
+    private fun handleFrame(event: String, data: String) {
+        runCatching {
+            when (event) {
+                "devices" -> {
+                    val arr = JSONArray(data)
+                    _devices.value = (0 until arr.length()).map { i ->
+                        val o = arr.getJSONObject(i)
+                        SyncDevice(
+                            id = o.getString("id"),
+                            name = o.getString("name"),
+                            kind = o.getString("kind"),
+                            lastSeen = o.optLong("lastSeen"),
+                            playing = o.optBoolean("playing"),
+                        )
+                    }
+                    // The device we controlled vanished → fall back to local control.
+                    val ctrl = _controllingId.value
+                    if (ctrl != null && _devices.value.none { it.id == ctrl }) control(null)
                 }
+                "nowplaying" -> {
+                    val o = JSONObject(data)
+                    val id = o.getString("deviceId")
+                    val np = RemoteNowPlaying(
+                        deviceId = id,
+                        trackhash = o.optString("trackhash").takeIf { it.isNotEmpty() && it != "null" },
+                        title = o.optString("title").takeIf { it.isNotEmpty() && it != "null" },
+                        artist = o.optString("artist").takeIf { it.isNotEmpty() && it != "null" },
+                        image = o.optString("image").takeIf { it.isNotEmpty() && it != "null" },
+                        position = o.optLong("position"),
+                        duration = o.optLong("duration"),
+                        isPlaying = o.optBoolean("isPlaying"),
+                        receivedAt = System.currentTimeMillis(),
+                    )
+                    _nowPlaying.value = _nowPlaying.value + (id to np)
+                }
+                "command" -> {
+                    val o = JSONObject(data)
+                    val target = o.getString("target")
+                    if (target == getOrCreateDeviceId() && o.optString("from") != getOrCreateDeviceId()) {
+                        // Don't execute remote commands while we control another
+                        // device (the web client pauses local audio for that).
+                        if (_controllingId.value == null) {
+                            _incomingCommand.value = RemoteCommand(
+                                type = o.getString("type"),
+                                position = if (o.has("position") && !o.isNull("position")) o.optLong("position") else null,
+                            )
+                        }
+                    }
+                }
+                // "heartbeat" keep-alive and unknown events: ignored.
             }
-        } catch (e: Exception) {
-            logDebug("Error sending command: ${e.message}")
-            return false
-        }
-        return true
-    }
-
-    /**
-     * Stop controlling the remote device and return to local control.
-     */
-    fun stopControlling() {
-        _controllingId.value = null
-    }
-
-    // --- Event handlers ---
-
-    private fun handleReady(data: String) {
-        try {
-            val json = JSONObject(data)
-            logInfo("SyncManager ready: ${json.optString("id")}")
-        } catch (e: Exception) {
-            logDebug("Error parsing ready event: ${e.message}")
-        }
-    }
-
-    private fun handleDevices(data: String) {
-        try {
-            val jsonArray = JSONArray(data)
-            val devices = mutableListOf<SyncDevice>()
-            for (i in 0 until jsonArray.length()) {
-                val json = jsonArray.getJSONObject(i)
-                devices.add(SyncDevice(
-                    id = json.getString("id"),
-                    name = json.getString("name"),
-                    kind = json.getString("kind"),
-                    lastSeen = json.getLong("lastSeen"),
-                    playing = json.getBoolean("playing")
-                ))
-            }
-            _devices.value = devices
-            logInfo("SyncManager devices updated: ${devices.size} devices")
-        } catch (e: Exception) {
-            logDebug("Error parsing devices event: ${e.message}")
-        }
-    }
-
-    private fun handleNowPlaying(data: String) {
-        try {
-            val json = JSONObject(data)
-            val deviceId = json.getString("deviceId")
-            val np = RemoteNowPlaying(
-                deviceId = deviceId,
-                trackhash = json.optString("trackhash").takeIf { it != "null" },
-                title = json.optString("title").takeIf { it != "null" },
-                artist = json.optString("artist").takeIf { it != "null" },
-                image = json.optString("image").takeIf { it != "null" },
-                position = json.getLong("position"),
-                duration = json.getLong("duration"),
-                isPlaying = json.getBoolean("isPlaying"),
-                updatedAt = json.getLong("updatedAt"),
-                receivedAt = System.currentTimeMillis()
-            )
-
-            val current = _nowPlaying.value.toMutableMap()
-            current[deviceId] = np
-            _nowPlaying.value = current
-            logDebug("SyncManager nowPlaying updated for $deviceId: ${np.title}")
-        } catch (e: Exception) {
-            logDebug("Error parsing nowPlaying event: ${e.message}")
-        }
-    }
-
-    private fun handleCommand(data: String) {
-        try {
-            val json = JSONObject(data)
-            val target = json.getString("target")
-            val from = json.getString("from")
-            val type = json.getString("type")
-            val position = if (json.has("position")) json.getLong("position") else null
-
-            // Only process commands meant for us (target matches our device ID)
-            val myId = getOrCreateDeviceId()
-            if (target != myId) return
-
-            val command = RemoteCommand(
-                from = from,
-                type = type,
-                position = position
-            )
-
-            logInfo("SyncManager received command from $from: $type")
-            _remoteCommand.value = command
-            _incomingCommands.value = command
-        } catch (e: Exception) {
-            logDebug("Error parsing command event: ${e.message}")
-        }
+        }.onFailure { Log.d(TAG, "bad frame ($event): ${it.message}") }
     }
 }
 
-/**
- * Sync device representation (other devices on the network).
- */
+/** Another device on the user's hub (the roster from the `devices` event). */
 data class SyncDevice(
     val id: String,
     val name: String,
     val kind: String,
     val lastSeen: Long,
-    val playing: Boolean
+    val playing: Boolean,
 )
 
-/**
- * Remote now-playing snapshot (from another device).
- */
+/** A remote device's now-playing snapshot (`nowplaying` event). */
 data class RemoteNowPlaying(
     val deviceId: String,
     val trackhash: String?,
@@ -434,15 +326,12 @@ data class RemoteNowPlaying(
     val position: Long,
     val duration: Long,
     val isPlaying: Boolean,
-    val updatedAt: Long,
-    val receivedAt: Long
+    /** Local arrival time — the scrubber interpolates from this, never server clocks. */
+    val receivedAt: Long,
 )
 
-/**
- * Remote command received from another device.
- */
+/** A transport command aimed at this device (`command` event). */
 data class RemoteCommand(
-    val from: String,
     val type: String,
-    val position: Long?
+    val position: Long? = null,
 )
