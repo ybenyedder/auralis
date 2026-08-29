@@ -16,6 +16,11 @@ refusé) :
 3. Dans la Play Console (création de version), déposez ce fichier dans la
    zone « Déposez ici les app bundles à importer ».
 
+**Règles de confidentialité (URL à saisir sur la fiche)** :
+https://github.com/ybenyedder/auralis/blob/main/PRIVACY.md
+(bilingue FR/EN ; politique « zéro collecte » : aucune donnée ne quitte
+l'appareil sauf vers votre propre serveur — voir PRIVACY.md).
+
 Si l'asset `.aab` manque sur une release : onglet **Actions** → workflow
 **« Play Store AAB »** → **Run workflow** sur `main` ; il construit et
 attache le bundle signé en ~5 minutes (aucune compilation locale requise).
