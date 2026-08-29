@@ -91,12 +91,18 @@ La PWA peut être encapsulée (TWA) et publiée sur le Play Store. Toute la
 démarche — empreinte SHA-256, `assetlinks.json`, captures réglementaires — est
 détaillée dans [PLAYSTORE.md](PLAYSTORE.md).
 
-## Dépôt GitHub
+## Dépôt GitHub et clients natifs
 
-La refonte web mobile vit sur la branche **`mobile-web-v2`** du dépôt
-[ybenyedder/auralis](https://github.com/ybenyedder/auralis) (la branche `main`
-accueille également le client Android natif). Après fusion dans `main`, la mise
-à jour du serveur se limite à :
+Tout vit dans [ybenyedder/auralis](https://github.com/ybenyedder/auralis) :
+
+- la **refonte web mobile** (ce dépôt : interface PWA, serveur, kit Docker) ;
+- le **client Android natif** (`android-native/`, APK signé par la CI sur chaque
+  tag, voir [PLAYSTORE.md](PLAYSTORE.md)) ;
+- le **client iOS natif** (`ios-native/`) et le client **desktop** Electron
+  (`desktop/`) ;
+- la suite de **tests** (`test/`, exécutée par la CI à chaque push).
+
+Après une mise à jour du code sur le serveur :
 
 ```bash
 cd /opt/auralis && git pull && cd deploy && ./update.sh

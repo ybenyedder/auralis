@@ -117,7 +117,6 @@ export function usePullToRefresh(opts: {
       attachEl.removeEventListener("touchend", onTouchEnd);
       attachEl.removeEventListener("touchcancel", onTouchEnd);
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [disabled, scrollRef, scrollSelector, threshold, maxPull, refreshing, pull]);
 
   return { pull, refreshing };

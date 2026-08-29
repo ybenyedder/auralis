@@ -50,7 +50,19 @@ const eslintConfig = [
       // copy of the tree, which `eslint .`'s filesystem walk would otherwise pick
       // up as if it were part of THIS checkout, making lint results depend on
       // unrelated concurrent local tooling state instead of just the repo's code.
-      ".claude/**"
+      ".claude/**",
+      // Machine-local folders (git-ignored): agent tooling, sample library,
+      // runtime databases and QA artifacts. Never part of the repository, so
+      // `eslint .` must not walk them — they do not exist in CI checkouts.
+      "skills/**",
+      "mini-services/**",
+      "tool-results/**",
+      "qa-shots/**",
+      "agent-ctx/**",
+      ".zscripts/**",
+      "music/**",
+      "data/**",
+      "upload/**"
     ],
   },
 ];

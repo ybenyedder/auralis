@@ -44,3 +44,12 @@ worklog.md
 .DS_Store
 *.log
 tsconfig.tsbuildinfo
+
+# Clients natifs et bureautiques : construits par leurs CI dédiées (release.yml,
+# ios.yml), jamais dans l'image Docker du serveur web.
+android-native
+ios-native
+desktop
+.github
+docs
+test

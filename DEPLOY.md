@@ -17,16 +17,12 @@ commandes, mettre à jour en 1 commande, sauvegarder en 1 commande.
 ## Installation en 4 commandes
 
 ```bash
-git clone -b mobile-web-v2 https://github.com/ybenyedder/auralis.git /opt/auralis
+git clone https://github.com/ybenyedder/auralis.git /opt/auralis
 cd /opt/auralis/deploy
 cp .env.example .env && nano .env      # au minimum : AURALIS_ADMIN_PASSWORD
 ./update.sh
 ```
 
-> La refonte web mobile vit sur la branche `mobile-web-v2` ; la branche
-> `main` (client Android natif inclus) reprend cette version après fusion.
-> Une archive sans git fonctionne aussi : décompressez le code dans
-> `/opt/auralis` et passez directement à l'étape `cp`.
 
 Le script `update.sh` crée les dossiers `music/` et `data/`, construit l'image
 Docker puis démarre le service. À la fin il affiche l'état de santé. Si vous
