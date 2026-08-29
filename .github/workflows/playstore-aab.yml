@@ -8,8 +8,10 @@ name: Play Store AAB
 # takes 30+ minutes. When you are sitting in the Play Console with the
 # "Drop your app bundles here" dialog open, you just need the .aab — this
 # job builds it from the current main in ~5 minutes and attaches it to the
-# existing release (v{package.json version}), creating that release first
-# if it does not exist yet (e.g. before the first tag).
+# release v{package.json version}, creating that release first if it does
+# not exist yet (e.g. before the first tag, or — like v1.18.1 — when the
+# previous versionCode was already consumed by an earlier Play upload and
+# only a fresh, higher-code bundle is needed).
 
 on:
   workflow_dispatch: # Manual trigger from the Actions tab or the API
@@ -77,11 +79,31 @@ jobs:
           REL_TAG: ${{ steps.reltag.outputs.REL_TAG }}
         run: |
           cp android-native/app/build/outputs/bundle/playRelease/app-play-release.aab "Auralis-${REL_TAG}.aab"
-          # Create the release (draft) if this tag has no release yet — a tag
-          # push normally has one from release.yml's electron-builder, but a
-          # manual dispatch before any tag would not.
-          gh release view "${REL_TAG}" >/dev/null 2>&1 || \
-            gh release create "${REL_TAG}" --draft --title "Auralis ${REL_TAG}" \
-              --notes "Auralis ${REL_TAG} — see CHANGELOG.md for details."
+          # Create the release if this tag has no release yet — a tag push
+          # normally has one from release.yml's electron-builder, but a manual
+          # dispatch before any tag would not.
+          #
+          # Three deliberate choices for this quick path:
+          #   1. PUBLISHED, not draft: draft assets are only downloadable by
+          #      collaborators through the GitHub UI (no public direct URL);
+          #      the whole point is a copy-pasteable download link for the
+          #      Play Console upload dialog.
+          #   2. --latest=false: `releases/latest` must keep pointing at the
+          #      last FULL release (the one carrying the .apk for the in-app
+          #      self-updater and latest.yml for the desktop electron-updater).
+          #      This quick release only carries the .aab, so it must not
+          #      become "latest".
+          #   3. No release.yml chaining: the tag is created server-side under
+          #      GITHUB_TOKEN, and GitHub never triggers new workflow runs from
+          #      GITHUB_TOKEN events — the 30-minute desktop pipeline stays
+          #      untouched. (A git-pushed tag, by contrast, WOULD fire it.)
+          if ! gh release view "${REL_TAG}" >/dev/null 2>&1; then
+            gh release create "${REL_TAG}" --target "${GITHUB_SHA}" \
+              --title "Auralis ${REL_TAG}" --latest=false \
+              --notes "Google Play bundle (.aab, play flavor — no REQUEST_INSTALL_PACKAGES, updates via the store). Sideload/desktop users: keep using the assets of the previous full release. See CHANGELOG.md for details."
+          fi
           gh release upload "${REL_TAG}" "Auralis-${REL_TAG}.aab" --clobber
+          # Re-assert published + not-latest even when the release already
+          # existed (idempotent; also un-drafts a pre-existing draft).
+          gh release edit "${REL_TAG}" --draft=false --latest=false
           echo "::notice::AAB attached: Auralis-${REL_TAG}.aab"

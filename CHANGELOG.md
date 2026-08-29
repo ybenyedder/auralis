@@ -4,6 +4,32 @@ All notable changes to Auralis are documented here. The format is based on
 [Keep a Changelog](https://keepachangelog.com/) and this project adheres to
 [Semantic Versioning](https://semver.org/).
 
+## [1.18.1] - 2026-08-30
+
+### Corrigé
+- **La suppression de fichiers ne casse plus le scan de la bibliothèque.** La
+  cascade de nettoyage utilisait une mauvaise clé sur `art_colors` (`trackhash`
+  au lieu de `arthash`) : toute analyse impliquant des fichiers supprimés
+  échouait en bloc et laissait des doublons dans la bibliothèque. Les pochettes
+  orphelines sont désormais supprimées avec la bonne clé, et un scan avec
+  suppressions se termine proprement.
+
+### Ajouté
+- **Variante Google Play du client Android (saveur `play`).** Le bundle .aab
+  destiné au Play Store est construit sans `REQUEST_INSTALL_PACKAGES`
+  (permission restreinte sur Play pour un lecteur de musique) et sans le
+  module de mise à jour interne — les mises à jour arrivent via le store.
+  La saveur `full` (GitHub / installation directe) conserve l'auto-update.
+- **Kit Play Store complet en anglais** : captures d'écran 1080×1920,
+  icône 512, bannière 1024×500, textes d'annonce et notes de version
+  (`store-listing/en-US/`), plus une politique de confidentialité FR/EN
+  (`PRIVACY.md`).
+- **Re-émission du bundle Play avec le code de version 11801** : le code 11800
+  avait déjà été consommé par un premier téléversement dans la Play Console,
+  qui refuse tout doublon. Aucun changement fonctionnel par rapport à la
+  saveur `play` de la 1.18.0 — les utilisateurs GitHub/desktop restent sur
+  la 1.18.0 (release « latest » inchangée).
+
 ## [1.14.0] - 2026-08-06
 
 ### Corrigé
