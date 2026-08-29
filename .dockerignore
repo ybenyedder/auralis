@@ -1,0 +1,46 @@
+# Contenu exclu du contexte de build Docker (la racine du projet est le
+# contexte, voir deploy/docker-compose.yml). Tout ce qui suit n'est ni envoyé
+# au daemon ni visible pendant le `next build` de l'étape builder.
+
+# Dépendances : recréées dans l'image par npm install.
+**/node_modules
+
+# Sorties de build locales : recréées par next build dans l'image.
+.next
+out
+build
+dist
+dist-desktop
+
+# Données locales : JAMAIS dans l'image (bibliothèque musicale, base SQLite,
+# sauvegardes du serveur). Les dossiers deploy/music et deploy/data sont les
+# montages du serveur auto-hébergé, pas des sources.
+music
+data
+nas
+upload
+deploy/data
+deploy/music
+deploy/backups
+
+# Outils et dossiers du bac à sable de développement : hors application.
+mini-services
+skills
+tool-results
+agent-ctx
+.zscripts
+Caddyfile
+worklog.md
+
+# Environnement et secrets : jamais dans le contexte de build.
+.env
+.env.*
+**/.env
+**/.env.*
+
+# Git et divers.
+.git
+.gitignore
+.DS_Store
+*.log
+tsconfig.tsbuildinfo

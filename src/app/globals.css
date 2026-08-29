@@ -1,0 +1,836 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* ---------------------------------------------------------------------------
+   APPEARANCE PALETTE — Apple & Google Vibes, dark + light.
+   Modern aesthetics with glassmorphism, blur effects, and smooth depth.
+   ------------------------------------------------------------------------- */
+:root,
+:root[data-mode="dark"] {
+  --radius: 12px;
+  /* SF Pro on Apple platforms (system), Inter everywhere else (next/font). */
+  --font-sans: -apple-system, BlinkMacSystemFont, "SF Pro Display", "SF Pro Text",
+    var(--font-inter, "Inter"), "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  --font-mono: ui-monospace, "SF Mono", SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace;
+
+  --background: #000000;
+  --foreground: #ffffff;
+  --ink: #ffffff; /* text on the red accent */
+  --paper: rgba(25, 25, 25, 0.75);
+
+  --surface-1: rgba(28, 28, 30, 0.75); /* iOS secondarySystemBackground (dark) */
+  --surface-2: rgba(44, 44, 46, 0.85); /* iOS tertiarySystemBackground (dark) */
+  --surface-3: rgba(58, 58, 60, 0.95); /* hover / quaternary */
+  /* Back-compat aliases so existing `var(--panel*)` usage keeps resolving
+     during the component refresh (Workstream B retires them one by one). */
+  --panel: var(--surface-1);
+  --panel-2: var(--surface-2);
+  --panel-3: var(--surface-3);
+
+  --line: rgba(255, 255, 255, 0.08);
+  --line-strong: rgba(255, 255, 255, 0.16);
+  --text-muted: #98989f; /* iOS secondaryLabel (dark) */
+  --text-faint: #636366; /* iOS tertiaryLabel (dark) */
+
+  --primary: #fa233b; /* Apple Music red */
+  --primary-hover: #fc3158;
+  --primary-foreground: #ffffff;
+  --primary-soft: #fc3158;
+  --primary-deep: #d61f33;
+
+  --card: var(--surface-1);
+  --card-foreground: var(--foreground);
+  --popover: #1c1c1e;
+  --popover-foreground: var(--foreground);
+  --secondary: var(--surface-2);
+  --secondary-foreground: var(--foreground);
+  --muted: var(--surface-2);
+  --muted-foreground: var(--text-muted);
+  --accent: rgba(255, 255, 255, 0.06);
+  --accent-foreground: var(--foreground);
+  --destructive: #ff453a; /* iOS systemRed (dark) */
+  --border: var(--line);
+  --input: var(--line);
+  --ring: rgba(250, 35, 59, 0.5);
+  --focus-ring: #fa233b;
+
+  --sidebar: rgba(0, 0, 0, 0.75);
+  --sidebar-foreground: var(--foreground);
+  --sidebar-primary: var(--primary);
+  --sidebar-primary-foreground: #ffffff;
+  --sidebar-accent: rgba(255, 255, 255, 0.1);
+  --sidebar-accent-foreground: var(--foreground);
+  --sidebar-border: var(--line);
+  --sidebar-ring: var(--ring);
+
+  --glass-border: rgba(255, 255, 255, 0.1);
+  --glass-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.37);
+  --glass-blur: 24px;
+}
+
+:root[data-mode="light"],
+:root.light {
+  --background: #fcfcfc;
+  --foreground: #000000;
+  --ink: #ffffff;
+  --paper: rgba(255, 255, 255, 0.85);
+
+  --surface-1: rgba(242, 242, 247, 0.75); /* iOS secondarySystemBackground (light) */
+  --surface-2: rgba(229, 229, 234, 0.85); /* iOS tertiarySystemBackground (light) */
+  --surface-3: rgba(209, 209, 214, 0.95); /* hover */
+  --panel: var(--surface-1);
+  --panel-2: var(--surface-2);
+  --panel-3: var(--surface-3);
+
+  --line: rgba(0, 0, 0, 0.08);
+  --line-strong: rgba(0, 0, 0, 0.16);
+  --text-muted: rgba(60, 60, 67, 0.6); /* iOS secondaryLabel (light) */
+  --text-faint: rgba(60, 60, 67, 0.3); /* iOS tertiaryLabel (light) */
+
+  --primary: #fa233b;
+  --primary-hover: #d61f33;
+  --primary-foreground: #ffffff;
+  --primary-soft: #fc3158;
+  --primary-deep: #d61f33;
+
+  --card: var(--surface-1);
+  --popover: #f2f2f7;
+  --secondary: var(--surface-2);
+  --muted: var(--surface-2);
+  --accent: rgba(0, 0, 0, 0.05);
+  --destructive: #ff3b30; /* iOS systemRed (light) */
+  --border: var(--line);
+  --ring: rgba(250, 35, 59, 0.4);
+  --focus-ring: #fa233b;
+
+  --sidebar: rgba(247, 247, 249, 0.75);
+  --sidebar-primary: var(--primary);
+  --sidebar-accent: rgba(0, 0, 0, 0.08);
+
+  --glass-border: rgba(0, 0, 0, 0.05);
+  --glass-shadow: 0 8px 32px 0 rgba(31, 38, 135, 0.07);
+  --glass-blur: 24px;
+}
+
+/* ==========================================================================
+   APPLE MUSIC TYPOGRAPHY SCALE
+   ========================================================================== */
+@layer utilities {
+  /* Large Title (34pt) — collapsing header */
+  .am-largetitle {
+    font-size: 34px;
+    line-height: 1.2;
+    font-weight: 700;
+    letter-spacing: -0.015em;
+  }
+  /* Title 1 (28pt) — section headers */
+  .am-title1 {
+    font-size: 28px;
+    line-height: 1.3;
+    font-weight: 700;
+    letter-spacing: -0.01em;
+  }
+  /* Title 2 (22pt) — subsection headers */
+  .am-title2 {
+    font-size: 22px;
+    line-height: 1.3;
+    font-weight: 600;
+    letter-spacing: -0.005em;
+  }
+  /* Title 3 (20pt) — card titles */
+  .am-title3 {
+    font-size: 20px;
+    line-height: 1.35;
+    font-weight: 600;
+    letter-spacing: 0;
+  }
+  /* Headline (17pt semibold) — emphasis text */
+  .am-headline {
+    font-size: 17px;
+    line-height: 1.35;
+    font-weight: 600;
+    letter-spacing: 0;
+  }
+  /* Body (17pt regular) — base text */
+  .am-body {
+    font-size: 17px;
+    line-height: 1.4;
+    font-weight: 400;
+    letter-spacing: 0;
+  }
+  /* Callout (16pt) — secondary text */
+  .am-callout {
+    font-size: 16px;
+    line-height: 1.4;
+    font-weight: 400;
+    letter-spacing: 0;
+  }
+  /* Subhead (15pt semibold) — compact headers */
+  .am-subhead {
+    font-size: 15px;
+    line-height: 1.45;
+    font-weight: 600;
+    letter-spacing: 0.005em;
+  }
+  /* Footnote (13pt) — metadata */
+  .am-footnote {
+    font-size: 13px;
+    line-height: 1.45;
+    font-weight: 400;
+    letter-spacing: 0.01em;
+  }
+  /* Caption 1 (12pt semibold) — labels */
+  .am-caption1 {
+    font-size: 12px;
+    line-height: 1.5;
+    font-weight: 600;
+    letter-spacing: 0.015em;
+  }
+  /* Caption 2 (11pt) — tiny labels */
+  .am-caption2 {
+    font-size: 11px;
+    line-height: 1.5;
+    font-weight: 500;
+    letter-spacing: 0.02em;
+  }
+}
+
+@layer utilities {
+  .glass {
+    background: var(--surface-1);
+    backdrop-filter: blur(var(--glass-blur));
+    -webkit-backdrop-filter: blur(var(--glass-blur));
+    border: 1px solid var(--glass-border);
+    box-shadow: var(--glass-shadow);
+  }
+  
+  .glass-panel {
+    background: var(--surface-2);
+    backdrop-filter: blur(var(--glass-blur));
+    -webkit-backdrop-filter: blur(var(--glass-blur));
+    border: 1px solid var(--glass-border);
+  }
+
+  /* Frosted surface Apple Music — blur progressif au scroll */
+  .frosted-surface {
+    position: relative;
+    border-top: 1px solid var(--glass-border);
+    transition: backdrop-filter 0.3s ease, background-color 0.3s ease;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+  html, body {
+    @apply bg-background text-foreground;
+    height: 100%;
+  }
+  body {
+    font-feature-settings: "ss01", "cv01", "cv03", "tnum";
+    -webkit-font-smoothing: antialiased;
+    text-rendering: optimizeLegibility;
+    overscroll-behavior: none;
+    -webkit-text-size-adjust: 100%;
+    /* Beautiful modern gradient background. */
+    background: radial-gradient(circle at top left, var(--surface-1), transparent 80%),
+                radial-gradient(circle at bottom right, var(--surface-2), var(--background) 100%);
+    background-attachment: fixed;
+  }
+  button, [role="button"], nav, header, .no-select {
+    -webkit-user-select: none;
+    user-select: none;
+  }
+}
+
+/* Scrollbars */
+.scroll-auralis {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(255, 255, 255, 0.30) transparent;
+}
+.scroll-auralis::-webkit-scrollbar { width: 12px; height: 12px; }
+.scroll-auralis::-webkit-scrollbar-track { background: transparent; }
+.scroll-auralis::-webkit-scrollbar-thumb {
+  background-color: var(--surface-3);
+  border: 4px solid transparent;
+  background-clip: padding-box;
+  border-radius: 8px;
+}
+.scroll-auralis::-webkit-scrollbar-thumb:hover {
+  background-color: rgba(255, 255, 255, 0.3);
+}
+.scroll-auralis::-webkit-scrollbar-corner { background: transparent; }
+
+.scroll-hidden {
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+.scroll-hidden::-webkit-scrollbar { display: none; }
+
+/* Animations */
+/* The "now playing" indicator is a STATIC three-bar glyph (see EqualizerBars in
+   SectionHeader) — no looping fake-spectrum animation. */
+
+/* Apple Music-style push transition (slide from right) */
+@keyframes am-push-in {
+  from {
+    opacity: 0;
+    transform: translateX(100%);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+@keyframes am-push-out {
+  from {
+    opacity: 1;
+    transform: translateX(0);
+  }
+  to {
+    opacity: 0;
+    transform: translateX(-30%);
+  }
+}
+
+/* Apple Music-style tab crossfade */
+@keyframes am-crossfade-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes am-crossfade-out {
+  from {
+    opacity: 1;
+  }
+  to {
+    opacity: 0;
+  }
+}
+
+/* Utility classes for AM transitions */
+.am-push-enter {
+  animation: am-push-in 0.26s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+.am-push-exit {
+  animation: am-push-out 0.20s cubic-bezier(0.4, 0, 1, 1) both;
+}
+
+/* Directional slide-in for horizontal tab swipes (mobile): the incoming view
+   enters from the side the finger came from, matching the paging direction. */
+@keyframes am-tab-in-next {
+  from {
+    opacity: 0;
+    transform: translateX(56px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+@keyframes am-tab-in-prev {
+  from {
+    opacity: 0;
+    transform: translateX(-56px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+.am-tab-next {
+  animation: am-tab-in-next 0.30s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+.am-tab-prev {
+  animation: am-tab-in-prev 0.30s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+.am-crossfade-enter {
+  animation: am-crossfade-in 0.14s ease both;
+}
+
+.am-crossfade-exit {
+  animation: am-crossfade-out 0.14s ease both;
+}
+
+@keyframes auralis-fade-up {
+  from { opacity: 0; transform: translateY(6px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+.fade-up { animation: auralis-fade-up 0.28s cubic-bezier(0.22, 1, 0.36, 1) both; }
+
+@keyframes auralis-scale-in {
+  from { opacity: 0; transform: scale(0.97) translateY(3px); }
+  to { opacity: 1; transform: scale(1) translateY(0); }
+}
+.scale-in { animation: auralis-scale-in 0.15s cubic-bezier(0.22, 1, 0.36, 1) both; }
+
+@keyframes auralis-toast-in {
+  from { opacity: 0; transform: translateY(12px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+.toast-in { animation: auralis-toast-in 0.2s cubic-bezier(0.22, 1, 0.36, 1) both; }
+
+/* Heart "pop" the moment a track is favourited — a restrained spring, not a
+   cartoon 1.5× balloon. A single small overshoot reads as confident feedback.
+   Applied transiently (cleared after it runs) so it only fires on the action. */
+@keyframes heart-pop {
+  0% { transform: scale(1); }
+  45% { transform: scale(1.16); }
+  100% { transform: scale(1); }
+}
+.heart-pop { animation: heart-pop 0.32s cubic-bezier(0.34, 1.2, 0.64, 1) both; }
+
+@keyframes auralis-shimmer {
+  0% { background-position: -200% 0; }
+  100% { background-position: 200% 0; }
+}
+.shimmer {
+  background: linear-gradient(90deg, rgba(255, 255, 255, 0.04) 25%, rgba(255, 255, 255, 0.10) 37%, rgba(255, 255, 255, 0.04) 63%);
+  background-size: 200% 100%;
+  animation: auralis-shimmer 1.4s ease-in-out infinite;
+}
+
+/* Product surfaces */
+.app-chrome {
+  background: transparent;
+}
+
+/* Glassmorphism panel */
+.matte-panel {
+  background: var(--surface-1);
+  backdrop-filter: blur(var(--glass-blur));
+  -webkit-backdrop-filter: blur(var(--glass-blur));
+  border: 1px solid var(--glass-border);
+  box-shadow: 0 4px 12px rgba(0,0,0,0.05);
+  border-radius: var(--radius);
+  transition: all 0.3s cubic-bezier(0.25, 0.8, 0.25, 1);
+}
+.matte-panel:hover {
+  background: var(--surface-2);
+  transform: translateY(-2px);
+  box-shadow: 0 8px 24px rgba(0,0,0,0.1);
+}
+
+.matte-panel-2 {
+  background: var(--panel-2);
+  backdrop-filter: blur(var(--glass-blur));
+  -webkit-backdrop-filter: blur(var(--glass-blur));
+  border: 1px solid var(--glass-border);
+  border-radius: var(--radius);
+}
+
+.keyline-top {
+  border-top: none;
+}
+
+.keyline-right {
+  border-right: none;
+}
+
+.keyline-left {
+  border-left: none;
+}
+
+.section-band {
+  background: var(--panel);
+}
+
+/* Apple Music playlist/album hero header */
+.hero-cover {
+  background: linear-gradient(transparent 0, rgba(0,0,0,0.5) 100%), var(--cover-1, #1c1c1e);
+}
+
+/* Primary action: Modern vibrant gradient button with subtle glow */
+.signal-button {
+  background: linear-gradient(135deg, var(--primary) 0%, var(--primary-deep) 100%);
+  color: var(--ink);
+  border: none;
+  box-shadow: 0 4px 14px rgba(250, 35, 59, 0.4);
+  transition: transform 0.2s cubic-bezier(0.2, 0.8, 0.2, 1), box-shadow 0.2s cubic-bezier(0.2, 0.8, 0.2, 1), filter 0.2s ease;
+}
+.signal-button:hover {
+  filter: brightness(1.1);
+  transform: scale(1.05) translateY(-1px);
+  box-shadow: 0 6px 20px rgba(250, 35, 59, 0.5);
+}
+.signal-button:active {
+  filter: brightness(0.95);
+  transform: scale(0.98);
+  box-shadow: 0 2px 8px rgba(250, 35, 59, 0.3);
+}
+
+/* Secondary action: a solid, semantic surface tint (not a stack of barely-there
+   white opacities, which reads "dusty"). Steps up one panel level on hover. */
+.ghost-button {
+  background: var(--panel-2);
+  border: 1px solid var(--line);
+  color: var(--foreground);
+}
+.ghost-button:hover {
+  background: var(--panel-3);
+  border-color: var(--line-strong);
+}
+
+/* Grounding shadow for circular play FABs — a neutral, soft drop. No coloured
+   bloom, no inset ring (that "glowing arcade button" look). */
+.glow-primary {
+  box-shadow: 0 4px 14px -8px rgba(0, 0, 0, 0.55);
+}
+
+/* Vertical fade mask for immersive lyric scrollers (top + bottom feather). */
+.lyrics-fade {
+  -webkit-mask-image: linear-gradient(180deg, transparent, #000 16%, #000 84%, transparent);
+  mask-image: linear-gradient(180deg, transparent, #000 16%, #000 84%, transparent);
+}
+/* Active lyric line — bright and clear. A faint depth shadow keeps it legible
+   over a backdrop; NO coloured neon glow (that destroys the type's crispness). */
+.lyric-glow {
+  text-shadow: 0 1px 10px rgba(0, 0, 0, 0.35);
+}
+
+/* Karaoke active line. Each word is its own inline-block with a dim base layer
+   and a bright fill layer clipped left→right, so the highlight advances WORD BY
+   WORD in reading order — even when the line wraps to 2+ rows (the old single
+   horizontal clip lit a vertical column across both rows at once, which read as
+   "two words at the same time").
+
+   The active line element carries --p (0..1 = progress through that line),
+   written every animation frame by LyricsView's rAF loop reading the live audio
+   clock — that per-frame update IS the animation, so there is no CSS transition
+   to stutter against. Each word owns a [--ws, --we] slice of the line (sized by
+   its character count) and fills only while --p is inside that slice. The custom
+   properties are typed via @property so the calc() math is exact. */
+@property --p {
+  syntax: "<number>";
+  inherits: true;
+  initial-value: 0;
+}
+/* --ws/--we are set on each .lyric-word but consumed by its .lyric-word-fill
+   CHILD, so they must inherit down to it. Each word overrides them, so siblings
+   never bleed into one another. */
+@property --ws {
+  syntax: "<number>";
+  inherits: true;
+  initial-value: 0;
+}
+@property --we {
+  syntax: "<number>";
+  inherits: true;
+  initial-value: 1;
+}
+.lyric-pop {
+  animation: lyric-pop 0.34s cubic-bezier(0.22, 1.4, 0.36, 1) both;
+}
+.lyric-word {
+  position: relative;
+  /* No white-space:pre — words carry no internal spaces, and an overlong token
+     (URL/hashtag/CJK run) must still be able to break instead of overflowing the
+     narrow panel, matching how the plain-text render wraps. */
+  display: inline-block;
+  overflow-wrap: anywhere;
+}
+.lyric-word-base {
+  color: rgba(255, 255, 255, 0.28);
+}
+.lyric-word-fill {
+  position: absolute;
+  inset: 0;
+  color: #fff;
+  /* Crisp white fill with only a soft depth shadow for legibility over the
+     backdrop — no stacked coloured glow that fuzzes the letterforms. */
+  text-shadow: 0 1px 6px rgba(0, 0, 0, 0.38);
+  /* Reveal = reading progress within THIS word, derived from the line --p. A
+     soft-edged mask (rather than a hard clip-path) wipes the word in left→right:
+     it feathers the leading edge AND the glow, so there is no hard vertical seam
+     down the middle of the word that is currently lighting. */
+  --reveal: clamp(0%, (var(--p) - var(--ws)) / (var(--we) - var(--ws)) * 100%, 100%);
+  -webkit-mask-image: linear-gradient(90deg, #000 calc(var(--reveal) - 0.3em), #0000 var(--reveal));
+  mask-image: linear-gradient(90deg, #000 calc(var(--reveal) - 0.3em), #0000 var(--reveal));
+}
+@keyframes lyric-pop {
+  from { transform: scale(0.95); opacity: 0.55; }
+  to { transform: scale(1); opacity: 1; }
+}
+
+/* App badge. Hosts the real Auralis logo mark (an inline SVG that inherits the
+   active theme accent via currentColor) on a restrained neutral tile — no
+   saturated gradient chip, no coloured glow. The mark itself carries the colour. */
+.brand-mark {
+  position: relative;
+  display: inline-grid;
+  place-items: center;
+  inline-size: 30px;
+  block-size: 30px;
+  border-radius: 50%;
+  color: var(--primary);
+  background: var(--surface-2);
+  border: 1px solid var(--line-strong);
+}
+.brand-mark svg {
+  inline-size: 20px;
+  block-size: 20px;
+  display: block;
+}
+/* Letter fallback only when no SVG glyph is supplied (kept for safety). */
+.brand-mark:empty::before {
+  content: "A";
+  color: var(--primary);
+  font-size: 15px;
+  font-weight: 700;
+  letter-spacing: -0.03em;
+}
+
+/* Cover fallback surface — a clean flat panel tone. No diagonal hatch, no
+   stripes; the artwork component paints the colour + initial. */
+.cover-fallback {
+  background: var(--surface-2);
+}
+
+/* Drag */
+.drag-region { -webkit-app-region: drag; app-region: drag; }
+.no-drag { -webkit-app-region: no-drag; app-region: no-drag; }
+
+/* Selection — tracks the active theme accent instead of a pinned Oxide red. */
+::selection {
+  background: color-mix(in srgb, var(--primary), transparent 58%);
+  color: var(--foreground);
+}
+
+/* Focus — opaque 2px ring so the keyboard focus indicator meets WCAG 2.4.7. */
+button:focus-visible,
+[role="button"]:focus-visible,
+[tabindex]:focus-visible,
+a:focus-visible,
+input:focus-visible,
+select:focus-visible {
+  outline: 2px solid var(--focus-ring);
+  outline-offset: 2px;
+  border-radius: inherit;
+}
+
+.focus-auralis:focus-visible {
+  outline: 2px solid var(--focus-ring);
+  outline-offset: 2px;
+  border-radius: inherit;
+}
+
+/* Card hover — adds physical lift and shadow for modern interaction. */
+.card-lift {
+  transition: transform 0.3s cubic-bezier(0.2, 0.8, 0.2, 1), box-shadow 0.3s cubic-bezier(0.2, 0.8, 0.2, 1), background-color 0.3s ease;
+}
+.card-lift:hover {
+  transform: translateY(-4px) scale(1.01);
+  box-shadow: 0 12px 30px rgba(0, 0, 0, 0.15);
+}
+
+/* Track row */
+.track-row { position: relative; }
+
+/* Off-screen rows skip layout/paint until scrolled near the viewport. On long
+   library / favorites / album lists (thousands of rows) this is the single biggest
+   scroll-fluidity win on mobile — the browser only renders what's visible.
+   contain-intrinsic-size reserves an estimated height so the scrollbar stays stable
+   and `auto` lets it remember the real height once a row has been rendered once. */
+.track-row,
+.lazy-row {
+  content-visibility: auto;
+  contain-intrinsic-size: auto 52px;
+}
+
+/* Scrubber reset */
+.scrubber {
+  -webkit-appearance: none;
+  appearance: none;
+  background: transparent;
+  cursor: pointer;
+}
+.scrubber:focus { outline: none; }
+
+/* Remove spinner from number inputs */
+input[type="number"]::-webkit-inner-spin-button,
+input[type="number"]::-webkit-outer-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+
+kbd {
+  font-family: var(--font-geist-mono, ui-monospace, SFMono-Regular, Menlo, monospace);
+  font-size: 10px;
+  line-height: 1;
+}
+
+/* ----------------------------------------------------------------------------
+   Mobile chrome — the phone gets a native-feeling shell (bottom tab nav +
+   mini-player + action sheets) instead of the desktop sidebar/title-bar.
+   Surfaces stay matte and opaque: no glass, no glow, no heavy shadow.
+   --------------------------------------------------------------------------- */
+
+/* Safe-area insets (notch / home indicator). On non-notched devices these
+   resolve to 0, so the utilities are inert on the desktop layout. */
+:root {
+  --safe-top: env(safe-area-inset-top, 0px);
+  --safe-bottom: env(safe-area-inset-bottom, 0px);
+  /* Heights of the mobile bottom chrome, consumed as scroll padding so content
+     never hides behind the mini-player + tab bar. These MUST match MobileDock's
+     real geometry: TabBar nav is h-[64px]; the mini-player card is h-14 (56px) +
+     a 2px progress bar, wrapped with pb-2 (8px) → 66px. Underestimating them lets
+     the last rows slide under the dock. */
+  --tabbar-h: 64px;
+  --miniplayer-h: 66px;
+}
+
+.safe-top { padding-top: var(--safe-top); }
+.safe-bottom { padding-bottom: var(--safe-bottom); }
+.safe-px {
+  padding-left: max(env(safe-area-inset-left, 0px), 0px);
+  padding-right: max(env(safe-area-inset-right, 0px), 0px);
+}
+
+/* The opaque bar used for the mobile header and bottom navigation.
+   A single hairline keyline carries the separation — no shadow, no blur. */
+.mobile-bar {
+  background: var(--surface-1);
+}
+
+/* Kill the grey tap flash so taps feel native, then drive feedback ourselves. */
+* { -webkit-tap-highlight-color: transparent; }
+.tap-press { transition: transform 0.12s ease, opacity 0.12s ease, background-color 0.15s ease; }
+.tap-press:active { transform: scale(0.96); opacity: 0.85; }
+
+/* Bottom action sheet (replaces the desktop right-click popover on touch). */
+@keyframes auralis-sheet-up {
+  from { transform: translateY(100%); }
+  to { transform: translateY(0); }
+}
+.sheet-up { animation: auralis-sheet-up 0.26s cubic-bezier(0.22, 1, 0.36, 1) both; }
+
+@keyframes auralis-scrim-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+.scrim-in { animation: auralis-scrim-in 0.2s ease both; }
+
+/* Fullscreen player rises from the bottom like a native now-playing sheet. */
+@keyframes auralis-rise {
+  from { transform: translateY(100%); }
+  to { transform: translateY(0); }
+}
+.rise-in { animation: auralis-rise 0.34s cubic-bezier(0.22, 1, 0.36, 1) both; }
+
+/* Horizontal carousels (home rows) scroll by touch without a visible bar. */
+.snap-x {
+  scroll-snap-type: x mandatory;
+  -webkit-overflow-scrolling: touch;
+}
+.snap-x > * { scroll-snap-align: start; }
+
+/* ==========================================================================
+   APP STAGE / PLAYER BAR SLOTS
+   ========================================================================== */
+.app-stage { 
+  background-color: transparent; 
+}
+.app-playerbar-slot { 
+  background-color: var(--sidebar);
+  backdrop-filter: blur(var(--glass-blur));
+  -webkit-backdrop-filter: blur(var(--glass-blur));
+  border-top: 1px solid var(--glass-border);
+}
+/* Keep the old `data-glass` selector harmless for any cached HTML. */
+:root[data-glass="1"] body { background: var(--background); }
+:root[data-glass="1"] .app-chrome,
+:root[data-glass="1"] .app-stage,
+:root[data-glass="1"] .app-playerbar-slot { background-color: transparent; }
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+/* ==========================================================================
+   EQUALIZER SLIDERS
+   ========================================================================== */
+/* Equalizer sliders (vertical range inputs, writing-mode based) */
+.eq-slider {
+  -webkit-appearance: slider-vertical; /* legacy WebKit fallback */
+  appearance: slider-vertical;
+  width: 100%;
+  height: 100%;
+  background: transparent;
+  cursor: pointer;
+  /* Chromium's native vertical slider paints an accent-colored fill from min
+     to thumb OVER our custom track (it even covers the bottom half of the
+     thumb). Default accent is blue — clash with the red theme — so neutralize
+     it; the custom track + thumb below carry the whole look. */
+  accent-color: transparent;
+}
+.eq-slider::-webkit-slider-runnable-track {
+  width: 4px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.12);
+}
+.eq-slider::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 20px;
+  height: 20px;
+  margin-left: -8px; /* (track 4px - thumb 20px)/2 */
+  border-radius: 999px;
+  background: #fff;
+  border: none;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.45), 0 0 0 1px rgba(0, 0, 0, 0.2);
+  transition: transform 0.15s ease;
+}
+.eq-slider:active::-webkit-slider-thumb { transform: scale(1.15); }
+.eq-slider:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: 4px; border-radius: 999px; }
+.eq-slider::-moz-range-track {
+  width: 4px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.12);
+}
+.eq-slider::-moz-range-progress {
+  /* Firefox's filled portion — keep it invisible, same as the Chromium fill. */
+  background: transparent;
+}
+.eq-slider::-moz-range-thumb {
+  width: 20px;
+  height: 20px;
+  border-radius: 999px;
+  background: #fff;
+  border: none;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.45);
+}
+/* Light mode: a white-ish translucent track would vanish on the light
+   background — swap it for a dark track and ring the white thumb. */
+:root[data-mode="light"] .eq-slider::-webkit-slider-runnable-track,
+:root.light .eq-slider::-webkit-slider-runnable-track {
+  background: rgba(0, 0, 0, 0.15);
+}
+:root[data-mode="light"] .eq-slider::-moz-range-track,
+:root.light .eq-slider::-moz-range-track {
+  background: rgba(0, 0, 0, 0.15);
+}
+:root[data-mode="light"] .eq-slider::-webkit-slider-thumb,
+:root.light .eq-slider::-webkit-slider-thumb {
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.3), 0 0 0 1px rgba(0, 0, 0, 0.25);
+}
+:root[data-mode="light"] .eq-slider::-moz-range-thumb,
+:root.light .eq-slider::-moz-range-thumb {
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.3), 0 0 0 1px rgba(0, 0, 0, 0.25);
+}

@@ -1,0 +1,36 @@
+# =============================================================================
+# Auralis — orchestration Docker Compose
+# -----------------------------------------------------------------------------
+# À lancer depuis CE dossier (deploy/) :
+#     ./update.sh                       (recommandé : git pull + build + up)
+#     docker compose up -d --build      (à la main)
+#
+# Dossiers côté serveur (créés à côté de ce fichier s'ils n'existent pas —
+# voir DEPLOY.md) :
+#     ./music   la bibliothèque musicale (montée dans le conteneur sur /music)
+#     ./data    la base SQLite, le cache de pochettes et les sauvegardes
+#               (montée dans le conteneur sur /data)
+#
+# Configuration : toutes les variables AURALIS_* se mettent dans ./deploy/.env
+# (copié depuis .env.example). Elles sont transmises au conteneur telles
+# quelles via env_file. AURALIS_PORT y contrôle le port exposé CÔTÉ SERVEUR
+# (le conteneur écoute toujours en interne sur 3000).
+# =============================================================================
+
+services:
+  auralis:
+    build:
+      context: ..
+      dockerfile: deploy/Dockerfile
+    image: auralis
+    container_name: auralis
+    restart: unless-stopped
+    ports:
+      - "${AURALIS_PORT:-3000}:3000"
+    volumes:
+      - ./music:/music
+      - ./data:/data
+    env_file:
+      - .env
+    # La sonde de santé /api/health est définie dans le Dockerfile ;
+    # `docker compose ps` affiche l'état "healthy" du conteneur.
