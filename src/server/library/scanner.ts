@@ -311,14 +311,18 @@ export async function runScan(): Promise<ScanProgress> {
     if (toRemove.length) {
       const removeTrack = db.prepare("DELETE FROM tracks WHERE filepath = ?");
       const removeFtsByHash = db.prepare("DELETE FROM track_fts WHERE trackhash = ?");
-      const selectHash = db.prepare("SELECT trackhash FROM tracks WHERE filepath = ?");
+      const selectHash = db.prepare("SELECT trackhash, arthash FROM tracks WHERE filepath = ?");
       // Cascade: a pruned track must not leave orphan rows behind in every table
       // that references trackhash. Without this, deleting a file accumulates dead
       // references in favorites / playcounts / recents / playlists / play_events /
       // lyrics / dislikes / art_colors over time — filtered client-side but still
       // bloat. Run them all inside the same transaction so a prune is atomic.
-      const cascadeByHash = db.transaction((hashes: string[]) => {
-        for (const h of hashes) {
+      // NB: art_colors is keyed by arthash (shared by all tracks of an album),
+      // NOT by trackhash — its row is only dropped when no remaining track still
+      // references that artwork.
+      const cascadeByHash = db.transaction((entries: { trackhash: string; arthash: string | null }[]) => {
+        const seenArt = new Set<string>();
+        for (const { trackhash: h, arthash } of entries) {
           removeFtsByHash.run(h);
           db.prepare("DELETE FROM favorites WHERE trackhash = ?").run(h);
           db.prepare("DELETE FROM dislikes WHERE trackhash = ?").run(h);
@@ -327,17 +331,22 @@ export async function runScan(): Promise<ScanProgress> {
           db.prepare("DELETE FROM play_events WHERE trackhash = ?").run(h);
           db.prepare("DELETE FROM playlist_tracks WHERE trackhash = ?").run(h);
           db.prepare("DELETE FROM lyrics WHERE trackhash = ?").run(h);
-          db.prepare("DELETE FROM art_colors WHERE trackhash = ?").run(h);
+          if (arthash && !seenArt.has(arthash)) {
+            seenArt.add(arthash);
+            db.prepare(
+              "DELETE FROM art_colors WHERE arthash = ? AND NOT EXISTS (SELECT 1 FROM tracks WHERE arthash = ?)"
+            ).run(arthash, arthash);
+          }
         }
       });
       const prune = db.transaction((paths: string[]) => {
-        const removedHashes: string[] = [];
+        const removed: { trackhash: string; arthash: string | null }[] = [];
         for (const p of paths) {
-          const hit = selectHash.get(p) as { trackhash: string } | undefined;
-          if (hit) removedHashes.push(hit.trackhash);
+          const hit = selectHash.get(p) as { trackhash: string; arthash: string | null } | undefined;
+          if (hit) removed.push({ trackhash: hit.trackhash, arthash: hit.arthash });
           removeTrack.run(p);
         }
-        if (removedHashes.length) cascadeByHash(removedHashes);
+        if (removed.length) cascadeByHash(removed);
       });
       prune(toRemove);
     }

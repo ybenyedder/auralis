@@ -106,9 +106,9 @@ async function main() {
     ${equalizer({ x: 0, y: 0, scale: 1 })}
   </g>
   <text x="280" y="238" font-family="DejaVu Sans, Arial, sans-serif" font-size="88" font-weight="bold" fill="#f5efe9" letter-spacing="-2">Auralis</text>
-  <text x="284" y="286" font-family="DejaVu Sans, Arial, sans-serif" font-size="30" fill="#a89c93">Ton coffre musical personnel — privé &amp; auto-hébergé</text>
+  <text x="284" y="286" font-family="DejaVu Sans, Arial, sans-serif" font-size="30" fill="#a89c93">Ton coffre musical personnel</text>
   <rect x="284" y="310" width="420" height="6" rx="3" fill="url(#rule2)"/>
-  <text x="284" y="352" font-family="DejaVu Sans, Arial, sans-serif" font-size="22" fill="#7d7067">Lecture 100% locale · Aucune publicité · Aucune collecte</text>
+  <text x="284" y="352" font-family="DejaVu Sans, Arial, sans-serif" font-size="22" fill="#7d7067">Privé &amp; auto-hébergé · Sans pub · Aucune collecte</text>
   <g transform="translate(736 372)">
     <rect width="220" height="72" rx="16" fill="#1f1612" stroke="#3a2a22" stroke-width="1"/>
     <text x="110" y="32" text-anchor="middle" font-family="DejaVu Sans, Arial, sans-serif" font-size="13" font-weight="bold" fill="#a89c93" letter-spacing="1.2">INSTALLER</text>
