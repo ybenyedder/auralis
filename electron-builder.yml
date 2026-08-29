@@ -1,0 +1,82 @@
+appId: local.auralis.desktop
+productName: Auralis
+copyright: Auralis
+
+# Publish straight to a public GitHub Release on `--publish always` (electron-builder
+# defaults to a DRAFT, which then has to be released by hand — see v1.4.0).
+publish:
+  provider: github
+  owner: ybenyedder
+  repo: auralis
+  releaseType: release
+
+directories:
+  output: dist-desktop
+  buildResources: build
+
+# Only the thin Electron shell goes inside the asar; the Next standalone server
+# (with its native better-sqlite3 binding) ships unpacked as a resource so it can
+# be spawned as a child process.
+files:
+  - desktop/**/*
+  - package.json
+  # The desktop shell now requires electron-updater at runtime. The restrictive
+  # `files` list above excludes node_modules wholesale, so the updater's prod
+  # dependency closure must be pulled in explicitly. The heavy server deps
+  # (next/sharp/better-sqlite3) are deliberately NOT here — they ship inside the
+  # Next standalone server under extraResources, not the asar.
+  - node_modules/{electron-updater,builder-util-runtime,fs-extra,graceful-fs,jsonfile,universalify,js-yaml,argparse,sax,semver,lazy-val,lodash.escaperegexp,lodash.isequal,tiny-typed-emitter,debug,ms}/**/*
+
+extraResources:
+  - from: .next/standalone
+    to: app/server
+    filter:
+      - "**/*"
+
+asar: true
+
+# The bundled server's native modules are rebuilt for Electron by `desktop:prepare`
+# (against the standalone copy). Disable electron-builder's own rebuild so it does
+# not overwrite that binary with a Node-ABI prebuild.
+npmRebuild: false
+
+linux:
+  target:
+    - deb
+    - AppImage
+  category: AudioVideo
+  synopsis: Self-hosted local music player
+  description: Auralis is a self-hosted, local-first music player with real metadata, cover art and automatic lyrics.
+  maintainer: Auralis <maintainers@auralis.local>
+  # A directory of per-size PNGs so the .deb installs every hicolor size
+  # (16→512). With only the single build/icon.png, electron-builder installs
+  # ONLY 512x512 and many panels/menus won't downscale it — the app then shows a
+  # generic icon (the AppImage was unaffected because it embeds its own icon).
+  icon: build/icons
+  # electron-builder writes these keys into [Desktop Entry]. As of v26 the schema
+  # requires them nested under `entry:` (a flat map here is now rejected as an
+  # invalid configuration object — it was the flat form that v25 wanted).
+  desktop:
+    entry:
+      Name: Auralis
+      Categories: AudioVideo;Audio;Player;
+
+deb:
+  depends:
+    - libgtk-3-0
+    - libnotify4
+    - libnss3
+    - libxss1
+    - libasound2
+
+win:
+  target:
+    - nsis
+    - portable
+  artifactName: ${productName}-${version}-${arch}.${ext}
+
+nsis:
+  oneClick: false
+  perMachine: false
+  allowToChangeInstallationDirectory: true
+  artifactName: ${productName}-Setup-${version}.${ext}

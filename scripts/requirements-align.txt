@@ -1,0 +1,13 @@
+# Dépendances de l'alignement forcé (karaoké mot-à-mot local) — voir scripts/forced_align.py
+#
+# CPU (recommandé pour la plupart des machines) :
+#   pip install -r scripts/requirements-align.txt --index-url https://download.pytorch.org/whl/cpu
+# GPU CUDA (bien plus rapide) : installez torch/torchaudio depuis l'index CUDA adéquat.
+#
+# `demucs` est OPTIONNEL : il isole la voix de l'instrumental et améliore nettement
+# la précision sur la musique, au prix de la vitesse. Sans lui, l'alignement se fait
+# sur le mix complet (--separate off).
+
+torch
+torchaudio
+demucs        # optionnel — commentez cette ligne pour s'en passer
