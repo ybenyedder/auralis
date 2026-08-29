@@ -12,13 +12,16 @@ import { ContextMenuHost } from "@/components/auralis/ContextMenu";
 import { ToastHost } from "@/components/auralis/Toast";
 import { StickyViewHeader } from "@/components/auralis/StickyViewHeader";
 import { HomeView } from "@/components/auralis/views/HomeView";
-import { BrowseView } from "@/components/auralis/views/BrowseView";
-import { SearchView } from "@/components/auralis/views/SearchView";
-import { LibraryView } from "@/components/auralis/views/LibraryView";
-import { FavoritesView } from "@/components/auralis/views/FavoritesView";
-import { RecentsView } from "@/components/auralis/views/RecentsView";
-import { FoldersView } from "@/components/auralis/views/FoldersView";
-import { RadioView } from "@/components/auralis/views/RadioView";
+
+// Root-tab views beyond Home are code-split: they render only after a tab tap,
+// so their code leaves the first-load JS (bundle budget, see scripts/check-bundle-size.mjs).
+const BrowseView = dynamic(() => import("@/components/auralis/views/BrowseView").then((m) => m.BrowseView), { ssr: false });
+const SearchView = dynamic(() => import("@/components/auralis/views/SearchView").then((m) => m.SearchView), { ssr: false });
+const LibraryView = dynamic(() => import("@/components/auralis/views/LibraryView").then((m) => m.LibraryView), { ssr: false });
+const FavoritesView = dynamic(() => import("@/components/auralis/views/FavoritesView").then((m) => m.FavoritesView), { ssr: false });
+const RecentsView = dynamic(() => import("@/components/auralis/views/RecentsView").then((m) => m.RecentsView), { ssr: false });
+const FoldersView = dynamic(() => import("@/components/auralis/views/FoldersView").then((m) => m.FoldersView), { ssr: false });
+const RadioView = dynamic(() => import("@/components/auralis/views/RadioView").then((m) => m.RadioView), { ssr: false });
 
 // Heavy / conditionally-mounted surfaces are code-split out of the initial bundle.
 // They're "use client" overlays + secondary views (DetailView is the single biggest
