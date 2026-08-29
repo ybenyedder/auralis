@@ -1,9 +1,46 @@
 # Publier l'application Android sur le Google Play Store
 
-Auralis est une PWA : l'application Android est une « coquille » (TWA,
-Trusted Web Activity) qui affiche votre serveur Auralis sans barre d'adresse,
-en mode plein écran. Pas de code natif à écrire : PWABuilder fabrique le
-paquet Android à partir de votre URL.
+## Option A — Client natif Auralis (recommandé, package `local.auralis.client`)
+
+Le dépôt contient un client Android **natif** complet (Kotlin / Jetpack
+Compose, `android-native/`) : lecture Media3 en arrière-plan, contrôles
+écran de verrouillage, synchronisation Connect avec votre serveur. C'est ce
+paquet que la CI construit et signe automatiquement.
+
+**Pour obtenir le fichier à téléverser sur la Play Console** (Google exige
+un `.aab` — App Bundle — pour toute nouvelle application ; un `.apk` serait
+refusé) :
+
+1. Ouvrez https://github.com/ybenyedder/auralis/releases
+2. Téléchargez l'asset **`Auralis-vX.Y.Z.aab`** de la dernière release.
+3. Dans la Play Console (création de version), déposez ce fichier dans la
+   zone « Déposez ici les app bundles à importer ».
+
+Si l'asset `.aab` manque sur une release : onglet **Actions** → workflow
+**« Play Store AAB »** → **Run workflow** sur `main` ; il construit et
+attache le bundle signé en ~5 minutes (aucune compilation locale requise).
+La même chose en local :
+
+```bash
+npm run mobile:native:aab   # → android-native/app/build/outputs/bundle/release/app-release.aab
+```
+
+**Nom du package** (définitif, à saisir à la création de l'app dans la
+console) : `local.auralis.client`.
+
+**Signature** : le bundle est signé par la CI avec le keystore d'« upload »
+(secret `ANDROID_KEYSTORE_BASE64`). Au premier téléversement, Google Play
+Active « Play App Signing » : votre keystore reste la clé d'upload, Google
+gère la clé finale de signature. Conservez ce keystore — toute mise à jour
+future devra être signée par lui.
+
+## Option B — Coquille PWA générée par PWABuilder (TWA)
+
+Auralis est aussi une PWA : l'application Android peut être une « coquille »
+(TWA, Trusted Web Activity) qui affiche votre serveur Auralis sans barre
+d'adresse, en mode plein écran. Pas de code natif à écrire : PWABuilder
+fabrique le paquet Android à partir de votre URL. Utile si vous préférez un
+package ID personnalisé ou une coquille purement web.
 
 ## Étape 0 — Serveur HTTPS et domaine
 

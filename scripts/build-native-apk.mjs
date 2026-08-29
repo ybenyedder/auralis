@@ -1,4 +1,4 @@
-// Build the NATIVE Android (Kotlin/Jetpack Compose) Auralis client APK.
+// Build the NATIVE Android (Kotlin/Jetpack Compose) Auralis client APK or AAB.
 //
 // This is the from-scratch native rewrite of the mobile app (android-native/),
 // replacing the old Capacitor WebView shell. It talks to a self-hosted Auralis
@@ -7,7 +7,8 @@
 //
 // Requires the Android SDK (ANDROID_HOME / ANDROID_SDK_ROOT or ~/Android/Sdk) and a
 // JDK 17+. Pass `--offline` (or set AURALIS_OFFLINE=1) to build against the Gradle
-// cache without network access.
+// cache without network access. Pass `--aab` to produce an Android App Bundle
+// (.aab, required by Google Play for new apps) instead of an APK.
 
 import { existsSync } from "node:fs";
 import { execSync } from "node:child_process";
@@ -40,7 +41,11 @@ const offline = process.env.AURALIS_OFFLINE === "1" || process.argv.includes("--
 // still installs as an update over any previously-shipped build. Pass
 // `--debug` for a quick local iteration build when you don't need release flags.
 const debug = process.argv.includes("--debug");
-const task = debug ? "assembleDebug" : "assembleRelease";
+// `--aab` produces an Android App Bundle (.aab) — the ONLY format Google Play
+// accepts for NEW apps since August 2021 (APKs remain fine for sideloading and
+// the in-app updater). Same signing config as the APK: the upload key.
+const aab = process.argv.includes("--aab");
+const task = aab ? "bundleRelease" : debug ? "assembleDebug" : "assembleRelease";
 const args = [task, offline ? "--offline" : ""].filter(Boolean).join(" ");
 
 console.log(`[native-apk] Using SDK: ${sdk}${offline ? " (offline)" : ""}`);
@@ -55,7 +60,12 @@ try {
   process.exit(1);
 }
 
-const variant = debug ? "debug" : "release";
-const apkName = debug ? "app-debug.apk" : "app-release.apk";
-const apk = path.join(projectDir, "app", "build", "outputs", "apk", variant, apkName);
-console.log(existsSync(apk) ? `[native-apk] APK ready: ${apk}` : "[native-apk] Build finished but APK not found at the expected path.");
+if (aab) {
+  const aabPath = path.join(projectDir, "app", "build", "outputs", "bundle", "release", "app-release.aab");
+  console.log(existsSync(aabPath) ? `[native-apk] AAB ready: ${aabPath}` : "[native-apk] Build finished but AAB not found at the expected path.");
+} else {
+  const variant = debug ? "debug" : "release";
+  const apkName = debug ? "app-debug.apk" : "app-release.apk";
+  const apk = path.join(projectDir, "app", "build", "outputs", "apk", variant, apkName);
+  console.log(existsSync(apk) ? `[native-apk] APK ready: ${apk}` : "[native-apk] Build finished but APK not found at the expected path.");
+}

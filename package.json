@@ -44,7 +44,8 @@
     "migrate:status": "tsx scripts/migrate-status.ts",
     "deploy:up": "bash deploy/update.sh",
     "deploy:backup": "bash deploy/backup.sh",
-    "db:push": "echo 'auralis uses its own sqlite migrations (src/server/db.ts)'"
+    "db:push": "echo 'auralis uses its own sqlite migrations (src/server/db.ts)'",
+    "mobile:native:aab": "node scripts/build-native-apk.mjs --aab"
   },
   "dependencies": {
     "@types/better-sqlite3": "^7.6.13",
