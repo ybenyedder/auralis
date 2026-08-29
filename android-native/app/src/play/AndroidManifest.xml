@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Play flavor overlay: strips REQUEST_INSTALL_PACKAGES.
+     Google Play restricts this permission to a narrow set of app categories
+     (app stores, file managers, web browsers, MDM, …) that a music player is
+     not part of — declaring it in the permissions form gets the listing
+     rejected. On this channel updates arrive from the store, and the
+     self-updater is compiled out (BuildConfig.SELF_UPDATE = false in
+     build.gradle.kts), so nothing ever invokes the package installer.
+     The "full" flavor (GitHub / direct download) keeps the permission. -->
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools">
+
+    <uses-permission
+        android:name="android.permission.REQUEST_INSTALL_PACKAGES"
+        tools:node="remove" />
+
+</manifest>

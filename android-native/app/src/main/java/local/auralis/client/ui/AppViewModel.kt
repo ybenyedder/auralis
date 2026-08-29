@@ -582,6 +582,11 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
     // Ask GitHub once per launch whether a newer release exists. Best-effort and
     // silent on failure (offline, rate-limited): the app simply doesn't prompt.
     private fun checkForUpdate() {
+        // Play flavor: never check for GitHub updates. That channel updates
+        // through the store; the installer permission is stripped from its
+        // manifest, and Play App Signing means a GitHub APK could not install
+        // over a store-installed build anyway.
+        if (!local.auralis.client.BuildConfig.SELF_UPDATE) return
         viewModelScope.launch {
             val info = local.auralis.client.update.UpdateManager.check(
                 local.auralis.client.BuildConfig.VERSION_NAME,

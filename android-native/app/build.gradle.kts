@@ -28,6 +28,32 @@ android {
         }
     }
 
+    // Distribution flavors. Google Play restricts REQUEST_INSTALL_PACKAGES to a
+    // narrow set of app categories (app stores, file managers, browsers, MDM…)
+    // that a music player is not part of — declaring it gets the listing
+    // rejected. On top of that, Play App Signing re-signs every release with
+    // Google's own app key, so a GitHub APK could never install over a
+    // Play-installed build anyway. The two channels therefore ship different
+    // feature sets:
+    //   full — GitHub / direct download: keeps the in-app self-updater
+    //          (downloads the signed APK from the releases page and opens the
+    //          system installer; this is the only consumer of
+    //          REQUEST_INSTALL_PACKAGES).
+    //   play — Google Play: the installer permission is stripped
+    //          (src/play/AndroidManifest.xml) and the update check is compiled
+    //          out via BuildConfig.SELF_UPDATE; updates arrive from the store.
+    flavorDimensions += "dist"
+    productFlavors {
+        create("full") {
+            dimension = "dist"
+            buildConfigField("boolean", "SELF_UPDATE", "true")
+        }
+        create("play") {
+            dimension = "dist"
+            buildConfigField("boolean", "SELF_UPDATE", "false")
+        }
+    }
+
     // Stable signing key for the auto-update flow (Android rejects an update whose
     // signature differs from the installed APK). The keystore file and its passwords
     // are NO LONGER hardcoded here nor committed: they are loaded at build time from

@@ -58,7 +58,7 @@ jobs:
         id: reltag
         run: echo "REL_TAG=v$(node -p "require('./package.json').version")" >> "$GITHUB_OUTPUT"
 
-      - name: Build signed Android App Bundle (.aab)
+      - name: Build signed Android App Bundle (.aab, play flavor)
         env:
           AURALIS_VERSION: ${{ steps.reltag.outputs.REL_TAG }}
           ANDROID_KEYSTORE_PWD: ${{ secrets.ANDROID_KEYSTORE_PWD }}
@@ -66,15 +66,17 @@ jobs:
           ANDROID_KEY_PWD: ${{ secrets.ANDROID_KEY_PWD }}
         # No npm install needed: the build script only uses Node built-ins and
         # drives gradlew, and the native client talks to the server over HTTP
-        # (it embeds no web assets).
-        run: node scripts/build-native-apk.mjs --aab
+        # (it embeds no web assets). The `play` flavor strips
+        # REQUEST_INSTALL_PACKAGES (a restricted permission on Google Play) and
+        # disables the in-app self-updater — store builds update via the store.
+        run: node scripts/build-native-apk.mjs --aab --flavor=play
 
       - name: Attach AAB to the release
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           REL_TAG: ${{ steps.reltag.outputs.REL_TAG }}
         run: |
-          cp android-native/app/build/outputs/bundle/release/app-release.aab "Auralis-${REL_TAG}.aab"
+          cp android-native/app/build/outputs/bundle/playRelease/app-play-release.aab "Auralis-${REL_TAG}.aab"
           # Create the release (draft) if this tag has no release yet — a tag
           # push normally has one from release.yml's electron-builder, but a
           # manual dispatch before any tag would not.

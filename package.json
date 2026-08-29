@@ -45,7 +45,7 @@
     "deploy:up": "bash deploy/update.sh",
     "deploy:backup": "bash deploy/backup.sh",
     "db:push": "echo 'auralis uses its own sqlite migrations (src/server/db.ts)'",
-    "mobile:native:aab": "node scripts/build-native-apk.mjs --aab"
+    "mobile:native:aab": "node scripts/build-native-apk.mjs --aab --flavor=play"
   },
   "dependencies": {
     "@types/better-sqlite3": "^7.6.13",

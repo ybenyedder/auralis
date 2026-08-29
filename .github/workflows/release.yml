@@ -112,8 +112,10 @@ jobs:
       - name: Build native Android APK + AAB
         # Stamp the build with the release tag so the in-app updater can compare the
         # running version against the latest GitHub release (see UpdateManager.kt).
-        # Also produce the .aab (Android App Bundle): Google Play requires it for
-        # new-app submissions (the APK stays for sideloading / in-app updates).
+        # The APK is the `full` flavor (self-updater kept — that channel updates
+        # from GitHub releases). The AAB is the `play` flavor for anyone uploading
+        # to Google Play: it strips REQUEST_INSTALL_PACKAGES (a restricted
+        # permission on Play) and updates through the store instead.
         env:
           AURALIS_VERSION: ${{ steps.reltag.outputs.REL_TAG }}
           ANDROID_KEYSTORE_PWD: ${{ secrets.ANDROID_KEYSTORE_PWD }}
@@ -121,14 +123,14 @@ jobs:
           ANDROID_KEY_PWD: ${{ secrets.ANDROID_KEY_PWD }}
         run: |
           npm run mobile:native
-          npm run mobile:native:aab
+          node scripts/build-native-apk.mjs --aab --flavor=play
       - name: Attach APK and AAB to the release
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           REL_TAG: ${{ steps.reltag.outputs.REL_TAG }}
         run: |
-          cp android-native/app/build/outputs/apk/release/app-release.apk "Auralis-${REL_TAG}.apk"
-          cp android-native/app/build/outputs/bundle/release/app-release.aab "Auralis-${REL_TAG}.aab"
+          cp android-native/app/build/outputs/apk/full/release/app-full-release.apk "Auralis-${REL_TAG}.apk"
+          cp android-native/app/build/outputs/bundle/playRelease/app-play-release.aab "Auralis-${REL_TAG}.aab"
           gh release upload "${REL_TAG}" "Auralis-${REL_TAG}.apk" "Auralis-${REL_TAG}.aab" --clobber
       # electron-builder leaves the GitHub release as a DRAFT on a matrix build (each
       # runner races to finalize it, so none flips it to published), despite

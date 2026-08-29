@@ -153,14 +153,16 @@ Vérification :
      « Votre musique, votre serveur : lecteur auto-hébergé, privé, haute-fidélité. »
    - **Description complète** (proposition ci-dessous).
    - **Captures d'écran** : au moins 4 pour téléphone (PNG/JPEG, format
-     téléphone 9:16 ou 16:9). Le dépôt en fournit dans `public/screenshots/`.
+     téléphone 9:16 ou 16:9). Le dépôt en fournit dans `public/screenshots/`
+     et, pour une fiche en anglais, dans `store-listing/en-US/` (7 captures
+     1080×1920 + tous les textes de la fiche dans `store-listing/en-US/listing.md`).
    - **Icône** (512 x 512) et **image bannière** (1024 x 500). Le dépôt
      fournit déjà la bannière prête à téléverser : `public/feature-graphic.png`
      (générée par `bun scripts/gen-brand-assets.mjs`, mêmes couleurs de marque
      que le logo et la carte OG).
-   - **Politique de confidentialité** : une URL est exigée. Hébergez une page
-     simple expliquant qu'aucune donnée n'est collectée (l'application ne
-     communique qu'avec votre propre serveur).
+   - **Politique de confidentialité** : une URL est exigée. Utilisez
+     https://github.com/ybenyedder/auralis/blob/main/PRIVACY.md (politique
+     bilingue « zéro collecte » incluse dans le dépôt).
 4. **Data safety** (sécurité des données) : répondez « Non » partout —
    aucune donnée n'est collectée ni partagée ; l'application ne parle qu'à
    votre serveur.
@@ -174,6 +176,27 @@ Vérification :
 7. Une fois la fiche complète : « Envoyer pour examen » → production. La
    première validation prend généralement de quelques heures à quelques
    jours.
+
+### Autorisations sensibles : ce que le client natif déclare
+
+L'AAB publié par la CI est la **saveur `play`** : elle ne contient PAS
+`REQUEST_INSTALL_PACKAGES`. Cette autorisation est réservée par Google à
+quelques catégories d'applis (boutiques d'applis, gestionnaires de fichiers,
+navigateurs, MDM…) dont un lecteur de musique ne fait pas partie — la
+déclarer fait rejeter la fiche. Sur le canal Play, les mises à jour arrivent
+par le Store ; le module de mise à jour interne (téléchargement de l'APK
+GitHub) est compilé hors de cette saveur (`BuildConfig.SELF_UPDATE`).
+La saveur `full` (APK des releases GitHub, téléchargement direct) conserve
+elle la mise à jour automatique et l'autorisation.
+
+Déclarations attendues dans la Play Console :
+
+| Formulaire | Réponse |
+|---|---|
+| `REQUEST_INSTALL_PACKAGES` | Ne s'affiche pas avec l'AAB `play` (l'autorisation est absente du paquet) |
+| Services en avant-plan (FGS), cible API 34+ | `mediaPlayback` — « Lecture audio en arrière-plan pendant que l'utilisateur navigue hors de l'application ; contrôles média dans la notification et sur l'écran de verrouillage. » |
+| `POST_NOTIFICATIONS` | Notification média (commandes lecture/pause/suivant) — aucune donnée collectée |
+| `INTERNET` | Communication avec le serveur Auralis de l'utilisateur |
 
 ### Proposition de description complète (à adapter)
 
