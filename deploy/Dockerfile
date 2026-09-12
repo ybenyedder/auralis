@@ -18,18 +18,18 @@ FROM node:22-slim AS builder
 # recompiler depuis les sources. Ces outils restent dans l'étape de build,
 # ils n'alourdissent pas l'image finale.
 RUN apt-get update \
-    && apt-get install -y --no-install-recommends python3 make g++ \
+    && apt-get install -y --no-install-recommends python3 make g++ git \
     && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
 
 # Dépendances d'abord, dans une couche dédiée : tant que package.json ne
 # change pas, Docker rejoue ce cache au lieu de retélécharger les paquets.
-# `npm ci` avec le lockfile commis : builds reproductibles et versions
-# exactement celles testées — un `npm install` résolu à la volée laissait une
-# dépendance compromise ou cassante entrer sur le serveur de fichiers.
+# NB : `npm ci` (reproductibilité intégrale) est impossible tant que
+# @electron/rebuild épingle une dépendance git — npm ≥ 10.2 refuse tout dep git
+# en mode ci. `npm install` reste borné par les semver de package.json.
 COPY package.json package-lock.json ./
-RUN npm ci --no-audit --no-fund
+RUN npm install --no-audit --no-fund
 
 # Pas de télémétrie Next.js pendant le build.
 ENV NEXT_TELEMETRY_DISABLED=1
