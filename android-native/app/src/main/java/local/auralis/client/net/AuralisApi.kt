@@ -234,7 +234,16 @@ class AuralisApi {
         fun normalizeBase(raw: String): String {
             var v = raw.trim()
             if (v.isEmpty()) return v
-            if (!Regex("^https?://", RegexOption.IGNORE_CASE).containsMatchIn(v)) v = "http://$v"
+            if (!Regex("^https?://", RegexOption.IGNORE_CASE).containsMatchIn(v)) {
+                // No scheme typed: a LAN address (IP, localhost, .local) is a box
+                // serving plain http, but a public hostname almost certainly has
+                // TLS — default to https there instead of posting the password in
+                // cleartext across the internet. An explicit http:// still wins.
+                val host = v.substringBefore('/').substringBefore(':')
+                val lan = host == "localhost" || host.endsWith(".local") ||
+                    Regex("^(\\d{1,3}\\.){3}\\d{1,3}$").matches(host)
+                v = (if (lan) "http://" else "https://") + v
+            }
             return v.trimEnd('/')
         }
     }

@@ -185,6 +185,7 @@ toggleShuffle: () => {
       const newShuffle = !shuffle;
       if (!currentTrack) {
         set({ shuffle: newShuffle });
+        void api.put("/api/state", { action: "setting", key: "shuffle", value: newShuffle }).catch(() => {});
         return;
       }
       if (newShuffle) {
@@ -194,6 +195,9 @@ toggleShuffle: () => {
         const idx = queue.findIndex((t) => t.trackhash === currentTrack.trackhash);
         set({ shuffle: false, shuffledQueue: queue, currentIndex: idx >= 0 ? idx : 0 });
       }
+      // Mirror the choice to the user's server settings so it survives a wiped
+      // localStorage / fresh device — the option comes back exactly as left.
+      void api.put("/api/state", { action: "setting", key: "shuffle", value: newShuffle }).catch(() => {});
     },
 
 cycleRepeat: () => {
@@ -201,11 +205,13 @@ cycleRepeat: () => {
       const { repeat } = get();
       const next = order[(order.indexOf(repeat) + 1) % order.length];
       set({ repeat: next });
+      void api.put("/api/state", { action: "setting", key: "repeat", value: next }).catch(() => {});
     },
 
 toggleAutoplay: () => {
       const autoplay = !get().autoplay;
       set({ autoplay });
+      void api.put("/api/state", { action: "setting", key: "autoplay", value: autoplay }).catch(() => {});
       get().notify(translate(get().locale, autoplay ? "toast.autoplayOn" : "toast.autoplayOff"));
     },
 

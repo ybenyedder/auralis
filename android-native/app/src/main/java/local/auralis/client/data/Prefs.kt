@@ -56,7 +56,10 @@ class Prefs(context: Context) {
     }
 
     suspend fun clearSession() {
-        store.edit { it.remove(TOKEN); it.remove(USERNAME) }
+        // Wipe the saved queue too: restoring the PREVIOUS account's last session
+        // into a newly-logged-in profile would play (and scrobble) someone else's
+        // queue against this account.
+        store.edit { it.remove(TOKEN); it.remove(USERNAME); it.remove(LAST_SESSION) }
     }
 
     suspend fun setPlayback(

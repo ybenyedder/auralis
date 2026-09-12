@@ -16,6 +16,7 @@
 //      https-only and rejects private / loopback / link-local hosts.
 
 import { createLogger } from "../logger";
+import dns from "node:dns/promises";
 
 const log = createLogger("playlist-import");
 
@@ -351,6 +352,17 @@ async function fromDirectUrl(url: URL): Promise<ExternalPlaylist> {
   if (isPrivateHost(url.hostname)) {
     throw new PlaylistImportError("Cette adresse pointe vers un hôte privé.", 400);
   }
+  // A public-looking NAME can still resolve into private space (nip.io,
+  // rebinding). Resolve and validate every address before we connect.
+  const addrs = await dns.lookup(url.hostname, { all: true }).catch(() => null);
+  if (!addrs || addrs.length === 0) {
+    throw new PlaylistImportError("Impossible de résoudre cette adresse.", 400);
+  }
+  for (const { address } of addrs) {
+    if (isPrivateIp(address)) {
+      throw new PlaylistImportError("Cette adresse pointe vers un hôte privé.", 400);
+    }
+  }
   const text = await fetchText(url.toString(), "*/*");
   const trimmed = text.trimStart();
   if (trimmed.startsWith("{")) {
@@ -435,12 +447,23 @@ function collectByKey(node: unknown, key: string, out: unknown[] = [], depth = 0
 function isPrivateHost(hostname: string): boolean {
   const h = hostname.toLowerCase().replace(/^\[|\]$/g, "");
   if (h === "localhost" || h.endsWith(".localhost") || h.endsWith(".local") || h.endsWith(".internal")) return true;
+  return isPrivateIp(h);
+}
+
+/** Range checks for a resolved address (v4 literal, IPv6, v4-mapped v6). */
+function isPrivateIp(ip: string): boolean {
+  const h = ip.toLowerCase().replace(/^\[|\]$/g, "");
   if (h === "0.0.0.0" || h === "::1" || h === "::") return true;
-  // IPv4 literal → range checks.
+  // IPv4-mapped IPv6 (::ffff:10.0.0.5) — strip the prefix and re-check.
+  const mapped = /^::ffff:(.+)$/.exec(h);
+  if (mapped) return isPrivateIp(mapped[1]);
   const v4 = /^(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})$/.exec(h);
   if (v4) {
-    const [a, b] = [Number(v4[1]), Number(v4[2])];
+    const [a, b, c] = [Number(v4[1]), Number(v4[2]), Number(v4[3])];
     if (a === 10 || a === 127 || (a === 169 && b === 254) || (a === 172 && b >= 16 && b <= 31) || (a === 192 && b === 168) || a === 0) return true;
+    if (a === 100 && b >= 64 && b <= 127) return true; // CGNAT / Tailscale
+    if (a === 198 && b === 18) return true; // benchmarking range
+    void c;
   }
   // IPv6 unique-local (fc00::/7) / link-local (fe80::/10).
   if (/^f[cd][0-9a-f]{2}:/.test(h) || /^fe[89ab][0-9a-f]:/.test(h)) return true;

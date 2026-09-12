@@ -56,19 +56,32 @@ export const TrackRow = memo(function TrackRow({
   // row back off.
   const lpTimer = useRef<number | null>(null);
   const suppressClick = useRef(false);
+  const lpStart = useRef<{ x: number; y: number } | null>(null);
   const cancelLongPress = () => {
     if (lpTimer.current !== null) {
       clearTimeout(lpTimer.current);
       lpTimer.current = null;
     }
   };
-  const onPointerDown = () => {
+  const onPointerDown = (e: React.PointerEvent) => {
     if (selectionMode) return;
     cancelLongPress();
+    // A resting finger always micro-moves a pixel or two; cancelling on ANY
+    // movement made long-press selection nearly impossible on touch. Only real
+    // movement (slop radius) cancels.
+    lpStart.current = { x: e.clientX, y: e.clientY };
     lpTimer.current = window.setTimeout(() => {
       suppressClick.current = true;
       enterSelection(track.trackhash);
     }, 450);
+  };
+  const onPointerMove = (e: React.PointerEvent) => {
+    const start = lpStart.current;
+    if (!start) return;
+    if (Math.hypot(e.clientX - start.x, e.clientY - start.y) > 10) {
+      lpStart.current = null;
+      cancelLongPress();
+    }
   };
 
   const onFav = (e: React.MouseEvent) => {
@@ -115,7 +128,8 @@ export const TrackRow = memo(function TrackRow({
       onPointerDown={onPointerDown}
       onPointerUp={cancelLongPress}
       onPointerLeave={cancelLongPress}
-      onPointerMove={cancelLongPress}
+      onPointerMove={onPointerMove}
+      onPointerCancel={cancelLongPress}
     >
       {/* Index / play — or a selection checkbox in multi-select mode */}
       <div className="grid place-items-center">

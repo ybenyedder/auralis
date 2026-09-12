@@ -13,6 +13,10 @@ interface RouteContext {
 
 function parseRange(rangeHeader: string | null, fileSize: number) {
   if (!rangeHeader) return null;
+  // Multi-range (`bytes=0-1,5-6`) is legal but no audio client sends it; rather
+  // than answering a satisfiable request with 416, ignore the header and serve
+  // the whole file (RFC 9110 allows a server to disregard Range).
+  if (rangeHeader.includes(",")) return null;
   const match = rangeHeader.match(/^bytes=(\d*)-(\d*)$/);
   if (!match) return "invalid" as const;
 

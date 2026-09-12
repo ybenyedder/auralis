@@ -1,5 +1,5 @@
 import { readArtVariant, readCachedArt } from "@/server/library/art";
-import { applySecurityHeaders } from "@/server/http";
+import { applySecurityHeaders, checkAuth } from "@/server/http";
 import { NextResponse } from "next/server";
 
 export const runtime = "nodejs";
@@ -10,6 +10,11 @@ interface Ctx {
 }
 
 export async function GET(request: Request, context: Ctx) {
+  // Same gate as every other content surface (stream/library/lyrics): the art
+  // endpoint is content-addressed but still serves the whole cover cache, and
+  // each miss used to trigger unauthenticated sharp work on the host.
+  const denied = checkAuth(request);
+  if (denied) return denied;
   const { hash } = await context.params;
   const sizeRaw = new URL(request.url).searchParams.get("w");
   const size = sizeRaw ? parseInt(sizeRaw, 10) : 0;

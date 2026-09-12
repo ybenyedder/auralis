@@ -221,9 +221,14 @@ class SyncManager(
     }
 
     private suspend fun readStream(token: String) = withContext(Dispatchers.IO) {
-        val qs = "device=${getOrCreateDeviceId()}&name=${deviceName()}&kind=mobile&token=$token"
+        // The token rides in the Authorization header, never in the query:
+        // EventSource can't set headers but this is a hand-rolled OkHttp call,
+        // and a token in a URL lands in the server/proxy access logs forever.
+        val qs = "device=${getOrCreateDeviceId()}&name=${deviceName()}&kind=mobile"
         val url = "${api.base}/api/sync/stream?$qs"
-        val req = Request.Builder().url(url).get().build()
+        val req = Request.Builder().url(url).get()
+            .header("Authorization", "Bearer $token")
+            .build()
         client.newCall(req).execute().use { resp ->
             if (!resp.isSuccessful) throw IllegalStateException("stream HTTP ${resp.code}")
             _connected.value = true

@@ -234,6 +234,9 @@ export function LyricsView({ variant }: { variant: "panel" | "stage" }) {
                 <p
                   key={i}
                   ref={active ? activeRef : undefined}
+                  role={seekable ? "button" : undefined}
+                  tabIndex={seekable ? 0 : undefined}
+                  onKeyDown={seekable ? (e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); seek(line.time); } } : undefined}
                   onClick={seekable ? () => seek(line.time) : undefined}
                   className={cn(
                     "leading-[1.4] transition-[color,opacity] duration-300",

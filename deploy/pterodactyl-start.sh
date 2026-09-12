@@ -1,4 +1,14 @@
 #!/bin/bash
+# The install container (node:20-bookworm-slim) may differ from the Node major
+# of the selected runtime yolk; better-sqlite3 would then crash on first DB
+# access with a NODE_MODULE_VERSION mismatch. Detect and rebuild for THIS
+# runtime before anything else.
+if ! node -e "require('better-sqlite3')" >/dev/null 2>&1; then
+  echo "better-sqlite3: ABI mismatch with this Node runtime — rebuilding..."
+  npm rebuild better-sqlite3 --no-audit --no-fund \
+    || echo "WARNING: rebuild failed. Select the same Node major as the install, or add build tools to the yolk."
+fi
+
 # Auralis — wrapper de démarrage Pterodactyl.
 #
 # Lance `next start`. Deux fonctionnalités optionnelles s'appuient sur des

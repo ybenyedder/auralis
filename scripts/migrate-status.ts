@@ -17,7 +17,8 @@ function run() {
   const { dbPath } = getConfig();
   let db;
   try {
-    db = new Database(dbPath, { fileMustExist: false });
+    // A status tool must not CREATE a database as a side effect of a typo'd path.
+    db = new Database(dbPath, { readonly: true, fileMustExist: true });
   } catch (err) {
     console.error(`❌ Could not open database at ${dbPath}:`, err);
     process.exit(1);

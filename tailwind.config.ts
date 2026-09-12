@@ -1,4 +1,5 @@
 import type { Config } from "tailwindcss";
+import colors from "tailwindcss/colors";
 
 const config: Config = {
   // Mode is driven by data-mode on <html> (set by applyMode in themes.ts).
@@ -20,6 +21,10 @@ const config: Config = {
         mono: ["var(--font-mono)", "monospace"],
       },
       colors: {
+        // Real scales: several components reference amber-*/emerald-* tones that
+        // silently no-op'd when these names weren't defined.
+        amber: colors.amber,
+        emerald: colors.emerald,
         background: "var(--background)",
         foreground: "var(--foreground)",
         // Apple Music surface tiers (iOS system backgrounds).

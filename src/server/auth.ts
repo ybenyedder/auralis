@@ -134,7 +134,7 @@ export function ensureAuth(): void {
 }
 
 export function revokeSessionToken(token: string) {
-  getDb().prepare("DELETE FROM sessions WHERE id = ?").run(token);
+  getDb().prepare("DELETE FROM sessions WHERE id IN (?, ?)").run(hashToken(token), token);
 }
 
 export function getUserById(id: number): UserRow | null {
@@ -151,7 +151,13 @@ export async function verifyCredentials(username: string, password: string): Pro
   const row = getDb()
     .prepare("SELECT id, username, password_hash, password_salt, is_admin, is_default, created_at FROM users WHERE username = ?")
     .get(username) as (UserRow & { password_hash: string; password_salt: string }) | undefined;
-  if (!row) return null;
+  if (!row) {
+    // Unknown user: burn the same scrypt work as a real check so response
+    // timing cannot enumerate accounts (the public accounts list already gives
+    // them away on a LAN, but don't make it cheaper).
+    await hashPassword(password, "30303030303030303030303030303030");
+    return null;
+  }
   const candidate = await hashPassword(password, row.password_salt);
   const a = Buffer.from(candidate, "hex");
   const b = Buffer.from(row.password_hash, "hex");
@@ -159,7 +165,7 @@ export async function verifyCredentials(username: string, password: string): Pro
   return { id: row.id, username: row.username, is_admin: row.is_admin, is_default: row.is_default, created_at: row.created_at };
 }
 
-function validatePassword(pw: string): string | null {
+export function validatePassword(pw: string): string | null {
   if (!pw || pw.length < 6) return "Le mot de passe doit faire au moins 6 caractères";
   return null;
 }
@@ -241,7 +247,11 @@ export async function setUserPassword(userId: number, newPassword: string): Prom
 export async function changePassword(userId: number, currentPassword: string, newPassword: string): Promise<{ ok: boolean; error?: string }> {
   const user = getUserById(userId);
   if (!user) return { ok: false, error: "Compte introuvable" };
-  if (!verifyCredentials(user.username, currentPassword)) return { ok: false, error: "Mot de passe actuel incorrect" };
+  // verifyCredentials is async (scrypt + timing-safe compare): without the await
+  // `!Promise` is always false and the current-password check never rejects
+  // anything — any authenticated session could retake the account with a
+  // garbage "current" password.
+  if (!(await verifyCredentials(user.username, currentPassword))) return { ok: false, error: "Mot de passe actuel incorrect" };
   return setUserPassword(userId, newPassword);
 }
 
@@ -253,6 +263,13 @@ export function isDefaultPassword(userId: number): boolean {
 
 
 
+/** Sessions are stored by sha256(token): a leaked DB copy (the admin backup is a
+ *  full SQLite download) must not double as a bearer-token list. Lookups fall
+ *  back to the raw value for rows written before this change. */
+function hashToken(token: string): string {
+  return crypto.createHash("sha256").update(token).digest("hex");
+}
+
 export function createSessionToken(userId: number, request?: Request): string {
   const token = crypto.randomBytes(32).toString("base64url");
   const ip = request ? request.headers.get("x-forwarded-for")?.split(',')[0].trim() || "127.0.0.1" : null;
@@ -261,7 +278,7 @@ export function createSessionToken(userId: number, request?: Request): string {
   
   getDb().prepare(
     "INSERT INTO sessions (id, user_id, user_agent, ip_address, created_at, last_used_at) VALUES (?, ?, ?, ?, ?, ?)"
-  ).run(token, userId, ua, ip, now, now);
+  ).run(hashToken(token), userId, ua, ip, now, now);
   
   return token;
 }
@@ -270,9 +287,17 @@ export function createSessionToken(userId: number, request?: Request): string {
 function decodeSessionToken(token: string | undefined | null, request?: Request): number | null {
   if (!token) return null;
   try {
-    const row = getDb().prepare("SELECT user_id, last_used_at FROM sessions WHERE id = ?").get(token) as { user_id: number; last_used_at: number } | undefined;
+    const row = getDb().prepare("SELECT user_id, created_at, last_used_at FROM sessions WHERE id IN (?, ?)").get(hashToken(token), token) as { user_id: number; created_at: number; last_used_at: number } | undefined;
     if (!row) return null;
-    
+
+    // Server-side expiry: the cookie Max-Age alone never killed the row, so a
+    // token copied out of localStorage stayed valid forever. Past the TTL the
+    // session is deleted and treated as a miss.
+    if (Date.now() - row.created_at > SESSION_TTL_MS) {
+      getDb().prepare("DELETE FROM sessions WHERE id IN (?, ?)").run(hashToken(token), token);
+      return null;
+    }
+
     // Update last_used_at if it's older than 1 hour (to avoid constant DB writes)
     const now = Date.now();
     if (now - row.last_used_at > 3600000) {
@@ -291,9 +316,23 @@ function parseCookie(header: string | null, name: string): string | null {
   for (const part of header.split(";")) {
     const idx = part.indexOf("=");
     if (idx === -1) continue;
-    if (part.slice(0, idx).trim() === name) return decodeURIComponent(part.slice(idx + 1).trim());
+    if (part.slice(0, idx).trim() === name) {
+      // A malformed cookie (% orphan) must not 500 every request from that client.
+      const raw = part.slice(idx + 1).trim();
+      try { return decodeURIComponent(raw); } catch { return raw; }
+    }
   }
   return null;
+}
+
+/** Delete sessions past the TTL. Piggybacks on the process-wide sync sweep so
+ *  the sessions table cannot grow without bound. */
+export function pruneExpiredSessions(): void {
+  try {
+    getDb().prepare("DELETE FROM sessions WHERE created_at < ?").run(Date.now() - SESSION_TTL_MS);
+  } catch {
+    /* best effort — swept again on the next tick */
+  }
 }
 
 let queryTokenWarned = false;

@@ -11,6 +11,8 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
+import local.auralis.client.ui.components.NetworkImage
+import local.auralis.client.ui.theme.LocalApiUrl
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.PlayArrow
@@ -32,6 +34,7 @@ import local.auralis.client.ui.components.CoverArt
 import local.auralis.client.ui.components.paletteFor
 import local.auralis.client.ui.theme.AMType
 import local.auralis.client.ui.theme.LocalAuralis
+import local.auralis.client.ui.theme.LocalApiUrl
 
 /** Apple Music's card play affordance: a translucent frosted-dark circle pinned
  *  bottom-right of the cover (never a solid accent — the art stays the hero).
@@ -100,7 +103,7 @@ fun ArtistCard(artist: Artist, modifier: Modifier = Modifier.width(130.dp), onPl
 }
 
 @Composable
-fun PlaylistTile(name: String, count: Int, seed: String, onClick: () -> Unit) {
+fun PlaylistTile(name: String, count: Int, seed: String, imageHash: String? = null, onClick: () -> Unit) {
     val colors = LocalAuralis.current
     androidx.compose.foundation.layout.Row(
         Modifier
@@ -110,7 +113,12 @@ fun PlaylistTile(name: String, count: Int, seed: String, onClick: () -> Unit) {
             .padding(vertical = 6.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        CoverArt(null, seed, Modifier.size(52.dp), cornerRadius = 10, sizeDp = 52)
+        if (imageHash != null) {
+            val resolveUrl = local.auralis.client.ui.theme.LocalApiUrl.current
+            NetworkImage(resolveUrl("/api/art/$imageHash"), Modifier.size(52.dp), fallback = { CoverArt(null, seed, Modifier.size(52.dp), cornerRadius = 10, sizeDp = 52) })
+        } else {
+            CoverArt(null, seed, Modifier.size(52.dp), cornerRadius = 10, sizeDp = 52)
+        }
         androidx.compose.foundation.layout.Spacer(Modifier.width(12.dp))
         Column(Modifier.weight(1f)) {
             Text(name, color = colors.foreground, fontSize = 14.sp, fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis)

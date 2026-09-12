@@ -88,6 +88,15 @@ export const api = {
     const encoded = filepath.split(/[\\/]+/).filter(Boolean).map(encodeURIComponent).join("/");
     return this.url(`/api/stream/${encoded}`);
   },
+  /** Same, but WITHOUT the auth token — for artifacts that leave the app, like
+   *  exported M3U playlists. A URL carrying a long-lived bearer token in a file
+   *  anyone can open is a session leak; cookie clients still stream fine, and
+   *  token clients simply re-authenticate in their own player. */
+  streamUrlShared(filepath: string): string {
+    const encoded = filepath.split(/[\\/]+/).filter(Boolean).map(encodeURIComponent).join("/");
+    const base = this.base() || (typeof window !== "undefined" ? window.location.origin : "");
+    return `${base}/api/stream/${encoded}`;
+  },
   /** Resolve an art/image URL coming back from the API against the configured base.
    *  Pass `width` to request a downsized `?w=` variant from our own /api/art endpoint
    *  — used for OS media surfaces (lock-screen, car head-unit) where a compact cover

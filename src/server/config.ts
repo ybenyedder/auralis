@@ -40,6 +40,10 @@ export interface AuralisConfig {
   maxScanFiles: number;
   /** Max directory recursion depth. */
   maxScanDepth: number;
+  /** Escape hatch for the scan prune safety valve: when set to 1, a scan that
+   *  finds (almost) nothing on disk is allowed to purge the missing tracks
+   *  anyway. Leave unset unless you really did empty the music folder. */
+  allowMassPrune: boolean;
 }
 
 function firstDefined(...values: (string | undefined)[]): string | undefined {
@@ -133,6 +137,7 @@ export function getConfig(): AuralisConfig {
     lyricsForcedAlign: parseBool(process.env.AURALIS_LYRICS_FORCED_ALIGN, false),
     maxScanFiles: Number.parseInt(process.env.AURALIS_MAX_SCAN_FILES ?? "", 10) || 200_000,
     maxScanDepth: Number.parseInt(process.env.AURALIS_MAX_SCAN_DEPTH ?? "", 10) || 12,
+    allowMassPrune: parseBool(process.env.AURALIS_ALLOW_MASS_PRUNE, false),
   };
 
   // The data directory must exist and be writable; the music directory may be empty.

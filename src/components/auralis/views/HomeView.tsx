@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { Play, Settings, Heart, Music2 } from "lucide-react";
+import { Play, Settings, Heart, Music2, Compass } from "lucide-react";
 import { usePlayer } from "@/store/player";
 import { shuffleArray } from "@/store/slices/helpers";
 import { useLibraryStore, tracksFromIndex, artistPlayTotals } from "@/store/library";
@@ -23,6 +23,7 @@ export function HomeView() {
   const playCounts = usePlayer((s) => s.playCounts);
   const favorites = usePlayer((s) => s.favorites);
   const dislikes = usePlayer((s) => s.dislikes);
+  const startUnheardMix = usePlayer((s) => s.startUnheardMix);
   const tracks = useLibraryStore((s) => s.tracks);
   const trackIndex = useLibraryStore((s) => s.trackIndex);
   const albums = useLibraryStore((s) => s.albums);
@@ -69,6 +70,14 @@ export function HomeView() {
   );
 
   const featuredAlbums = albums.slice(0, 6);
+
+  // "Jamais écoutés" — one tap starts a RANDOM mix of every track the user never
+  // played (reshuffled on each press). Counted straight from the per-user play
+  // counts, so the banner is honest and instant (no server round-trip).
+  const unheardCount = useMemo(
+    () => tracks.reduce((n, tr) => (dislikes.has(tr.trackhash) || playCounts[tr.trackhash] > 0 ? n : n + 1), 0),
+    [tracks, playCounts, dislikes],
+  );
   // "Préférés" must reflect what the user ACTUALLY listens to. Artist.playcount from
   // the library snapshot is always 0 (a per-file field we don't populate), so ranking
   // on it is a no-op (arbitrary alphabetical order, every card "0 écoutes"). Instead
@@ -200,6 +209,38 @@ export function HomeView() {
             </div>
           ) : null}
         </section>
+
+        {/* "Jamais écoutés" hero: the discovery entry point — a random mix of
+            unheard tracks, reshuffled on every press. Sits above the daily mixes
+            so it's the FIRST thing seen on a phone. */}
+        {tracks.length > 0 && unheardCount >= 4 && (
+          <section>
+            <button
+              type="button"
+              onClick={startUnheardMix}
+              className="group relative flex w-full items-center gap-4 overflow-hidden rounded-xl p-4 text-left transition-transform active:scale-[0.99] sm:p-5"
+              style={{ background: "linear-gradient(135deg, #1e3a8a 0%, #4f46e5 100%)" }}
+            >
+              <span
+                aria-hidden
+                className="grid h-14 w-14 shrink-0 place-items-center rounded-lg bg-white/15"
+              >
+                <Compass className="size-7 text-white" />
+              </span>
+              <span className="min-w-0 flex-1">
+                <span className="block text-[16px] font-bold text-white sm:text-[18px]">
+                  {t("home.unheardTitle", "Jamais écoutés")}
+                </span>
+                <span className="mt-0.5 block truncate text-[12px] font-medium text-white/80 sm:text-[13px]">
+                  {t("home.unheardSub", "{count} titres jamais joués · mix aléatoire", { count: unheardCount })}
+                </span>
+              </span>
+              <span className="signal-button grid h-12 w-12 shrink-0 place-items-center rounded-full bg-white text-indigo-700 transition-transform group-active:scale-90">
+                <Play className="size-5 fill-current ml-0.5" />
+              </span>
+            </button>
+          </section>
+        )}
 
         {tracks.length > 0 && <DailyMixes />}
 

@@ -158,4 +158,9 @@ dependencies {
     // Real backdrop blur (Apple Music's frosted tab bar / mini player). Falls back
     // to a translucent scrim below Android 12 — Haze handles that internally.
     implementation("dev.chrisbanes.haze:haze:1.5.3")
+
+    // Unit tests (src/test/) — JUnit4 asserts, plus a REAL org.json so the JSON
+    // deserializer tests exercise actual parsing instead of the android.jar stubs.
+    testImplementation("junit:junit:4.13.2")
+    testImplementation("org.json:json:20240303")
 }

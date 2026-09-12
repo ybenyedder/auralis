@@ -4,6 +4,184 @@ All notable changes to Auralis are documented here. The format is based on
 [Keep a Changelog](https://keepachangelog.com/) and this project adheres to
 [Semantic Versioning](https://semver.org/).
 
+## [1.19.0] - 2026-09-12
+
+### Ajouté
+- **Mix « Jamais écoutés » — aléatoire, sur tous les écrans mobiles.** Une
+  nouvelle action (PWA et Android) construit à la demande une file mélangée
+  (Fisher-Yates, à CHAQUE appui — plus de mix figé une semaine) des titres que
+  le compte n'a jamais joués, avec repli sur les moins joués quand la
+  bibliothèque est presque entièrement écoutée. Présenté en bannière héro sur
+  l'Accueil PWA, en carte héro sur l'onglet Radio PWA, via le bouton « Tout
+  lire » du rayon Découvertes et une carte héro de l'onglet Radio Android.
+- **Onglet Radio PWA : de vraies radios.** L'onglet ne se contente plus de
+  lister albums/artistes : héro « Jamais écoutés » + « Radio aléatoire »
+  (station seedée sur un titre tiré au hasard de la bibliothèque).
+- **Écoute H24 qui explore au lieu de tourner en boucle.** La continuation
+  autoplay (web `buildContinuation`, Android `appendContinuation`) privilégie
+  désormais les titres **jamais joués** (mélangés), puis les moins joués, en
+  gardant l'affinité artiste/genre comme bonus — et l'app Android **recycle**
+  la bibliothèque au lieu de s'arrêter en silence quand toute la musique a été
+  mise en file.
+- **Les options de lecture sont retenues partout.** Chaque bascule
+  boucle / aléatoire / lecture continue est désormais aussi synchronisée dans
+  les réglages du compte serveur ; un client au stockage effacé (réinstallation,
+  éviction WebView/iOS) ou un nouvel appareil retrouve exactement les options
+  choisies. Aucune option déjà changée localement n'est écrasée au démarrage.
+- Deux nouveaux tests : continuation autoplay prioritaire sur l'inédit et
+  randomisée ; `startUnheardMix` (pool inédit pur vs repli least-played).
+
+### Corrigé
+- **Les sessions expirent réellement.** La table `sessions` était vérifiée sans
+  aucune date et jamais purgée : le TTL de 30 jours ne gouvernait que le cookie,
+  donc un jeton copié hors du navigateur restait valable pour toujours, et la
+  table grossissait sans limite. L'expiration est désormais appliquée côté
+  serveur, et un balayage périodique supprime les sessions périmées.
+- **« Se déconnecter » révoque maintenant tous les identifiants de la requête** —
+  cookie, jeton `Authorization: Bearer` et l'ancien `?token=`. Auparavant, seul
+  le cookie était révoqué alors que les clients s'authentifient d'abord par
+  jeton : se déconnecter du PC partagé ne terminait rien.
+- **La connexion rejette un nom d'utilisateur malformé** (non-chaîne ou > 128
+  caractères) avec un 400 au lieu de lever un 500, et de siéger comme clé de
+  limiteur avec plusieurs mégaoctets.
+- **`X-Forwarded-Host` n'est plus honoré qu' derrière un proxy déclaré
+  (`AURALIS_TRUST_PROXY=1`)**, comme la limite de connexion le faisait déjà —
+  l'en-tête est une entrée falsifiable sur un serveur directement exposé.
+  Variable documentée dans `deploy/.env.example` ; si vous êtes derrière un
+  proxy inverse, ajoutez la variable à votre `.env`.
+- **Le GET de paroles hors cache est limité par compte** (90/min) : un balayage
+  de hash au hasard ne peut plus faire bannir l'IP du serveur par LRCLIB ou
+  Musixmatch pour tout le monde.
+- **Un scan ne peut plus se figer pour toujours.** Le parseur de tags
+  (music-metadata) peut ne jamais rendre la main sur un fichier corrompu ou un
+  montage suspendu ; un chien de garde de 20 s le court-circuite et retombe sur
+  les données du nom de fichier.
+- **Le fossé de numérotation des migrations est refermé** (012.sql renommé
+  011.sql — le créneau n'a jamais été utilisé) et le runner prévient bruyamment
+  si la base prétend être plus récente que les fichiers présents.
+- **Les flèches haut/bas ne détournent plus le défilement clavier** : elles
+  règlent le volume uniquement quand un contrôle de transport a le focus.
+- **Les playlists exportées en M3U ne contiennent plus le jeton de session**,
+  et l'import tolère un BOM UTF-8 (entrée fantôme « non appariée »).
+- **Les fonds d'écran du lecteur (plein écran et mini-lecteur mobile) passent
+  par `api.assetUrl`** : ils se résolvent contre une base distante configurée
+  (auparavant cassés) et demandent une vignette au lieu de la pochette pleine
+  résolution.
+- **Plafond de +6 dB dans la chaîne audio** : ReplayGain d'un master discret +
+  égaliseur « basses » ne clippent plus au DAC.
+- **La sélection par appui long fonctionne au doigt** : les micro-mouvements
+  d'un doigt posé n'annulent plus la minuterie (rayon de 10 px), et le pointercancel
+  est géré.
+- **Le pull-to-refresh n'installe plus ses écouteurs par image** pendant le
+  geste (état en refs), et ne se lie plus à `document.body` en repli.
+- **Le shell hors-ligne du service worker se rafraîchit** à chaque navigation
+  réussie et est réchauffé dans `activate` — il n'est plus figé à l'installation
+  avec des chunks d'une version révolue.
+- **Android : le jeton de session ne circule plus dans l'URL du flux SSE** de
+  synchronisation (en-tête `Authorization`, comme pour le streaming) ; les
+  préférences de shuffle/repeat persistent la valeur voulue et non une
+  relecture du contrôleur (course IPC) ; l'écriture du volume est débouncée ;
+  sans schéma, une adresse publique passe en `https://` par défaut (une IP ou
+  `.local` reste en `http://`).
+- **Image de deploy : `npm ci` avec le lockfile commis** (build reproductible,
+  le commentaire « pas de lockfile » était faux) **et ffmpeg inclus** — l'image
+  documentée n'avait ni l'un ni l'autre : BPM/énergie/karaoké ne pouvaient pas
+  fonctionner. Le mot de passe admin n'est plus livré actif dans
+  `deploy/.env.example`, le Dockerfile racine orphelin (sans healthcheck,
+  référencé nulle part) est supprimé, et le script Pterodactyl reconstruit
+  better-sqlite3 si le majeur de Node du runtime diffère de celui de
+  l'installation.
+- **Desktop : la réinitialisation de configuration demande confirmation** dans
+  une boîte de dialogue native — en mode distant, n'importe quel script de la
+  page pouvait la déclencher en silence.
+- **`/api/art` exige désormais une authentification**, comme toutes les autres
+  surfaces de contenu — et un Range multi-plages reçoit un 200 complet au lieu
+  d'un 416 (RFC 9110 : le serveur peut ignorer l'en-tête).
+- **Les jetons de session sont stockés hachés (sha256) en base.** La sauvegarde
+  admin téléchargeable ne vaut plus une liste de sessions volables (les lignes
+  antérieures restent honorées jusqu'à expiration).
+- **Le contrôle « mot de passe compromis » est appliqué côté serveur** (rejet
+  400) et ne paie l'appel externe qu'après la validation locale — à la création
+  de compte comme au changement/réinitialisation de mot de passe. Un utilisateur
+  inconnu consomme désormais le même travail de hachage qu'un existant (le temps
+  de réponse ne sert plus à énumérer les comptes).
+- **L'import d'playlist par URL directe résout le DNS** et refuse toute adresse
+  privée, CGNAT ou de benchmark — les formes non canoniques et le rebinding DNS
+  ne passent plus.
+- **Migration 012 : index sur `trackhash`** pour les six tables de la cascade de
+  purge (fini le scan complet par titre supprimé), purge préparée une fois et
+  découpée en transactions de 500 chemins.
+- **Le watcher ne perd plus les événements arrivés pendant un scan** : ils
+  déclenchent un second scan à la fin du premier.
+- **L'extraction d'accent des pochettes est dédoublonnée** (une seule lecture +
+  sharp stats par hash, quel que soit le nombre de requêtes concurrentes), et
+  l'alignement de fond a un plafond d'une heure (un subprocess suspendu ne
+  bloque plus toutes les passes suivantes).
+- **L'import de sauvegarde conserve les règles des playlists intelligentes et
+  leur statut de partage**, et nettoie les lignes de collaborateurs orphelines.
+- Divers : `migrate-status` ouvre la base en lecture seule (plus de création
+  accidentelle), `gen-sample-music.sh` écrit dans un dossier paramétrable, la
+  restauration de session sur bibliothèque vide libère la sauvegarde (plus de
+  titre ressuscité), Échap ne referme plus le lecteur plein écran en fermant un
+  menu, un partage sans presse-papiers est annoncé en échec, la révocation des
+  blobs est différée (Firefox), les barres d'un album ne dansent plus en pause,
+  les lignes de paroles sont atteignables au clavier, les clés de listes de
+  playlist tolèrent les doublons, le panneau d'administration ne fait plus de
+  setState après démontage, les compteurs d'écoute optimistes ne sont plus
+  rembobinés par la synchro serveur, et les curseurs gèrent `pointercancel`.
+- **Android : le service média n'accepte plus n'importe quel contrôleur** — les
+  appelants inconnus sont rejetés (Android Auto, l'assistant et le SystemUI
+  restent autorisés). Les réglages affichent la vraie version et les playlists
+  montrent leur pochette personnalisée.
+- **Déploiement : `update.sh` sauvegarde la base avant l'upgrade** (les
+  migrations sont forward-only) et ne purge plus que ses propres images
+  pendantes ; les journaux compose sont bornés ; la rétention inclut les copies
+  de sûreté de restauration.
+- **Le changement de mot de passe vérifie enfin le mot de passe actuel.**
+  `verifyCredentials` est asynchrone mais n'était pas attendue : `!Promise` valant
+  toujours faux, la vérification du mot de passe actuel était inatteignable et
+  n'importe quelle session authentifiée pouvait reprendre n'importe quel compte
+  (admin compris) avec un mot de passe actuel bidon. Test de régression ajouté.
+- **Un scan sur montage vide n'efface plus la bibliothèque ni l'historique.**
+  Si le dossier musique est vide ou illisible au moment du scan (NFS pas encore
+  monté, chemin modifié, glitch de permissions), la purge supprimait toutes les
+  pistes puis, par cascade, les favoris, compteurs d'écoute, historiques et
+  playlists de tous les utilisateurs. Une soupape annule désormais la purge
+  lorsqu'une scan perd plus de 60 % de la bibliothèque, avec message explicite ;
+  `AURALIS_ALLOW_MASS_PRUNE=1` permet le cas voulu d'une bibliothèque réellement
+  vidée. Variable documentée dans les deux `.env.example`.
+- **La clé de signature Android est couverte par `.gitignore`.** Le keystore et
+  `keystore.properties` ne l'étaient pas, alors que la documentation du projet
+  indique que la clé d'origine a déjà fuité : toute restauration locale suivie
+  d'un `git add` aurait commité la nouvelle clé.
+- **La session reprise en pause n'est plus perdue.** La sauvegarde de session
+  n'était écrite que pendant la lecture : le premier changement d'état en pause
+  (un toast, un like…) effaçait la session — recharger l'app perdait alors la
+  reprise. La session survit désormais tant qu'un titre est chargé, pause
+  comprise, avec la position du scrubber.
+- **Le geste retour Android ne quitte plus l'application** (PWA installée) :
+  intégration `history` — le retour système ferme le lecteur plein écran, puis
+  revient en arrière dans la navigation, et ne sort de l'app que quand il n'y a
+  plus rien à dépiler.
+- **Repeat-one : un redémarrage raté n'affiche plus « en lecture » à tort**
+  (l'échec `play()` remet l'état en pause, comme le chemin principal).
+- **Mini-lecteur mobile : boutons précédent / suivant ajoutés** (le duo
+  favori/lecture laissait le dock sans transport de file).
+- **Minuterie de sommeil mobile alignée sur desktop** : 5/10/15/30/45/60 min
+  (contre 15/30/60 auparavant).
+- **Android : le fond flou du lecteur plein écran se rend enfin** — le chemin
+  relatif de pochette était passé tel quel à OkHttp (exception silencieuse) ;
+  il est désormais résolu via l'URL du serveur.
+- **Android : la déconnexion n'hiberne plus la file du compte précédent** —
+  `last_session` est effacée, la session d'un autre compte ne peut plus être
+  restaurée (et scrobblée) sur le nouveau compte.
+- **Tests unitaires Android réparés.** Aucune dépendance de test n'était
+  déclarée (`testImplementation` absent — JUnit « unresolved ») : les 11 tests
+  de `src/test/` n'ont jamais pu compiler ni tourner. JUnit 4 et une
+  implémentation réelle de `org.json` sont ajoutés, et les deux tests
+  dépendant d'`android.net.Uri` (stub qui lève sur le JVM) sont bornés par
+  `Assume` — exécutés sur appareil, ignorés proprement en JVM.
+
 ## [1.18.1] - 2026-08-30
 
 ### Corrigé

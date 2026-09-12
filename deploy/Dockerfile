@@ -25,10 +25,11 @@ WORKDIR /app
 
 # Dépendances d'abord, dans une couche dédiée : tant que package.json ne
 # change pas, Docker rejoue ce cache au lieu de retélécharger les paquets.
-# (Pas de package-lock.json dans le dépôt : npm résout les versions depuis
-# package.json ; les versions exactes sont figées par le lock de développement.)
-COPY package.json ./
-RUN npm install --no-audit --no-fund
+# `npm ci` avec le lockfile commis : builds reproductibles et versions
+# exactement celles testées — un `npm install` résolu à la volée laissait une
+# dépendance compromise ou cassante entrer sur le serveur de fichiers.
+COPY package.json package-lock.json ./
+RUN npm ci --no-audit --no-fund
 
 # Pas de télémétrie Next.js pendant le build.
 ENV NEXT_TELEMETRY_DISABLED=1
@@ -50,8 +51,11 @@ FROM node:22-slim AS runner
 # dumb-init : transmet proprement SIGTERM/SIGINT au processus Node. Auralis
 # s'en sert pour fermer la base SQLite proprement (checkpoint WAL) lors d'un
 # `docker stop` ou d'une mise à jour.
+# ffmpeg : requis par l'analyse audio (BPM, énergie, humeur) et l'alignement
+# des paroles — sans lui le serveur démarre mais dégrade silencieusement la
+# recommandation et le karaoké.
 RUN apt-get update \
-    && apt-get install -y --no-install-recommends dumb-init \
+    && apt-get install -y --no-install-recommends dumb-init ffmpeg \
     && rm -rf /var/lib/apt/lists/* \
     && mkdir -p /music /data \
     && chown -R node:node /music /data

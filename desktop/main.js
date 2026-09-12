@@ -150,7 +150,20 @@ ipcMain.handle("setup:submit", async (event, raw) => {
 ipcMain.on("setup:cancel", (event) => { if (fromSetupWindow(event)) app.quit(); });
 
 // Reset the chosen source and relaunch so the user can re-pick (URL vs folder).
-ipcMain.handle("desktop:reconfigure", () => {
+ipcMain.handle("desktop:reconfigure", async () => {
+  // Destructive: it wipes the saved setup and relaunches into the assistant. In
+  // remote mode the "main window" IS the remote page, so unlike the setup:
+  // channels there is no sender trust to lean on — confirm through a native
+  // dialog the page content cannot fake or suppress.
+  const choice = await dialog.showMessageBox(mainWindow ?? undefined, {
+    type: "question",
+    buttons: ["Reconfigurer", "Annuler"],
+    defaultId: 1,
+    cancelId: 1,
+    title: "Reconfigurer Auralis",
+    message: "Réinitialiser la configuration et relancer l'assistant de configuration ?",
+  });
+  if (choice.response !== 0) return { ok: false };
   try { fs.unlinkSync(setupConfigPath()); } catch { /* already absent */ }
   // app.exit(0) fires neither before-quit nor will-quit, so the will-quit
   // serverProcess.kill() below would be skipped — leaving the embedded Next
@@ -160,6 +173,7 @@ ipcMain.handle("desktop:reconfigure", () => {
   if (serverProcess && !serverProcess.killed) serverProcess.kill();
   app.relaunch();
   app.exit(0);
+  return { ok: true };
 });
 
 function pickPort() {

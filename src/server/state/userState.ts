@@ -371,12 +371,23 @@ export function replaceUserState(userId: number, state: Partial<UserState>): voi
       state.recents.filter(isHash).slice(0, RECENTS_LIMIT).forEach((h, i) => ins.run(userId, h, base - i));
     }
     if (state.playlists) {
+      // Collaborator rows of the playlists we're about to delete would be left
+      // orphaned — clean them with the rest instead of letting them accumulate
+      // (and re-grant access if an id were ever reused).
+      db.prepare("DELETE FROM playlist_collaborators WHERE playlist_id IN (SELECT id FROM playlists WHERE user_id = ?)").run(userId);
       db.prepare("DELETE FROM playlist_tracks WHERE playlist_id IN (SELECT id FROM playlists WHERE user_id = ?)").run(userId);
       db.prepare("DELETE FROM playlists WHERE user_id = ?").run(userId);
       state.playlists.slice(0, MAX_PLAYLISTS).forEach((p, idx) => {
         const trackhashes = (p.trackhashes ?? []).filter(isHash).slice(0, MAX_TRACKS_PER_PLAYLIST);
-        upsertPlaylist(userId, { id: p.id, name: p.name, description: p.description, pinned: p.pinned, trackhashes });
+        // rules (smart playlists) and shared survive an export→import round-trip.
+        upsertPlaylist(userId, {
+          id: p.id, name: p.name, description: p.description, pinned: p.pinned, trackhashes,
+          ...(p.rules ? { rules: typeof p.rules === "string" ? p.rules : JSON.stringify(p.rules) } : {}),
+        });
         db.prepare("UPDATE playlists SET position = ? WHERE id = ? AND user_id = ?").run(idx, p.id, userId);
+        if (typeof p.shared === "boolean") {
+          db.prepare("UPDATE playlists SET is_shared = ? WHERE id = ? AND user_id = ?").run(p.shared ? 1 : 0, p.id, userId);
+        }
       });
     }
     if (state.settings) {

@@ -12,8 +12,15 @@ export async function POST(request: Request) {
   if (!parsed.ok) return parsed.response;
 
   // Username is optional for backward compatibility — the single original
-  // account is "admin", so a password-only login still works.
-  const username = (parsed.body.username ?? "admin").trim().toLowerCase() || "admin";
+  // account is "admin", so a password-only login still works. Anything that is
+  // not a short string is a malformed probe: reject it before it can become a
+  // rate-limit bucket key (a multi-megabyte "username" used to sit in that map
+  // for half an hour), and before `.trim()` turns it into a 500.
+  const rawUsername = parsed.body.username;
+  if (rawUsername !== undefined && (typeof rawUsername !== "string" || rawUsername.trim().length > 128)) {
+    return json({ error: "Nom d'utilisateur invalide" }, { status: 400 });
+  }
+  const username = (typeof rawUsername === "string" ? rawUsername : "admin").trim().toLowerCase() || "admin";
   const password = parsed.body.password ?? "";
 
   // Brute-force guard: two independent buckets. `ipKey` (IP+username) blunts a

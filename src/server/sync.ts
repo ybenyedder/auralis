@@ -188,6 +188,8 @@ if (!g[SWEEP_KEY]) {
       sweepHub(userId, h, now);
       if (h.subscribers.size === 0 && h.devices.size === 0) hubs.delete(userId);
     }
+    // Same cadence: expire sessions older than the TTL (they used to live forever).
+    void import("./auth").then((m) => m.pruneExpiredSessions()).catch(() => {});
   }, 30_000);
   timer.unref?.();
   g[SWEEP_KEY] = timer;

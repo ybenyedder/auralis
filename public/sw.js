@@ -40,6 +40,12 @@ self.addEventListener("activate", (event) => {
     (async () => {
       const keys = await caches.keys();
       await Promise.all(keys.filter((key) => key !== CACHE).map((key) => caches.delete(key)));
+      // Re-warm the shell AFTER pruning so a fresh version boots offline even if
+      // the user never re-opens the app online.
+      const cache = await caches.open(CACHE);
+      await Promise.allSettled(
+        SHELL_ASSETS.map((url) => cache.add(new Request(url, { cache: "reload" }))),
+      );
       await self.clients.claim();
     })(),
   );
@@ -59,11 +65,19 @@ self.addEventListener("fetch", (event) => {
   if (request.headers.has("range")) return;
 
   // Document navigations: network-first, cached shell as offline fallback.
+  // A successful fetch is written back into the cache, so the offline shell
+  // tracks the last working deploy instead of staying frozen at install time
+  // (where it referenced hashed chunks that may no longer exist anywhere).
   if (request.mode === "navigate") {
     event.respondWith(
       (async () => {
         try {
-          return await fetch(request);
+          const fresh = await fetch(request);
+          if (fresh && fresh.ok && fresh.type === "basic") {
+            const cache = await caches.open(CACHE);
+            cache.put(request, fresh.clone());
+          }
+          return fresh;
         } catch {
           const cache = await caches.open(CACHE);
           const cached =

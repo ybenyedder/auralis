@@ -86,7 +86,19 @@ export async function extractMetadata(filePath: string): Promise<ExtractedMetada
 
   try {
     const parseFile = await loadParseFile();
-    const parsed = await parseFile(filePath, { duration: true, skipCovers: false });
+    // music-metadata can hang forever on a corrupt file or a stalled network
+    // mount — and because the scan batches on Promise.all, one wedged parse
+    // used to freeze `scanning = true` permanently: no scan ever ran again.
+    // (The ffmpeg decoder had the same disease; see analysis.ts for its kill
+    // timer.) Race a watchdog and fall back to filename data like any other
+    // unparseable file.
+    const parsed = await Promise.race([
+      parseFile(filePath, { duration: true, skipCovers: false }),
+      new Promise<never>((_, reject) => {
+        const timer = setTimeout(() => reject(new Error("metadata parse timeout")), 20_000);
+        timer.unref?.();
+      }),
+    ]);
     const { common, format } = parsed;
 
     let arthash: string | undefined;

@@ -26,8 +26,14 @@ export async function shareTrack(track: Track, notify: (m: string) => void, loca
       // Otherwise fall through to the clipboard path below.
     }
   }
+  if (!nav?.clipboard?.writeText) {
+    // No Web Share and no clipboard: awaiting `undefined` used to resolve and
+    // toast success although nothing was copied.
+    notify(translate(locale, "toast.shareUnavailable"));
+    return;
+  }
   try {
-    await nav?.clipboard?.writeText(text);
+    await nav.clipboard.writeText(text);
     notify(translate(locale, "toast.trackCopied"));
   } catch {
     notify(translate(locale, "toast.shareUnavailable"));

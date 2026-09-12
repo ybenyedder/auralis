@@ -127,11 +127,19 @@ docker compose build --pull
 # --- 3. Redémarrage du service ----------------------------------------------
 
 echo "Redémarrage du service..."
+# Sauvegarde de la base AVANT l'upgrade : les migrations sont forward-only,
+# un retour arrière sans ce fichier serait une perte de données sèche.
+if [ -x ./backup.sh ]; then
+  echo "Sauvegarde pré-mise à jour..."
+  ./backup.sh || echo "ATTENTION : la sauvegarde a échoué — l'upgrade continue quand même."
+fi
 docker compose up -d --remove-orphans
 
 # --- 4. Nettoyage des anciennes images ---------------------------------------
 
-docker image prune -f >/dev/null
+# Ne purge que les images pendantes du projet compose (pas celles de tout
+# l'hôte — un serveur Docker partagé aurait des surprises).
+docker image prune -f --filter "label=com.docker.compose.project=auralis" >/dev/null
 echo "Anciennes images supprimées."
 
 # --- 5. Attente du retour en service -----------------------------------------

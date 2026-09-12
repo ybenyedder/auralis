@@ -247,7 +247,7 @@ fun HomeScreen(vm: AppViewModel, ui: UiState) {
         if (discoveries.isNotEmpty()) {
             item {
                 Spacer(Modifier.height(24.dp))
-                SectionHeader("Découvertes", "Tout afficher") { vm.navigate(ViewId.RADIO) }
+                SectionHeader("Découvertes", "Tout lire") { vm.playUnheardMix() }
                 LazyRow(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                     items(discoveries, key = { it.trackhash }) { t ->
                         MiniTrackCard(t, t.trackhash == current) { vm.playTrack(t, discoveries, discoveries.indexOf(t)) }
@@ -454,6 +454,39 @@ fun RadioScreen(vm: AppViewModel, ui: UiState) {
                     }
                     Icon(
                         Icons.Filled.PlayArrow, "Lire le mix du jour",
+                        tint = Color.White, modifier = Modifier.align(Alignment.BottomEnd).size(44.dp),
+                    )
+                }
+            }
+        }
+
+        // "Jamais écoutés" — a random queue of never-played tracks, reshuffled on
+        // every press (the mix the all-day listener asks for).
+        if (ui.tracks.any { (ui.playCounts[it.trackhash] ?: 0) == 0 && it.trackhash !in ui.dislikes }) {
+            item {
+                Box(
+                    Modifier
+                        .fillMaxWidth()
+                        .height(150.dp)
+                        .clip(RoundedCornerShape(14.dp))
+                        .background(
+                            Brush.linearGradient(
+                                listOf(Color(0xFF1E3A8A), Color(0xFF4F46E5)),
+                            ),
+                        )
+                        .clickable { vm.playUnheardMix() }
+                        .padding(20.dp),
+                ) {
+                    Column(Modifier.align(Alignment.BottomStart)) {
+                        Text("Jamais écoutés", color = Color.White, style = AMType.Title1)
+                        Spacer(Modifier.height(4.dp))
+                        Text(
+                            "Mix aléatoire de titres que tu n'as jamais joués",
+                            color = Color.White.copy(alpha = 0.85f), style = AMType.Subhead,
+                        )
+                    }
+                    Icon(
+                        Icons.Filled.PlayArrow, "Lire le mix jamais écoutés",
                         tint = Color.White, modifier = Modifier.align(Alignment.BottomEnd).size(44.dp),
                     )
                 }
@@ -871,7 +904,7 @@ fun LibraryScreen(vm: AppViewModel, ui: UiState) {
                     items(ordered, key = { it.id }) { pl ->
                         Row(verticalAlignment = Alignment.CenterVertically) {
                             Box(Modifier.weight(1f)) {
-                                PlaylistTile(if (pl.pinned) "📌 ${pl.name}" else pl.name, pl.trackhashes.size, pl.id) { vm.navigate(ViewId.PLAYLIST, pl.id) }
+                                PlaylistTile(if (pl.pinned) "📌 ${pl.name}" else pl.name, pl.trackhashes.size, pl.id, pl.imageHash) { vm.navigate(ViewId.PLAYLIST, pl.id) }
                             }
                             Text(if (pl.pinned) "📌" else "📍", fontSize = 14.sp, modifier = Modifier.clickable { vm.togglePin(pl.id) }.padding(6.dp))
                             Text("▲", color = colors.textMuted, fontSize = 14.sp, modifier = Modifier.clickable { vm.movePlaylist(pl.id, -1) }.padding(6.dp))

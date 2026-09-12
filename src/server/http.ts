@@ -113,8 +113,15 @@ export function checkCsrf(request: Request): NextResponse | null {
   const allowed = new Set<string>();
   const host = request.headers.get("host");
   if (host) allowed.add(host);
-  const xfh = request.headers.get("x-forwarded-host");
-  if (xfh) xfh.split(",").forEach((h) => allowed.add(h.trim()));
+  // X-Forwarded-Host is client-adjacent input: honour it only behind an
+  // explicitly trusted proxy (same switch the rate limiter uses), otherwise a
+  // directly-exposed server lets the attacker influence one side of the
+  // Origin/Host comparison.
+  const trustProxy = process.env.AURALIS_TRUST_PROXY === "1";
+  if (trustProxy) {
+    const xfh = request.headers.get("x-forwarded-host");
+    if (xfh) xfh.split(",").forEach((h) => allowed.add(h.trim()));
+  }
   for (const entry of (process.env.AURALIS_ALLOWED_ORIGINS ?? "").split(",").map((s) => s.trim()).filter(Boolean)) {
     try {
       allowed.add(new URL(entry.includes("://") ? entry : `https://${entry}`).host);

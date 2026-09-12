@@ -213,9 +213,15 @@ async function extractAccent(buffer: Buffer): Promise<string | null> {
 /** Ensure art_colors has a palette for `hash`. Fire-and-forget; self-throttles on
  *  the PK existence check and reads the original file directly (no recursion into
  *  readCachedArt). Colour is a nicety — failures never block art serving. */
+const accentInflight = new Map<string, Promise<void>>();
+
 function ensureAccentFor(hash: string): void {
   if (!/^[a-f0-9]{40}$/.test(hash)) return;
-  void (async () => {
+  // Single-flight: the first N concurrent requests for a fresh hash all passed
+  // the existence check and each ran a multi-MB read + sharp stats. One at a
+  // time is enough — the rest find the row (or the in-flight promise) on retry.
+  if (accentInflight.has(hash)) return;
+  const p = (async () => {
     try {
       const db = getDb();
       if (db.prepare("SELECT 1 FROM art_colors WHERE arthash = ?").get(hash)) return;
@@ -228,7 +234,8 @@ function ensureAccentFor(hash: string): void {
     } catch {
       /* best effort */
     }
-  })();
+  })().finally(() => accentInflight.delete(hash));
+  accentInflight.set(hash, p);
 }
 
 /** Detect a raster image MIME type from the leading bytes of a buffer. */

@@ -195,7 +195,7 @@ export function AlbumDetail({ albumhash }: { albumhash: string }) {
 
       <div className="px-4 py-5 lg:px-6">
         <TrackListHeader />
-        <VirtualList items={albumTracks} itemKey={(t) => t.trackhash} estimateHeight={56} gap={2}>
+        <VirtualList items={albumTracks} itemKey={(t, i) => `${t.trackhash}-${i}`} estimateHeight={56} gap={2}>
           {(track, index) => (
             <TrackRow track={track} index={index} list={albumTracks} showAlbum={false} />
           )}
@@ -621,7 +621,7 @@ export function PlaylistDetail({ id }: { id: string }) {
         {tracks.length > 0 ? (
           <>
             <TrackListHeader />
-            <VirtualList items={tracks} itemKey={(t) => t.trackhash} estimateHeight={56} gap={2}>
+            <VirtualList items={tracks} itemKey={(t, i) => `${t.trackhash}-${i}`} estimateHeight={56} gap={2}>
               {(track, index) => (
                 <div className="group/playlist flex items-center gap-1">
                   <div className="min-w-0 flex-1">
@@ -1640,22 +1640,25 @@ function AccountManager() {
   const [busy, setBusy] = useState(false);
   const [backupBusy, setBackupBusy] = useState(false);
 
-  const load = async () => {
+  const load = async (alive: () => boolean = () => true) => {
     try {
       const res = await fetch(api.url("/api/auth/users"), { cache: "no-store", headers: api.headers() });
-      if (!res.ok) { setIsAdmin(false); return; }
+      if (!res.ok) { if (alive()) setIsAdmin(false); return; }
       const data = (await res.json()) as { users: ManagedUser[]; me: number };
+      if (!alive()) return; // unmounted mid-request — don't set state on a dead view
       setUsers(data.users);
       setMe(data.me);
       setIsAdmin(true);
     } catch {
-      setIsAdmin(false);
+      if (alive()) setIsAdmin(false);
     }
   };
 
   useEffect(() => {
-    // eslint-disable-next-line react-hooks/set-state-in-effect
-    void load();
+    let alive = true;
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- the setStates run after `await`, never synchronously in the effect body
+    void load(() => alive);
+    return () => { alive = false; };
   }, []);
 
   const create = async (e: React.FormEvent) => {

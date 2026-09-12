@@ -39,10 +39,24 @@ test("a same-origin Referer (no Origin) is allowed", () => {
   assert.ok(allow(req("PUT", { referer: "http://localhost:4237/app", host: "localhost:4237" })));
 });
 
-test("X-Forwarded-Host is honoured (reverse proxy that keeps the real public host there)", () => {
-  // Host is the upstream; the public host arrives in X-Forwarded-Host and matches Origin.
-  assert.ok(allow(req("PUT", { origin: "https://music.example.com", host: "127.0.0.1:4237", "x-forwarded-host": "music.example.com" })));
-  assert.ok(blocked(req("PUT", { origin: "https://evil.test", host: "127.0.0.1:4237", "x-forwarded-host": "music.example.com" })));
+test("X-Forwarded-Host is honoured ONLY behind AURALIS_TRUST_PROXY (else it is attacker-influenced input)", () => {
+  const prev = process.env.AURALIS_TRUST_PROXY;
+  try {
+    // Directly exposed (default): the forwarded header is not trusted, so the
+    // Origin must match the Host the server actually sees.
+    delete process.env.AURALIS_TRUST_PROXY;
+    assert.ok(blocked(req("PUT", { origin: "https://music.example.com", host: "127.0.0.1:4237", "x-forwarded-host": "music.example.com" })));
+
+    // Behind an explicitly trusted proxy: Host is the upstream and the real
+    // public host arrives in X-Forwarded-Host — it must be honoured, and the
+    // foreign Origin must still be blocked.
+    process.env.AURALIS_TRUST_PROXY = "1";
+    assert.ok(allow(req("PUT", { origin: "https://music.example.com", host: "127.0.0.1:4237", "x-forwarded-host": "music.example.com" })));
+    assert.ok(blocked(req("PUT", { origin: "https://evil.test", host: "127.0.0.1:4237", "x-forwarded-host": "music.example.com" })));
+  } finally {
+    if (prev === undefined) delete process.env.AURALIS_TRUST_PROXY;
+    else process.env.AURALIS_TRUST_PROXY = prev;
+  }
 });
 
 test("logout, lyrics refetch and lyrics align routes reject a forged cross-origin POST (403, before auth even runs)", async () => {

@@ -88,6 +88,69 @@ test("autoplay appends a similar continuation at the end of the queue", async ()
   assert.ok(s.shuffledQueue.slice(2).every((t) => t.trackhash !== "t0" && t.trackhash !== "t1"), "appended excludes already-queued");
 });
 
+test("autoplay continuation prioritises NEVER-played tracks, randomised (H24 exploration, not the same rotation)", async () => {
+  const { buildContinuation } = await import("../src/store/slices/helpers");
+  const { usePlayer, useLibraryStore } = await stores();
+  const lib = [
+    mk("heard1"), mk("heard2"), mk("heard3"), mk("heard4"), mk("heard5"),
+    ...Array.from({ length: 25 }, (_, i) => mk(`new${String(i).padStart(2, "0")}`)),
+  ];
+  useLibraryStore.setState({ tracks: lib });
+  usePlayer.setState({
+    playCounts: { heard1: 10, heard2: 8, heard3: 6, heard4: 3, heard5: 1 },
+    recentTrackhashes: [],
+  });
+  const cont = buildContinuation(lib[0], [lib[0]], lib);
+  assert.equal(cont.length, 20);
+  const firstHeard = cont.findIndex((t) => t.trackhash.startsWith("heard"));
+  if (firstHeard >= 0) {
+    assert.ok(
+      cont.slice(0, firstHeard).every((t) => t.trackhash.startsWith("new")),
+      "every unheard track lands before any already-heard one",
+    );
+  } else {
+    assert.ok(cont.every((t) => t.trackhash.startsWith("new")));
+  }
+  // The unheard pool is shuffled: two calls must not produce the same order.
+  const cont2 = buildContinuation(lib[0], [lib[0]], lib);
+  assert.notEqual(
+    cont.map((t) => t.trackhash).join(),
+    cont2.map((t) => t.trackhash).join(),
+    "pick order is randomised between calls",
+  );
+});
+
+test("startUnheardMix queues the never-played tracks, randomised, and falls back to least-played", async () => {
+  const { usePlayer, useLibraryStore } = await stores();
+  const lib = [mk("new1"), mk("new2"), mk("new3"), mk("old1"), mk("old2")];
+  useLibraryStore.setState({ tracks: lib });
+  usePlayer.setState({ playCounts: { old1: 5, old2: 2 }, dislikes: new Set(), currentTrack: null, queue: [], shuffledQueue: [], repeat: "off" });
+  usePlayer.getState().startUnheardMix();
+  let s = usePlayer.getState();
+  // Small unheard pool (3 < 25) → the least-played heard tracks fill the queue,
+  // unheard first.
+  assert.equal(s.queue.length, 5);
+  assert.deepEqual(s.queue.slice(0, 3).map((t) => t.trackhash).sort(), ["new1", "new2", "new3"]);
+  assert.equal(s.isPlaying, true);
+  assert.ok(s.toast?.message.includes("3"), "toast advertises the unheard count");
+
+  // Rich unheard pool → a PURE unheard mix (no dilution).
+  const lib2 = [...Array.from({ length: 30 }, (_, i) => mk(`fresh${String(i).padStart(2, "0")}`)), mk("old")];
+  useLibraryStore.setState({ tracks: lib2 });
+  usePlayer.setState({ playCounts: { old: 4 }, currentTrack: null, queue: [], shuffledQueue: [] });
+  usePlayer.getState().startUnheardMix();
+  s = usePlayer.getState();
+  assert.equal(s.queue.length, 30, "only the never-played tracks");
+  assert.ok(s.queue.every((t) => t.trackhash.startsWith("fresh")), "no heard track mixed in");
+
+  // Fully-listened library → falls back to the least-played, still shuffled.
+  useLibraryStore.setState({ tracks: lib });
+  usePlayer.setState({ playCounts: Object.fromEntries(lib.map((t) => [t.trackhash, 5])), currentTrack: null, queue: [], shuffledQueue: [] });
+  usePlayer.getState().startUnheardMix();
+  s = usePlayer.getState();
+  assert.equal(s.queue.length, 5, "least-played fallback fills the queue");
+});
+
 test("autoplay OFF stops at the end of the queue", async () => {
   const { usePlayer, useLibraryStore } = await stores();
   const lib = [mk("t0"), mk("t1")];

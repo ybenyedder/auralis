@@ -12,6 +12,7 @@ import { createPlaybackSlice } from "./slices/playbackSlice";
 import { createEqSlice, EQ_PRESETS } from "./slices/eqSlice";
 import { setEqGains } from "@/lib/auralis/audioGraph";
 import { bindAudio, getAudioTime, consumeResumeSeek } from "./slices/PlaybackController";
+import { usePlayhead } from "./playhead";
 
 import { shuffleArray, loadPersisted } from "./slices/helpers";
 import { hydrated } from "./slices/PlaybackController";
@@ -80,14 +81,20 @@ export const usePlayer = create<PlayerState>()(
         eqEnabled: state.eqEnabled,
         eqGains: state.eqGains,
         eqPreset: state.eqPreset,
-        lastSession: state.isPlaying && state.currentTrack
-        ? {
-            trackhash: state.currentTrack.trackhash,
-            queueHashes: state.queue.map((t) => t.trackhash),
-            currentIndex: state.currentIndex,
-            position: getAudioTime() || 0,
-          }
-        : hydrated ? undefined : loadPersisted().lastSession,
+        // A session survives as long as a track is loaded — playing OR paused.
+        // The old `isPlaying &&` guard wiped the saved session on the very first
+        // store write after a paused restore (a toast, a like…), so reloading
+        // later lost the resume entirely. The element's clock reads 0 for a
+        // restored-but-not-yet-played track, so fall back to the playhead store,
+        // which carries the position the scrubber is showing.
+        lastSession: state.currentTrack
+          ? {
+              trackhash: state.currentTrack.trackhash,
+              queueHashes: state.queue.map((t) => t.trackhash),
+              currentIndex: state.currentIndex,
+              position: getAudioTime() || usePlayhead.getState().position || 0,
+            }
+          : hydrated ? undefined : loadPersisted().lastSession,
       } as Persisted),
       onRehydrateStorage: () => (state, error) => {
         if (state && !error) {

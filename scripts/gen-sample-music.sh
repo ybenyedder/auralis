@@ -2,7 +2,7 @@
 # Generates a small but rich sample library for Auralis testing:
 # 8 albums / 8 artists / 8 genres, embedded cover art, ID3 tags, LRC sidecars.
 set -u
-MUSIC="/home/z/my-project/music"
+MUSIC="${AURALIS_MUSIC_DIR:-$PWD/music}"
 mkdir -p "$MUSIC"
 
 gen_cover() { # $1=file $2=c0 $3=c1 $4=label

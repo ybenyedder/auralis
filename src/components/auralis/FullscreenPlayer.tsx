@@ -16,6 +16,7 @@ import {
   Timer,
   X,
 } from "lucide-react";
+import { api } from "@/lib/auralis/api";
 import { usePlayer } from "@/store/player";
 import { shareTrack } from "@/lib/auralis/share";
 import { useT } from "@/lib/auralis/i18n";
@@ -251,7 +252,7 @@ export function FullscreenPlayer() {
             aria-hidden
             className="absolute inset-0 scale-[1.35] pointer-events-none"
             style={{
-              backgroundImage: `url("${currentTrack.image}")`,
+              backgroundImage: `url("${api.assetUrl(currentTrack.image, 640) ?? currentTrack.image}")`,
               backgroundSize: "cover",
               backgroundPosition: "center",
               filter: "saturate(1.8) blur(74px) brightness(0.62)",
@@ -562,7 +563,7 @@ export function FullscreenPlayer() {
                 )}
               </div>
               <div className="grid grid-cols-3 gap-2">
-                {[15, 30, 60].map((m) => (
+                {[5, 10, 15, 30, 45, 60].map((m) => (
                   <button
                     key={m}
                     onClick={() => { startSleepTimer(m); setSleepSheetOpen(false); }}
@@ -653,6 +654,11 @@ function FullscreenScrubber({ seek }: { seek: (time: number) => void }) {
         onPointerUp={() => {
           if (scrubPct === null) return;
           seek((scrubPct / 100) * (duration || 0));
+          setScrubPct(null);
+        }}
+        onPointerCancel={() => {
+          // Interrupted gesture (palm rejection, incoming call, notification
+          // shade): release the frozen scrub state without seeking.
           setScrubPct(null);
         }}
       >

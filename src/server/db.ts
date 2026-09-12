@@ -29,8 +29,21 @@ function migrate(db: DB) {
     log.warn("failed to read migrations directory, skipping migrations", { err });
     return;
   }
+  if (current > migrations.length) {
+    // The DB claims a newer version than any file on disk — a moved/renamed
+    // migration directory. Never silently skip: say so loudly.
+    log.warn("database is ahead of the migration files — nothing will be applied", {
+      dbVersion: current,
+      files: migrations.length,
+    });
+    return;
+  }
   if (current >= migrations.length) return;
 
+  // Versions are the ORDER of the files in this directory (sorted by name), so
+  // the numbering must stay dense and append-only: never reuse or skip a number
+  // (a past 011.sql gap would have made migrated DBs silently skip a file later
+  // named 011 — the slot is now occupied by the sessions-table migration).
   for (let version = current; version < migrations.length; version++) {
     log.info("applying migration", { to: version + 1 });
     db.exec("BEGIN");

@@ -11,7 +11,7 @@ import { applyMode, normalizeMode } from "@/lib/auralis/themes";
 import { translate } from "@/lib/auralis/messages";
 import { shuffleArray, reorderWithFirst, buildContinuation, clampOffset, DEFAULT_LYRICS_OFFSET, parseRules, loadPersisted, initialLocale, initialMode, initial, nextToastSeq } from "./helpers";
 
-export const createPlaybackSlice: StateCreator<PlayerState, [], [], Pick<PlayerState, "favorites" | "dislikes" | "recentTrackhashes" | "playCounts" | "selectionMode" | "selected" | "scrobble" | "recordSkip" | "toggleFavorite" | "isFavorite" | "toggleDislike" | "isDisliked" | "enterSelection" | "toggleSelected" | "selectMany" | "clearSelection" | "exitSelection" | "generateAiPlaylist" | "hydrateLocal" | "hydrateFromServer" | "restoreLastSession" | "resetServerStats" | "fetchLyrics" | "alignLyrics" | "startRadio" | "startTrajectory" | "startBlend">> = (set, get) => ({
+export const createPlaybackSlice: StateCreator<PlayerState, [], [], Pick<PlayerState, "favorites" | "dislikes" | "recentTrackhashes" | "playCounts" | "selectionMode" | "selected" | "scrobble" | "recordSkip" | "toggleFavorite" | "isFavorite" | "toggleDislike" | "isDisliked" | "enterSelection" | "toggleSelected" | "selectMany" | "clearSelection" | "exitSelection" | "generateAiPlaylist" | "hydrateLocal" | "hydrateFromServer" | "restoreLastSession" | "resetServerStats" | "fetchLyrics" | "alignLyrics" | "startRadio" | "startTrajectory" | "startBlend" | "startUnheardMix">> = (set, get) => ({
 favorites: new Set<string>(),
 
 dislikes: new Set<string>(),
@@ -61,6 +61,48 @@ startBlend: async (username, label) => {
       }
       get().playList(list, 0);
       get().notify(label ? translate(get().locale, "toast.blendTitled", undefined, { label }) : translate(get().locale, "toast.blendStarted"));
+    },
+
+startUnheardMix: () => {
+      // Fully client-side: the per-user play counts are already in memory, so the
+      // mix is instant and reshuffled on EVERY press (no weekly freeze) — a true
+      // "random unheard mix" button. Tracks the user never played come first in
+      // Fisher-Yates order; when that pool runs small the least-played tracks
+      // fill the rest, so the button works on a fully-listened library too.
+      const lib = useLibraryStore.getState().tracks;
+      if (lib.length === 0) {
+        get().notify(translate(get().locale, "toast.unheardNone"), { tone: "info" });
+        return;
+      }
+      const { playCounts, dislikes } = get();
+      const playable = lib.filter((t) => !dislikes.has(t.trackhash));
+      const unheard = shuffleArray(playable.filter((t) => !(playCounts[t.trackhash] > 0))).slice(0, 80);
+      const list = [...unheard];
+      if (list.length < 25) {
+        const seen = new Set(list.map((t) => t.trackhash));
+        const leastPlayed = shuffleArray(
+          [...playable]
+            .filter((t) => (playCounts[t.trackhash] ?? 0) > 0)
+            .sort((a, b) => (playCounts[a.trackhash] ?? 0) - (playCounts[b.trackhash] ?? 0))
+            .slice(0, 80),
+        );
+        for (const t of leastPlayed) {
+          if (list.length >= 80) break;
+          if (seen.has(t.trackhash)) continue;
+          seen.add(t.trackhash);
+          list.push(t);
+        }
+      }
+      if (list.length === 0) {
+        get().notify(translate(get().locale, "toast.unheardNone"), { tone: "info" });
+        return;
+      }
+      get().playList(list, 0);
+      get().notify(
+        unheard.length > 0
+          ? translate(get().locale, "toast.unheardMix", undefined, { count: unheard.length })
+          : translate(get().locale, "toast.unheardFallback", undefined, { count: list.length }),
+      );
     },
 
 scrobble: (trackhash) => {
@@ -240,6 +282,7 @@ hydrateFromServer: async () => {
       // truth; we only graft back the user's just-made, not-yet-synced edits.
       const beforeFav = new Set(get().favorites);
       const beforeDis = new Set(get().dislikes);
+      const beforeCounts = { ...get().playCounts };
       const beforePlaylistIds = new Set(get().customPlaylists.map((p) => String(p.id)));
       try {
         const s = await api.get<any /* eslint-disable-line @typescript-eslint/no-explicit-any */>("/api/state");
@@ -284,16 +327,39 @@ hydrateFromServer: async () => {
         // flatBackdrop is a boolean setting; only adopt the server's value when it
         // actually sent one, otherwise keep whatever the local client chose (a fresh
         // toggle not yet synced shouldn't be reverted on the next hydrate).
+        // Scrobbles that landed while the GET was in flight are grafted the same
+        // way as favorites: the server snapshot predates them and must not
+        // visually rewind the counters until the next reconcile.
+        const serverCounts = s.playCounts as Record<string, number>;
+        const graftedCounts: Record<string, number> = { ...serverCounts };
+        for (const [hash, before] of Object.entries(beforeCounts)) {
+          const now = local.playCounts[hash] ?? 0;
+          if (now > before && (serverCounts[hash] ?? 0) < now) graftedCounts[hash] = now;
+        }
         const serverFlat = typeof s.settings.flatBackdrop === "boolean" ? s.settings.flatBackdrop : null;
+        // Playback options (repeat / shuffle / autoplay) are synced server-side by
+        // their toggles. Adopt the server's value ONLY when this client has no
+        // persisted choice of its own (fresh install, wiped WebView storage): the
+        // local vault is otherwise the fresher intent, and re-applying the server
+        // copy here would resurrect an old option the user already changed on THIS
+        // device ("I turned loop off and it came back").
+        const savedOpts = loadPersisted();
+        const asRepeat = (v: unknown) => (v === "off" || v === "all" || v === "one" ? v : null);
+        const serverRepeat = asRepeat(s.settings.repeat);
+        const serverShuffle = typeof s.settings.shuffle === "boolean" ? s.settings.shuffle : null;
+        const serverAutoplay = typeof s.settings.autoplay === "boolean" ? s.settings.autoplay : null;
         set({
           favorites: favorites as any /* eslint-disable-line @typescript-eslint/no-explicit-any */,
           dislikes: dislikes as any /* eslint-disable-line @typescript-eslint/no-explicit-any */,
-          playCounts: s.playCounts,
+          playCounts: graftedCounts,
           recentTrackhashes: s.recents,
           customPlaylists,
           mode: mode as any /* eslint-disable-line @typescript-eslint/no-explicit-any */,
           ...(serverLocale ? { locale: serverLocale } : {}),
           ...(serverFlat !== null ? { flatBackdrop: serverFlat } : {}),
+          ...(serverRepeat !== null && savedOpts.repeat === undefined ? { repeat: serverRepeat } : {}),
+          ...(serverShuffle !== null && savedOpts.shuffle === undefined ? { shuffle: serverShuffle } : {}),
+          ...(serverAutoplay !== null && savedOpts.autoplay === undefined ? { autoplay: serverAutoplay } : {}),
           syncReady: true,
         });
         applyMode(mode);
@@ -310,7 +376,13 @@ restoreLastSession: () => {
       // Don't clobber anything the user already started before the library loaded.
       if (get().currentTrack) { setHydrated(true); return; }
       const lib = useLibraryStore.getState().tracks;
-      if (lib.length === 0) return; // library not ready yet — retried on load, still pre-hydration
+      if (lib.length === 0) {
+        // An empty library is a real outcome, not "not ready yet": from here on
+        // a null currentTrack must be allowed to clear a stale saved session,
+        // otherwise a removed track resurrects in the session slot forever.
+        setHydrated(true);
+        return;
+      }
       // Library is ready and we've had our chance to restore: from here on a null
       // currentTrack is a real stop, so persist may clear the session.
       setHydrated(true);

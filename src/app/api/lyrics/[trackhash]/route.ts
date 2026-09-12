@@ -21,6 +21,14 @@ export async function GET(request: Request, context: Ctx) {
     const cached = getCachedLyrics(trackhash);
     return json(cached ?? { trackhash, status: "notfound", source: null, lines: [], plain: null, synced: false });
   }
+  // A cache miss can fan out to three third-party providers. Bound the fan-out
+  // per account so one client sweeping random hashes cannot get the host IP
+  // banned by LRCLIB/Musixmatch for everyone (the POST refetch already had its
+  // own, tighter limit).
+  const user = getRequestUser(request);
+  if (user && rateLimitWindow(`lyrics-get:${user.id}`, 90, 60_000)) {
+    return json({ error: "Trop de requêtes — réessaie dans un instant" }, { status: 429, headers: { "Retry-After": "60" } });
+  }
   const result = await getLyrics(trackhash);
   return json(result);
 }

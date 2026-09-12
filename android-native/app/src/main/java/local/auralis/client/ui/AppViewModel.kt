@@ -311,6 +311,35 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
         if (list.isNotEmpty()) player.playTracks(list, startIndex)
     }
 
+    /// "Jamais écoutés": a RANDOM queue of every track this account never played
+    /// (reshuffled on each call), dipping into the least-played tracks when the
+    /// unheard pool runs small. Fully client-side — play counts are already in
+    /// memory — so it opens instantly, offline included.
+    fun playUnheardMix() {
+        val ui = _ui.value
+        val never = ui.tracks
+            .filter { it.trackhash !in ui.dislikes && (ui.playCounts[it.trackhash] ?: 0) == 0 }
+            .shuffled()
+        val list = if (never.size >= 25) {
+            never.take(60)
+        } else {
+            val least = ui.tracks
+                .filter { it.trackhash !in ui.dislikes && (ui.playCounts[it.trackhash] ?: 0) > 0 }
+                .sortedBy { ui.playCounts[it.trackhash] ?: 0 }
+                .take(60)
+            (never + least).distinctBy { it.trackhash }
+        }
+        if (list.isEmpty()) {
+            notify("Aucun titre à découvrir pour l'instant")
+            return
+        }
+        player.setShuffle(true)
+        viewModelScope.launch { prefs.setPlayback(shuffle = true) }
+        player.playTracks(list.shuffled(), 0)
+        notify(if (never.isNotEmpty()) "Mix jamais écoutés : ${never.size} titres inédits"
+               else "Tout est déjà écouté — mix des titres les moins joués")
+    }
+
     fun togglePlay() = player.togglePlay()
     fun next() = player.next()
     fun prev() {
@@ -322,13 +351,25 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
     fun seekTo(ms: Long) = player.seekTo(ms)
 
     fun toggleShuffle() {
-        player.toggleShuffle()
-        viewModelScope.launch { prefs.setPlayback(shuffle = player.snapshot.value.shuffle) }
+        // Persist the value we're SETTING, not a read-back of the controller
+        // snapshot: the new state only arrives after the IPC round-trip, so the
+        // read-back raced and could persist the previous value (the restored
+        // session would then play unshuffled even though the UI showed shuffle).
+        val next = !player.snapshot.value.shuffle
+        player.setShuffle(next)
+        viewModelScope.launch { prefs.setPlayback(shuffle = next) }
     }
 
     fun cycleRepeat() {
-        player.cycleRepeat()
-        viewModelScope.launch { prefs.setPlayback(repeat = player.snapshot.value.repeat) }
+        // Same race as toggleShuffle: compute the next mode locally (order
+        // matches PlayerHolder.cycleRepeat: off -> all -> one -> off).
+        val next = when (player.snapshot.value.repeat) {
+            "all" -> "one"
+            "one" -> "off"
+            else -> "all"
+        }
+        player.setRepeat(next)
+        viewModelScope.launch { prefs.setPlayback(repeat = next) }
     }
 
     fun toggleAutoplay() {
@@ -376,17 +417,37 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
                 // and a sort over 10k tracks used to run on the UI thread at every queue end.
                 val ranked = withContext(Dispatchers.Default) {
                     fun eligible(t: Track) = t.trackhash !in queued && t.trackhash !in dis
-                    val byArtist = tracks.filter { eligible(it) && it.primaryArtistHash != null && it.primaryArtistHash == current.primaryArtistHash }
-                    val byGenre = tracks.filter { eligible(it) && it.genre != null && it.genre == current.genre }
-                    val pool = (byArtist + byGenre).distinctBy { it.trackhash }
-                        .ifEmpty { tracks.filter { eligible(it) } }
-                    // Precompute the jittered taste score ONCE per track, then sort. Evaluating
-                    // Math.random() inside the sort selector made the comparator non-deterministic
-                    // ("Comparison method violates its general contract" can crash the sort).
-                    pool.map { it to ((scores[it.trackhash] ?: 0.0) + Math.random() * 0.6) }
-                        .sortedByDescending { it.second }
-                        .take(20)
-                        .map { it.first }
+                    fun close(t: Track) =
+                        (t.primaryArtistHash != null && t.primaryArtistHash == current.primaryArtistHash) ||
+                            (t.genre != null && t.genre == current.genre)
+                    val counts = ui.playCounts
+                    // Endless-session exploration: surface tracks the user has NEVER
+                    // played first (shuffled), staying close to the current vibe when
+                    // enough of them exist, so an all-day autoplay keeps discovering
+                    // new music instead of recycling the same rotation. When the whole
+                    // library has been queued (long sessions), recycle it — shuffled,
+                    // dislikes and current track excluded — rather than stopping dead.
+                    val never = tracks.filter { eligible(it) && (counts[it.trackhash] ?: 0) == 0 }
+                    when {
+                        never.isNotEmpty() -> {
+                            val closeNever = never.filter { close(it) }
+                            val pick = if (closeNever.size >= 10) closeNever else never
+                            pick.shuffled().take(20)
+                        }
+                        else -> {
+                            val fresh = tracks.filter { eligible(it) }
+                            if (fresh.isNotEmpty()) {
+                                // Least-played first (a light taste-score jitter breaks ties),
+                                // then shuffled so consecutive appends don't march the same list.
+                                fresh.sortedWith(
+                                    compareBy({ counts[it.trackhash] ?: 0 }, { -(scores[it.trackhash] ?: 0.0) })
+                                ).take(40).shuffled().take(20)
+                            } else {
+                                tracks.filter { it.trackhash != current.trackhash && it.trackhash !in dis }
+                                    .shuffled().take(20)
+                            }
+                        }
+                    }
                 }
                 // Back on the main thread (viewModelScope) — MediaController.addMediaItems must
                 // run on the controller's application thread.
@@ -638,11 +699,18 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
 
     // ---- volume ------------------------------------------------------------
 
+    private var volumePrefJob: kotlinx.coroutines.Job? = null
     fun setVolume(v: Float) {
         val nv = v.coerceIn(0f, 1f)
         player.setVolume(nv)
         _ui.update { it.copy(volume = nv) }
-        viewModelScope.launch { prefs.setPlayback(volume = nv) }
+        // A volume drag fires this per tick and each run rewrites the whole
+        // DataStore file. Apply immediately, persist debounced.
+        volumePrefJob?.cancel()
+        volumePrefJob = viewModelScope.launch {
+            delay(600)
+            prefs.setPlayback(volume = nv)
+        }
     }
 
     // ---- shuffle play ------------------------------------------------------

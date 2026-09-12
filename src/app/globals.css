@@ -689,6 +689,9 @@ kbd {
      the last rows slide under the dock. */
   --tabbar-h: 64px;
   --miniplayer-h: 66px;
+
+  /* Accent gold used for eyebrow labels across detail/library views. */
+  --brass: #d9a441;
 }
 
 .safe-top { padding-top: var(--safe-top); }
@@ -833,4 +836,14 @@ kbd {
 :root[data-mode="light"] .eq-slider::-moz-range-thumb,
 :root.light .eq-slider::-moz-range-thumb {
   box-shadow: 0 1px 4px rgba(0, 0, 0, 0.3), 0 0 0 1px rgba(0, 0, 0, 0.25);
+}
+
+/* Safe-area bottom padding utility (used by full-bleed mobile views). */
+.pb-safe { padding-bottom: env(safe-area-inset-bottom); }
+
+/* Scrim/backdrop fade-in (mobile sheets, dialogs). */
+.backdrop-in { animation: backdrop-in 160ms ease-out both; }
+@keyframes backdrop-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
 }

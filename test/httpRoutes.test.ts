@@ -88,6 +88,24 @@ test("login with an invalid JSON body returns 400, not a 500 crash", async () =>
   assert.equal(res.status, 400);
 });
 
+test("changePassword rejects a wrong current password (regression: the async check was never awaited)", async () => {
+  const { db, createUser } = await mods();
+  const { changePassword, verifyCredentials } = await import("../src/server/auth");
+  db.exec("DELETE FROM users;");
+  await createUser("pwtest", "old-password-horse", false);
+  const user = db.prepare("SELECT id FROM users WHERE username = 'pwtest'").get() as { id: number };
+
+  // `!Promise` is always false: before the fix, this branch was unreachable and
+  // any garbage current password was accepted.
+  const bad = await changePassword(user.id, "totally-wrong-guess", "new-password-99");
+  assert.equal(bad.ok, false, "a wrong current password must be rejected");
+  assert.ok(await verifyCredentials("pwtest", "old-password-horse"), "password unchanged after the rejected attempt");
+
+  const ok = await changePassword(user.id, "old-password-horse", "new-password-99");
+  assert.equal(ok.ok, true, "the correct current password lets the change through");
+  assert.ok(await verifyCredentials("pwtest", "new-password-99"), "password actually rotated");
+});
+
 test("playlist.cover accepts a legitimate cover right up at the 8MB limit (base64 inflation must fit the JSON body cap)", async () => {
   const { db, createUser, createSessionToken, upsertPlaylist, statePut } = await stateMods();
   db.exec("DELETE FROM users; DELETE FROM playlists;");

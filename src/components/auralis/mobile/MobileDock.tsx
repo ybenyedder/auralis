@@ -1,6 +1,7 @@
 "use client";
 
-import { Home, Search, Library, Heart, Compass, Radio } from "lucide-react";
+import { Home, Search, Library, Compass, Radio } from "lucide-react";
+import { api } from "@/lib/auralis/api";
 import { usePlayer, type ViewId } from "@/store/player";
 import { usePlayhead } from "@/store/playhead";
 import { Artwork } from "../Artwork";
@@ -61,9 +62,9 @@ function MiniPlayer() {
   const currentTrack = usePlayer((s) => s.currentTrack);
   const isPlaying = usePlayer((s) => s.isPlaying);
   const togglePlay = usePlayer((s) => s.togglePlay);
+  const playNext = usePlayer((s) => s.playNext);
+  const playPrev = usePlayer((s) => s.playPrev);
   const openFullscreen = usePlayer((s) => s.toggleFullscreenPlayer);
-  const toggleFavorite = usePlayer((s) => s.toggleFavorite);
-  const fav = usePlayer((s) => (currentTrack ? s.favorites.has(currentTrack.trackhash) : false));
   const t = useT();
 
   if (!currentTrack) return null;
@@ -80,7 +81,7 @@ function MiniPlayer() {
           aria-hidden
           className="pointer-events-none absolute inset-0 opacity-25"
           style={{
-            backgroundImage: `url("${currentTrack.image}")`,
+            backgroundImage: `url("${api.assetUrl(currentTrack.image, 256) ?? currentTrack.image}")`,
             backgroundSize: "cover",
             backgroundPosition: "center",
             filter: "saturate(1.4) blur(36px) brightness(0.55)",
@@ -124,13 +125,19 @@ function MiniPlayer() {
           </div>
         </button>
 
-        <div className="flex shrink-0 items-center gap-1 pr-1">
+        <div className="flex shrink-0 items-center">
+          {/* Transport trio (prev / play-pause / next) — the mini-player used to
+              expose only play/pause, so skipping a track from the dock meant
+              opening the fullscreen player first. The heart lives one tap away
+              in the fullscreen player / context menu; transport wins the space. */}
           <button
-            onClick={() => toggleFavorite(currentTrack.trackhash)}
-            aria-label={fav ? t("mobile.removeFavorite", "Retirer des favoris") : t("mobile.addFavorite", "Ajouter aux favoris")}
-            className="tap-press grid h-11 w-11 place-items-center rounded-full transition-transform active:scale-90"
+            onClick={() => { haptic(); playPrev(); }}
+            aria-label={t("mobile.previous", "Titre précédent")}
+            className="tap-press grid h-11 w-11 place-items-center rounded-full text-foreground transition-transform active:scale-90"
           >
-            <Heart className={cn("size-5", fav ? "fill-[var(--primary)] text-[var(--primary)]" : "text-[var(--text-muted)] hover:text-foreground")} />
+            <svg viewBox="0 0 24 24" fill="currentColor" className="size-6" xmlns="http://www.w3.org/2000/svg">
+              <path d="M6 5a1 1 0 0 1 2 0v14a1 1 0 0 1-2 0V5Zm12.53.15a1 1 0 0 1 0 1.7L11.6 12l6.93 5.15a1 1 0 0 1-1.13 1.65l-8-6a1 1 0 0 1 0-1.6l8-6a1 1 0 0 1 1.13 0Z" />
+            </svg>
           </button>
           <button
             onClick={() => { haptic(); togglePlay(); }}
@@ -144,9 +151,18 @@ function MiniPlayer() {
               </svg>
             ) : (
               <svg viewBox="0 0 24 24" fill="currentColor" className="size-6 ml-0.5" xmlns="http://www.w3.org/2000/svg">
-                <path d="M8 5.14v13.72a1 1 0 0 0 1.5.86l11-6.86a1 1 0 0 0 0-1.72l-11-6.86a1 1 0 0 0-1.5.86Z" />
+                <path d="M8 5.14v13.72a1 1 0 0 0 1.5.86l11-6.86a1 1 0 0 0 0-1.72l-11-6.86a1 1 0 0 1-1.5.86Z" />
               </svg>
             )}
+          </button>
+          <button
+            onClick={() => { haptic(); playNext(); }}
+            aria-label={t("mobile.next", "Titre suivant")}
+            className="tap-press grid h-11 w-11 place-items-center rounded-full text-foreground transition-transform active:scale-90"
+          >
+            <svg viewBox="0 0 24 24" fill="currentColor" className="size-6" xmlns="http://www.w3.org/2000/svg">
+              <path d="M16 5a1 1 0 0 1 2 0v14a1 1 0 0 1-2 0V5ZM5.47 5.15a1 1 0 0 0 0 1.7L12.4 12l-6.93 5.15a1 1 0 0 0 1.13 1.65l8-6a1 1 0 0 0 0-1.6l-8-6a1 1 0 0 0-1.13 0Z" />
+            </svg>
           </button>
         </div>
       </div>

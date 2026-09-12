@@ -23,6 +23,13 @@ services:
       context: ..
       dockerfile: deploy/Dockerfile
     image: auralis
+    # Journaux bornés : le driver json-file par défaut grossit sans fin sur un
+    # serveur bavard (scans, watchers).
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
     container_name: auralis
     restart: unless-stopped
     ports:

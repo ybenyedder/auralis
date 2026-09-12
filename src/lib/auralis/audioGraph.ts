@@ -106,7 +106,10 @@ export function getAnalyser(): AnalyserNode | null {
 /** Set a linear gain multiplier (1 = unchanged). Smoothly ramped to avoid clicks.
  *  Remembered even before the graph exists so it applies once it's built. */
 export function setGraphGain(multiplier: number): void {
-  pendingGain = Math.max(0, Math.min(8, multiplier));
+  // Ceiling at +6 dB: ReplayGain tags on quiet masters can ask for far more,
+  // and EQ boosts stack on top — past this the float graph stays clean but the
+  // DAC clamps at 1.0 and the track audibly clips. Attenuation is untouched.
+  pendingGain = Math.max(0, Math.min(dbToGain(6), multiplier));
   if (gainNode && ctx) {
     try {
       gainNode.gain.setTargetAtTime(pendingGain, ctx.currentTime, 0.08);

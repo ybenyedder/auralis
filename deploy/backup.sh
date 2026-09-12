@@ -181,7 +181,9 @@ HOST_BACKUP="$BACKUP_DIR/auralis-${STAMP}.db"
 echo "Sauvegarde créée : $HOST_BACKUP ($(du -h "$HOST_BACKUP" | cut -f1))"
 
 # Conservation des $KEEP sauvegardes les plus récentes uniquement.
-OLDIES="$(ls -1t "$BACKUP_DIR"/auralis-*.db 2>/dev/null | tail -n +$((KEEP + 1)) || true)"
+# Les copies de sûreté de restauration suivent la même politique (elles
+# s'accumulaient sinon à côté des $KEEP sauvegardes gardées).
+OLDIES="$(ls -1t "$BACKUP_DIR"/auralis-*.db "$BACKUP_DIR"/*.avant-restauration-*.db 2>/dev/null | sort -r | tail -n +$((KEEP + 1)) || true)"
 if [ -n "$OLDIES" ]; then
   echo "$OLDIES" | xargs -r rm -f
   echo "Anciennes sauvegardes supprimées (les $KEEP plus récentes sont conservées)."

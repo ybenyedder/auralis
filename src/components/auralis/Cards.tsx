@@ -25,7 +25,7 @@ export const AlbumCard = memo(function AlbumCard({ album, onOpen }: AlbumCardPro
   const playList = usePlayer((s) => s.playList);
   const navigate = usePlayer((s) => s.navigate);
   const openAlbumContextMenu = usePlayer((s) => s.openAlbumContextMenu);
-  const isPlaying = usePlayer((s) => s.currentTrack?.albumhash === album.albumhash);
+  const isPlaying = usePlayer((s) => Boolean(s.isPlaying) && s.currentTrack?.albumhash === album.albumhash);
   const onContext = useAlbumContextMenu();
   const colors = album.color ?? paletteForName(album.albumhash);
 

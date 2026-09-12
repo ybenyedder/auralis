@@ -176,6 +176,31 @@ function AuralisShell() {
     }
   }, []);
 
+  // Android back gesture / button (and iOS edge-swipe in the installed PWA):
+  // in-app navigation is pure client state, so without history integration the
+  // system back QUIT the app instead of popping to the previous view. We keep
+  // one sentinel history entry between us and the app exit; every pop pops one
+  // view (or closes the fullscreen player), then the sentinel is re-armed. When
+  // there is nothing left to pop the sentinel is NOT re-armed, so the next back
+  // exits as expected.
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    window.history.pushState({ auralis: true }, "");
+    const onPopState = () => {
+      const s = usePlayer.getState();
+      if (s.fullscreenPlayer) {
+        s.closeFullscreenPlayer();
+      } else if (s.navHistory.length > 0) {
+        s.back();
+      } else {
+        return; // nothing to pop — let the back gesture leave the app
+      }
+      window.history.pushState({ auralis: true }, "");
+    };
+    window.addEventListener("popstate", onPopState);
+    return () => window.removeEventListener("popstate", onPopState);
+  }, []);
+
   // Desktop (Electron) OS media keys → transport controls.
   useEffect(() => {
     const desktop = (window as unknown as { auralisDesktop?: { onMediaKey: (cb: (a: string) => void) => () => void } }).auralisDesktop;
@@ -432,7 +457,12 @@ function AuralisShell() {
         listened = 0;
         scrobbledHash = "";
         usePlayer.setState({ isPlaying: true });
-        audio.play().catch(() => state.notify(translate(state.locale, "toast.audioUnavailable"), { tone: "error" }));
+        audio.play().catch(() => {
+          // A failed restart must not leave the UI claiming "playing" — flip the
+          // store back, same as the main play() rejection path above.
+          usePlayer.setState({ isPlaying: false });
+          state.notify(translate(state.locale, "toast.audioUnavailable"), { tone: "error" });
+        });
         return;
       }
       // Natural completion — mark it so the upcoming track-change isn't a "skip".
@@ -524,7 +554,7 @@ function AuralisShell() {
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       const target = e.target as HTMLElement;
-      const typing = target.tagName === "INPUT" || target.tagName === "TEXTAREA" || target.isContentEditable;
+      const typing = target.tagName === "INPUT" || target.tagName === "TEXTAREA" || target.tagName === "SELECT" || target.isContentEditable;
 
       if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "k") {
         e.preventDefault();
@@ -559,12 +589,17 @@ function AuralisShell() {
           else seekRelative(-5);
           break;
         case "ArrowUp":
-          e.preventDefault();
-          setVolume(Math.min(1, usePlayer.getState().volume + 0.05));
-          break;
         case "ArrowDown":
+          // Volume only when a transport control owns the focus; anywhere else
+          // the arrows belong to list scrolling — the global preventDefault here
+          // used to make every view unscrollable by keyboard.
+          if (!target.closest('[role="slider"], button, a, input, select, textarea')) return;
           e.preventDefault();
-          setVolume(Math.max(0, usePlayer.getState().volume - 0.05));
+          setVolume(
+            e.key === "ArrowUp"
+              ? Math.min(1, usePlayer.getState().volume + 0.05)
+              : Math.max(0, usePlayer.getState().volume - 0.05),
+          );
           break;
         case "m":
         case "M":
@@ -591,6 +626,10 @@ function AuralisShell() {
           usePlayer.getState().toggleQueue();
           break;
         case "Escape":
+          // Surfaces with their own Escape handling win (the visualizer already
+          // stops propagation); without this, closing a track menu from the
+          // fullscreen player also collapsed the player underneath.
+          if (usePlayer.getState().contextMenu.open || usePlayer.getState().commandOpen || usePlayer.getState().helpOpen) break;
           if (usePlayer.getState().fullscreenPlayer) toggleFullscreenPlayer();
           break;
         case "f":

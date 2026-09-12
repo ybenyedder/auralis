@@ -93,6 +93,14 @@ export async function runForcedAlignment(): Promise<void> {
     }
 
     let upgraded = 0;
+    // Watchdog: the on-demand path has its own kill timer; without one here, a
+    // wedged subprocess (first-run model download stalled, dead NFS) left
+    // `aligning = true` forever and every later pass silently no-op'd.
+    const killer = setTimeout(() => {
+      log.warn("forced alignment exceeded the time ceiling — killing");
+      try { child.kill("SIGKILL"); } catch {/* gone */}
+    }, 60 * 60 * 1000);
+    killer.unref?.();
     const onLine = (buf: Buffer) => {
       for (const line of buf.toString("utf8").split("\n")) {
         if (line.includes("✓ MOT")) upgraded++;
@@ -109,6 +117,7 @@ export async function runForcedAlignment(): Promise<void> {
       resolve();
     });
     child.on("close", (code) => {
+      clearTimeout(killer);
       log.info("forced alignment complete", { upgraded, code: code ?? -1 });
       resolve();
     });

@@ -6,6 +6,7 @@ import { createLogger } from "../logger";
 const log = createLogger("watcher");
 let watcherInstance: FSWatcher | null = null;
 let timeout: NodeJS.Timeout | null = null;
+let pendingRescan = false;
 
 export function initWatcher() {
   if (process.env.AURALIS_WATCH !== "1") return;
@@ -58,13 +59,35 @@ export function initWatcher() {
     timeout = setTimeout(() => {
       if (getScanProgress().status !== "scanning") {
         log.info("triggering scan from watch mode");
+        pendingRescan = false;
         void runScan();
       } else {
-        log.info("scan already in progress, skipping trigger");
+        // An event landing mid-scan used to be DROPPED — but the file it
+        // concerns is not in this scan's snapshot, so it stayed unindexed until
+        // some unrelated event. Remember to re-run once the scan completes.
+        pendingRescan = true;
+        armCompletionPoll();
+        log.info("scan already in progress — will re-scan when it completes");
       }
     }, 5000);
   };
 
   watcherInstance.on("all", queueScan);
   watcherInstance.on("error", (error: unknown) => log.error("watcher error", { error }));
+
+  // Polls until the in-flight scan is over, then fires the deferred re-scan.
+  let completionPoll: ReturnType<typeof setInterval> | undefined;
+  function armCompletionPoll() {
+    if (completionPoll) return;
+    completionPoll = setInterval(() => {
+      if (pendingRescan && getScanProgress().status !== "scanning") {
+        pendingRescan = false;
+        if (completionPoll) clearInterval(completionPoll);
+        completionPoll = undefined;
+        log.info("re-running scan for events that landed mid-scan");
+        void runScan();
+      }
+    }, 2000);
+    completionPoll.unref?.();
+  }
 }

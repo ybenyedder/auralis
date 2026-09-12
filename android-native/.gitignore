@@ -10,3 +10,10 @@ build/
 captures/
 .externalNativeBuild/
 .cxx/
+
+# Signing material — the original key leaked once already; a replacement key
+# committed by accident would leak again. CI loads these from secrets only.
+app/auralis.keystore
+*.keystore
+*.jks
+keystore.properties

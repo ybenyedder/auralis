@@ -74,6 +74,8 @@ export interface QueueSlice {
   startRadio: (seedHash: string, seedTrack?: Track) => Promise<void>;
   startTrajectory: (path: string, label?: string) => Promise<void>;
   startBlend: (username: string, label?: string) => Promise<void>;
+  /** Random mix of tracks the user has NEVER played (falls back to least-played). */
+  startUnheardMix: () => void;
   togglePlay: () => void;
   playNext: () => void;
   playPrev: () => void;

@@ -174,7 +174,7 @@ fun SettingsScreen(vm: AppViewModel, ui: UiState) {
         item {
             Card("À propos") {
                 Field("Application", "Auralis natif")
-                Field("Version", "2.0 (Kotlin)")
+                Field("Version", local.auralis.client.BuildConfig.VERSION_NAME)
             }
         }
     }

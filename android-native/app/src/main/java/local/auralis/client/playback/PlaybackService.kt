@@ -100,6 +100,28 @@ class PlaybackService : MediaLibraryService() {
 
     // --- Android Auto browse tree -------------------------------------------
     private inner class LibraryCallback : MediaLibrarySession.Callback {
+        // The service is exported (required for Auto/Assistant), but media3's
+        // default onConnect accepts EVERY caller: any installed app could bind a
+        // MediaBrowser and enumerate favorites + full listening history, or drive
+        // playback. Allowlist the callers that have a reason to be here.
+        private val trustedPackages = setOf(
+            packageName,
+            "com.google.android.projection.gearhead", // Android Auto
+            "com.google.android.autosimulator",       // Auto desktop simulator
+            "com.android.systemui",                   // system media controls
+            "com.google.android.googlequicksearchbox" // Assistant
+        )
+
+        override fun onConnect(
+            session: MediaSession,
+            controller: MediaSession.ControllerInfo,
+        ): MediaSession.ConnectionResult {
+            if (controller.packageName !in trustedPackages) {
+                return MediaSession.ConnectionResult.reject()
+            }
+            return super.onConnect(session, controller)
+        }
+
         override fun onGetLibraryRoot(
             session: MediaLibrarySession,
             browser: MediaSession.ControllerInfo,

@@ -80,7 +80,13 @@ export async function PUT(request: Request) {
       return json({ ok: true });
     case "setting":
       if (!body.key) return json({ error: "key required" }, { status: 400 });
-      setSetting(uid, body.key, body.value);
+      try {
+        setSetting(uid, body.key, body.value);
+      } catch {
+        // setSetting throws on a >16KB value; surface it as a client error
+        // instead of an unhandled 500.
+        return json({ error: "setting value too large" }, { status: 400 });
+      }
       return json({ ok: true });
     case "playlist.upsert": {
       if (!body.playlist?.name) return json({ error: "playlist.name required" }, { status: 400 });

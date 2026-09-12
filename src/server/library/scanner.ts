@@ -308,10 +308,41 @@ export async function runScan(): Promise<ScanProgress> {
     for (const filepath of existing.keys()) {
       if (!seen.has(filepath)) toRemove.push(filepath);
     }
+    // Safety valve: a walk that comes back (almost) empty while the DB still
+    // knows hundreds of tracks is a mount/root problem — NFS not up yet,
+    // automount stub, permission glitch, repointed musicDir — not a genuine
+    // mass deletion. Running the prune anyway would delete every track AND
+    // cascade away every user's favorites, play counts, listening history and
+    // playlists in one transaction. Refuse to guess; AURALIS_ALLOW_MASS_PRUNE=1
+    // overrides for the rare "I really emptied the folder" case.
+    if (
+      !getConfig().allowMassPrune &&
+      existing.size > 0 &&
+      toRemove.length > Math.max(50, Math.floor(existing.size * 0.6))
+    ) {
+      const message = `Purge annulée par sécurité : ${toRemove.length}/${existing.size} titres introuvables au scan. Vérifiez le montage du dossier musique, puis relancez un scan. (Pour purger volontairement une bibliothèque massivement vidée : AURALIS_ALLOW_MASS_PRUNE=1.)`;
+      log.error("scan aborted: suspicious mass prune", { missing: toRemove.length, known: existing.size });
+      emit({ status: "error", phase: "pruning", error: message, finishedAt: Date.now() });
+      return getScanProgress();
+    }
+
     if (toRemove.length) {
       const removeTrack = db.prepare("DELETE FROM tracks WHERE filepath = ?");
       const removeFtsByHash = db.prepare("DELETE FROM track_fts WHERE trackhash = ?");
       const selectHash = db.prepare("SELECT trackhash, arthash FROM tracks WHERE filepath = ?");
+      // Prepared ONCE for the whole prune (they used to be re-prepared per
+      // track inside the loop). The (trackhash) indexes from migration 012 turn
+      // each of these from a full scan into a point lookup.
+      const removeFavorite = db.prepare("DELETE FROM favorites WHERE trackhash = ?");
+      const removeDislike = db.prepare("DELETE FROM dislikes WHERE trackhash = ?");
+      const removePlaycount = db.prepare("DELETE FROM playcounts WHERE trackhash = ?");
+      const removeRecent = db.prepare("DELETE FROM recents WHERE trackhash = ?");
+      const removeEvent = db.prepare("DELETE FROM play_events WHERE trackhash = ?");
+      const removePlaylistTrack = db.prepare("DELETE FROM playlist_tracks WHERE trackhash = ?");
+      const removeLyric = db.prepare("DELETE FROM lyrics WHERE trackhash = ?");
+      const removeArtIfUnused = db.prepare(
+        "DELETE FROM art_colors WHERE arthash = ? AND NOT EXISTS (SELECT 1 FROM tracks WHERE arthash = ?)"
+      );
       // Cascade: a pruned track must not leave orphan rows behind in every table
       // that references trackhash. Without this, deleting a file accumulates dead
       // references in favorites / playcounts / recents / playlists / play_events /
@@ -324,31 +355,33 @@ export async function runScan(): Promise<ScanProgress> {
         const seenArt = new Set<string>();
         for (const { trackhash: h, arthash } of entries) {
           removeFtsByHash.run(h);
-          db.prepare("DELETE FROM favorites WHERE trackhash = ?").run(h);
-          db.prepare("DELETE FROM dislikes WHERE trackhash = ?").run(h);
-          db.prepare("DELETE FROM playcounts WHERE trackhash = ?").run(h);
-          db.prepare("DELETE FROM recents WHERE trackhash = ?").run(h);
-          db.prepare("DELETE FROM play_events WHERE trackhash = ?").run(h);
-          db.prepare("DELETE FROM playlist_tracks WHERE trackhash = ?").run(h);
-          db.prepare("DELETE FROM lyrics WHERE trackhash = ?").run(h);
+          removeFavorite.run(h);
+          removeDislike.run(h);
+          removePlaycount.run(h);
+          removeRecent.run(h);
+          removeEvent.run(h);
+          removePlaylistTrack.run(h);
+          removeLyric.run(h);
           if (arthash && !seenArt.has(arthash)) {
             seenArt.add(arthash);
-            db.prepare(
-              "DELETE FROM art_colors WHERE arthash = ? AND NOT EXISTS (SELECT 1 FROM tracks WHERE arthash = ?)"
-            ).run(arthash, arthash);
+            removeArtIfUnused.run(arthash, arthash);
           }
         }
       });
-      const prune = db.transaction((paths: string[]) => {
-        const removed: { trackhash: string; arthash: string | null }[] = [];
-        for (const p of paths) {
-          const hit = selectHash.get(p) as { trackhash: string; arthash: string | null } | undefined;
-          if (hit) removed.push({ trackhash: hit.trackhash, arthash: hit.arthash });
-          removeTrack.run(p);
-        }
-        if (removed.length) cascadeByHash(removed);
-      });
-      prune(toRemove);
+      // Chunked transactions: a single write tx across a mass prune blocked
+      // every other write (scrobbles, favorites) for its whole duration.
+      for (let i = 0; i < toRemove.length; i += 500) {
+        const prune = db.transaction((paths: string[]) => {
+          const removed: { trackhash: string; arthash: string | null }[] = [];
+          for (const p of paths) {
+            const hit = selectHash.get(p) as { trackhash: string; arthash: string | null } | undefined;
+            if (hit) removed.push({ trackhash: hit.trackhash, arthash: hit.arthash });
+            removeTrack.run(p);
+          }
+          if (removed.length) cascadeByHash(removed);
+        });
+        prune(toRemove.slice(i, i + 500));
+      }
     }
 
     emit({ phase: "aggregating" });

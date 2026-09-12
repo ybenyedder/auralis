@@ -17,6 +17,11 @@ import { useEffect, useRef, useState } from "react";
  * can render its own indicator at the top of the scrolled view. We deliberately
  * keep the indicator DOM in the caller (not injected here) so the host owns
  * layout/animation, while this hook only owns gesture math and the lifecycle.
+ *
+ * The gesture state lives in refs, NOT in the effect's dependency list: `pull`
+ * updates on every finger-move frame, and re-resolving effect deps per frame
+ * used to tear down and re-attach all four touch listeners ~15×/gesture.
+ * Listeners bind once per (disabled, scrollRef, scrollSelector) change.
  */
 export function usePullToRefresh(opts: {
   onRefresh: () => Promise<void> | void;
@@ -27,8 +32,19 @@ export function usePullToRefresh(opts: {
   disabled?: boolean;
 }): { pull: number; refreshing: boolean } {
   const { onRefresh, scrollRef, scrollSelector, threshold = 64, maxPull = 96, disabled } = opts;
-  const [pull, setPull] = useState(0);
-  const [refreshing, setRefreshing] = useState(false);
+  const [pull, setPullState] = useState(0);
+  const [refreshing, setRefreshingState] = useState(false);
+  // Render state mirrored into refs the (once-attached) handlers read live.
+  const pullRef = useRef(0);
+  const refreshingRef = useRef(false);
+  const setPull = (v: number) => {
+    pullRef.current = v;
+    setPullState(v);
+  };
+  const setRefreshing = (v: boolean) => {
+    refreshingRef.current = v;
+    setRefreshingState(v);
+  };
   // Keep the latest onRefresh in a ref so the listeners attached once (on mount)
   // never go stale — re-binding touchstart/move/up on every render would risk
   // leaking listeners or firing on detached DOM.
@@ -49,11 +65,7 @@ export function usePullToRefresh(opts: {
       if (scrollSelector) return document.querySelector<HTMLElement>(scrollSelector);
       return null;
     };
-    const getScrollTop = () => {
-      const el = resolveScrollEl();
-      if (el) return el.scrollTop;
-      return window.scrollY || document.documentElement.scrollTop || document.body.scrollTop || 0;
-    };
+    const getScrollTop = () => resolveScrollEl()?.scrollTop ?? 0;
 
     const onTouchStart = (e: TouchEvent) => {
       if (e.touches.length !== 1) return;
@@ -67,10 +79,10 @@ export function usePullToRefresh(opts: {
     };
 
     const onTouchMove = (e: TouchEvent) => {
-      if (!active.current || refreshing) return;
+      if (!active.current || refreshingRef.current) return;
       const dy = e.touches[0].clientY - startY.current;
       if (dy <= 0) {
-        if (pull !== 0) setPull(0);
+        if (pullRef.current !== 0) setPull(0);
         return;
       }
       // Rubber-band: half-speed past 0 (and capped) so the page resists the
@@ -88,7 +100,7 @@ export function usePullToRefresh(opts: {
         return;
       }
       active.current = false;
-      if (pull >= threshold) {
+      if (pullRef.current >= threshold) {
         setRefreshing(true);
         setPull(threshold);
         Promise.resolve(onRefreshRef.current())
@@ -102,11 +114,11 @@ export function usePullToRefresh(opts: {
       }
     };
 
-    // Attach to the resolved scroll element (preferred) or fall back to the
-    // document body. The body fallback is fine when the page itself scrolls
-    // (no app-shell main with overflow-y-auto).
-    const attachTarget = resolveScrollEl();
-    const attachEl: HTMLElement = attachTarget ?? document.body;
+    // Attach to the resolved scroll element. No body fallback: in this app
+    // shell the page itself never scrolls, and binding to <body> made the
+    // gesture fire mid-list wherever window.scrollY happened to read 0.
+    const attachEl = resolveScrollEl();
+    if (!attachEl) return;
     attachEl.addEventListener("touchstart", onTouchStart, { passive: true });
     attachEl.addEventListener("touchmove", onTouchMove, { passive: false });
     attachEl.addEventListener("touchend", onTouchEnd, { passive: true });
@@ -117,7 +129,7 @@ export function usePullToRefresh(opts: {
       attachEl.removeEventListener("touchend", onTouchEnd);
       attachEl.removeEventListener("touchcancel", onTouchEnd);
     };
-  }, [disabled, scrollRef, scrollSelector, threshold, maxPull, refreshing, pull]);
+  }, [disabled, scrollRef, scrollSelector, threshold, maxPull]);
 
   return { pull, refreshing };
 }

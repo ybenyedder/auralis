@@ -87,6 +87,7 @@ import local.auralis.client.ui.components.NetworkImage
 import local.auralis.client.ui.components.amFrosted
 import local.auralis.client.ui.components.formatDuration
 import local.auralis.client.ui.theme.AMType
+import local.auralis.client.ui.theme.LocalApiUrl
 import local.auralis.client.ui.theme.LocalAuralis
 import kotlin.math.abs
 
@@ -196,8 +197,12 @@ fun FullscreenPlayer(
         // blown-up, heavily blurred copy of the cover art, dimmed by a vertical scrim
         // so it reads as an ambient colour field (always dark, like Apple Music).
         if (!track.image.isNullOrBlank()) {
+            // Resolve the relative art path against the server base — a raw
+            // "/api/art/…" path made OkHttp throw inside the loader and the
+            // ambient backdrop silently never rendered.
+            val resolveUrl = LocalApiUrl.current
             NetworkImage(
-                track.image,
+                resolveUrl(track.image),
                 Modifier.fillMaxSize().blur(64.dp),
                 contentScale = ContentScale.Crop,
             )
