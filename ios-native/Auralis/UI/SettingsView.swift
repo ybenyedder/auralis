@@ -57,13 +57,18 @@ struct SettingsView: View {
                     }.buttonStyle(.plain)
                 }
 
-                Text("Auralis iOS · v1.0.0").font(.caption2).foregroundStyle(.secondary)
+                Text("Auralis iOS · v\(appVersion)").font(.caption2).foregroundStyle(.secondary)
                     .frame(maxWidth: .infinity)
             }
             .padding(.horizontal, 16).padding(.top, 8).padding(.bottom, 120)
         }
         .navigationTitle("Réglages")
         .navigationBarTitleDisplayMode(.inline)
+    }
+
+    /// MARKETING_VERSION from the build settings, surfaced via the generated plist.
+    private var appVersion: String {
+        (Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String) ?? "1.0.0"
     }
 
     private func stat(_ value: String, _ label: String) -> some View {

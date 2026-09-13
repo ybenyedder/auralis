@@ -3,9 +3,7 @@ package local.auralis.client.ui
 import android.app.Application
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
-import androidx.media3.common.Player
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -16,13 +14,14 @@ import kotlinx.coroutines.launch
 import local.auralis.client.data.Prefs
 import local.auralis.client.model.Album
 import local.auralis.client.model.Artist
-import local.auralis.client.model.ListeningStats
 import local.auralis.client.model.LyricsResult
+import local.auralis.client.model.ListeningStats
 import local.auralis.client.model.MonthlyRecap
 import local.auralis.client.model.PlaylistDto
 import local.auralis.client.model.SearchResult
 import local.auralis.client.model.Track
 import local.auralis.client.net.AuralisApi
+import local.auralis.client.playback.PlaybackAccounting
 import local.auralis.client.playback.PlaybackSnapshot
 import local.auralis.client.playback.PlayerHolder
 import local.auralis.client.sync.SyncManager
@@ -111,6 +110,11 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
     private val syncManager = SyncManager(api, app)
     val player = PlayerHolder(app, api, syncManager)
 
+    // Process-lifetime accounting (scrobbles, skips, sleep timer, session save,
+    // stats/reco). Owned OUTSIDE the viewModelScope so it survives this ViewModel
+    // being cleared when the user swipes the app away mid-playback.
+    private val accounting = PlaybackAccounting.get(app)
+
     private val _ui = MutableStateFlow(UiState())
     val ui: StateFlow<UiState> = _ui.asStateFlow()
 
@@ -123,13 +127,32 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
     fun currentTrack(): Track? = track(player.snapshot.value.currentId)
 
     init {
-        player.onTrackChanged = { id, reason -> onTrackChanged(id, reason) }
+        player.onTrackChanged = { id, _ -> onTrackChanged(id) }
         player.onNeedContinuation = { appendContinuation() }
         player.connect()
+        accounting.setLibrary(trackIndex)
+        accounting.start()
+        // Mirror the accounting-owned state into the UI: scrobble bumps, streak,
+        // taste mix and sleep-timer state keep updating here even when a NEW
+        // ViewModel attaches after the previous one was cleared.
+        viewModelScope.launch {
+            accounting.state.collect { st ->
+                _ui.update {
+                    it.copy(
+                        playCounts = st.playCounts,
+                        recents = st.recents,
+                        stats = st.stats,
+                        forYou = st.forYou,
+                        recoScores = st.recoScores,
+                        sleepActive = st.sleepActive,
+                        sleepEndsAt = st.sleepEndsAt,
+                        sleepEndOfTrack = st.sleepEndOfTrack,
+                    )
+                }
+            }
+        }
+        viewModelScope.launch { accounting.messages.collect { notify(it) } }
         boot()
-        observeScrobble()
-        observeSleep()
-        observeSessionPersist()
         checkForUpdate()
     }
 
@@ -152,6 +175,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
             }
             if (!p.token.isNullOrBlank()) {
                 api.configure(p.serverBase, p.token)
+                accounting.onServerConfigured(p.serverBase, p.token)
                 _ui.update { it.copy(serverBase = p.serverBase, username = p.username) }
                 // Validate by loading; on auth failure fall back to login.
                 loadAll(onAuthError = {
@@ -174,6 +198,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
             }
             prefs.setServer(base, null, null)
             api.configure(base, null)
+            accounting.onServerConfigured(base, null)
             _ui.update { it.copy(connecting = false, serverBase = base, phase = Phase.LOGIN, message = null) }
         }
     }
@@ -185,6 +210,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
             val res = api.login(base, username.ifBlank { "admin" }, password)
             if (res.ok && res.token != null) {
                 api.configure(base, res.token)
+                accounting.onServerConfigured(base, res.token)
                 prefs.setServer(base, res.token, res.username)
                 _ui.update {
                     it.copy(connecting = false, username = res.username, isAdmin = res.isAdmin, message = null)
@@ -209,6 +235,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
             player.stop()
             prefs.clearSession()
             api.configure(_ui.value.serverBase, null)
+            accounting.onServerConfigured(_ui.value.serverBase, null)
             _ui.update { it.copy(phase = Phase.LOGIN) }
         }
     }
@@ -229,6 +256,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
                     snapshot to snapshot.tracks.associateBy { it.trackhash }
                 }
                 trackIndex = index
+                accounting.setLibrary(index)
                 _ui.update {
                     it.copy(
                         phase = Phase.READY,
@@ -242,7 +270,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
                 }
                 refreshState()
                 refreshStats()
-                fetchReco()
+                accounting.refreshRecoNow()
                 fetchRecapAndMaybeNotify()
                 restoreLastSession()
             } catch (e: AuralisApi.ApiException) {
@@ -259,13 +287,14 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
 
     private suspend fun refreshState() {
         runCatching { api.userState() }.getOrNull()?.let { st ->
+            // Counts/recents belong to the accounting singleton (it keeps bumping
+            // them after this ViewModel is gone); seed it, keep the rest local.
+            accounting.seedCounts(st.playCounts, st.recents)
             _ui.update {
                 it.copy(
                     favorites = st.favorites.toSet(),
                     favoritesOrder = st.favorites,
                     dislikes = st.dislikes.toSet(),
-                    recents = st.recents,
-                    playCounts = st.playCounts,
                     playlists = st.playlists.sortedBy { p -> p.position },
                 )
             }
@@ -273,9 +302,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     private suspend fun refreshStats() {
-        val s = runCatching { api.stats() }.getOrDefault(ListeningStats.EMPTY)
-        _ui.update { it.copy(stats = s) }
-        checkMilestone(s.streak)
+        accounting.refreshStatsNow()
     }
 
     fun refreshStatsAsync() { viewModelScope.launch { refreshStats() } }
@@ -345,7 +372,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
     fun prev() {
         // Going back isn't a rejection of the current track — exempt its departure
         // from skip detection (prev only changes track within the first 3 s).
-        if (player.positionMs() <= 3000) player.snapshot.value.currentId?.let { skipExempt.add(it) }
+        if (player.positionMs() <= 3000) player.snapshot.value.currentId?.let { accounting.exemptFromSkip(it) }
         player.prev()
     }
     fun seekTo(ms: Long) = player.seekTo(ms)
@@ -458,97 +485,16 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
         }
     }
 
-    // ---- track change → lyrics + recents bump ------------------------------
+    // ---- track change → lyrics ----------------------------------------------
+    // Skip detection, the scrobble gate, the sleep end-of-track stop and the
+    // whole 1s/5s accounting loops live in PlaybackAccounting (they must keep
+    // running after this ViewModel is cleared); only the UI-side lyrics reset
+    // and fetch remain here.
 
-    private fun onTrackChanged(id: String?, reason: Int) {
-        // Outgoing-track accounting: a user-initiated departure (next / jump / a new
-        // queue — NOT a natural end or repeat) before the scrobble threshold, and not
-        // an exempt move (previous-nav / resumed session), is a SKIP — a negative taste
-        // signal scaled by how little was heard. The >=1s guard ignores instant
-        // re-selections so they don't poison the profile.
-        val leaving = scrobbleArmedFor
-        if (leaving != null && leaving != id) {
-            val exempt = skipExempt.remove(leaving)
-            val userInitiated = reason == Player.MEDIA_ITEM_TRANSITION_REASON_SEEK ||
-                reason == Player.MEDIA_ITEM_TRANSITION_REASON_PLAYLIST_CHANGED
-            if (userInitiated && !exempt && !scrobbled && listenedMs >= 1000) {
-                val durMs = ((track(leaving)?.duration ?: 0.0) * 1000).toLong()
-                val ratio = if (durMs > 0) (listenedMs.toDouble() / durMs).coerceIn(0.0, 1.0) else 0.0
-                recordSkip(leaving, listenedMs, ratio)
-            }
-        }
-
-        // Sleep "end of track": the previous track just finished and advanced — stop here.
-        if (_ui.value.sleepEndOfTrack) {
-            player.pause()
-            _ui.update { it.copy(sleepActive = false, sleepEndOfTrack = false, sleepEndsAt = null) }
-            notify("Lecture arrêtée (fin de titre)")
-        }
-        scrobbleArmedFor = id
-        listenedMs = 0L
-        lastPos = 0L
-        scrobbled = false
+    private fun onTrackChanged(id: String?) {
         _ui.update { it.copy(lyrics = LyricsResult.NONE) }
         // Fetch lyrics for the now-playing track (lazy; only when a track is active).
         if (id != null) fetchLyrics(force = false)
-    }
-
-    // ---- scrobble gate (30s or 50% of duration of real listening) ----------
-
-    // Trackhashes whose departure must NOT be recorded as a skip (going back to the
-    // previous track, or a resumed-session track). One-shot: cleared on the next change.
-    private val skipExempt = HashSet<String>()
-
-    private var scrobbleArmedFor: String? = null
-    private var listenedMs = 0L
-    private var lastPos = 0L
-    private var scrobbled = false
-
-    private fun observeScrobble() {
-        viewModelScope.launch {
-            while (true) {
-                delay(1000)
-                val snap = player.snapshot.value
-                val pos = player.position.value
-                if (snap.isPlaying && snap.currentId != null) {
-                    val delta = pos - lastPos
-                    if (delta in 1..2000) listenedMs += delta
-                    lastPos = pos
-                    val dur = snap.durationMs
-                    val threshold = if (dur > 0) minOf(30_000L, dur / 2) else 30_000L
-                    if (!scrobbled && listenedMs >= threshold) {
-                        scrobbled = true
-                        scrobble(snap.currentId!!)
-                    }
-                } else {
-                    lastPos = pos
-                }
-            }
-        }
-    }
-
-    private fun scrobble(trackhash: String) {
-        viewModelScope.launch {
-            // optimistic local bump
-            _ui.update {
-                val pc = it.playCounts.toMutableMap()
-                pc[trackhash] = (pc[trackhash] ?: 0) + 1
-                val recents = (listOf(trackhash) + it.recents.filter { r -> r != trackhash }).take(100)
-                it.copy(playCounts = pc, recents = recents)
-            }
-            api.putState(JSONObject().put("action", "play").put("trackhash", trackhash))
-            refreshStats()
-        }
-        scheduleReco() // a completed listen nudges the taste profile
-    }
-
-    /** Record a SKIP (advanced before the listen threshold): a negative taste signal,
-     *  not a listen — it doesn't touch local play counts / recents. */
-    private fun recordSkip(trackhash: String, msPlayed: Long, ratio: Double) {
-        viewModelScope.launch {
-            api.putState(JSONObject().put("action", "skip").put("trackhash", trackhash).put("msPlayed", msPlayed).put("ratio", ratio))
-        }
-        scheduleReco()
     }
 
     // ---- favorites / dislikes ----------------------------------------------
@@ -565,7 +511,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
         viewModelScope.launch {
             api.putState(JSONObject().put("action", "favorite").put("trackhash", trackhash).put("value", !isFav))
         }
-        scheduleReco()
+        accounting.requestReco()
     }
 
     fun isFavorite(trackhash: String): Boolean = _ui.value.favorites.contains(trackhash)
@@ -582,29 +528,14 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
         viewModelScope.launch {
             api.putState(JSONObject().put("action", "dislike").put("trackhash", trackhash).put("value", !isDis))
         }
-        scheduleReco()
+        accounting.requestReco()
     }
 
     fun isDisliked(trackhash: String): Boolean = _ui.value.dislikes.contains(trackhash)
 
     // ---- recommendations + monthly recap -----------------------------------
-
-    private var recoJob: Job? = null
-    /** Refresh the personalised mix shortly after a feedback event (debounced). */
-    private fun scheduleReco() {
-        recoJob?.cancel()
-        recoJob = viewModelScope.launch { delay(1500); fetchReco() }
-    }
-
-    private suspend fun fetchReco() {
-        val res = api.recommend()
-        val scores = res.forYou.associate { it.trackhash to it.score }
-        val disliked = res.disliked.toSet()
-        val tracks = res.forYou.mapNotNull { trackIndex[it.trackhash] }
-            .filter { it.trackhash !in disliked }
-            .take(12)
-        _ui.update { it.copy(forYou = tracks, recoScores = scores) }
-    }
+    // (The "Fait pour vous" mix itself is owned by PlaybackAccounting, which
+    // refreshes it after scrobbles/skips/favourites — see requestReco().)
 
     private suspend fun fetchRecapAndMaybeNotify() {
         val res = api.recap(null)
@@ -723,64 +654,27 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     // ---- sleep timer -------------------------------------------------------
+    // State + expiry loop live in PlaybackAccounting so an armed timer still
+    // stops playback after the app is swiped away. The timer deadline is
+    // SystemClock.elapsedRealtime()-based (monotonic) inside the accounting.
 
     fun startSleepTimer(minutes: Int) {
-        _ui.update { it.copy(sleepActive = true, sleepEndsAt = System.currentTimeMillis() + minutes * 60_000L, sleepEndOfTrack = false) }
+        accounting.startSleepTimer(minutes)
         notify("Minuteur : $minutes min")
     }
     fun sleepAfterTrack() {
-        _ui.update { it.copy(sleepActive = true, sleepEndsAt = null, sleepEndOfTrack = true) }
+        accounting.sleepAfterTrack()
         notify("Arrêt en fin de titre")
     }
     fun cancelSleepTimer() {
-        _ui.update { it.copy(sleepActive = false, sleepEndsAt = null, sleepEndOfTrack = false) }
+        accounting.cancelSleepTimer()
         notify("Minuteur annulé")
-    }
-    private fun observeSleep() {
-        viewModelScope.launch {
-            while (true) {
-                delay(1000)
-                val s = _ui.value
-                val endsAt = s.sleepEndsAt
-                if (s.sleepActive && endsAt != null && System.currentTimeMillis() >= endsAt) {
-                    player.pause()
-                    _ui.update { it.copy(sleepActive = false, sleepEndsAt = null, sleepEndOfTrack = false) }
-                    notify("Lecture arrêtée (minuteur)")
-                }
-            }
-        }
     }
 
     // ---- session resume ----------------------------------------------------
+    // (The 5s persistence loop is in PlaybackAccounting; only the boot-time
+    // restore, which needs the freshly loaded library, stays here.)
 
-    private fun observeSessionPersist() {
-        var lastJson: String? = null
-        viewModelScope.launch {
-            while (true) {
-                delay(5000)
-                val snap = player.snapshot.value
-                if (snap.currentId != null && snap.queueIds.isNotEmpty()) {
-                    val idx = snap.currentIndex.coerceAtLeast(0)
-                    val start = (idx - 100).coerceAtLeast(0)
-                    val window = snap.queueIds.drop(start).take(200)
-                    val json = JSONObject()
-                        .put("trackhash", snap.currentId)
-                        .put("hashes", JSONArray(window))
-                        .put("index", idx - start)
-                        .put("position", player.positionMs())
-                        .toString()
-                    // Skip redundant DataStore writes: when paused (and not seeking) the
-                    // serialized session is identical tick after tick. Deduping covers
-                    // every case correctly — playing/seek-while-paused change the JSON and
-                    // still persist; only no-op ticks are dropped.
-                    if (json != lastJson) {
-                        lastJson = json
-                        runCatching { prefs.saveLastSession(json) }
-                    }
-                }
-            }
-        }
-    }
     private suspend fun restoreLastSession() {
         if (player.snapshot.value.hasItems) return
         val raw = runCatching { prefs.loadLastSession() }.getOrNull() ?: return
@@ -792,21 +686,13 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
         val pos = o.optLong("position", 0L)
         // A resumed track was already partly heard last session; leaving it now isn't
         // a fresh skip (the gate can't see the prior listening).
-        if (pos > 0) tracks.getOrNull(idx)?.let { skipExempt.add(it.trackhash) }
+        if (pos > 0) tracks.getOrNull(idx)?.let { accounting.exemptFromSkip(it.trackhash) }
         player.playTracksPaused(tracks, idx, pos)
     }
 
-    // ---- streak milestones -------------------------------------------------
-
-    private fun checkMilestone(streak: Int) {
-        viewModelScope.launch {
-            val milestones = listOf(3, 7, 14, 30, 60, 100, 200, 365)
-            val last = prefs.lastMilestone()
-            val top = milestones.filter { it <= streak }.maxOrNull() ?: 0
-            if (top > last) { prefs.setMilestone(top); notify("🔥 $top jours d'affilée !") }
-            else if (top < last) prefs.setMilestone(top)
-        }
-    }
+    // ---- streak milestones --------------------------------------------------
+    // (Milestone detection moved with the stats into PlaybackAccounting so a
+    // streak earned during background playback still fires.)
 
     // ---- playlists ---------------------------------------------------------
 
@@ -814,6 +700,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
         viewModelScope.launch {
             val pl = JSONObject().put("name", name)
             val res = api.putState(JSONObject().put("action", "playlist.upsert").put("playlist", pl))
+            if (!api.apiLastOk) { notify("Impossible de créer la playlist"); return@launch }
             val id = res.optString("id", "")
             refreshState()
             if (id.isNotBlank()) onCreated(id)
@@ -848,6 +735,10 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
                 .put("pinned", pl.pinned)
                 .put("trackhashes", JSONArray(pl.trackhashes))
             api.putState(JSONObject().put("action", "playlist.upsert").put("playlist", json))
+            if (!api.apiLastOk) {
+                notify("Échec de la synchronisation de « ${pl.name} »")
+                refreshState() // revert the optimistic edit with the server's truth
+            }
         }
     }
 
@@ -964,11 +855,11 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     fun resetStats() {
-        _ui.update { it.copy(playCounts = emptyMap(), recents = emptyList()) }
+        accounting.clearLocalCounts() // authoritative owner of counts/recents
         viewModelScope.launch {
             api.putState(JSONObject().put("action", "resetStats"))
             refreshStats()
-            fetchReco()
+            accounting.refreshRecoNow()
         }
         notify("Historique réinitialisé")
     }
@@ -977,6 +868,10 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
         viewModelScope.launch {
             notify("Scan lancé…")
             api.post("/api/library/scan", JSONObject())
+            if (!api.apiLastOk) {
+                notify("Échec du scan — serveur injoignable")
+                return@launch
+            }
             loadAll()
         }
     }
@@ -1085,6 +980,10 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
     // ---- theme -------------------------------------------------------------
 
     override fun onCleared() {
+        // Deliberately NOT touching PlaybackAccounting: it must keep scrobbling,
+        // saving the session and honoring the sleep timer while the service keeps
+        // playing after the UI (this ViewModel) is gone. Releasing the UI's
+        // PlayerHolder only drops this ViewModel's own controller + SSE sync.
         player.release()
         super.onCleared()
     }

@@ -16,6 +16,7 @@ import { X, Mic2, Loader2 } from "lucide-react";
 import { useSync, type LiveNowPlaying } from "@/store/sync";
 import { api } from "@/lib/auralis/api";
 import { formatDuration } from "@/lib/auralis/brand";
+import { useT } from "@/lib/auralis/i18n";
 import { cn } from "@/lib/utils";
 
 type LyricLine = { time: number; text: string; words?: { time: number; text: string }[] };
@@ -27,6 +28,7 @@ interface LyricsResponse {
 }
 
 export function RemoteLyricsOverlay() {
+  const t = useT();
   const controllingId = useSync((s) => s.controllingId);
   const open = useSync((s) => s.remoteLyricsOpen);
   const setOpen = useSync((s) => s.setRemoteLyricsOpen);
@@ -124,11 +126,11 @@ export function RemoteLyricsOverlay() {
       <div className="flex items-center justify-between px-5 pt-5">
         <div className="flex items-center gap-2 text-[12px] font-bold uppercase tracking-wide text-[var(--primary)]">
           <Mic2 className="size-4" />
-          Paroles · {np?.title ?? "—"}
+          {t("rlyrics.title", "Paroles · {title}", { title: np?.title ?? "—" })}
         </div>
         <button
           onClick={() => setOpen(false)}
-          aria-label="Fermer les paroles"
+          aria-label={t("rlyrics.close", "Fermer les paroles")}
           className="grid size-10 place-items-center rounded-full bg-white/10 text-white transition-colors hover:bg-white/20"
         >
           <X className="size-5" />
@@ -182,9 +184,9 @@ export function RemoteLyricsOverlay() {
           <div className="flex h-full flex-col items-center justify-center gap-2 px-6 text-center text-white/50">
             <Mic2 className="size-8 opacity-50" />
             <p className="text-[15px] font-bold">
-              {status === "instrumental" ? "Morceau instrumental" : "Aucune parole trouvée"}
+              {status === "instrumental" ? t("toast.instrumental", "Morceau instrumental") : t("toast.noLyricsFound", "Aucune parole trouvée")}
             </p>
-            <p className="text-[12px]">Les paroles apparaîtront ici si elles sont disponibles côté serveur.</p>
+            <p className="text-[12px]">{t("rlyrics.hint", "Les paroles apparaîtront ici si elles sont disponibles côté serveur.")}</p>
           </div>
         )}
       </div>

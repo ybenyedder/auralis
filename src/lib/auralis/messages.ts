@@ -614,6 +614,114 @@ const fr: Dict = {
   "connect.aDevice": "un appareil",
   "connect.stop": "Arrêter",
   "connect.noSyncLyrics": "Aucune parole synchronisée",
+
+  // --- Sidebar / view chrome ----------------------------------------------
+  "nav.discover": "Découvrir",
+  "nav.favorites": "Titres aimés",
+  "nav.recents": "Écoutés récemment",
+  "nav.newPlaylist": "Nouvelle playlist",
+  "nav.playlists": "Playlists",
+  "nav.forward": "Suivant",
+  "titlebar.searchLibrary": "Rechercher dans la bibliothèque",
+  "titlebar.hidePanel": "Masquer le panneau",
+  "titlebar.showPanel": "Afficher le panneau",
+  "titlebar.profile": "Profil",
+  "titlebar.profileAria": "Profil et réglages",
+  "win.minimize": "Réduire",
+  "win.maximize": "Agrandir",
+  "win.restore": "Restaurer",
+  "win.close": "Fermer",
+
+  // --- Now-playing panel ----------------------------------------------------
+  "panel.nowPlaying": "Lecture en cours",
+  "panel.noPlayback": "Aucune lecture en cours",
+  "panel.closePanel": "Fermer le panneau",
+  "panel.aboutTrack": "À propos du titre",
+  "panel.year": "Année",
+  "panel.genre": "Genre",
+  "panel.quality": "Qualité",
+  "panel.duration": "Durée",
+
+  // --- Queue ----------------------------------------------------------------
+  "queue.clear": "Nettoyer",
+  "queue.empty": "La file est vide.",
+  "queue.moveUp": "Monter dans la file",
+  "queue.moveDown": "Descendre dans la file",
+  "queue.remove": "Retirer de la file",
+
+  // --- Lyrics ---------------------------------------------------------------
+  "lyrics.noLyrics": "Aucune parole pour ce titre",
+  "lyrics.searchOnline": "Chercher en ligne",
+  "lyrics.sidecarHintA": "Recherche en ligne désactivée sur ce serveur — place un fichier",
+  "lyrics.sidecarHintB": "à côté du morceau pour ses paroles.",
+  "lyrics.modeAria": "Mode des paroles",
+  "lyrics.standard": "Standard",
+  "lyrics.karaoke": "Karaoké",
+  "lyrics.alignTitle": "Générer le karaoké mot-à-mot en alignant les paroles sur l'audio (traitement local)",
+  "lyrics.aligning": "Alignement…",
+  "lyrics.wordByWord": "Mot-à-mot",
+  "lyrics.offsetAria": "Décalage des paroles",
+  "lyrics.delay": "Retarder les paroles",
+  "lyrics.resetOffset": "Décalage de synchro — toucher pour réinitialiser",
+  "lyrics.advance": "Avancer les paroles",
+  "rlyrics.title": "Paroles · {title}",
+  "rlyrics.close": "Fermer les paroles",
+  "rlyrics.hint": "Les paroles apparaîtront ici si elles sont disponibles côté serveur.",
+
+  // --- Auth gate --------------------------------------------------------------
+  "auth.whoIsListening": "Qui écoute ?",
+  "auth.enterPassword": "Saisis ton mot de passe",
+  "auth.wrongPassword": "Mot de passe incorrect",
+  "auth.signIn": "Se connecter",
+  "auth.signingIn": "Connexion…",
+  "auth.switchProfile": "Changer de profil",
+
+  // --- Keyboard help ----------------------------------------------------------
+  "help.title": "Raccourcis clavier",
+  "help.groupPlayback": "Lecture",
+  "help.groupNavigation": "Navigation",
+  "help.playPause": "Lecture / pause",
+  "help.seek": "Reculer / avancer de 5 s",
+  "help.volumeArrows": "Flèches (sur un contrôle) : volume · sinon défilement",
+  "help.mute": "Couper / rétablir le son",
+  "help.toggleFavorite": "Ajouter / retirer des favoris",
+  "help.repeat": "Répétition (off → tout → un)",
+  "help.openPalette": "Ouvrir la palette de commandes",
+  "help.fullscreen": "Ouvrir / fermer le lecteur plein écran",
+  "help.queue": "Ouvrir / fermer la file d'attente",
+  "help.visualizer": "Ouvrir / fermer le visualiseur",
+  "help.escape": "Fermer l'overlay ou le plein écran",
+  "help.showHelp": "Afficher cette aide",
+  "help.escClose": "pour fermer",
+  "help.keySpace": "Espace",
+  "help.keyShift": "Maj",
+  "help.keyEscape": "Échap",
+
+  // --- Command palette --------------------------------------------------------
+  "cmd.placeholder": "Rechercher titres, albums, artistes…",
+  "cmd.group.navigation": "Navigation",
+  "cmd.group.tracks": "Titres",
+  "cmd.group.albums": "Albums",
+  "cmd.group.artists": "Artistes",
+  "cmd.group.playlists": "Playlists",
+  "cmd.paletteAria": "Palette de commandes",
+  "cmd.results": "Résultats",
+  "cmd.brand": "Commande Auralis",
+
+  // --- Selection bar ----------------------------------------------------------
+  "sel.exit": "Quitter la sélection",
+  "sel.selectedOne": "{count} sélectionné",
+  "sel.selectedMany": "{count} sélectionnés",
+  "sel.pickTracks": "Choisissez des titres",
+  "sel.playSelection": "Lire la sélection",
+  "sel.createMix": "Créer un mix",
+
+  // --- Home quick access --------------------------------------------------------
+  "home.likedTracks": "Titres likés",
+
+  // --- Crossfade toast (queueSlice.setCrossfade) ---------------------------------
+  "settings.crossfadeValue": "Fondu enchaîné : {v} s",
+  "settings.crossfadeOff": "Fondu désactivé",
 };
 
 const en: Dict = {
@@ -1219,6 +1327,114 @@ const en: Dict = {
   "connect.aDevice": "a device",
   "connect.stop": "Stop",
   "connect.noSyncLyrics": "No synced lyrics",
+
+  // --- Sidebar / view chrome ----------------------------------------------
+  "nav.discover": "Discover",
+  "nav.favorites": "Liked Songs",
+  "nav.recents": "Recently Played",
+  "nav.newPlaylist": "New playlist",
+  "nav.playlists": "Playlists",
+  "nav.forward": "Forward",
+  "titlebar.searchLibrary": "Search the library",
+  "titlebar.hidePanel": "Hide panel",
+  "titlebar.showPanel": "Show panel",
+  "titlebar.profile": "Profile",
+  "titlebar.profileAria": "Profile and settings",
+  "win.minimize": "Minimize",
+  "win.maximize": "Maximize",
+  "win.restore": "Restore",
+  "win.close": "Close",
+
+  // --- Now-playing panel ----------------------------------------------------
+  "panel.nowPlaying": "Now Playing",
+  "panel.noPlayback": "Nothing playing",
+  "panel.closePanel": "Close panel",
+  "panel.aboutTrack": "About the track",
+  "panel.year": "Year",
+  "panel.genre": "Genre",
+  "panel.quality": "Quality",
+  "panel.duration": "Duration",
+
+  // --- Queue ----------------------------------------------------------------
+  "queue.clear": "Clear",
+  "queue.empty": "The queue is empty.",
+  "queue.moveUp": "Move up in queue",
+  "queue.moveDown": "Move down in queue",
+  "queue.remove": "Remove from queue",
+
+  // --- Lyrics ---------------------------------------------------------------
+  "lyrics.noLyrics": "No lyrics for this track",
+  "lyrics.searchOnline": "Search online",
+  "lyrics.sidecarHintA": "Online lyrics are disabled on this server — place a",
+  "lyrics.sidecarHintB": "file next to the track for its lyrics.",
+  "lyrics.modeAria": "Lyrics mode",
+  "lyrics.standard": "Standard",
+  "lyrics.karaoke": "Karaoke",
+  "lyrics.alignTitle": "Generate word-by-word karaoke by aligning lyrics to the audio (processed locally)",
+  "lyrics.aligning": "Aligning…",
+  "lyrics.wordByWord": "Word-by-word",
+  "lyrics.offsetAria": "Lyrics sync offset",
+  "lyrics.delay": "Delay lyrics",
+  "lyrics.resetOffset": "Sync offset — tap to reset",
+  "lyrics.advance": "Advance lyrics",
+  "rlyrics.title": "Lyrics · {title}",
+  "rlyrics.close": "Close lyrics",
+  "rlyrics.hint": "Lyrics will appear here when the server has them.",
+
+  // --- Auth gate --------------------------------------------------------------
+  "auth.whoIsListening": "Who's listening?",
+  "auth.enterPassword": "Enter your password",
+  "auth.wrongPassword": "Incorrect password",
+  "auth.signIn": "Sign in",
+  "auth.signingIn": "Signing in…",
+  "auth.switchProfile": "Switch profile",
+
+  // --- Keyboard help ----------------------------------------------------------
+  "help.title": "Keyboard shortcuts",
+  "help.groupPlayback": "Playback",
+  "help.groupNavigation": "Navigation",
+  "help.playPause": "Play / pause",
+  "help.seek": "Seek back / forward 5 s",
+  "help.volumeArrows": "Arrows (on a control): volume · otherwise scroll",
+  "help.mute": "Mute / unmute",
+  "help.toggleFavorite": "Add / remove favorites",
+  "help.repeat": "Repeat (off → all → one)",
+  "help.openPalette": "Open the command palette",
+  "help.fullscreen": "Toggle the fullscreen player",
+  "help.queue": "Toggle the queue",
+  "help.visualizer": "Toggle the visualizer",
+  "help.escape": "Close the overlay or fullscreen player",
+  "help.showHelp": "Show this help",
+  "help.escClose": "to close",
+  "help.keySpace": "Space",
+  "help.keyShift": "Shift",
+  "help.keyEscape": "Esc",
+
+  // --- Command palette --------------------------------------------------------
+  "cmd.placeholder": "Search tracks, albums, artists…",
+  "cmd.group.navigation": "Navigation",
+  "cmd.group.tracks": "Tracks",
+  "cmd.group.albums": "Albums",
+  "cmd.group.artists": "Artists",
+  "cmd.group.playlists": "Playlists",
+  "cmd.paletteAria": "Command palette",
+  "cmd.results": "Results",
+  "cmd.brand": "Auralis Command",
+
+  // --- Selection bar ----------------------------------------------------------
+  "sel.exit": "Exit selection",
+  "sel.selectedOne": "{count} selected",
+  "sel.selectedMany": "{count} selected",
+  "sel.pickTracks": "Pick some tracks",
+  "sel.playSelection": "Play selection",
+  "sel.createMix": "Create a mix",
+
+  // --- Home quick access --------------------------------------------------------
+  "home.likedTracks": "Liked Songs",
+
+  // --- Crossfade toast (queueSlice.setCrossfade) ---------------------------------
+  "settings.crossfadeValue": "Crossfade: {v} s",
+  "settings.crossfadeOff": "Crossfade off",
 };
 
 const CATALOG: Record<Locale, Dict> = { fr, en };

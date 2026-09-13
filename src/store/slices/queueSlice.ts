@@ -225,7 +225,11 @@ setNormalization: (mode) => {
 setCrossfade: (seconds) => {
       const v = Math.max(0, Math.min(12, Math.round(seconds)));
       set({ crossfade: v });
-      get().notify(v ? `Fondu enchaîné : ${v} s` : "Fondu désactivé");
+      get().notify(
+        v
+          ? translate(get().locale, "settings.crossfadeValue", undefined, { v })
+          : translate(get().locale, "settings.crossfadeOff"),
+      );
     },
 
 addToQueueNext: (track) => {

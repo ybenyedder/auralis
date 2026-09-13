@@ -4,9 +4,11 @@ import { Search, ChevronLeft, ChevronRight, PanelRight, User } from "lucide-reac
 import { usePlayer } from "@/store/player";
 import { WindowControls } from "./WindowControls";
 import { BrandMark } from "./BrandMark";
+import { useT } from "@/lib/auralis/i18n";
 import { cn } from "@/lib/utils";
 
 export function TitleBar() {
+  const t = useT();
   const setCommandOpen = usePlayer((s) => s.setCommandOpen);
   const navigate = usePlayer((s) => s.navigate);
   const back = usePlayer((s) => s.back);
@@ -38,8 +40,8 @@ export function TitleBar() {
         <button
           onClick={back}
           disabled={!canBack}
-          aria-label="Retour"
-          title="Retour"
+          aria-label={t("mobile.back", "Retour")}
+          title={t("mobile.back", "Retour")}
           className={cn(
             "grid h-8 w-8 place-items-center rounded-full transition-all duration-200 active:scale-95",
             canBack
@@ -51,8 +53,8 @@ export function TitleBar() {
         </button>
         <button
           disabled
-          aria-label="Suivant"
-          title="Suivant"
+          aria-label={t("nav.forward", "Suivant")}
+          title={t("nav.forward", "Suivant")}
           className="hidden h-8 w-8 place-items-center rounded-full text-[var(--text-faint)] cursor-default hover:bg-[var(--sidebar-accent)] sm:grid"
         >
           <ChevronRight className="size-5" strokeWidth={2.5} />
@@ -68,12 +70,12 @@ export function TitleBar() {
         <button
           type="button"
           onClick={() => setCommandOpen(true)}
-          aria-label="Rechercher dans la bibliothèque"
-          title="Rechercher"
+          aria-label={t("titlebar.searchLibrary", "Rechercher dans la bibliothèque")}
+          title={t("nav.search", "Rechercher")}
           className="group flex h-9 w-full items-center gap-2.5 rounded-full bg-[var(--surface-2)] pl-3.5 pr-4 text-left text-[var(--text-muted)] transition-all duration-200 hover:bg-[var(--surface-3)] hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--focus-ring)] active:scale-[0.98]"
         >
           <Search className="size-4 shrink-0 transition-colors duration-200 group-hover:text-foreground" />
-          <span className="flex-1 truncate text-[13px]">Rechercher</span>
+          <span className="flex-1 truncate text-[13px]">{t("nav.search", "Rechercher")}</span>
         </button>
       </div>
 
@@ -84,8 +86,8 @@ export function TitleBar() {
       <div className="flex items-center">
         <button
           onClick={toggleRightPanel}
-          aria-label={rightPanelOpen ? "Masquer le panneau" : "Afficher le panneau"}
-          title={rightPanelOpen ? "Masquer le panneau" : "Afficher le panneau"}
+          aria-label={rightPanelOpen ? t("titlebar.hidePanel", "Masquer le panneau") : t("titlebar.showPanel", "Afficher le panneau")}
+          title={rightPanelOpen ? t("titlebar.hidePanel", "Masquer le panneau") : t("titlebar.showPanel", "Afficher le panneau")}
           className={cn(
             "hidden xl:grid h-8 w-8 place-items-center rounded-full transition-all duration-200 hover:bg-[var(--sidebar-accent)] active:scale-95",
             rightPanelOpen ? "text-[var(--primary)]" : "text-[var(--text-muted)] hover:text-foreground",
@@ -96,8 +98,8 @@ export function TitleBar() {
         {/* Profile chip — circular avatar at the top-right. */}
         <button
           onClick={() => navigate("settings")}
-          aria-label="Profil et réglages"
-          title="Profil"
+          aria-label={t("titlebar.profileAria", "Profil et réglages")}
+          title={t("titlebar.profile", "Profil")}
           className="mr-1 grid h-8 w-8 place-items-center rounded-full bg-[var(--surface-2)] text-foreground transition-all duration-200 hover:bg-[var(--surface-3)] active:scale-95"
         >
           <User className="size-4" />

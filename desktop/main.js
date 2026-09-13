@@ -23,6 +23,11 @@ let resolvedPort = 0;
 // server or a host-chosen remote server. Used to re-create the window on macOS
 // activate without falling back to the wrong URL.
 let currentUrl = null;
+// Origin of the server WE run on this machine (spawned standalone in local mode,
+// the dev server in dev). The dialog:pickFolder guard compares the main window's
+// live URL against it so a remote server's page — possibly reached over
+// cleartext HTTP — can't pop the native folder picker.
+let localServerOrigin = null;
 
 // ---------------------------------------------------------------------------
 // First-run source configuration.
@@ -78,6 +83,44 @@ function normalizeSetup(raw) {
     return { mode: "local", musicDir: dir };
   }
   return null;
+}
+
+// Hosts that can only be "close to the machine": loopback, a private LAN range,
+// or mDNS names on the local network. A plain-http base URL is acceptable there
+// — that is the intended frictionless NAS-on-the-LAN case.
+function isTrustedHost(hostname) {
+  const host = hostname.toLowerCase();
+  if (host === "localhost" || host.endsWith(".localhost") || host.endsWith(".local")) return true;
+  // URL hostnames for IPv6 literals come back without brackets ("::1").
+  if (host === "::1") return true;
+  const octets = host.split(".");
+  if (octets.length !== 4 || octets.some((o) => !/^\d{1,3}$/.test(o))) return false;
+  const [a, b] = octets.map(Number);
+  return a === 127 || a === 10 || (a === 192 && b === 168) || (a === 172 && b >= 16 && b <= 31);
+}
+
+// Warn before persisting a cleartext http:// base for a host that is clearly NOT
+// local: the login password and session token would travel the internet
+// unencrypted. Anything LAN-ish (see isTrustedHost) passes without prompting.
+async function confirmPlainHttpRemote(url) {
+  let parsed;
+  try { parsed = new URL(url); } catch { return true; } // normalizeSetup already validated it
+  if (parsed.protocol !== "http:" || isTrustedHost(parsed.hostname)) return true;
+  try {
+    const { response } = await dialog.showMessageBox(setupWindow, {
+      type: "warning",
+      buttons: ["Continuer sans chiffrement", "Annuler"],
+      defaultId: 1,
+      cancelId: 1,
+      title: "Connexion non chiffrée",
+      message: `${parsed.host} utilise HTTP non chiffré.`,
+      detail: "Le mot de passe et le jeton de session circuleront en clair sur le réseau. Préférez HTTPS si le serveur est accessible au-delà de votre réseau local.",
+    });
+    return response === 0;
+  } catch {
+    // The setup window disappeared mid-prompt — do not persist anything.
+    return false;
+  }
 }
 
 let setupWindow = null;
@@ -141,6 +184,11 @@ ipcMain.handle("setup:submit", async (event, raw) => {
   if (!fromSetupWindow(event)) return { ok: false, error: "Not allowed." };
   const cfg = normalizeSetup(raw);
   if (!cfg) return { ok: false, error: "Configuration invalide." };
+  // Interactive-only check: a saved config replayed at boot must never prompt,
+  // which is why this lives in the submit handler and not in normalizeSetup().
+  if (cfg.mode === "remote" && !(await confirmPlainHttpRemote(cfg.url))) {
+    return { ok: false, error: "Connexion HTTP non confirmée — saisissez une URL HTTPS ou réessayez." };
+  }
   // The chosen source still applies to this running session either way (completeSetup
   // resolves with the in-memory cfg) — `persisted: false` only means writeSetup()
   // couldn't save it to disk (e.g. disk full/permissions), so setup will re-run next launch.
@@ -187,7 +235,15 @@ function pickPort() {
   });
 }
 
-function waitForServer(port, timeoutMs = 30000) {
+// Poll until the spawned server answers /api/health AND identifies itself as
+// Auralis. "Some process answers the port" is not enough: anything local could
+// have grabbed the port in the window between pickPort() and the first poll
+// (TOCTOU), so require the health endpoint's anonymous payload — it returns
+// { name: "Auralis", status } to unauthenticated callers (see
+// src/app/api/health/route.ts). `crashDetail` lets the caller surface "the
+// server died" separately from "the server is slow" instead of blaming the
+// timeout for both.
+function waitForServer(port, timeoutMs = 30000, crashDetail = () => null) {
   const deadline = Date.now() + timeoutMs;
   return new Promise((resolve, reject) => {
     const attempt = () => {
@@ -197,16 +253,35 @@ function waitForServer(port, timeoutMs = 30000) {
       let settled = false;
       const once = (fn) => (...args) => { if (settled) return; settled = true; fn(...args); };
       const req = http.get({ host: "127.0.0.1", port, path: "/api/health", timeout: 2000 }, once((res) => {
-        res.resume();
-        if (res.statusCode && res.statusCode < 500) resolve();
-        else retry();
+        // The outer guard is spent the moment the response arrives, so the body
+        // handlers carry their OWN: they must not share `settled`, or the 'end'
+        // handler would be disarmed by the very callback that attached it.
+        let done = false;
+        const finish = (fn) => (...args) => { if (done) return; done = true; fn(...args); };
+        let body = "";
+        res.setEncoding("utf8");
+        res.on("data", (chunk) => { body += chunk; });
+        res.on("error", finish(retry));
+        res.on("end", finish(() => {
+          let isAuralis = false;
+          try {
+            isAuralis = res.statusCode < 500 && JSON.parse(body).name === "Auralis";
+          } catch { isAuralis = false; }
+          if (isAuralis) resolve();
+          else retry();
+        }));
       }));
       req.on("error", once(retry));
       req.on("timeout", once(() => { req.destroy(); retry(); }));
     };
     const retry = () => {
-      if (Date.now() > deadline) reject(new Error("Auralis server did not start in time"));
-      else setTimeout(attempt, 300);
+      // A dead child is a different failure than a slow one: report the crash
+      // immediately (and with the exit detail) rather than burning the timeout.
+      const crashed = crashDetail();
+      if (crashed) return reject(new Error(`Auralis server exited before becoming ready (${crashed})`));
+      if (Date.now() > deadline) {
+        reject(new Error(`Auralis server still starting: no valid /api/health answer on port ${port} within ${Math.round(timeoutMs / 1000)}s`));
+      } else setTimeout(attempt, 300);
     };
     attempt();
   });
@@ -238,23 +313,36 @@ async function startServer(musicDir) {
     env,
     stdio: ["ignore", "inherit", "inherit", "ipc"],
   });
+  // How the child died, if it died — fed to waitForServer so a startup failure
+  // that kills the process is reported as a crash, not as a slow start.
+  let exitDetail = null;
   serverProcess.on("exit", (code, signal) => {
     // A crash reports either a non-zero code OR a terminating signal (SIGSEGV/OOM
     // give code === null) — treat both as a hard failure so a signal-killed server
     // doesn't leave a silent blank window.
-    if ((code || signal) && code !== 0 && !app.isQuitting) {
-      if (mainWindow) loadErrorPage("Le serveur Auralis s'est arrêté", signal ? `Signal ${signal}` : `Code ${code}`);
+    if (signal || (code !== null && code !== 0)) {
+      exitDetail = signal ? `signal ${signal}` : `code ${code}`;
+      if (!app.isQuitting && mainWindow) {
+        loadErrorPage("Le serveur Auralis s'est arrêté", signal ? `Signal ${signal}` : `Code ${code}`);
+      }
     }
   });
 
-  await waitForServer(resolvedPort);
-  return `http://127.0.0.1:${resolvedPort}`;
+  await waitForServer(resolvedPort, 30000, () => exitDetail);
+  // Publish the origin for the IPC guards (see localServerOrigin).
+  localServerOrigin = `http://127.0.0.1:${resolvedPort}`;
+  return localServerOrigin;
 }
 
 // Resolve the URL the main window should load from the chosen source. Remote =
 // the host's own server (no child process); local = our spawned standalone.
 async function boot(cfg) {
-  if (isDev) return DEV_URL;
+  if (isDev) {
+    // The dev server is this machine's own Auralis too — treat it as the trusted
+    // local origin so dev behaves like a packaged local-mode run.
+    localServerOrigin = new URL(DEV_URL).origin;
+    return DEV_URL;
+  }
   if (cfg.mode === "remote") return cfg.url;
   return startServer(cfg.musicDir);
 }
@@ -356,9 +444,18 @@ function createWindow(url) {
 
 function registerMediaKeys() {
   const send = (action) => () => mainWindow?.webContents.send("media:key", action);
-  globalShortcut.register("MediaPlayPause", send("playpause"));
-  globalShortcut.register("MediaNextTrack", send("next"));
-  globalShortcut.register("MediaPreviousTrack", send("prev"));
+  // register() returns false when the OS refuses the binding — usually another
+  // app already owns the media keys. Ownership can change between launches, so
+  // this is diagnostic only: collect the failures and log them, never nag with
+  // UI at startup.
+  const failed = [];
+  const bind = (accel, action) => {
+    if (!globalShortcut.register(accel, send(action))) failed.push(accel);
+  };
+  bind("MediaPlayPause", "playpause");
+  bind("MediaNextTrack", "next");
+  bind("MediaPreviousTrack", "prev");
+  if (failed.length) console.warn(`Media keys not registered (likely owned by another app): ${failed.join(", ")}`);
 }
 
 // Window-control IPC for the frameless chrome.
@@ -370,7 +467,17 @@ ipcMain.on("window:maximize", () => {
 ipcMain.on("window:close", () => mainWindow?.close());
 
 // Native folder picker so the host can repoint the music library from Settings.
-ipcMain.handle("dialog:pickFolder", async () => {
+// The native dialog is a sensitive surface (a page can use it to probe the
+// filesystem or lend legitimacy to a phishing path), and in remote mode the
+// "main window" IS a third-party page — so only answer the setup window, or a
+// main window whose CURRENT url is still our locally spawned server's origin.
+ipcMain.handle("dialog:pickFolder", async (event) => {
+  let fromLocalMain = false;
+  if (mainWindow && !mainWindow.isDestroyed() && localServerOrigin && event.sender === mainWindow.webContents) {
+    try { fromLocalMain = new URL(mainWindow.webContents.getURL()).origin === localServerOrigin; }
+    catch { fromLocalMain = false; } // e.g. the error page's data: URL has no origin
+  }
+  if (!fromSetupWindow(event) && !fromLocalMain) return null;
   try {
     const parent = BrowserWindow.getFocusedWindow() ?? mainWindow ?? setupWindow ?? undefined;
     const res = await dialog.showOpenDialog(parent, {

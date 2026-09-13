@@ -21,6 +21,7 @@ import {
 import { usePlayer } from "@/store/player";
 import { useLibraryStore } from "@/store/library";
 import { trackArtist, trackTitle } from "@/lib/auralis/brand";
+import { useT } from "@/lib/auralis/i18n";
 import { useFocusTrap } from "@/lib/auralis/useFocusTrap";
 import { cn } from "@/lib/utils";
 
@@ -29,12 +30,13 @@ interface CmdItem {
   label: string;
   sub?: string;
   icon: ComponentType<{ className?: string }>;
-  group: "Navigation" | "Titres" | "Albums" | "Artistes" | "Playlists";
+  group: string;
   action: () => void;
   keywords?: string;
 }
 
 export function CommandPalette() {
+  const t = useT();
   const commandOpen = usePlayer((s) => s.commandOpen);
   const customPlaylists = usePlayer((s) => s.customPlaylists);
   const setCommandOpen = usePlayer((s) => s.setCommandOpen);
@@ -73,18 +75,18 @@ export function CommandPalette() {
   // a single bounded pass that the deferred query keeps off the typing path.
   const filtered = useMemo<CmdItem[]>(() => {
     const nav: CmdItem[] = [
-      { id: "nav-home", label: "Accueil", icon: Home, group: "Navigation", action: () => navigate("home") },
-      { id: "nav-explore", label: "Parcourir", icon: Compass, group: "Navigation", action: () => navigate("explore") },
-      { id: "nav-search", label: "Rechercher", icon: Search, group: "Navigation", action: () => navigate("search") },
-      { id: "nav-library", label: "Bibliothèque", icon: Library, group: "Navigation", action: () => navigate("library") },
-      { id: "nav-favorites", label: "Favoris", icon: Heart, group: "Navigation", action: () => navigate("favorites") },
-      { id: "nav-recents", label: "Historique", icon: History, group: "Navigation", action: () => navigate("recents") },
-      { id: "nav-folders", label: "Dossiers", icon: FolderTree, group: "Navigation", action: () => navigate("folders") },
-      { id: "nav-insights", label: "Analyse", icon: BarChart3, group: "Navigation", action: () => navigate("insights") },
-      { id: "nav-settings", label: "Réglages", icon: Settings, group: "Navigation", action: () => navigate("settings") },
+      { id: "nav-home", label: t("nav.home", "Accueil"), icon: Home, group: "cmd.group.navigation", action: () => navigate("home") },
+      { id: "nav-explore", label: t("mobile.browse", "Parcourir"), icon: Compass, group: "cmd.group.navigation", action: () => navigate("explore") },
+      { id: "nav-search", label: t("nav.search", "Rechercher"), icon: Search, group: "cmd.group.navigation", action: () => navigate("search") },
+      { id: "nav-library", label: t("nav.library", "Bibliothèque"), icon: Library, group: "cmd.group.navigation", action: () => navigate("library") },
+      { id: "nav-favorites", label: t("favorites.title", "Favoris"), icon: Heart, group: "cmd.group.navigation", action: () => navigate("favorites") },
+      { id: "nav-recents", label: t("mobile.history", "Historique"), icon: History, group: "cmd.group.navigation", action: () => navigate("recents") },
+      { id: "nav-folders", label: t("folders.title", "Dossiers"), icon: FolderTree, group: "cmd.group.navigation", action: () => navigate("folders") },
+      { id: "nav-insights", label: t("insights.eyebrow", "Analyse"), icon: BarChart3, group: "cmd.group.navigation", action: () => navigate("insights") },
+      { id: "nav-settings", label: t("nav.settings", "Réglages"), icon: Settings, group: "cmd.group.navigation", action: () => navigate("settings") },
     ];
     const toTrack = (t: (typeof tracks)[number]): CmdItem => ({
-      id: `t-${t.trackhash}`, label: trackTitle(t), sub: trackArtist(t), icon: Play, group: "Titres",
+      id: `t-${t.trackhash}`, label: trackTitle(t), sub: trackArtist(t), icon: Play, group: "cmd.group.tracks",
       action: () => playTrack(t, [t], 0),
     });
     const query = deferredQ.trim().toLowerCase();
@@ -107,26 +109,26 @@ export function CommandPalette() {
     const albumMatches: CmdItem[] = [];
     for (const a of albums) {
       if (`${a.title} ${a.albumartists[0]?.name ?? ""}`.toLowerCase().includes(query)) {
-        albumMatches.push({ id: `a-${a.albumhash}`, label: a.title, sub: `${a.albumartists[0]?.name ?? ""} · ${a.year ?? ""}`, icon: Disc3, group: "Albums", action: () => navigate("album", a.albumhash) });
+        albumMatches.push({ id: `a-${a.albumhash}`, label: a.title, sub: `${a.albumartists[0]?.name ?? ""} · ${a.year ?? ""}`, icon: Disc3, group: "cmd.group.albums", action: () => navigate("album", a.albumhash) });
         if (albumMatches.length >= CAP) break;
       }
     }
     const artistMatches: CmdItem[] = [];
     for (const a of artists) {
       if (`${a.name} ${a.genres?.join(" ") ?? ""}`.toLowerCase().includes(query)) {
-        artistMatches.push({ id: `ar-${a.artisthash}`, label: a.name, sub: a.genres?.join(", "), icon: UserRound, group: "Artistes", action: () => navigate("artist", a.artisthash) });
+        artistMatches.push({ id: `ar-${a.artisthash}`, label: a.name, sub: a.genres?.join(", "), icon: UserRound, group: "cmd.group.artists", action: () => navigate("artist", a.artisthash) });
         if (artistMatches.length >= CAP) break;
       }
     }
     const playlistMatches: CmdItem[] = [];
     for (const p of [...customPlaylists, ...playlists]) {
       if (p.name.toLowerCase().includes(query)) {
-        playlistMatches.push({ id: `p-${p.id}`, label: p.name, sub: `${p.trackcount ?? 0} titres`, icon: ListMusic, group: "Playlists", action: () => navigate("playlist", String(p.id)) });
+        playlistMatches.push({ id: `p-${p.id}`, label: p.name, sub: t("common.tracksCount", "{count} titres", { count: p.trackcount ?? 0 }), icon: ListMusic, group: "cmd.group.playlists", action: () => navigate("playlist", String(p.id)) });
         if (playlistMatches.length >= CAP) break;
       }
     }
     return [...navMatches, ...trackMatches, ...albumMatches, ...artistMatches, ...playlistMatches];
-  }, [albums, artists, customPlaylists, deferredQ, navigate, playTrack, playlists, tracks]);
+  }, [albums, artists, customPlaylists, deferredQ, navigate, playTrack, playlists, tracks, t]);
 
   // Group filtered items preserving order
   const groups = useMemo(() => {
@@ -177,7 +179,7 @@ export function CommandPalette() {
   let runningIndex = -1;
 
   return (
-    <div className="fixed inset-0 z-[75] flex items-start justify-center pt-[12vh]" role="dialog" aria-modal="true" aria-label="Palette de commandes">
+    <div className="fixed inset-0 z-[75] flex items-start justify-center pt-[12vh]" role="dialog" aria-modal="true" aria-label={t("cmd.paletteAria", "Palette de commandes")}>
       <div className="backdrop-in absolute inset-0 bg-black/70" onClick={() => setCommandOpen(false)} />
       <div ref={dialogRef} className="scale-in matte-panel relative w-full max-w-[600px] overflow-hidden rounded-xl border border-[var(--line)] shadow-2xl">
         {/* Search row */}
@@ -190,9 +192,9 @@ export function CommandPalette() {
               setQ(e.target.value);
               setActive(0);
             }}
-            placeholder="Rechercher titres, albums, artistes…"
+            placeholder={t("cmd.placeholder", "Rechercher titres, albums, artistes…")}
             className="w-full bg-transparent text-[15px] text-foreground placeholder:text-muted-foreground/60 outline-none"
-            aria-label="Rechercher"
+            aria-label={t("nav.search", "Rechercher")}
             role="combobox"
             aria-expanded
             aria-controls="cmd-listbox"
@@ -203,16 +205,16 @@ export function CommandPalette() {
         </div>
 
         {/* Results */}
-        <div ref={listRef} id="cmd-listbox" role="listbox" aria-label="Résultats" className="max-h-[52vh] overflow-y-auto scroll-auralis p-2">
+        <div ref={listRef} id="cmd-listbox" role="listbox" aria-label={t("cmd.results", "Résultats")} className="max-h-[52vh] overflow-y-auto scroll-auralis p-2">
           {filtered.length === 0 ? (
             <div className="flex flex-col items-center gap-2 py-10 text-center">
               <Search className="size-6 text-muted-foreground/50" />
-              <p className="text-[13px] font-semibold text-muted-foreground">Aucun résultat pour « {q} »</p>
+              <p className="text-[13px] font-semibold text-muted-foreground">{t("search.noResults", "Aucun résultat pour « {query} »", { query: q })}</p>
             </div>
           ) : (
             groups.map(([group, gItems]) => (
               <div key={group} className="mb-1.5">
-                <p className="px-2 py-1 text-[10px] font-semibold uppercase tracking-[0.07em] text-muted-foreground/70">{group}</p>
+                <p className="px-2 py-1 text-[10px] font-semibold uppercase tracking-[0.07em] text-muted-foreground/70">{t(group)}</p>
                 {gItems.map((it) => {
                   runningIndex += 1;
                   const idx = runningIndex;
@@ -259,7 +261,7 @@ export function CommandPalette() {
         {/* Footer */}
         <div className="flex items-center justify-between border-t border-[var(--line)] px-4 py-2 text-[10.5px] text-muted-foreground">
           <span className="flex items-center gap-1.5">
-            <Command className="size-3" /> Commande Auralis
+            <Command className="size-3" /> {t("cmd.brand", "Commande Auralis")}
           </span>
           <span className="flex items-center gap-2">
             <kbd className="rounded-sm border border-[var(--line)] bg-[var(--panel-2)] px-1 py-0.5 font-bold">↑↓</kbd>

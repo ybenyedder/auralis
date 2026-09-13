@@ -5,10 +5,14 @@ import android.content.pm.PackageManager
 import android.os.Build
 import android.os.Bundle
 import androidx.activity.ComponentActivity
+import androidx.activity.OnBackPressedCallback
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.activity.viewModels
+import androidx.compose.runtime.SideEffect
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
 import androidx.core.content.ContextCompat
 import local.auralis.client.ui.AppRoot
 import local.auralis.client.ui.AppViewModel
@@ -33,17 +37,22 @@ class MainActivity : ComponentActivity() {
             notifPermission.launch(Manifest.permission.POST_NOTIFICATIONS)
         }
 
-        setContent { AppRoot(vm) }
-    }
+        // The in-app nav stack consumes Back; at a root the system default applies
+        // (leave the app). The callback is enabled only while the stack is
+        // non-empty so the system (predictive back, enableOnBackInvokedCallback)
+        // knows when Back will actually close the app — the deprecated
+        // onBackPressed() override broke that contract.
+        val backCallback = object : OnBackPressedCallback(/* enabled = */ false) {
+            override fun handleOnBackPressed() {
+                vm.back()
+            }
+        }
+        onBackPressedDispatcher.addCallback(this, backCallback)
 
-    override fun onBackPressed() {
-        // Let the in-app nav stack consume Back; fall through to default when at a root.
-        val state = vm.ui.value
-        if (state.backStack.isNotEmpty()) {
-            vm.back()
-        } else {
-            @Suppress("DEPRECATION")
-            super.onBackPressed()
+        setContent {
+            val ui by vm.ui.collectAsState()
+            SideEffect { backCallback.isEnabled = ui.backStack.isNotEmpty() }
+            AppRoot(vm)
         }
     }
 }

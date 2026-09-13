@@ -11,7 +11,7 @@
 // Safe to run repeatedly. Requires `electron`, a C toolchain and network access
 // (to fetch the Electron headers) for the rebuild step.
 
-import { existsSync, cpSync, mkdirSync, rmSync, copyFileSync, readFileSync } from "node:fs";
+import { existsSync, cpSync, mkdirSync, rmSync, copyFileSync, readFileSync, readdirSync } from "node:fs";
 import { execSync } from "node:child_process";
 import os from "node:os";
 import path from "node:path";
@@ -26,14 +26,28 @@ if (!existsSync(path.join(standalone, "server.js"))) {
 
 // 0. Prune non-runtime cruft -------------------------------------------------
 // Next's standalone tracer copies the whole project root, including build
-// outputs and the native-app sources. Left in, the previous dist-desktop output
-// gets re-copied into each build and the package balloons (2.4 GB → 428 MB deb).
-// Strip anything the spawned server never needs at runtime.
-const PRUNE = ["dist-desktop", "android", "mobile", "test", "build", "scripts", "src"];
-for (const entry of PRUNE) {
-  rmSync(path.join(standalone, entry), { recursive: true, force: true });
+// outputs, the native-app sources (android-native/, ios-native/) and every
+// markdown/doc file. Left in, the previous dist-desktop output gets re-copied
+// into each build and the package balloons (2.4 GB → 428 MB deb) — and user
+// machines end up shipping developer material. Instead of chasing a blocklist,
+// keep ONLY what the spawned server can touch at runtime and drop the rest:
+//   server.js     the standalone entry (requires only .next/ + node_modules/)
+//   .next/        compiled app + required-server-files.json (config snapshot)
+//   node_modules/ traced runtime deps, incl. the better-sqlite3 binding
+//   public/       static assets copied in by step 1 below
+//   migrations/   applied at boot by the server's DB layer
+// Nothing else is read at runtime: the health route's `import pkg from
+// ".../package.json"` is inlined by the bundler at build time, and there are
+// no hidden top-level entries besides .next (verified against a local
+// .next/standalone listing). Remove this list and the deb balloons again.
+const KEEP = new Set(["server.js", ".next", "node_modules", "public", "migrations"]);
+const pruned = [];
+for (const entry of readdirSync(standalone, { withFileTypes: true })) {
+  if (KEEP.has(entry.name)) continue;
+  rmSync(path.join(standalone, entry.name), { recursive: true, force: true });
+  pruned.push(entry.name);
 }
-console.log(`[prepare-desktop] pruned standalone cruft: ${PRUNE.join(", ")}`);
+console.log(`[prepare-desktop] kept only runtime entries; removed: ${pruned.join(", ") || "nothing"}`);
 
 // 1. Static assets ----------------------------------------------------------
 cpSync(path.join(root, ".next", "static"), path.join(standalone, ".next", "static"), { recursive: true });

@@ -9,7 +9,7 @@ import { getConfig } from "../config";
 import { getDb } from "../db";
 import { createLogger } from "../logger";
 import { extractMetadata } from "./metadata";
-import { cacheFolderCover } from "./art";
+import { cacheFolderCover, pruneOrphanArt } from "./art";
 import { albumHash, artistHash, trackHashForPath } from "./ids";
 
 const log = createLogger("scanner");
@@ -173,9 +173,11 @@ interface TrackRow {
   added_at: number;
 }
 
-async function buildRow(file: WalkedFile, rootName: string, addedAt: number): Promise<TrackRow> {
+async function buildRow(file: WalkedFile, rootName: string, addedAt: number, coverMemo: Map<string, string | null>): Promise<TrackRow> {
   const meta = await extractMetadata(file.abs);
-  const arthash = meta.arthash ?? cacheFolderCover(file.dir) ?? null;
+  // Per-scan folder-cover memo: every track of a folder would otherwise re-stat
+  // the 13 candidate cover names and re-read + re-hash the same file.
+  const arthash = meta.arthash ?? cacheFolderCover(file.dir, coverMemo) ?? null;
   const sidecar = file.abs.slice(0, file.abs.length - path.extname(file.abs).length) + ".lrc";
   const hasLyrics = fs.existsSync(sidecar) ? 1 : 0;
   const relDir = path.posix.dirname(file.rel);
@@ -275,6 +277,8 @@ export async function runScan(): Promise<ScanProgress> {
     let processed = 0;
     let added = 0;
     let updated = 0;
+    // One memo per scan run: directory → cached folder-cover hash (or null).
+    const coverMemo = new Map<string, string | null>();
 
     for (let i = 0; i < files.length; i += META_BATCH) {
       const chunk = files.slice(i, i + META_BATCH);
@@ -285,7 +289,7 @@ export async function runScan(): Promise<ScanProgress> {
         return true;
       });
 
-      const rows = await Promise.all(changed.map((file) => buildRow(file, rootName, now)));
+      const rows = await Promise.all(changed.map((file) => buildRow(file, rootName, now, coverMemo)));
       for (const row of rows) {
         if (existing.has(row.filepath)) updated++;
         else added++;
@@ -386,6 +390,19 @@ export async function runScan(): Promise<ScanProgress> {
 
     emit({ phase: "aggregating" });
     rebuildAggregates(db);
+
+    // Fire-and-forget art GC: the prune above dropped tracks (and rebuildAggregates
+    // refreshed the albums/artists denormalised copies), so some content hashes may
+    // have lost their last reference. Delete the orphaned cover files + thumbnails
+    // they leave behind; a failure here must never fail the scan.
+    void Promise.resolve()
+      .then(() => {
+        const removed = pruneOrphanArt(db);
+        if (removed > 0) log.info("pruned orphan art files", { removed });
+      })
+      .catch(() => {
+        /* art GC is best-effort */
+      });
 
     const scannedAt = new Date().toISOString();
     writeMeta(db, scannedAt);

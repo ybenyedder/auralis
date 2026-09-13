@@ -493,8 +493,29 @@ alignLyrics: async () => {
         }
         // The job runs detached on the server; poll its status until it resolves.
         // The first ever run also downloads the model, hence the generous ceiling.
-        const deadline = Date.now() + 12 * 60 * 1000;
+        let deadline = Date.now() + 12 * 60 * 1000; // let: re-extended by time spent hidden
+        // A hidden tab (phone lock screen, backgrounded desktop) used to keep
+        // polling — and burning the 12-minute budget — for nothing. Pause here
+        // until the tab is visible again and RE-EXTEND the deadline by the time
+        // spent hidden, so the user gets their full window of actual polling.
+        const waitUntilVisible = () => new Promise<void>((resolve) => {
+          if (typeof document === "undefined" || document.visibilityState !== "hidden") {
+            resolve();
+            return;
+          }
+          const onVisible = () => {
+            if (document.visibilityState !== "visible") return;
+            document.removeEventListener("visibilitychange", onVisible);
+            resolve();
+          };
+          document.addEventListener("visibilitychange", onVisible);
+        });
         while (Date.now() < deadline) {
+          if (typeof document !== "undefined" && document.visibilityState === "hidden") {
+            const hiddenAt = Date.now();
+            await waitUntilVisible();
+            deadline += Date.now() - hiddenAt;
+          }
           await new Promise((r) => setTimeout(r, 3000));
           // User moved on to another track — stop quietly, the job still finishes.
           if (get().currentTrack?.trackhash !== hash) {

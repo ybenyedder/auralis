@@ -68,10 +68,25 @@ android {
         keystoreProps.getProperty(propKey) ?: System.getenv(envKey) ?: ""
     signingConfigs {
         getByName("debug") {
-            storeFile = file("auralis.keystore")
-            storePassword = signingValue("storePassword", "ANDROID_KEYSTORE_PWD")
-            keyAlias = signingValue("keyAlias", "ANDROID_KEY_ALIAS").ifEmpty { "auralis" }
-            keyPassword = signingValue("keyPassword", "ANDROID_KEY_PWD")
+            val keystore = file("auralis.keystore")
+            val storePwd = signingValue("storePassword", "ANDROID_KEYSTORE_PWD")
+            val keyPwd = signingValue("keyPassword", "ANDROID_KEY_PWD")
+            if (keystore.exists() && storePwd.isNotEmpty() && keyPwd.isNotEmpty()) {
+                storeFile = keystore
+                storePassword = storePwd
+                keyAlias = signingValue("keyAlias", "ANDROID_KEY_ALIAS").ifEmpty { "auralis" }
+                keyPassword = keyPwd
+            } else {
+                // Fresh checkout: the gitignored keystore/credentials are absent, so
+                // fall back to the standard Android debug store (paths + password
+                // "android") instead of failing configuration. CI and release
+                // packagers supply the real key via the properties file or env vars.
+                println("WARNING: auralis.keystore + credentials not found — signing with the default Android debug keystore.")
+                storeFile = file(System.getProperty("user.home") + "/.android/debug.keystore")
+                storePassword = "android"
+                keyAlias = "androiddebugkey"
+                keyPassword = "android"
+            }
         }
     }
 
@@ -81,7 +96,11 @@ android {
             signingConfig = signingConfigs.getByName("debug")
         }
         getByName("release") {
-            isMinifyEnabled = false
+            // R8 code + resource shrinking: proguard-rules.pro keeps media3's
+            // reflection-instantiated components; the app has no other reflection
+            // surface (org.json/okhttp ship their own rules).
+            isMinifyEnabled = true
+            isShrinkResources = true
             // Ship release builds under the same stable key as debug so updates
             // install cleanly regardless of which target was published.
             signingConfig = signingConfigs.getByName("debug")
@@ -103,6 +122,10 @@ android {
     }
 
     lint {
+        // abortOnError stays OFF: with it on, `lintFullDebug` fails on PRE-EXISTING
+        // findings outside this change (media3 UnstableApi across PlaybackService,
+        // missing Android Auto media-search intent filters) — verified by running
+        // lint with it enabled once. Dependency/version warnings are unaffected.
         abortOnError = false
         checkReleaseBuilds = false
     }

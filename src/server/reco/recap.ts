@@ -67,13 +67,17 @@ const clamp = (x: number, lo: number, hi: number) => (x < lo ? lo : x > hi ? hi 
 
 /** Months (newest first) that have at least one completed listen. */
 export function listRecapMonths(userId: number): string[] {
-  return (
-    getDb()
-      .prepare(
-        "SELECT DISTINCT strftime('%Y-%m', played_at / 1000, 'unixepoch', 'localtime') AS m FROM play_events WHERE user_id = ? AND kind = 'complete' ORDER BY m DESC",
-      )
-      .all(userId) as { m: string }[]
-  ).map((r) => r.m);
+  // Bucketed in JS from the raw played_at column so the read stays on the
+  // (user_id, kind, played_at) index — a strftime('%Y-%m', ...) projection is
+  // non-sargable and used to push every event through a function per row.
+  const months = new Set<string>();
+  const rows = getDb()
+    .prepare("SELECT played_at FROM play_events WHERE user_id = ? AND kind = 'complete'")
+    .all(userId) as { played_at: number }[];
+  for (const r of rows) months.add(monthKey(new Date(r.played_at)));
+  // "YYYY-MM" keys sort chronologically, so a plain string sort matches the old
+  // ORDER BY m DESC.
+  return [...months].sort().reverse();
 }
 
 /** Dominant mood id of a month (used for the previous-month comparison). */
@@ -85,6 +89,14 @@ function dominantMoodOf(userId: number, key: string): string | null {
 }
 
 function monthRows(userId: number, key: string): MonthRow[] {
+  // Local-month bounds are computed in JS and applied as a played_at range so
+  // SQLite seeks via idx_play_events_user_time / idx_play_events_user_kind — a
+  // strftime(...) = ? filter is non-sargable and full-scanned play_events per
+  // call. [start, end) in local time is exactly the set of timestamps whose
+  // 'localtime' month is `key`.
+  const [y, m] = key.split("-").map(Number);
+  const start = new Date(y, m - 1, 1).getTime();
+  const end = new Date(y, m, 1).getTime();
   return getDb()
     .prepare(
       `SELECT pe.trackhash, pe.ratio, t.mood, t.genre, t.energy, t.bpm, t.duration,
@@ -92,9 +104,9 @@ function monthRows(userId: number, key: string): MonthRow[] {
        FROM play_events pe
        JOIN tracks t ON t.trackhash = pe.trackhash
        WHERE pe.user_id = ? AND pe.kind = 'complete'
-         AND strftime('%Y-%m', pe.played_at / 1000, 'unixepoch', 'localtime') = ?`,
+         AND pe.played_at >= ? AND pe.played_at < ?`,
     )
-    .all(userId, key) as MonthRow[];
+    .all(userId, start, end) as MonthRow[];
 }
 
 interface Aggregated {

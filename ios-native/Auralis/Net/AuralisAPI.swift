@@ -101,13 +101,14 @@ actor AuralisAPI {
 
     // MARK: Library / state / stats
 
-    func library() async -> LibrarySnapshot {
-        guard let o = try? await getJSON("/api/library") else { return .empty }
-        return LibrarySnapshot.from(o)
+    // library() / userState() throw so AppState can tell an expired session
+    // (APIError.http 401/403) apart from a legitimately empty snapshot and force
+    // a re-login instead of booting to a silently empty "ready" library.
+    func library() async throws -> LibrarySnapshot {
+        LibrarySnapshot.from(try await getJSON("/api/library"))
     }
-    func userState() async -> UserState {
-        guard let o = try? await getJSON("/api/state") else { return .empty }
-        return UserState.from(o)
+    func userState() async throws -> UserState {
+        UserState.from(try await getJSON("/api/state"))
     }
     func stats() async -> ListeningStats {
         guard let o = try? await getJSON("/api/stats") else { return .empty }

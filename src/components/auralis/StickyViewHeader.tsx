@@ -3,26 +3,30 @@
 import { useEffect, useState } from "react";
 import type { RefObject } from "react";
 import { usePlayer } from "@/store/player";
+import { useT } from "@/lib/auralis/i18n";
 import { ChevronLeft } from "lucide-react";
 import { cn } from "@/lib/utils";
 
+// Message key per view — resolved through the catalogue so the title follows
+// the active locale. "Auralis" (unknown view) stays a proper noun.
 const VIEW_TITLES: Record<string, string> = {
-  home: "Accueil",
-  explore: "Parcourir",
-  radio: "Radio",
-  search: "Rechercher",
-  library: "Bibliothèque",
-  favorites: "Favoris",
-  recents: "Historique",
-  folders: "Dossiers",
-  insights: "Analyse",
-  settings: "Réglages",
-  album: "Album",
-  artist: "Artiste",
-  playlist: "Playlist",
+  home: "nav.home",
+  explore: "mobile.browse",
+  radio: "radio.title",
+  search: "nav.search",
+  library: "nav.library",
+  favorites: "favorites.title",
+  recents: "mobile.history",
+  folders: "folders.title",
+  insights: "insights.eyebrow",
+  settings: "nav.settings",
+  album: "mobile.album",
+  artist: "mobile.artist",
+  playlist: "mobile.playlist",
 };
 
 export function StickyViewHeader({ scrollRef }: { scrollRef: RefObject<HTMLDivElement | null> }) {
+  const t = useT();
   const view = usePlayer((s) => s.view);
   const navHistory = usePlayer((s) => s.navHistory);
   const back = usePlayer((s) => s.back);
@@ -37,7 +41,8 @@ export function StickyViewHeader({ scrollRef }: { scrollRef: RefObject<HTMLDivEl
     return () => el.removeEventListener("scroll", onScroll);
   }, [scrollRef, view]);
 
-  const title = VIEW_TITLES[view.view] ?? "Auralis";
+  const viewTitle = VIEW_TITLES[view.view];
+  const title = viewTitle ? t(viewTitle) : "Auralis";
   const canBack = navHistory.length > 0;
 
   return (
@@ -58,7 +63,7 @@ export function StickyViewHeader({ scrollRef }: { scrollRef: RefObject<HTMLDivEl
         <button
           onClick={back}
           disabled={!canBack}
-          aria-label="Retour"
+          aria-label={t("mobile.back", "Retour")}
           className="grid size-7 place-items-center rounded-full text-muted-foreground transition-colors duration-200 hover:bg-[var(--surface-2)] hover:text-foreground disabled:cursor-default"
         >
           <ChevronLeft className="size-4" />

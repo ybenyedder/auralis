@@ -4,6 +4,72 @@ All notable changes to Auralis are documented here. The format is based on
 [Keep a Changelog](https://keepachangelog.com/) and this project adheres to
 [Semantic Versioning](https://semver.org/).
 
+## [1.20.0] - 2026-09-14
+
+Sept chantiers menés en parallèle pour finir la liste de l'audit — détail des
+constats d'origine dans ANALYSE.md.
+
+### Ajouté
+- **Android : la comptabilité d'écoute survit à la fermeture de l'interface.**
+  Scrobbles, détection de skips, sauvegarde de session et minuterie de sommeil
+  vivent désormais dans un singleton à durée de vie process (`PlaybackAccounting`)
+  avec son propre contrôleur Media3 : balayer l'app pendant l'écoute ne stoppe
+  plus le comptage ni la sauvegarde, et la minuterie coupe vraiment la lecture.
+- **Android : R8 + resource shrinking activés en release** (APK vérifié à
+  4,2 Mo), repli automatique sur le keystore de debug pour les nouveaux
+  contributeurs, pochettes de playlist redimensionnées à ≤1024 px avant envoi
+  (fini les uploads de 8-11 Mo), erreurs admin enfin affichées (rescan,
+  création de playlist), retour prédictif via `OnBackPressedCallback`,
+  wake mode réseau sur ExoPlayer, catalogue Android Auto thread-safe.
+- **iOS : lecture enfin résiliente** — interruptions d'appel et débranchement
+  du casque gérés, statut des flux observé (un titre injouable affiche
+  l'erreur au lieu de bloquer la file en « lecture »), session expirée
+  renvoyée vers l'écran de connexion au lieu d'une bibliothèque vide, courses
+  de changement de titre éliminées, fin de file qui repasse en pause,
+  Info.plist déplacée sur la bonne cible (l'audio en arrière-plan ne pouvait
+  pas fonctionner), version réelle affichée, pipeline de thème mort supprimé.
+- **Web : l'interface est réellement bilingue.** 88 clés nouvelles (fr + en)
+  extraites des surfaces codées en dur : barre latérale, panneau de lecture,
+  file, paroles, écran de connexion, aide clavier (avec la ligne volume
+  corrigée), palette de commandes, barre de titre, fenêtres, sélection.
+- **Serveur : recommandations et données à l'échelle.** Embeddings sortis du
+  cache par utilisateur (une copie partagée au lieu de N), trajectoire du reco
+  bornée (grille arousal×valence, équivalence prouvée contre l'exhaustif),
+  UCB sur un horizon unique 180 jours, chaîne de Markov coupée sur les skips,
+  sidecar `.lrc` édité rechargé dès qu'il est plus récent que le cache,
+  échecs d'analyse bornés à 3 tentatives, pochette de dossier lue une fois
+  par scan, GC des pochettes orphelines après purge.
+- **CI : tests unitaires Android dans le pipeline** (`android-tests`), et 7
+  tests verrouillant `compareVersions` — la fonction qui décide de chaque
+  proposition de mise à jour (comparaison bien numérique, y compris 1.19.1
+  > 1.2.0).
+
+### Corrigé
+- **Web : le jeton de session ne pollue plus chaque URL** — il ne part plus
+  que vers les surfaces qui ne peuvent pas porter d'en-tête (pochettes, flux,
+  EventSource) ; les EventSource scan/bibliothèque l'appellent explicitement.
+- **Web : l'ajout d'un album/artiste à la file est une écriture unique**
+  (fini N écritures + N toasts), la sélection du leader de synchronisation a
+  un repli BroadcastChannel pour les onglets sans Web Locks, le partage sans
+  presse-papiers est annoncé en échec, le CSS mort est retiré (`.scrubber`,
+  keylines, data-glass), les échelles amber/emerald existent enfin (des
+  classes de statut étaient silencieusement sans style), `--brass` est défini,
+  les barres d'un album ne dansent plus en pause, les clés de listes tolèrent
+  les doublons, le deep-link `?view=` est retiré de l'URL après navigation,
+  l'alignement de paroles suspend son interro­gation quand l'app est en
+  arrière-plan, la révocation des blobs est différée (Firefox), et l'aide
+  clavier décrit le vrai comportement des flèches.
+- **Desktop : le serveur local est identifié avant affichage** (le /api/health
+  doit répondre name=Auralis — un autre process sur le port n'est plus
+  confondu avec Auralis, et un crash enfant donne sa cause au lieu d'un faux
+  « 30 s dépassé »), les bases http publiques exigent une confirmation
+  explicite, le sélecteur de dossier n'est plus invocable par une page
+  distante, les raccourcis média échoués sont journalisés, et le paquet
+  desktop n'embarque plus android-native/ios-native/docs (liste blanche).
+- **Divers :** toast « fondu enchaîné » traduit, week-key ISO du mix
+  découverte, verrouillage de version appliqué partout (package.json, lock,
+  tag).
+
 ## [1.19.1] - 2026-09-12
 
 ### Corrigé

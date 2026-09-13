@@ -41,8 +41,12 @@ function initAutoUpdater(getMainWindow) {
   // so playback is never interrupted mid-session.
   autoUpdater.autoDownload = true;
   autoUpdater.autoInstallOnAppQuit = true;
-  // The .deb/AppImage on Linux ships without an upgrade-blocking signature check;
-  // allow downgrades only via explicit republish, never silently.
+  // Refuse to install a version older than the currently running one (a feed
+  // that went backwards, a stale cached manifest) — without this flag
+  // electron-updater would happily downgrade. Note that on Linux there is no
+  // code-signature check at all: download integrity is only the sha512 digest
+  // published in latest.yml, which electron-updater fetches over HTTPS — the
+  // digest plus the TLS transport are the whole guarantee on that platform.
   autoUpdater.allowDowngrade = false;
 
   autoUpdater.on("error", (err) => {

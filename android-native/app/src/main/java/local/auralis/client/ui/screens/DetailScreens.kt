@@ -1,7 +1,10 @@
 package local.auralis.client.ui.screens
 
+import android.graphics.Bitmap
+import android.graphics.BitmapFactory
 import android.net.Uri
 import android.util.Base64
+import java.io.ByteArrayOutputStream
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
@@ -180,14 +183,42 @@ fun PlaylistDetail(vm: AppViewModel, ui: UiState, playlistId: String) {
     val pickCover = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { uri: Uri? ->
         if (uri == null) return@rememberLauncherForActivityResult
         scope.launch(Dispatchers.IO) {
-            val bytes = runCatching { context.contentResolver.openInputStream(uri)?.use { it.readBytes() } }.getOrNull()
-            if (bytes == null || bytes.isEmpty() || bytes.size > 8 * 1024 * 1024) {
-                withContext(Dispatchers.Main) { vm.notify("Image invalide ou trop lourde (8 Mo max)") }
-                return@launch
+            // Downscale before base64: raw picks routinely decode to 8-11 MB and the
+            // whole image rides in the JSON body of the cover upload. Cap at 1024px
+            // JPEG-85 (covers render at ~180dp) — a few dozen KB.
+            val dataUrl = runCatching {
+                val bytes = context.contentResolver.openInputStream(uri)?.use { it.readBytes() }
+                    ?: return@runCatching null
+                if (bytes.isEmpty()) return@runCatching null
+                val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
+                BitmapFactory.decodeByteArray(bytes, 0, bytes.size, bounds)
+                if (bounds.outWidth <= 0 || bounds.outHeight <= 0) return@runCatching null
+                val maxDim = maxOf(bounds.outWidth, bounds.outHeight)
+                var sample = 1
+                while (maxDim / (sample * 2) >= 1024) sample *= 2
+                val opts = BitmapFactory.Options().apply { inSampleSize = sample }
+                val decoded = BitmapFactory.decodeByteArray(bytes, 0, bytes.size, opts)
+                    ?: return@runCatching null
+                val scale = 1024f / maxOf(decoded.width, decoded.height)
+                val scaled = if (scale < 1f) {
+                    Bitmap.createScaledBitmap(
+                        decoded,
+                        (decoded.width * scale).toInt().coerceAtLeast(1),
+                        (decoded.height * scale).toInt().coerceAtLeast(1),
+                        true,
+                    )
+                } else decoded
+                val out = ByteArrayOutputStream()
+                scaled.compress(Bitmap.CompressFormat.JPEG, 85, out)
+                if (scaled !== decoded) scaled.recycle()
+                decoded.recycle()
+                "data:image/jpeg;base64," + Base64.encodeToString(out.toByteArray(), Base64.NO_WRAP)
+            }.getOrNull()
+            if (dataUrl == null) {
+                withContext(Dispatchers.Main) { vm.notify("Image invalide ou illisible") }
+            } else {
+                withContext(Dispatchers.Main) { vm.setPlaylistCover(playlistId, dataUrl) }
             }
-            val mime = context.contentResolver.getType(uri) ?: "image/jpeg"
-            val dataUrl = "data:$mime;base64," + Base64.encodeToString(bytes, Base64.NO_WRAP)
-            withContext(Dispatchers.Main) { vm.setPlaylistCover(playlistId, dataUrl) }
         }
     }
     LazyColumn(contentPadding = PaddingValues(start = 16.dp, end = 16.dp, bottom = 170.dp)) {

@@ -24,6 +24,37 @@ import { useT } from "@/lib/auralis/i18n";
 import { cn } from "@/lib/utils";
 import type { Track, Album, Artist, ViewId } from "@/lib/auralis/types";
 
+type TFn = (key: string, fallback?: string, params?: Record<string, string | number>) => string;
+
+/**
+ * Append many tracks to the queue in ONE store write + ONE toast. Calling
+ * per-track `addToQueueEnd` in a loop costs a set() + store notification + toast
+ * per track, so "add album to queue" stormed every subscriber N times. Mirrors
+ * queueSlice.addToQueueEnd's invariants: `queue` and `shuffledQueue` both grow by
+ * the same tail append, so `shuffledQueue[currentIndex] === currentTrack` still
+ * holds (indices at/before currentIndex are untouched) with shuffle on or off.
+ */
+function addTracksToQueueEnd(tracks: Track[], t: TFn) {
+  if (tracks.length === 0) return;
+  const s = usePlayer.getState();
+  if (!s.currentTrack) {
+    // addToQueueEnd's empty-queue fallback starts the first track (no toast);
+    // batch the rest so one click still costs a single write, not N-1.
+    s.playTrack(tracks[0]);
+    if (tracks.length === 1) return;
+    usePlayer.setState((st) => ({
+      queue: [...st.queue, ...tracks.slice(1)],
+      shuffledQueue: [...st.shuffledQueue, ...tracks.slice(1)],
+    }));
+  } else {
+    usePlayer.setState((st) => ({
+      queue: [...st.queue, ...tracks],
+      shuffledQueue: [...st.shuffledQueue, ...tracks],
+    }));
+  }
+  s.notify(t("toast.addedToQueue", "« {title} » ajouté à la file", { title: tracks[0].title }));
+}
+
 export function ContextMenuHost() {
   // Atomic selectors (always-mounted host). Only `contextMenu` and `customPlaylists`
   // are reactive values; the rest are stable action refs that never cause a render.
@@ -133,7 +164,6 @@ export function ContextMenuHost() {
           sheet={sheet}
           playList={playList}
           startRadio={startRadio}
-          addToQueueEnd={addToQueueEnd}
           navigate={navigate}
           customPlaylists={customPlaylists}
           createPlaylist={createPlaylist}
@@ -147,7 +177,6 @@ export function ContextMenuHost() {
           sheet={sheet}
           playList={playList}
           startRadio={startRadio}
-          addToQueueEnd={addToQueueEnd}
           navigate={navigate}
         />
       )}
@@ -330,7 +359,6 @@ function AlbumMenu({
   sheet,
   playList,
   startRadio,
-  addToQueueEnd,
   navigate,
   customPlaylists,
   createPlaylist,
@@ -343,7 +371,6 @@ function AlbumMenu({
   sheet: boolean;
   playList: (list: Track[], startIndex?: number) => void;
   startRadio: (seedHash: string, seedTrack?: Track) => Promise<void>;
-  addToQueueEnd: (track: Track) => void;
   navigate: (view: ViewId, id?: string) => void;
   customPlaylists: import("@/lib/auralis/types").Playlist[];
   createPlaylist: (name: string) => string;
@@ -355,7 +382,8 @@ function AlbumMenu({
   const artist = album.albumartists[0];
 
   const addAlbumToQueue = () => {
-    tracks.forEach((t) => addToQueueEnd(t));
+    // Single store write + toast for the whole album (was one per track).
+    addTracksToQueueEnd(tracks, t);
   };
 
   const playlistOpen = sheet && submenu === "playlists";
@@ -420,7 +448,6 @@ function ArtistMenu({
   sheet,
   playList,
   startRadio,
-  addToQueueEnd,
   navigate,
 }: {
   artist: Artist;
@@ -428,7 +455,6 @@ function ArtistMenu({
   sheet: boolean;
   playList: (list: Track[], startIndex?: number) => void;
   startRadio: (seedHash: string, seedTrack?: Track) => Promise<void>;
-  addToQueueEnd: (track: Track) => void;
   navigate: (view: ViewId, id?: string) => void;
 }) {
   const t = useT();
@@ -454,7 +480,7 @@ function ArtistMenu({
         {topTracks[0] && (
           <MenuItem sheet={sheet} icon={Radio} label={t("ctx.startArtistRadio", "Démarrer une radio de l'artiste")} onClick={() => run(() => void startRadio(topTracks[0].trackhash, topTracks[0]))} />
         )}
-        <MenuItem sheet={sheet} icon={ListPlus} label={t("ctx.addTracksToQueue", "Ajouter les titres à la file")} onClick={() => run(() => topTracks.forEach((t) => addToQueueEnd(t)))} />
+        <MenuItem sheet={sheet} icon={ListPlus} label={t("ctx.addTracksToQueue", "Ajouter les titres à la file")} onClick={() => run(() => addTracksToQueueEnd(topTracks, t))} />
         <div className="my-1 h-px bg-[var(--line)]" />
         <MenuItem sheet={sheet} icon={UserRound} label={t("ctx.goToArtist", "Aller à l'artiste")} onClick={() => run(() => navigate("artist", artist.artisthash))} />
         {albumCount > 0 && (

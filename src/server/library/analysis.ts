@@ -266,12 +266,25 @@ interface PendingRow {
   trackhash: string;
   filepath: string;
   duration: number;
+  mtime: number;
 }
+
+// A failed decode (null features) is usually TRANSIENT — an unmounted music
+// volume, a momentarily busy disk — so it must not stamp analyzed_at: that
+// permanently marked an un-analysed track as done and it never got a real
+// mood/energy. Failed tracks stay at analyzed_at = 0 and are retried by a later
+// pass, bounded by this per-server-run attempts map so a genuinely corrupt file
+// doesn't burn worker time on every single pass. A track whose mtime changed is
+// retried afresh — new bytes, new chance.
+const failedAttempts = new Map<string, { attempts: number; mtime: number }>();
+const MAX_ANALYSIS_ATTEMPTS = 3;
 
 /**
  * Analyse every track that still needs it (analyzed_at = 0), throttled. Safe to
  * call repeatedly — it no-ops while already running and exits early when ffmpeg
- * is unavailable (leaving rows unmarked so a later run can pick them up).
+ * is unavailable (leaving rows unmarked so a later run can pick them up). Only a
+ * successful analysis stamps analyzed_at; repeated decode failures are retried at
+ * most MAX_ANALYSIS_ATTEMPTS times per server run (unless the file changed).
  */
 export async function runAnalysis(): Promise<void> {
   // Claim the run BEFORE any `await`. hasFfmpeg() yields a microtask even when its
@@ -289,7 +302,7 @@ export async function runAnalysis(): Promise<void> {
   try {
     const db = getDb();
     const pending = db
-      .prepare("SELECT trackhash, filepath, duration FROM tracks WHERE analyzed_at = 0")
+      .prepare("SELECT trackhash, filepath, duration, mtime FROM tracks WHERE analyzed_at = 0")
       .all() as PendingRow[];
     if (pending.length === 0) return;
 
@@ -298,19 +311,32 @@ export async function runAnalysis(): Promise<void> {
       return;
     }
 
+    // Tracks that already burned their retry budget on an unchanged file sit out
+    // this pass (they remain analyzed_at = 0; a changed mtime resets the count).
+    const candidates = pending.filter((row) => {
+      const f = failedAttempts.get(row.trackhash);
+      return !f || f.attempts < MAX_ANALYSIS_ATTEMPTS || f.mtime !== row.mtime;
+    });
+    if (candidates.length === 0) {
+      log.debug("audio analysis: nothing retryable", { skipped: pending.length });
+      return;
+    }
+    const skipped = pending.length - candidates.length;
+    if (skipped > 0) log.info("audio analysis: skipping tracks that repeatedly failed to decode", { skipped });
+
     started = true;
     const { musicDir } = getConfig();
     const update = db.prepare(
       "UPDATE tracks SET mood = ?, energy = ?, bpm = ?, gain = ?, analyzed_at = ? WHERE trackhash = ?",
     );
-    total = pending.length;
+    total = candidates.length;
     log.info("audio analysis started", { total });
     updateScanProgress({ analyzing: true, analyzed: 0, analyzeTotal: total });
 
     let cursor = 0;
     const worker = async () => {
-      while (cursor < pending.length) {
-        const row = pending[cursor++];
+      while (cursor < candidates.length) {
+        const row = candidates[cursor++];
         const abs = path.join(musicDir, row.filepath.split("/").join(path.sep));
         let features: AudioFeatures | null = null;
         try {
@@ -318,13 +344,23 @@ export async function runAnalysis(): Promise<void> {
         } catch {
           features = null;
         }
-        // Always stamp analyzed_at so a hard-failing file isn't retried forever;
-        // a null result just leaves mood NULL → genre fallback for that track.
         const now = Date.now();
-        try {
-          update.run(features?.mood ?? null, features?.energy ?? null, features?.bpm ?? null, features?.gain ?? null, now, row.trackhash);
-        } catch {
-          /* row vanished mid-run */
+        if (features) {
+          // Success: stamp analyzed_at so this track is never re-analysed.
+          try {
+            update.run(features.mood, features.energy, features.bpm, features.gain, now, row.trackhash);
+          } catch {
+            /* row vanished mid-run */
+          }
+          failedAttempts.delete(row.trackhash);
+        } else {
+          // Transient decode failure: leave analyzed_at = 0 so a later pass can
+          // retry, but count the attempt so a permanently broken file stops
+          // consuming worker time after a few tries (see failedAttempts above).
+          if (failedAttempts.size > 10_000) failedAttempts.clear(); // defensive bound
+          const prev = failedAttempts.get(row.trackhash);
+          const attempts = prev && prev.mtime === row.mtime ? prev.attempts + 1 : 1;
+          failedAttempts.set(row.trackhash, { attempts, mtime: row.mtime });
         }
         done++;
         if (done % 5 === 0 || done === total) {
@@ -333,7 +369,7 @@ export async function runAnalysis(): Promise<void> {
       }
     };
 
-    await Promise.all(Array.from({ length: Math.min(CONCURRENCY, pending.length) }, () => worker()));
+    await Promise.all(Array.from({ length: Math.min(CONCURRENCY, candidates.length) }, () => worker()));
     db.prepare(
       "INSERT INTO settings (key, value) VALUES ('analyzedAt', ?) ON CONFLICT(key) DO UPDATE SET value=excluded.value",
     ).run(String(Date.now()));

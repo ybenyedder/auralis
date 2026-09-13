@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { Minus, Square, X, Copy } from "lucide-react";
+import { useT } from "@/lib/auralis/i18n";
 
 interface DesktopApi {
   platform: string;
@@ -18,6 +19,7 @@ function getDesktop(): DesktopApi | null {
 
 /** Native min/maximise/close controls — only rendered inside the Electron shell. */
 export function WindowControls() {
+  const t = useT();
   const [desktop, setDesktop] = useState<DesktopApi | null>(null);
   const [maximized, setMaximized] = useState(false);
 
@@ -36,13 +38,13 @@ export function WindowControls() {
 
   return (
     <div className="no-drag ml-1 flex items-center">
-      <button onClick={() => desktop.minimize()} aria-label="Réduire" title="Réduire" className="no-drag grid h-8 w-9 place-items-center text-muted-foreground/60 transition-colors hover:bg-white/[0.04] hover:text-foreground">
+      <button onClick={() => desktop.minimize()} aria-label={t("win.minimize", "Réduire")} title={t("win.minimize", "Réduire")} className="no-drag grid h-8 w-9 place-items-center text-muted-foreground/60 transition-colors hover:bg-white/[0.04] hover:text-foreground">
         <Minus className="size-3.5" />
       </button>
-      <button onClick={() => desktop.maximize()} aria-label={maximized ? "Restaurer" : "Agrandir"} title={maximized ? "Restaurer" : "Agrandir"} className="no-drag grid h-8 w-9 place-items-center text-muted-foreground/60 transition-colors hover:bg-white/[0.04] hover:text-foreground">
+      <button onClick={() => desktop.maximize()} aria-label={maximized ? t("win.restore", "Restaurer") : t("win.maximize", "Agrandir")} title={maximized ? t("win.restore", "Restaurer") : t("win.maximize", "Agrandir")} className="no-drag grid h-8 w-9 place-items-center text-muted-foreground/60 transition-colors hover:bg-white/[0.04] hover:text-foreground">
         {maximized ? <Copy className="size-3.5" /> : <Square className="size-3.5" />}
       </button>
-      <button onClick={() => desktop.close()} aria-label="Fermer" title="Fermer" className="no-drag grid h-8 w-9 place-items-center text-muted-foreground/60 transition-colors hover:bg-[#e25b50]/80 hover:text-white">
+      <button onClick={() => desktop.close()} aria-label={t("win.close", "Fermer")} title={t("win.close", "Fermer")} className="no-drag grid h-8 w-9 place-items-center text-muted-foreground/60 transition-colors hover:bg-[#e25b50]/80 hover:text-white">
         <X className="size-3.5" />
       </button>
     </div>

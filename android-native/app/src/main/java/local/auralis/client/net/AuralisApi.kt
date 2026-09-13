@@ -178,6 +178,15 @@ class AuralisApi {
 
     // ---- generic verbs (settings, admin, library ops) ----------------------
 
+    // Outcome of the last post/put/delete: these helpers swallow network and HTTP
+    // errors into an empty JSONObject (call sites expect a parseable body either
+    // way), so callers that must surface failures check this right after their
+    // call. Best-effort signal, read immediately — a concurrent request can
+    // overwrite it.
+    @Volatile
+    var apiLastOk: Boolean = true
+        private set
+
     suspend fun getObj(path: String): JSONObject = withContext(Dispatchers.IO) {
         runCatching { getJson(path) }.getOrDefault(JSONObject())
     }
@@ -185,22 +194,31 @@ class AuralisApi {
     suspend fun post(path: String, body: JSONObject): JSONObject = withContext(Dispatchers.IO) {
         val req = authed(Request.Builder().url("$base$path").post(body.toString().toRequestBody(JSON)))
         runCatching {
-            client.newCall(req).execute().use { it.body?.string()?.let { s -> JSONObject(s) } ?: JSONObject() }
-        }.getOrDefault(JSONObject())
+            client.newCall(req).execute().use { resp ->
+                apiLastOk = resp.isSuccessful
+                resp.body?.string()?.let { s -> JSONObject(s) } ?: JSONObject()
+            }
+        }.getOrElse { apiLastOk = false; JSONObject() }
     }
 
     suspend fun put(path: String, body: JSONObject): JSONObject = withContext(Dispatchers.IO) {
         val req = authed(Request.Builder().url("$base$path").put(body.toString().toRequestBody(JSON)))
         runCatching {
-            client.newCall(req).execute().use { it.body?.string()?.let { s -> JSONObject(s) } ?: JSONObject() }
-        }.getOrDefault(JSONObject())
+            client.newCall(req).execute().use { resp ->
+                apiLastOk = resp.isSuccessful
+                resp.body?.string()?.let { s -> JSONObject(s) } ?: JSONObject()
+            }
+        }.getOrElse { apiLastOk = false; JSONObject() }
     }
 
     suspend fun delete(path: String): JSONObject = withContext(Dispatchers.IO) {
         val req = authed(Request.Builder().url("$base$path").delete())
         runCatching {
-            client.newCall(req).execute().use { it.body?.string()?.let { s -> JSONObject(s) } ?: JSONObject() }
-        }.getOrDefault(JSONObject())
+            client.newCall(req).execute().use { resp ->
+                apiLastOk = resp.isSuccessful
+                resp.body?.string()?.let { s -> JSONObject(s) } ?: JSONObject()
+            }
+        }.getOrElse { apiLastOk = false; JSONObject() }
     }
 
     // ---- helpers -----------------------------------------------------------

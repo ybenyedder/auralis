@@ -32,10 +32,20 @@ export const api = {
     if (typeof window === "undefined") return;
     window.localStorage.setItem(TOKEN_KEY, value.trim());
   },
-  /** Resolve an API path to a full URL (handles a configured remote base + token query). */
+  /** Resolve an API path to a full URL (handles a configured remote base).
+   *  Deliberately does NOT append the auth token: every fetch through this module
+   *  already sends `Authorization: Bearer` (headers()), and a token in the URL
+   *  leaks into proxy logs / browser history. Only surfaces that CANNOT set
+   *  headers need the query token — use urlWithToken() for those. */
   url(path: string): string {
     const base = this.base();
-    const full = base ? `${base}${path}` : path;
+    return base ? `${base}${path}` : path;
+  },
+  /** url() + the auth token in the query — ONLY for surfaces that cannot send
+   *  headers: <audio>/<img src>, CSS backgrounds, OS media-session artwork and
+   *  EventSource. Regular fetches must use url() + headers(). */
+  urlWithToken(path: string): string {
+    const full = this.url(path);
     const token = this.token();
     if (!token) return full;
     return full + (full.includes("?") ? "&" : "?") + "token=" + encodeURIComponent(token);
@@ -83,10 +93,12 @@ export const api = {
     if (!res.ok) throw new Error(`PUT ${path} -> ${res.status}`);
     return (await res.json().catch(() => ({}))) as T;
   },
-  /** Map a library-relative file path to its stream URL (honouring base + token). */
+  /** Map a library-relative file path to its stream URL (honouring base + token).
+   *  Feeds <audio src> / external players, which cannot send an Authorization
+   *  header — hence the query token (cookie clients work either way). */
   streamUrl(filepath: string): string {
     const encoded = filepath.split(/[\\/]+/).filter(Boolean).map(encodeURIComponent).join("/");
-    return this.url(`/api/stream/${encoded}`);
+    return this.urlWithToken(`/api/stream/${encoded}`);
   },
   /** Same, but WITHOUT the auth token — for artifacts that leave the app, like
    *  exported M3U playlists. A URL carrying a long-lived bearer token in a file
@@ -105,7 +117,8 @@ export const api = {
   assetUrl(path: string | undefined, width?: number): string | undefined {
     if (!path) return undefined;
     if (/^https?:/.test(path)) return path;
-    const resolved = this.url(path);
+    // <img>/CSS surfaces can't send headers → the query token rides along.
+    const resolved = this.urlWithToken(path);
     if (width && path.includes("/api/art/")) {
       return resolved + (resolved.includes("?") ? "&" : "?") + `w=${width}`;
     }

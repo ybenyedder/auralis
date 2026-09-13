@@ -18,6 +18,7 @@ import { Mic2, Captions, Minus, Plus, Timer, Wand2, Loader2 } from "lucide-react
 import { usePlayer, getAudioTime } from "@/store/player";
 import { usePlayhead } from "@/store/playhead";
 import { serverInfo } from "@/lib/auralis/serverInfo";
+import { useT } from "@/lib/auralis/i18n";
 import { cn } from "@/lib/utils";
 
 // useLayoutEffect on the client (runs before paint so the active line is reset
@@ -59,6 +60,7 @@ function karaokeRange(line: LyricLine, nextTime: number | undefined, duration: n
 }
 
 export function LyricsView({ variant }: { variant: "panel" | "stage" }) {
+  const t = useT();
   const currentTrack = usePlayer((s) => s.currentTrack);
   const karaokeMode = usePlayer((s) => s.karaokeMode);
   const lyricsLoading = usePlayer((s) => s.lyricsLoading);
@@ -194,7 +196,7 @@ export function LyricsView({ variant }: { variant: "panel" | "stage" }) {
     container.scrollTo({ top: container.scrollTop + delta, behavior: reduce ? "auto" : "smooth" });
   }, [activeIndex, reduce]);
 
-  if (!currentTrack) return <Centered>Aucune lecture</Centered>;
+  if (!currentTrack) return <Centered>{t("player.noPlayback", "Aucune lecture")}</Centered>;
 
   if (hasLyrics) {
     // Karaoke wipe is gated to WORD-BY-WORD (richsync) lyrics with motion allowed;
@@ -291,17 +293,17 @@ export function LyricsView({ variant }: { variant: "panel" | "stage" }) {
       ) : (
         <>
           <p className="text-[13px] font-semibold text-muted-foreground">
-            {lyricsStatus === "instrumental" ? "Morceau instrumental" : "Aucune parole pour ce titre"}
+            {lyricsStatus === "instrumental" ? t("toast.instrumental", "Morceau instrumental") : t("lyrics.noLyrics", "Aucune parole pour ce titre")}
           </p>
           {onlineLyrics ? (
             <button onClick={() => fetchLyrics(true)} className="ghost-button tap-press rounded-md px-3.5 py-2 text-[12px] font-bold">
-              Chercher en ligne
+              {t("lyrics.searchOnline", "Chercher en ligne")}
             </button>
           ) : (
             <p className="max-w-[260px] text-[11.5px] leading-relaxed text-muted-foreground/60">
-              Recherche en ligne désactivée sur ce serveur — place un fichier{" "}
+              {t("lyrics.sidecarHintA", "Recherche en ligne désactivée sur ce serveur — place un fichier")}{" "}
               <code className="rounded bg-[var(--panel-2)] px-1 py-0.5 text-[10.5px] font-bold text-muted-foreground/90">.lrc</code>{" "}
-              à côté du morceau pour ses paroles.
+              {t("lyrics.sidecarHintB", "à côté du morceau pour ses paroles.")}
             </p>
           )}
         </>
@@ -383,12 +385,13 @@ function KaraokeLine({ line, nextTime, duration }: { line: LyricLine; nextTime?:
 }
 
 function KaraokeSwitch() {
+  const t = useT();
   const karaokeMode = usePlayer((s) => s.karaokeMode);
   const toggleKaraoke = usePlayer((s) => s.toggleKaraoke);
   return (
-    <div role="group" aria-label="Mode des paroles" className="inline-flex items-center gap-0.5 rounded-full bg-[var(--panel-2)] p-1">
-      <SwitchSeg active={!karaokeMode} onClick={() => karaokeMode && toggleKaraoke()} label="Standard" icon={Captions} />
-      <SwitchSeg active={karaokeMode} onClick={() => !karaokeMode && toggleKaraoke()} label="Karaoké" icon={Mic2} />
+    <div role="group" aria-label={t("lyrics.modeAria", "Mode des paroles")} className="inline-flex items-center gap-0.5 rounded-full bg-[var(--panel-2)] p-1">
+      <SwitchSeg active={!karaokeMode} onClick={() => karaokeMode && toggleKaraoke()} label={t("lyrics.standard", "Standard")} icon={Captions} />
+      <SwitchSeg active={karaokeMode} onClick={() => !karaokeMode && toggleKaraoke()} label={t("lyrics.karaoke", "Karaoké")} icon={Mic2} />
     </div>
   );
 }
@@ -398,17 +401,18 @@ function KaraokeSwitch() {
 // to real word-by-word karaoke. Heavy: the work runs server-side and the store
 // polls it, so the button just reflects the in-flight state.
 function GenerateWordByWord() {
+  const t = useT();
   const aligning = usePlayer((s) => s.aligning);
   const alignLyrics = usePlayer((s) => s.alignLyrics);
   return (
     <button
       onClick={() => !aligning && alignLyrics()}
       disabled={aligning}
-      title="Générer le karaoké mot-à-mot en alignant les paroles sur l'audio (traitement local)"
+      title={t("lyrics.alignTitle", "Générer le karaoké mot-à-mot en alignant les paroles sur l'audio (traitement local)")}
       className="inline-flex items-center gap-1.5 rounded-full bg-[var(--panel-2)] px-3 py-1.5 text-[12px] font-bold text-white/70 transition-all duration-200 hover:bg-white/10 hover:text-white disabled:opacity-60"
     >
       {aligning ? <Loader2 className="size-3.5 animate-spin" /> : <Wand2 className="size-3.5" />}
-      {aligning ? "Alignement…" : "Mot-à-mot"}
+      {aligning ? t("lyrics.aligning", "Alignement…") : t("lyrics.wordByWord", "Mot-à-mot")}
     </button>
   );
 }
@@ -416,22 +420,23 @@ function GenerateWordByWord() {
 // Fine sync trim for lyrics. "+" advances the lyrics (fixes lag), "−" delays
 // them; the centre chip shows the current offset and resets to the default on tap.
 function SyncOffset() {
+  const t = useT();
   const lyricsOffset = usePlayer((s) => s.lyricsOffset);
   const adjustLyricsOffset = usePlayer((s) => s.adjustLyricsOffset);
   const resetLyricsOffset = usePlayer((s) => s.resetLyricsOffset);
   const label = `${lyricsOffset >= 0 ? "+" : ""}${lyricsOffset.toFixed(1)}s`;
   return (
-    <div role="group" aria-label="Décalage des paroles" className="inline-flex items-center gap-0.5 rounded-full bg-[var(--panel-2)] p-1 text-[11px] font-bold">
+    <div role="group" aria-label={t("lyrics.offsetAria", "Décalage des paroles")} className="inline-flex items-center gap-0.5 rounded-full bg-[var(--panel-2)] p-1 text-[11px] font-bold">
       <button
         onClick={() => adjustLyricsOffset(-0.1)}
-        aria-label="Retarder les paroles"
+        aria-label={t("lyrics.delay", "Retarder les paroles")}
         className="grid size-6 place-items-center rounded-full text-white/50 transition-all duration-200 hover:bg-white/10 hover:text-white"
       >
         <Minus className="size-3" />
       </button>
       <button
         onClick={resetLyricsOffset}
-        title="Décalage de synchro — toucher pour réinitialiser"
+        title={t("lyrics.resetOffset", "Décalage de synchro — toucher pour réinitialiser")}
         className="flex items-center gap-1 rounded-full px-1.5 tabular-nums text-muted-foreground/80 transition-colors hover:text-foreground"
       >
         <Timer className="size-3" />
@@ -439,7 +444,7 @@ function SyncOffset() {
       </button>
       <button
         onClick={() => adjustLyricsOffset(0.1)}
-        aria-label="Avancer les paroles"
+        aria-label={t("lyrics.advance", "Avancer les paroles")}
         className="grid size-6 place-items-center rounded-full text-white/50 transition-all duration-200 hover:bg-white/10 hover:text-white"
       >
         <Plus className="size-3" />

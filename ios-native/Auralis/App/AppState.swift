@@ -29,14 +29,14 @@ final class AppState: ObservableObject {
     @Published var lyrics = LyricsResult.none
     @Published var showPlayer = false
 
-    // Theme id (drives accent + backdrop tint)
-    @Published var theme: String = Prefs.theme
-
     let api = AuralisAPI()
     let player = AudioPlayer()
 
     private var trackIndex: [String: Track] = [:]
     private var cancellables = Set<AnyCancellable>()
+    /// Bumped on every track start — stale load tasks (slow token fetch from a
+    /// superseded tap) must not overwrite the newer item.
+    private var loadGeneration = 0
 
     var currentTrack: Track? {
         guard currentIndex >= 0, currentIndex < queue.count else { return nil }
@@ -116,19 +116,41 @@ final class AppState: ObservableObject {
         phase = .loading
         async let lib = api.library()
         async let st = api.userState()
-        let (library, user) = await (lib, st)
-        self.library = library
-        self.user = user
-        trackIndex = Dictionary(library.tracks.map { ($0.trackhash, $0) }, uniquingKeysWith: { a, _ in a })
-        if let t = user.settings["theme"], !t.isEmpty { theme = t; Prefs.theme = t }
-        phase = .ready
+        do {
+            let (library, user) = try await (lib, st)
+            self.library = library
+            self.user = user
+            trackIndex = Dictionary(library.tracks.map { ($0.trackhash, $0) }, uniquingKeysWith: { a, _ in a })
+            phase = .ready
+        } catch {
+            // An expired / revoked session used to degrade into a silently empty
+            // "ready" library — force a fresh login instead.
+            if handleAuthFailure(error) { return }
+            // Other errors keep the old behaviour: empty snapshot on a ready app.
+            self.library = .empty
+            self.user = .empty
+            trackIndex = [:]
+            phase = .ready
+        }
         // Secondary data — non-blocking.
         Task { self.forYou = self.resolve((await api.recommend()).forYou.map { $0.trackhash }) }
         Task { self.stats = await api.stats() }
         Task { self.recap = await api.recap(month: nil) }
     }
 
-    func reloadUserState() async { self.user = await api.userState() }
+    func reloadUserState() async {
+        do { self.user = try await api.userState() }
+        catch { _ = handleAuthFailure(error) }
+    }
+
+    /// Returns true (and routes to the login screen) when `error` is an HTTP
+    /// 401/403 — expired or revoked session. False for anything else.
+    private func handleAuthFailure(_ error: Error) -> Bool {
+        guard case AuralisAPI.APIError.http(let status) = error, status == 401 || status == 403 else { return false }
+        errorMessage = "Session expirée — reconnectez-vous"
+        logout()
+        return true
+    }
 
     // MARK: Resolution helpers
 
@@ -203,7 +225,12 @@ final class AppState: ObservableObject {
         // Sized thumbnail (not full-res): CarPlay / Bluetooth cover-art on head-units
         // like BMW iDrive drops oversized covers — the 512px variant is what shows.
         let art = AuralisAPI.assetURL(base: base, image: track.image, width: 512)
+        loadGeneration += 1
+        let gen = loadGeneration
         Task { let token = await api.token
+            // Another tap / auto-advance started after this one — the newer load
+            // must win, so a stale resumed task never touches the player.
+            guard gen == loadGeneration else { return }
             player.load(url: url, token: token, title: track.title, artist: track.displayArtist, artworkURL: art)
         }
         lyrics = .none
@@ -238,7 +265,10 @@ final class AppState: ObservableObject {
         } else if Prefs.repeatMode == 1 {
             currentIndex = 0
         } else {
-            return // end of queue
+            // End of queue with repeat off — stop cleanly instead of leaving the
+            // UI and lock screen advertising a still-"playing" track.
+            player.pause()
+            return
         }
         startCurrent(reportPlay: true)
     }
@@ -264,11 +294,8 @@ final class AppState: ObservableObject {
         Task { await api.putState(["action": "dislike", "trackhash": hash, "value": !isDis]) }
     }
 
-    func setTheme(_ id: String) {
-        theme = id
-        Prefs.theme = id
-        Task { await api.putState(["action": "setting", "key": "theme", "value": id]) }
-    }
+    // (The server-side "theme" setting is intentionally not mirrored on iOS: the
+    // client ships a single Apple-Music-style palette that follows the system.)
 
     var shuffle: Bool {
         get { Prefs.shuffle }

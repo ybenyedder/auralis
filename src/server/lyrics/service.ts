@@ -142,10 +142,18 @@ function persist(
   });
 }
 
-async function readSidecar(filepath: string): Promise<{ synced: string | null; plain: string | null } | null> {
+/** Absolute path of a track's .lrc sidecar, or null when the audio file can't be
+ *  resolved under the library root. Single definition so the reader, the writer
+ *  and the cache-freshness check can never disagree about where sidecars live. */
+function sidecarPathFor(filepath: string): string | null {
   const abs = resolveLibraryPath(filepath);
   if (!abs) return null;
-  const lrcPath = abs.slice(0, abs.length - path.extname(abs).length) + ".lrc";
+  return abs.slice(0, abs.length - path.extname(abs).length) + ".lrc";
+}
+
+async function readSidecar(filepath: string): Promise<{ synced: string | null; plain: string | null } | null> {
+  const lrcPath = sidecarPathFor(filepath);
+  if (!lrcPath) return null;
   try {
     const content = await fs.promises.readFile(lrcPath, "utf8");
     if (!content.trim()) return null;
@@ -173,7 +181,8 @@ export async function writeSidecar(filepath: string, synced: string | null, plai
     log.debug("sidecar skipped — audio file missing", { abs });
     return;
   }
-  const lrcPath = abs.slice(0, abs.length - path.extname(abs).length) + ".lrc";
+  const lrcPath = sidecarPathFor(filepath);
+  if (!lrcPath) return;
   try {
     // `wx` = exclusive create: atomically writes only when no file exists, so we
     // never clobber user-authored lyrics without a separate (racy) existence check.
@@ -327,7 +336,33 @@ async function resolveLyrics(trackhash: string, opts: { forceRefetch?: boolean }
   if (!track) return { trackhash, status: "notfound", source: null, lines: [], plain: null, synced: false };
 
   const cached = db.prepare("SELECT * FROM lyrics WHERE trackhash = ?").get(trackhash) as LyricsRow | undefined;
-  if (cached && !opts.forceRefetch && isFresh(cached)) return rowToResult(cached);
+  if (cached && !opts.forceRefetch && isFresh(cached)) {
+    // A cached "found" row is fresh forever, but the .lrc sidecar it came from is
+    // the user's self-hosted source of truth and may have been hand-edited since we
+    // fetched it. One cheap stat per serve — only when a sidecar path resolves —
+    // detects that: if the file's mtime is newer than the row's fetched_at, the
+    // sidecar wins and the cache row is refreshed from it. A vanished/unreadable
+    // sidecar just falls through to the cached lyrics.
+    if (cached.status === "found") {
+      const lrcPath = sidecarPathFor(track.filepath);
+      if (lrcPath) {
+        try {
+          const st = await fs.promises.stat(lrcPath);
+          if (st.mtimeMs > cached.fetched_at) {
+            const edited = await readSidecar(track.filepath);
+            if (edited && (edited.synced || edited.plain)) {
+              return persist(trackhash, {
+                synced: edited.synced, plain: edited.plain, source: "sidecar", status: "found",
+              });
+            }
+          }
+        } catch {
+          // no sidecar on disk (or unreadable) — the DB cache still stands
+        }
+      }
+    }
+    return rowToResult(cached);
+  }
 
   // On-disk sidecar wins — it is the user's self-hosted source of truth.
   const sidecar = await readSidecar(track.filepath);

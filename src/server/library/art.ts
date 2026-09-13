@@ -38,20 +38,30 @@ export function cacheArtBuffer(data: Buffer): string | null {
   }
 }
 
-/** Look for a sidecar cover image in a directory and cache it. */
-export function cacheFolderCover(dir: string): string | null {
+/** Look for a sidecar cover image in a directory and cache it. `memo` (a per-scan
+ *  Map threaded down from runScan) dedupes the work when many tracks share one
+ *  folder: without it every track of an album re-stat'ed up to 13 candidate names
+ *  and re-read + re-hashed the same cover file. */
+export function cacheFolderCover(dir: string, memo?: Map<string, string | null>): string | null {
+  if (memo) {
+    const hit = memo.get(dir);
+    if (hit !== undefined) return hit;
+  }
+  let result: string | null = null;
   for (const name of FOLDER_COVER_NAMES) {
     const candidate = path.join(/*turbopackIgnore: true*/ dir, name);
     try {
       const stat = fs.statSync(/*turbopackIgnore: true*/ candidate);
       if (stat.isFile() && stat.size > 0 && stat.size < 25 * 1024 * 1024) {
-        return cacheArtBuffer(fs.readFileSync(/*turbopackIgnore: true*/ candidate));
+        result = cacheArtBuffer(fs.readFileSync(/*turbopackIgnore: true*/ candidate));
+        break;
       }
     } catch {
       // not present — keep looking
     }
   }
-  return null;
+  if (memo) memo.set(dir, result);
+  return result;
 }
 
 export interface CachedArt {
@@ -247,4 +257,75 @@ export function sniffImageMime(buf: Buffer): string {
   if (buf.length >= 6 && buf.toString("ascii", 0, 6) === "GIF87a") return "image/gif";
   if (buf.length >= 2 && buf[0] === 0x42 && buf[1] === 0x4d) return "image/bmp";
   return "application/octet-stream";
+}
+
+// ---------------------------------------------------------------------------
+// Cover-art garbage collection. Art files are content-addressed and shared, but
+// nothing deleted them when their last referencing track left the library — a
+// year of rescans used to accumulate orphaned covers + thumbnails forever.
+// pruneOrphanArt removes every art-dir file whose hash nothing references
+// anymore. Conservative by construction: only files named exactly the way the
+// writers here name them (extensionless SHA-1 hex originals, `<hash>_<size>.webp`
+// thumbnails) are even considered, and a hash is kept if ANY of the tables that
+// can reference artwork still does.
+// ---------------------------------------------------------------------------
+
+const ART_ORIGINAL_RE = /^[a-f0-9]{40}$/; // written by cacheArtBuffer
+const ART_THUMB_RE = /^([a-f0-9]{40})_\d+\.webp$/; // written by readArtVariant
+
+/** Delete unreferenced art files + thumbnails. Returns the number of files
+ *  removed. Call after a scan's prune phase (fire-and-forget). */
+export function pruneOrphanArt(db: ReturnType<typeof getDb>): number {
+  // albums/artists carry a denormalised copy of a track's arthash (see
+  // rebuildAggregates); playlists can pin a cover via image_hash (migration 009).
+  const referenced = new Set<string>();
+  for (const q of [
+    "SELECT DISTINCT arthash AS h FROM tracks WHERE arthash IS NOT NULL",
+    "SELECT DISTINCT arthash AS h FROM albums WHERE arthash IS NOT NULL",
+    "SELECT DISTINCT arthash AS h FROM artists WHERE arthash IS NOT NULL",
+    "SELECT DISTINCT image_hash AS h FROM playlists WHERE image_hash IS NOT NULL",
+  ]) {
+    for (const r of db.prepare(q).all() as { h: string }[]) referenced.add(r.h);
+  }
+
+  const artDir = getConfig().artDir;
+  let deleted = 0;
+  let entries: fs.Dirent[];
+  try {
+    entries = fs.readdirSync(artDir, { withFileTypes: true });
+  } catch {
+    return 0;
+  }
+  // A deleted original's derived palette row is dead weight too.
+  const removeColorRow = db.prepare("DELETE FROM art_colors WHERE arthash = ?");
+  for (const e of entries) {
+    if (!e.isFile() || !ART_ORIGINAL_RE.test(e.name) || referenced.has(e.name)) continue;
+    try {
+      fs.unlinkSync(path.join(artDir, e.name));
+      deleted++;
+      removeColorRow.run(e.name);
+    } catch {
+      // best effort — a busy / read-only volume just survives until the next scan
+    }
+  }
+
+  const thumbDir = path.join(artDir, "thumbs");
+  let thumbs: fs.Dirent[];
+  try {
+    thumbs = fs.readdirSync(thumbDir, { withFileTypes: true });
+  } catch {
+    return deleted; // no thumbs dir — nothing else to do
+  }
+  for (const e of thumbs) {
+    if (!e.isFile()) continue;
+    const m = ART_THUMB_RE.exec(e.name);
+    if (!m || referenced.has(m[1])) continue;
+    try {
+      fs.unlinkSync(path.join(thumbDir, e.name));
+      deleted++;
+    } catch {
+      // best effort
+    }
+  }
+  return deleted;
 }

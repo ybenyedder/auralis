@@ -144,26 +144,30 @@ function useVirtualWindow(
  * Measure the rendered height of a representative slot so the window math
  * self-corrects across breakpoints (no hard-coded pixel sizes). Returns a CALLBACK
  * ref: the caller attaches it to the first visible slot, and because that slot
- * changes as the window scrolls/recycles, the callback re-observes the current one —
- * keeping the measurement live even after a resize changes the row height.
+ * changes as the window scrolls/recycles, the callback re-points the observation
+ * at the current one — keeping the measurement live even after a resize changes
+ * the row height. ONE ResizeObserver is created per list and re-targeted with
+ * unobserve/observe; tearing it down and rebuilding it on every slot change used
+ * to churn an observer on nearly every frame of a fast fling.
  */
 function useMeasuredSize(fallback: number) {
   const [size, setSize] = useState(fallback);
   const roRef = useRef<ResizeObserver | null>(null);
+  const elRef = useRef<HTMLElement | null>(null);
+  useEffect(() => () => roRef.current?.disconnect(), []);
   const measureRef = useCallback((el: HTMLElement | null) => {
-    roRef.current?.disconnect();
-    roRef.current = null;
+    if (elRef.current === el) return; // same slot re-attached — nothing to re-target
+    if (roRef.current && elRef.current) roRef.current.unobserve(elRef.current);
+    elRef.current = el;
     if (!el) return;
     const apply = () => {
-      const h = el.offsetHeight;
-      if (h > 0) setSize((prev) => (Math.abs(prev - h) > 0.5 ? h : prev));
+      const h = elRef.current?.offsetHeight;
+      if (h && h > 0) setSize((prev) => (Math.abs(prev - h) > 0.5 ? h : prev));
     };
     apply();
-    if (typeof ResizeObserver !== "undefined") {
-      const ro = new ResizeObserver(apply);
-      ro.observe(el);
-      roRef.current = ro;
-    }
+    if (typeof ResizeObserver === "undefined") return;
+    if (!roRef.current) roRef.current = new ResizeObserver(apply);
+    roRef.current.observe(el);
   }, []);
   return [size, measureRef] as const;
 }

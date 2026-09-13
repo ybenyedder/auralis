@@ -82,11 +82,13 @@ interface TrackRow {
   bpm: number | null;
   artisthash: string | null;
   year: number | null;
-  embedding: Buffer | null;
   lyric_valence: number | null;
   lyric_coverage: number | null;
   playcount: number;
   last_played: number;
+  // NOTE: deliberately NO `embedding` here. The blobs are per-track (not per-user)
+  // and are huge; they are loaded once into a shared cache on demand (see
+  // getDeepById) instead of being copied into every user's cached catalogue.
 }
 
 interface EventRow {
@@ -113,6 +115,10 @@ interface Aggregates {
   signals: number;
   /** Count of feedback interactions in the window (UCB's t). */
   totalPlays: number;
+  /** Per-track interaction counts over the SAME 180-day window as totalPlays —
+   *  UCB's n_i must share t's horizon or the exploration bonus silently shrinks
+   *  for every track as the account ages (all-time playcounts would do that). */
+  windowedPlays: Map<string, number>;
   disliked: Set<string>;
   /** Feature vector per track, computed once and reused by the scorer. */
   featById: Map<string, FeatureVector | null>;
@@ -147,19 +153,55 @@ const emptyTimeCurve = (): TimeCurve => ({
 const cache = new Map<number, { at: number; tracks: TrackRow[]; agg: Aggregates }>();
 const CACHE_TTL_MS = 2500;
 
+// --- shared deep-embedding cache (user-INDEPENDENT, loaded lazily) -----------
+// The embedding blobs are a property of the AUDIO, not of the listener, so they
+// belong in one process-wide copy — replicating them into every user's cached
+// catalogue cost N users × the whole catalogue's blobs (hundreds of MB). They are
+// also pure dead weight for the overwhelmingly common case of a library where the
+// (strictly opt-in) extractor has never run, so a cheap probe gates the blob
+// query: tracks.embedded_at is the extractor's own work marker (it is the column
+// the extractor selects on and stamps together with the blob), and
+// idx_tracks_embedded makes the probe O(1) even on huge libraries. Same short TTL
+// as the per-user cache keeps a concurrently-running extractor's output fresh.
+const EMPTY_DEEP: Map<string, number[] | null> = new Map();
+let embeddingProbe: { at: number; any: boolean } | null = null;
+let embeddingCache: { at: number; byHash: Map<string, number[] | null> } | null = null;
+
+function hasEmbeddedTracks(now: number): boolean {
+  if (embeddingProbe && now - embeddingProbe.at < CACHE_TTL_MS) return embeddingProbe.any;
+  const any = !!getDb().prepare("SELECT 1 FROM tracks WHERE embedded_at > 0 LIMIT 1").get();
+  embeddingProbe = { at: now, any };
+  return any;
+}
+
+/** Decoded deep embedding per trackhash — empty when the library has none. The
+ *  returned map is SHARED between users; callers must treat it as read-only. */
+function getDeepById(now: number): Map<string, number[] | null> {
+  if (!hasEmbeddedTracks(now)) return EMPTY_DEEP;
+  if (embeddingCache && now - embeddingCache.at < CACHE_TTL_MS) return embeddingCache.byHash;
+  const byHash = new Map<string, number[] | null>();
+  const rows = getDb()
+    .prepare("SELECT trackhash, embedding FROM tracks WHERE embedding IS NOT NULL")
+    .all() as { trackhash: string; embedding: Buffer }[];
+  for (const r of rows) byHash.set(r.trackhash, decodeEmbedding(r.embedding));
+  embeddingCache = { at: now, byHash };
+  return byHash;
+}
+
 function buildAggregates(userId: number, tracks: TrackRow[]): Aggregates {
   const db = getDb();
   const now = Date.now();
   const featById = new Map<string, FeatureVector | null>();
   const moodById2 = new Map<string, string | null>();
-  const deepById = new Map<string, number[] | null>();
+  // Deep embeddings come from the shared, lazily-loaded cache (empty when the
+  // extractor has never run — every deep term then degrades to 0, as before).
+  const deepById = getDeepById(now);
   const dissById = new Map<string, number>();
   const dissCov = new Map<string, number>();
   for (const t of tracks) {
     const v = featureVector(t);
     featById.set(t.trackhash, v);
     moodById2.set(t.trackhash, recoMood(t));
-    deepById.set(t.trackhash, decodeEmbedding(t.embedding));
     // Cognitive dissonance: how much brighter the SOUND is than the WORDS. Only
     // meaningful when the lyrics carried sentiment (coverage > 0) and we could
     // place the audio's valence.
@@ -194,7 +236,12 @@ function buildAggregates(userId: number, tracks: TrackRow[]): Aggregates {
   const events = db
     .prepare("SELECT trackhash, played_at, kind, ratio FROM play_events WHERE user_id = ? AND played_at >= ?")
     .all(userId, now - EVENTS_WINDOW_MS) as EventRow[];
+  // Per-track counts over the SAME window — UCB's n_i. Mixing this horizon (t is
+  // windowed) with all-time playcounts made the exploration bonus depend on the
+  // account's age, not on how under-sampled a track really is now.
+  const windowedPlays = new Map<string, number>();
   for (const e of events) {
+    windowedPlays.set(e.trackhash, (windowedPlays.get(e.trackhash) ?? 0) + 1);
     const d = decay(now - e.played_at, HALF_LIFE_MS);
     const r = Math.max(0, Math.min(1, e.ratio ?? (e.kind === "complete" ? 1 : 0)));
     const v = featById.get(e.trackhash) ?? null;
@@ -297,6 +344,7 @@ function buildAggregates(userId: number, tracks: TrackRow[]): Aggregates {
     moodAffinity,
     signals,
     totalPlays: events.length,
+    windowedPlays,
     disliked,
     featById,
     moodById: moodById2,
@@ -318,7 +366,7 @@ function getState(userId: number): { tracks: TrackRow[]; agg: Aggregates } {
   const tracks = getDb()
     .prepare(
       `SELECT t.trackhash, t.mood, t.genre, t.energy, t.bpm, t.artisthash, t.year,
-              t.embedding, t.lyric_valence, t.lyric_coverage,
+              t.lyric_valence, t.lyric_coverage,
               COALESCE(pc.count, 0) AS playcount, COALESCE(pc.last_played, 0) AS last_played
        FROM tracks t
        LEFT JOIN playcounts pc ON pc.trackhash = t.trackhash AND pc.user_id = ?`,
@@ -326,10 +374,11 @@ function getState(userId: number): { tracks: TrackRow[]; agg: Aggregates } {
     .all(userId) as TrackRow[];
   const agg = buildAggregates(userId, tracks);
   cache.set(userId, { at: now, tracks, agg });
-  // Evict already-expired entries. Each holds a full catalogue copy (tracks[] +
-  // aggregate maps); without this, every account that ever asked for a reco pins
-  // one in memory forever. Only past-TTL entries are dropped, so this changes
-  // nothing functionally — they'd be recomputed on the next read regardless.
+  // Evict already-expired entries. Each holds a full catalogue copy (slim rows +
+  // aggregate maps — the embedding blobs live in the one shared cache instead);
+  // without this, every account that ever asked for a reco pins one in memory
+  // forever. Only past-TTL entries are dropped, so this changes nothing
+  // functionally — they'd be recomputed on the next read regardless.
   if (cache.size > 1) {
     for (const [uid, entry] of cache) {
       if (uid !== userId && now - entry.at >= CACHE_TTL_MS) cache.delete(uid);
@@ -393,8 +442,10 @@ function scoreTrack(t: TrackRow, agg: Aggregates, now: number): Scored | null {
   }
 
   // Exploration: UCB uncertainty bonus, minus a light familiarity fade + a
-  // short-term "just heard this" fatigue so the mix doesn't loop.
-  const explore = ucbBonus(t.playcount, agg.totalPlays);
+  // short-term "just heard this" fatigue so the mix doesn't loop. n_i counts the
+  // same 180-day window as t (agg.totalPlays) — see bandit.ts: mixing t's window
+  // with all-time playcounts made the bonus shrink as the account aged.
+  const explore = ucbBonus(agg.windowedPlays.get(t.trackhash) ?? 0, agg.totalPlays);
   const overplay = -0.02 * Math.min(t.playcount, 20) / 20;
   const fatigue = t.last_played ? -0.6 * decay(now - t.last_played, RECENT_HALF_LIFE_MS) : 0;
 
@@ -527,35 +578,107 @@ const TRAJECTORIES: Record<string, { from: { arousal: number; valence: number };
 
 /** A radio that MOVES through feeling-space along a named arc: at each step pick the
  *  non-disliked track nearest the interpolated target, taste-score breaking ties, no
- *  repeats. The whole set glides from one vibe to another. */
+ *  repeats. The whole set glides from one vibe to another.
+ *
+ *  Cost: rescanning the whole pool each step was O(steps × library). Instead the
+ *  candidates are bucketed ONCE into a coarse arousal×valence grid, then each step
+ *  visits cells best-bound-first: every cell carries an ADMISSIBLE upper bound on
+ *  the score any of its candidates can reach for the current target (best possible
+ *  similarity to the cell's nearest corner + the 0.22 taste term), so the scan
+ *  stops as soon as the next cell can no longer beat the best pick. The visited
+ *  candidates are scored with the exact same formula as before, so the output is
+ *  the same arc the exhaustive scan produced — without the per-step full pass. */
 export function recommendTrajectory(userId: number, path: string, limit = 30): RecoTrack[] {
   const { tracks, agg } = getState(userId);
   const arc = TRAJECTORIES[path] ?? TRAJECTORIES.winddown;
   const steps = Math.max(1, Math.min(100, limit));
   const used = new Set<string>();
-  const pool = tracks.filter((t) => !agg.disliked.has(t.trackhash) && agg.featById.get(t.trackhash));
   const out: RecoTrack[] = [];
+
+  // One-time grid build: 8×8 buckets over the unit arousal×valence square.
+  const CELL = 0.125;
+  const GRID = Math.round(1 / CELL);
+  interface Candidate {
+    hash: string;
+    vec: FeatureVector;
+    taste: number;
+    cell: TrajectoryCell;
+  }
+  interface TrajectoryCell {
+    candidates: Candidate[];
+    remaining: number;
+    maxTaste: number; // upper bound on the taste of any member (over used ones too)
+    aLo: number; aHi: number; vLo: number; vHi: number; // arousal/valence rect
+  }
+  const cellKey = (ci: number, cj: number) => ci * GRID + cj;
+  const cellIdx = (x: number) => Math.max(0, Math.min(GRID - 1, Math.floor(x / CELL)));
+  const grid = new Map<number, TrajectoryCell>();
+  for (const t of tracks) {
+    if (agg.disliked.has(t.trackhash)) continue;
+    const vec = agg.featById.get(t.trackhash);
+    if (!vec) continue;
+    const taste = tanh((agg.pos.get(t.trackhash) ?? 0) - (agg.neg.get(t.trackhash) ?? 0));
+    const ci = cellIdx(vec.arousal);
+    const cj = cellIdx(vec.valence);
+    const key = cellKey(ci, cj);
+    let cell = grid.get(key);
+    if (!cell) {
+      grid.set(key, (cell = {
+        candidates: [], remaining: 0, maxTaste: taste,
+        aLo: ci * CELL, aHi: (ci + 1) * CELL,
+        vLo: cj * CELL, vHi: (cj + 1) * CELL,
+      }));
+    }
+    cell.candidates.push({ hash: t.trackhash, vec, taste, cell });
+    cell.remaining++;
+    if (taste > cell.maxTaste) cell.maxTaste = taste;
+  }
+
+  // Distance from a point to the cell's rectangle (0 inside it) — the per-axis gap
+  // the admissible bound needs.
+  const rectDist = (x: number, lo: number, hi: number): number => (x < lo ? lo - x : x > hi ? x - hi : 0);
+
   for (let i = 0; i < steps; i++) {
     const f = steps === 1 ? 0 : i / (steps - 1);
     const a = arc.from.arousal + (arc.to.arousal - arc.from.arousal) * f;
     const v = arc.from.valence + (arc.to.valence - arc.from.valence) * f;
     const target: FeatureVector = { arousal: a, valence: v, energy: a, tempo: a };
-    let best: TrackRow | null = null;
+
+    // Admissible bound per cell. A candidate inside can't beat
+    //   min(1, 1 − D_min/2.2) + 0.22·maxTaste
+    // where D_min is the weighted feature distance to the cell's NEAREST corner:
+    // the arousal/valence gaps are bounded by the rect distance, and the
+    // energy/tempo axes always can reach the target exactly (both live in [0,1]),
+    // so dropping them keeps the bound ≥ any member's true score.
+    const bounds: { cell: TrajectoryCell; bound: number }[] = [];
+    for (const cell of grid.values()) {
+      if (cell.remaining <= 0) continue;
+      const da = rectDist(a, cell.aLo, cell.aHi);
+      const dv = rectDist(v, cell.vLo, cell.vHi);
+      const simMax = Math.min(1, Math.max(0, 1 - (1.4 * da * da + 1.4 * dv * dv) / 2.2));
+      bounds.push({ cell, bound: simMax + 0.22 * cell.maxTaste });
+    }
+    bounds.sort((x, y) => y.bound - x.bound);
+
+    let best: Candidate | null = null;
     let bestScore = -Infinity;
-    for (const t of pool) {
-      if (used.has(t.trackhash)) continue;
-      const vec = agg.featById.get(t.trackhash);
-      if (!vec) continue;
-      const taste = tanh((agg.pos.get(t.trackhash) ?? 0) - (agg.neg.get(t.trackhash) ?? 0));
-      const score = featureSimilarity(vec, target) + 0.22 * taste;
-      if (score > bestScore) {
-        bestScore = score;
-        best = t;
+    for (const { cell, bound } of bounds) {
+      // Every unpopped cell is at most as good as this bound — once it can't
+      // strictly beat the current best, no remaining candidate can either.
+      if (best && bound <= bestScore) break;
+      for (const c of cell.candidates) {
+        if (used.has(c.hash)) continue;
+        const score = featureSimilarity(c.vec, target) + 0.22 * c.taste;
+        if (score > bestScore) {
+          bestScore = score;
+          best = c;
+        }
       }
     }
     if (!best) break;
-    used.add(best.trackhash);
-    out.push({ trackhash: best.trackhash, score: Math.round(bestScore * 1000) / 1000, reason: "Trajectoire d'humeur" });
+    used.add(best.hash);
+    best.cell.remaining--;
+    out.push({ trackhash: best.hash, score: Math.round(bestScore * 1000) / 1000, reason: "Trajectoire d'humeur" });
   }
   return out;
 }
@@ -599,6 +722,7 @@ export function recommendBlend(userA: number, userB: number, limit = 80): { forY
     })(),
     signals: a.agg.signals + b.agg.signals,
     totalPlays: a.agg.totalPlays + b.agg.totalPlays,
+    windowedPlays: mergeSum(a.agg.windowedPlays, b.agg.windowedPlays),
     disliked: new Set([...a.agg.disliked, ...b.agg.disliked]),
     featById: a.agg.featById, // same catalogue → reuse one user's precomputed vectors
     moodById: a.agg.moodById,

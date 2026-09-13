@@ -16,10 +16,6 @@ enum Prefs {
         get { d.string(forKey: "auralis.username") ?? "" }
         set { d.set(newValue, forKey: "auralis.username") }
     }
-    static var theme: String {
-        get { d.string(forKey: "auralis.theme") ?? "spotify" }
-        set { d.set(newValue, forKey: "auralis.theme") }
-    }
     static var shuffle: Bool {
         get { d.bool(forKey: "auralis.shuffle") }
         set { d.set(newValue, forKey: "auralis.shuffle") }

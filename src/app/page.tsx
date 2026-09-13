@@ -173,6 +173,11 @@ function AuralisShell() {
     const valid: ViewId[] = ["explore", "library", "favorites", "recents", "folders", "insights", "settings", "radio", "search"];
     if (v && (valid as string[]).includes(v)) {
       usePlayer.getState().navigate(v as ViewId);
+      // The deep link is a one-shot entry point: strip the query (keeping any
+      // other params) so a later reload doesn't re-force the view.
+      const u = new URL(window.location.href);
+      u.searchParams.delete("view");
+      window.history.replaceState(null, "", u.pathname + u.search);
     }
   }, []);
 

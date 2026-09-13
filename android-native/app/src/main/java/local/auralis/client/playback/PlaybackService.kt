@@ -22,6 +22,7 @@ import androidx.media3.exoplayer.source.DefaultMediaSourceFactory
 import androidx.media3.session.LibraryResult
 import androidx.media3.session.MediaLibraryService
 import androidx.media3.session.MediaSession
+import androidx.media3.session.SessionError
 import com.google.common.collect.ImmutableList
 import com.google.common.util.concurrent.Futures
 import com.google.common.util.concurrent.ListenableFuture
@@ -53,6 +54,10 @@ class PlaybackService : MediaLibraryService() {
 
     override fun onCreate() {
         super.onCreate()
+        // Start (or attach to) the process-lifetime accounting singleton. Doing it
+        // here covers playback started WITHOUT the UI (Android Auto, assistant):
+        // the ViewModel path reuses the same instance via get().
+        PlaybackAccounting.get(this).start()
         catalog = AutoCatalog(this)
         val player = ExoPlayer.Builder(this)
             // Route playback through the implicit on-disk cache (offline replay).
@@ -65,6 +70,9 @@ class PlaybackService : MediaLibraryService() {
                 /* handleAudioFocus = */ true,
             )
             .setHandleAudioBecomingNoisy(true)
+            // Hold a wake lock while streaming so playback (and the accounting that
+            // scrobbles it) keeps running through Doze on flaky Wi-Fi.
+            .setWakeMode(C.WAKE_MODE_NETWORK)
             .build()
         // Tapping the media notification / lock-screen card brings the native app to
         // the front (singleTask + SINGLE_TOP reuses the existing task).
@@ -140,17 +148,26 @@ class PlaybackService : MediaLibraryService() {
         ): ListenableFuture<LibraryResult<ImmutableList<MediaItem>>> {
             val future = SettableFuture.create<LibraryResult<ImmutableList<MediaItem>>>()
             scope.launch {
-                val items: List<MediaItem> = if (parentId == ROOT) {
-                    listOf(
-                        browsable(CAT_FORYOU, "Fait pour vous"),
-                        browsable(CAT_FAVORITES, "Favoris"),
-                        browsable(CAT_RECENTS, "Récents"),
-                    )
-                } else {
-                    catalog.ensureLoaded()
-                    catalog.tracksFor(parentId).map { playable(it) }
+                try {
+                    val items: List<MediaItem> = if (parentId == ROOT) {
+                        listOf(
+                            browsable(CAT_FORYOU, "Fait pour vous"),
+                            browsable(CAT_FAVORITES, "Favoris"),
+                            browsable(CAT_RECENTS, "Récents"),
+                        )
+                    } else {
+                        catalog.ensureLoaded()
+                        catalog.tracksFor(parentId).map { playable(it) }
+                    }
+                    future.set(LibraryResult.ofItemList(ImmutableList.copyOf(items), params))
+                } finally {
+                    // If this coroutine died mid-load (service teardown cancelling the
+                    // scope, an unexpected throw) the future would never complete and
+                    // the head unit would hang on that node forever — always resolve it.
+                    if (!future.isDone) {
+                        future.set(LibraryResult.ofError(SessionError.ERROR_UNKNOWN))
+                    }
                 }
-                future.set(LibraryResult.ofItemList(ImmutableList.copyOf(items), params))
             }
             return future
         }
@@ -162,8 +179,8 @@ class PlaybackService : MediaLibraryService() {
         ): ListenableFuture<LibraryResult<MediaItem>> {
             val track = catalog.track(mediaId.removePrefix(TRACK_PREFIX))
             return Futures.immediateFuture(
-                if (track != null) LibraryResult.ofItem(playable(track), null)
-                else LibraryResult.ofError(LibraryResult.RESULT_ERROR_BAD_VALUE),
+                    if (track != null) LibraryResult.ofItem(playable(track), null)
+                    else LibraryResult.ofError(SessionError.ERROR_BAD_VALUE),
             )
         }
 
@@ -221,43 +238,58 @@ class PlaybackService : MediaLibraryService() {
  *  shows empty categories. */
 private class AutoCatalog(private val context: Context) {
     val api = AuralisApi()
-    private var byHash: Map<String, Track> = emptyMap()
-    private var favorites: List<String> = emptyList()
-    private var recents: List<String> = emptyList()
-    private var forYou: List<String> = emptyList()
+
+    /** Immutable catalogue snapshot, published as ONE @Volatile write inside the
+     *  load lock. The four fields used to be separate mutable vars assigned one by
+     *  one under the mutex while binder threads read them concurrently — a reader
+     *  could see a half-built state (e.g. new favorites with an empty byHash). */
+    private data class Data(
+        val byHash: Map<String, Track> = emptyMap(),
+        val favorites: List<String> = emptyList(),
+        val recents: List<String> = emptyList(),
+        val forYou: List<String> = emptyList(),
+    )
+
+    @Volatile private var data = Data()
     @Volatile private var loaded = false
     private val loadMutex = Mutex()
 
     suspend fun ensureLoaded() {
         if (loaded) return
         // Several onGetChildren callbacks can race here on the IO dispatcher: without
-        // this lock they'd each fire api.library()/userState() and half-assign byHash/
-        // favorites/... under one another (a reader could see a partially-built map).
-        // Serialize, and re-check loaded inside the lock so only the first does the work.
+        // this lock they'd each fire api.library()/userState() and overwrite one
+        // another. Serialize, and re-check loaded inside the lock so only the first
+        // does the work.
         loadMutex.withLock {
             if (loaded) return
             val prefs = Prefs(context).load()
             if (prefs.serverBase.isBlank() || prefs.token.isNullOrBlank()) return
             api.configure(prefs.serverBase, prefs.token)
             runCatching {
-                byHash = api.library().tracks.associateBy { it.trackhash }
+                val byHash = api.library().tracks.associateBy { it.trackhash }
                 val state = api.userState()
-                favorites = state.favorites
-                recents = state.recents
-                forYou = runCatching { api.recommend().forYou.map { it.trackhash } }.getOrDefault(emptyList())
+                data = Data(
+                    byHash = byHash,
+                    favorites = state.favorites,
+                    recents = state.recents,
+                    forYou = runCatching { api.recommend().forYou.map { it.trackhash } }.getOrDefault(emptyList()),
+                )
                 loaded = true
             }
         }
     }
 
-    fun track(hash: String): Track? = byHash[hash]
+    fun track(hash: String): Track? = data.byHash[hash]
 
-    fun tracksFor(category: String): List<Track> = when (category) {
-        "cat_favorites" -> favorites
-        "cat_recents" -> recents
-        "cat_foryou" -> forYou
-        else -> emptyList()
-    }.mapNotNull { byHash[it] }
+    fun tracksFor(category: String): List<Track> {
+        val d = data // single snapshot read: category + lookup stay consistent
+        return when (category) {
+            "cat_favorites" -> d.favorites
+            "cat_recents" -> d.recents
+            "cat_foryou" -> d.forYou
+            else -> emptyList()
+        }.mapNotNull { d.byHash[it] }
+    }
 }
 
 // Implicit offline cache: every streamed track is written through a 2 GB on-disk

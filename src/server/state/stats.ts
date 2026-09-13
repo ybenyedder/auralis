@@ -37,19 +37,23 @@ export function getListeningStats(userId: number): ListeningStats {
   const db = getDb();
   const totalPlays = (db.prepare("SELECT COALESCE(SUM(count), 0) AS n FROM playcounts WHERE user_id = ?").get(userId) as { n: number }).n;
 
-  // Distinct local days with activity (bounded by the 400-day log retention) —
-  // bucketed in SQLite so we walk at most ~400 day strings, not every event.
-  const dayRows = db
-    .prepare("SELECT DISTINCT strftime('%Y-%m-%d', played_at / 1000, 'unixepoch', 'localtime') AS day FROM play_events WHERE user_id = ? AND kind = 'complete'")
-    .all(userId) as { day: string }[];
-  const daySet = new Set(dayRows.map((r) => r.day));
-
-  // Per-day counts over the last 8 days (covers today + the 7-day sparkline).
-  const since = Date.now() - 8 * 86_400_000;
-  const countRows = db
-    .prepare("SELECT strftime('%Y-%m-%d', played_at / 1000, 'unixepoch', 'localtime') AS day, COUNT(*) AS c FROM play_events WHERE user_id = ? AND kind = 'complete' AND played_at >= ? GROUP BY day")
-    .all(userId, since) as { day: string; c: number }[];
-  const countByDay = new Map(countRows.map((r) => [r.day, r.c]));
+  // Distinct local days with activity + per-day counts, from ONE indexed pass.
+  // These used to be two strftime('%Y-%m-%d', ...) queries — SQLite can't use an
+  // index through that function, so every call full-scanned the user's events.
+  // Selecting the raw played_at column keeps the read on
+  // idx_play_events_user_kind (user_id, kind, played_at) and the local-day
+  // bucketing happens per row in JS instead (bounded in practice by the 400-day
+  // log retention).
+  const eventRows = db
+    .prepare("SELECT played_at FROM play_events WHERE user_id = ? AND kind = 'complete'")
+    .all(userId) as { played_at: number }[];
+  const daySet = new Set<string>();
+  const countByDay = new Map<string, number>();
+  for (const r of eventRows) {
+    const key = localDayKey(new Date(r.played_at));
+    daySet.add(key);
+    countByDay.set(key, (countByDay.get(key) ?? 0) + 1);
+  }
 
   const today = new Date();
   const todayKey = localDayKey(today);

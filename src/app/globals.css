@@ -431,18 +431,6 @@
   border-radius: var(--radius);
 }
 
-.keyline-top {
-  border-top: none;
-}
-
-.keyline-right {
-  border-right: none;
-}
-
-.keyline-left {
-  border-left: none;
-}
-
 .section-band {
   background: var(--panel);
 }
@@ -649,15 +637,6 @@ select:focus-visible {
   contain-intrinsic-size: auto 52px;
 }
 
-/* Scrubber reset */
-.scrubber {
-  -webkit-appearance: none;
-  appearance: none;
-  background: transparent;
-  cursor: pointer;
-}
-.scrubber:focus { outline: none; }
-
 /* Remove spinner from number inputs */
 input[type="number"]::-webkit-inner-spin-button,
 input[type="number"]::-webkit-outer-spin-button {
@@ -745,17 +724,12 @@ kbd {
 .app-stage { 
   background-color: transparent; 
 }
-.app-playerbar-slot { 
+.app-playerbar-slot {
   background-color: var(--sidebar);
   backdrop-filter: blur(var(--glass-blur));
   -webkit-backdrop-filter: blur(var(--glass-blur));
   border-top: 1px solid var(--glass-border);
 }
-/* Keep the old `data-glass` selector harmless for any cached HTML. */
-:root[data-glass="1"] body { background: var(--background); }
-:root[data-glass="1"] .app-chrome,
-:root[data-glass="1"] .app-stage,
-:root[data-glass="1"] .app-playerbar-slot { background-color: transparent; }
 
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after {

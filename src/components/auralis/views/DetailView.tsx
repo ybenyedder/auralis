@@ -1549,7 +1549,9 @@ function AccountSettings() {
     try {
       const res = await fetch(api.url("/api/auth/password"), {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        // Bearer header (not a URL token) so token-only clients (Android) still
+        // authenticate now that api.url() no longer appends ?token=.
+        headers: api.headers({ "Content-Type": "application/json" }),
         body: JSON.stringify({ currentPassword: current, newPassword: next }),
       });
       const data = (await res.json().catch(() => ({}))) as { error?: string; token?: string };
@@ -1568,7 +1570,9 @@ function AccountSettings() {
   };
 
   const logout = async () => {
-    try { await fetch(api.url("/api/auth/logout"), { method: "POST" }); } catch { /* reload anyway */ }
+    // Bearer header so the server revokes the persisted token too (the logout
+    // route revokes every presented credential) — api.url() no longer carries it.
+    try { await fetch(api.url("/api/auth/logout"), { method: "POST", headers: api.headers() }); } catch { /* reload anyway */ }
     api.setToken(""); // drop the persisted token so logout actually sticks
     window.location.reload();
   };

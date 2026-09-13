@@ -3,6 +3,7 @@
 import { Wand2, Play, X } from "lucide-react";
 import { usePlayer } from "@/store/player";
 import { tracksForHashes } from "@/store/library";
+import { useT } from "@/lib/auralis/i18n";
 import { cn } from "@/lib/utils";
 
 /**
@@ -12,6 +13,7 @@ import { cn } from "@/lib/utils";
  * the mobile dock (or the desktop player bar) so it never hides the bottom chrome.
  */
 export function SelectionBar() {
+  const t = useT();
   const selectionMode = usePlayer((s) => s.selectionMode);
   const count = usePlayer((s) => s.selected.size);
   const hasTrack = usePlayer((s) => Boolean(s.currentTrack));
@@ -44,20 +46,23 @@ export function SelectionBar() {
       <div className="pointer-events-auto flex w-full max-w-md items-center gap-2 rounded-full border border-[var(--line-strong)] bg-[var(--popover)] px-2.5 py-2">
         <button
           onClick={exitSelection}
-          aria-label="Quitter la sélection"
+          aria-label={t("sel.exit", "Quitter la sélection")}
           className="grid size-9 shrink-0 place-items-center rounded-full text-[var(--text-muted)] transition-colors hover:bg-[var(--surface-2)] hover:text-foreground"
         >
           <X className="size-5" />
         </button>
 
         <span className="min-w-0 flex-1 truncate text-[13px] font-bold text-foreground">
-          {count > 0 ? `${count} sélectionné${count > 1 ? "s" : ""}` : "Choisissez des titres"}
+          {count > 0 ? (count > 1
+            ? t("sel.selectedMany", "{count} sélectionnés", { count })
+            : t("sel.selectedOne", "{count} sélectionné", { count }))
+            : t("sel.pickTracks", "Choisissez des titres")}
         </span>
 
         <button
           onClick={playSelection}
           disabled={count === 0}
-          aria-label="Lire la sélection"
+          aria-label={t("sel.playSelection", "Lire la sélection")}
           className="grid size-9 shrink-0 place-items-center rounded-full text-foreground transition-colors hover:bg-[var(--surface-2)] disabled:opacity-40"
         >
           <Play className="size-5 fill-current" />
@@ -69,7 +74,7 @@ export function SelectionBar() {
           className="tap-press flex shrink-0 items-center gap-1.5 rounded-full bg-[var(--primary)] px-4 py-2 text-[13px] font-bold text-[var(--primary-foreground)] transition-transform active:scale-95 disabled:opacity-40"
         >
           <Wand2 className="size-4" />
-          Créer un mix
+          {t("sel.createMix", "Créer un mix")}
         </button>
       </div>
     </div>

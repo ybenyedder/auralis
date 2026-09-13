@@ -88,7 +88,36 @@ jobs:
         env:
           NEXT_TELEMETRY_DISABLED: "1"
 
+  # Android JVM unit tests (android-native/app/src/test): the in-app updater's
+  # version comparison (UpdateManager.compareVersions — the function gating every
+  # update prompt), JSON deserialization and URL building. Plain-JVM JUnit4, so
+  # no emulator, no signing, no npm install. Kept as a separate job from `verify`
+  # so an Android failure never blocks the web gate (and vice versa).
+  android-tests:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      # JDK 21 matches release.yml's android job; `cache: gradle` is setup-java's
+      # built-in Gradle cache (keyed on android-native's build files) — no extra
+      # cache action needed.
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 21
+          cache: gradle
+
+      # Same SDK setup as the release.yml android job; the runner + this action
+      # export ANDROID_HOME, which is all the Gradle build needs.
+      - uses: android-actions/setup-android@v3
+
+      # `full` flavor variant (the shipped, self-updating channel); the shared
+      # src/test suite compiles against src/main either way.
+      - name: Android unit tests
+        run: android-native/gradlew -p android-native :app:testFullDebugUnitTest --console=plain
+
   # NOTE: release artifacts (desktop installers + the native Android APK) are built
   # and attached to the GitHub Release by release.yml, which triggers on `v*` tags.
   # This workflow only runs on branch/PR pushes, so any tag-gated build job here
-  # would never fire — keep it to `verify` / `audit` / `build-matrix`.
+  # would never fire — keep it to `verify` / `audit` / `build-matrix` /
+  # `android-tests`.

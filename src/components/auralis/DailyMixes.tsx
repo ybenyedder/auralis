@@ -9,12 +9,18 @@ import { MOODS, groupByMood } from "@/lib/auralis/mood";
 import { useT } from "@/lib/auralis/i18n";
 import { Artwork } from "./Artwork";
 
-/** ISO-ish year+week key so the discover mix is frozen for the whole week. */
+/** ISO-8601 year+week key so the discover mix is frozen for the whole week.
+ *  Thursday trick: a week's ISO year and number are defined by its Thursday, so
+ *  snap to it and read year/week there — the naive Jan-1 division above counted
+ *  partial weeks and drifted from real calendar weeks (wrong year at boundaries). */
 function weekKey(): string {
   const d = new Date();
-  const onejan = new Date(d.getFullYear(), 0, 1);
-  const week = Math.ceil(((d.getTime() - onejan.getTime()) / 86_400_000 + onejan.getDay() + 1) / 7);
-  return `${d.getFullYear()}-W${week}`;
+  const date = new Date(Date.UTC(d.getFullYear(), d.getMonth(), d.getDate()));
+  const day = date.getUTCDay() || 7; // Mon=1 … Sun=7
+  date.setUTCDate(date.getUTCDate() + 4 - day); // this week's Thursday
+  const yearStart = Date.UTC(date.getUTCFullYear(), 0, 1);
+  const week = Math.ceil(((date.getTime() - yearStart) / 86_400_000 + 1) / 7);
+  return `${date.getUTCFullYear()}-W${String(week).padStart(2, "0")}`;
 }
 
 interface MixModel {

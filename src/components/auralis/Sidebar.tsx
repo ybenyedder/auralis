@@ -17,12 +17,14 @@ import {
 } from "lucide-react";
 import { usePlayer } from "@/store/player";
 import { useLibraryStore } from "@/store/library";
+import { useT } from "@/lib/auralis/i18n";
 import { cn } from "@/lib/utils";
 import type { ViewId } from "@/lib/auralis/types";
 
 interface NavItem {
   id: ViewId;
-  label: string;
+  key: string;
+  fallback: string;
   icon: LucideIcon;
 }
 
@@ -30,20 +32,21 @@ interface NavItem {
 // Playlists) instead of Spotify's stacked rounded boxes. Each row is a single
 // icon + label, active state is the red accent — not a white fill.
 const APPLE_MUSIC_ITEMS: NavItem[] = [
-  { id: "home", label: "Accueil", icon: Home },
-  { id: "explore", label: "Découvrir", icon: Compass },
-  { id: "search", label: "Rechercher", icon: Search },
+  { id: "home", key: "nav.home", fallback: "Accueil", icon: Home },
+  { id: "explore", key: "nav.discover", fallback: "Découvrir", icon: Compass },
+  { id: "search", key: "nav.search", fallback: "Rechercher", icon: Search },
 ];
 
 const LIBRARY_ITEMS: NavItem[] = [
-  { id: "library", label: "Bibliothèque", icon: Library },
-  { id: "favorites", label: "Titres aimés", icon: Heart },
-  { id: "recents", label: "Écoutés récemment", icon: History },
-  { id: "folders", label: "Dossiers", icon: FolderTree },
-  { id: "insights", label: "Analyse", icon: BarChart3 },
+  { id: "library", key: "nav.library", fallback: "Bibliothèque", icon: Library },
+  { id: "favorites", key: "nav.favorites", fallback: "Titres aimés", icon: Heart },
+  { id: "recents", key: "nav.recents", fallback: "Écoutés récemment", icon: History },
+  { id: "folders", key: "folders.title", fallback: "Dossiers", icon: FolderTree },
+  { id: "insights", key: "insights.eyebrow", fallback: "Analyse", icon: BarChart3 },
 ];
 
 export function Sidebar() {
+  const t = useT();
   const view = usePlayer((s) => s.view);
   const navigate = usePlayer((s) => s.navigate);
   const customPlaylists = usePlayer((s) => s.customPlaylists);
@@ -62,7 +65,7 @@ export function Sidebar() {
       aria-label="Primary"
       className="flex h-full w-full flex-col bg-[var(--sidebar)] glass rounded-xl overflow-hidden select-none"
     >
-      {/* Apple Music section */}
+      {/* Apple Music section (brand name — not translated) */}
       <Section label="Apple Music">
         {APPLE_MUSIC_ITEMS.map((item) => (
           <NavRow
@@ -75,10 +78,10 @@ export function Sidebar() {
       </Section>
 
       {/* Bibliothèque section */}
-      <Section label="Bibliothèque" action={
+      <Section label={t("nav.library", "Bibliothèque")} action={
         <button
           onClick={onNewPlaylist}
-          aria-label="Nouvelle playlist"
+          aria-label={t("nav.newPlaylist", "Nouvelle playlist")}
           className="grid h-7 w-7 place-items-center rounded-full text-[var(--text-muted)] transition-colors hover:bg-[var(--sidebar-accent)] hover:text-foreground"
         >
           <Plus className="size-4.5" />
@@ -97,7 +100,7 @@ export function Sidebar() {
       {/* Playlists list (scrollable, fills remaining height) */}
       <div className="min-h-0 flex-1 overflow-y-auto scroll-auralis px-3 pb-2">
         <p className="px-3 pb-1 pt-3 text-[11px] font-semibold uppercase tracking-[0.06em] text-[var(--text-faint)]">
-          Playlists
+          {t("nav.playlists", "Playlists")}
         </p>
         {customPlaylists.map((playlist) => {
           const active = view.view === "playlist" && view.id === String(playlist.id);
@@ -126,7 +129,7 @@ export function Sidebar() {
       <div className="border-t border-[var(--line)] px-3 py-2">
         <button
           onClick={() => navigate("settings")}
-          title="Réglages"
+          title={t("nav.settings", "Réglages")}
           aria-current={isActive("settings") ? "page" : undefined}
           className={cn(
             "group flex w-full items-center gap-3.5 rounded-md px-3 py-2 text-left transition-colors duration-150",
@@ -141,7 +144,7 @@ export function Sidebar() {
             fill={isActive("settings") ? "currentColor" : "none"}
             fillOpacity={isActive("settings") ? 0.15 : 0}
           />
-          <span className="hidden text-[15px] font-medium md:inline">Réglages</span>
+          <span className="hidden text-[15px] font-medium md:inline">{t("nav.settings", "Réglages")}</span>
         </button>
       </div>
     </nav>
@@ -181,11 +184,13 @@ function NavRow({
   active: boolean;
   onClick: () => void;
 }) {
+  const t = useT();
   const Icon = item.icon;
+  const label = t(item.key, item.fallback);
   return (
     <button
       onClick={onClick}
-      title={item.label}
+      title={label}
       aria-current={active ? "page" : undefined}
       className={cn(
         "group flex w-full items-center gap-3.5 rounded-md px-3 py-2 text-left transition-all duration-150 focus-auralis active:scale-[0.98]",
@@ -200,7 +205,7 @@ function NavRow({
         fill={active ? "currentColor" : "none"}
         fillOpacity={active ? 0.15 : 0}
       />
-      <span className="hidden text-[15px] font-medium md:inline">{item.label}</span>
+      <span className="hidden text-[15px] font-medium md:inline">{label}</span>
     </button>
   );
 }
@@ -216,6 +221,7 @@ function PlaylistRow({
   active: boolean;
   onClick: () => void;
 }) {
+  const t = useT();
   return (
     <button
       onClick={onClick}
@@ -241,7 +247,7 @@ function PlaylistRow({
           </span>
           {pinned && <Pin className="size-3 shrink-0 text-[var(--primary)]" fill="currentColor" />}
         </div>
-        <span className="truncate text-[12px] text-[var(--text-muted)]">Playlist</span>
+        <span className="truncate text-[12px] text-[var(--text-muted)]">{t("mobile.playlist", "Playlist")}</span>
       </div>
     </button>
   );

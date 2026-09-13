@@ -144,6 +144,7 @@ export function HomeView() {
 
   // Spotify "quick access" grid: the row of horizontal cards under the greeting.
   // Liked Songs first (the iconic purple tile), then your recently played tracks.
+  const t = useT();
   const quickTiles = useMemo(() => {
     const tiles: {
       key: string; title: string; image?: string; colors?: [string, string, string];
@@ -152,7 +153,7 @@ export function HomeView() {
     if (favorites.size > 0) {
       const favTracks = tracks.filter((t) => favorites.has(t.trackhash));
       tiles.push({
-        key: "liked", title: "Titres likés", liked: true,
+        key: "liked", title: t("home.likedTracks", "Titres likés"), liked: true,
         onPlay: () => { if (favTracks.length) playList(favTracks, 0); },
         onOpen: () => navigate("favorites"),
       });
@@ -163,9 +164,8 @@ export function HomeView() {
       onOpen: () => playList(recent, i),
     }));
     return tiles.slice(0, 8);
-  }, [favorites, tracks, recent, playList, navigate]);
+  }, [favorites, tracks, recent, playList, navigate, t]);
 
-  const t = useT();
   const greeting = (() => {
     if (now == null) return t("greeting.welcome");
     const h = new Date(now).getHours();

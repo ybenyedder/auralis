@@ -89,13 +89,80 @@ function parseFrame<T>(e: Event): T | null {
   }
 }
 
+// --- Legacy-tab leader election (no Web Locks) --------------------------------
+// Without navigator.locks (older WebViews) every tab used to just claim
+// leadership, so two open tabs of one device double-executed commands. When
+// locks are unavailable we elect via a BroadcastChannel heartbeat instead: the
+// leader announces itself every 3s; a tab that hears an announcement within 4s
+// of asking stays a follower; >4s of silence promotes the claimant. A
+// deterministic tabId tiebreak resolves the rare simultaneous-claim race.
+const FALLBACK_CHANNEL = "auralis-sync";
+const HEARTBEAT_MS = 3000;
+const ABSENCE_MS = 4000;
+let fallbackBc: BroadcastChannel | null = null;
+let fallbackTabId = "";
+let lastLeaderBeacon = 0;
+let heartbeatTimer: ReturnType<typeof setInterval> | undefined;
+
+function stopFallbackHeartbeat() {
+  if (heartbeatTimer !== undefined) {
+    clearInterval(heartbeatTimer);
+    heartbeatTimer = undefined;
+  }
+}
+
+function startFallbackHeartbeat(deviceId: string) {
+  stopFallbackHeartbeat();
+  heartbeatTimer = setInterval(() => {
+    fallbackBc?.postMessage({ type: "iam-leader", deviceId, tabId: fallbackTabId });
+  }, HEARTBEAT_MS);
+}
+
+function startFallbackElection(deviceId: string, set: (partial: Partial<SyncState>) => void, get: () => SyncState) {
+  // connect() re-runs after SSE reconnects; the election is set up once per tab.
+  if (fallbackBc) return;
+  // No BroadcastChannel either → nothing to coordinate with; keep the old
+  // "always leader" behavior rather than going mute forever.
+  if (typeof BroadcastChannel === "undefined") {
+    set({ isLeader: true });
+    return;
+  }
+  fallbackTabId = globalThis.crypto?.randomUUID?.() ?? `tab-${Date.now()}-${Math.round(Math.random() * 1e9)}`;
+  fallbackBc = new BroadcastChannel(FALLBACK_CHANNEL);
+  fallbackBc.onmessage = (e: MessageEvent) => {
+    const msg = e.data as { type?: string; deviceId?: string; tabId?: string } | null;
+    if (!msg || msg.type !== "iam-leader" || msg.deviceId !== deviceId) return;
+    lastLeaderBeacon = Date.now();
+    // Split-brain tiebreak: on two simultaneous claims the smaller tabId wins;
+    // the loser steps down and stops broadcasting (the winner ignores ours).
+    if (get().isLeader && typeof msg.tabId === "string" && msg.tabId < fallbackTabId) {
+      stopFallbackHeartbeat();
+      set({ isLeader: false });
+    }
+  };
+  const claimedAt = Date.now();
+  // Intentionally never cleared: the watchdog outlives even a tiebreak step-down
+  // (the loser must re-promote if the winner dies) and dies with the tab.
+  setInterval(() => {
+    if (get().isLeader) return;
+    // No beacon for ABSENCE_MS (heard none since asking, or the leader died) →
+    // take over and start announcing so other tabs stay followers.
+    if (Date.now() - Math.max(lastLeaderBeacon, claimedAt) >= ABSENCE_MS) {
+      set({ isLeader: true });
+      startFallbackHeartbeat(deviceId);
+    }
+  }, 1000);
+}
+
 export const useSync = create<SyncState>((set, get) => ({
   deviceId: readDeviceId(),
   deviceName: defaultName(initialKind),
   deviceKind: initialKind,
   connected: false,
-  // No Web Locks (older WebView / SSR) → can't coordinate tabs, so act as leader.
-  isLeader: typeof navigator === "undefined" || !navigator.locks,
+  // SSR has no tabs to coordinate → leader trivially. In a browser, leadership is
+  // granted below (Web Locks, or the BroadcastChannel heartbeat fallback) — never
+  // claimed upfront, or two legacy tabs would both lead.
+  isLeader: typeof navigator === "undefined",
   devices: [],
   nowPlaying: {},
   controllingId: null,
@@ -105,9 +172,11 @@ export const useSync = create<SyncState>((set, get) => ({
     if (typeof window === "undefined" || es) return;
     const { deviceId, deviceName, deviceKind } = get();
 
-    // Elect one leader tab per deviceId. The lock is held for the tab's whole life
-    // (the request callback never resolves), so when the leader tab closes the lock
-    // frees and a waiting tab is promoted automatically.
+    // Elect one leader tab per deviceId. With Web Locks, the lock is held for the
+    // tab's whole life (the request callback never resolves), so when the leader
+    // tab closes the lock frees and a waiting tab is promoted automatically.
+    // Without locks, the BroadcastChannel heartbeat fallback below does the same
+    // job: 3s announcements, 4s absence window, then takeover.
     if (navigator.locks && !get().isLeader) {
       navigator.locks
         .request(`auralis.sync.leader.${deviceId}`, () => {
@@ -115,10 +184,14 @@ export const useSync = create<SyncState>((set, get) => ({
           return new Promise<void>(() => {});
         })
         .catch(() => set({ isLeader: true })); // lock unavailable → don't strand the tab
+    } else if (!navigator.locks) {
+      startFallbackElection(deviceId, set, get);
     }
 
     const qs = `device=${encodeURIComponent(deviceId)}&name=${encodeURIComponent(deviceName)}&kind=${deviceKind}`;
-    const source = new EventSource(api.url(`/api/sync/stream?${qs}`), { withCredentials: true });
+    // EventSource cannot set an Authorization header, so the token rides in the
+    // query (api.url alone no longer carries it); cookie clients use withCredentials.
+    const source = new EventSource(api.urlWithToken(`/api/sync/stream?${qs}`), { withCredentials: true });
     es = source;
 
     source.addEventListener("open", () => {

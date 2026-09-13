@@ -6,9 +6,11 @@ import { LyricsView } from "./LyricsView";
 import { Artwork } from "./Artwork";
 import { QueueList } from "./QueueList";
 import { formatDuration, trackArtist, trackTitle } from "@/lib/auralis/brand";
+import { useT } from "@/lib/auralis/i18n";
 import { cn } from "@/lib/utils";
 
 export function NowPlayingPanel() {
+  const t = useT();
   const currentTrack = usePlayer((s) => s.currentTrack);
   const queueOpen = usePlayer((s) => s.queueOpen);
   const lyricsOpen = usePlayer((s) => s.lyricsOpen);
@@ -28,7 +30,7 @@ export function NowPlayingPanel() {
       {/* Header */}
       <div className="flex h-16 items-center justify-between px-4 pt-2">
         <h2 className="text-[16px] font-bold text-foreground">
-          {tab === "queue" ? "File d'attente" : tab === "lyrics" ? "Paroles" : currentTrack?.album || "Lecture en cours"}
+          {tab === "queue" ? t("player.queue", "File d'attente") : tab === "lyrics" ? t("player.lyrics", "Paroles") : currentTrack?.album || t("panel.nowPlaying", "Lecture en cours")}
         </h2>
         <div className="flex items-center gap-2">
           {tab === "now" && (
@@ -39,7 +41,7 @@ export function NowPlayingPanel() {
                   openContextMenu(r.left, r.bottom + 4, currentTrack);
                 }
               }}
-              aria-label="Options du titre"
+              aria-label={t("player.trackOptions", "Options du titre")}
               className="grid h-8 w-8 place-items-center rounded-full text-[var(--text-muted)] transition-colors hover:bg-[var(--panel-2)] hover:text-foreground"
             >
               <MoreHorizontal className="size-5" />
@@ -47,7 +49,7 @@ export function NowPlayingPanel() {
           )}
           <button
             onClick={toggleRightPanel}
-            aria-label="Fermer le panneau"
+            aria-label={t("panel.closePanel", "Fermer le panneau")}
             className="grid h-8 w-8 place-items-center rounded-full text-[var(--text-muted)] transition-colors hover:bg-[var(--panel-2)] hover:text-foreground"
           >
             <X className="size-5" />
@@ -97,7 +99,7 @@ export function NowPlayingPanel() {
                 </div>
                 <button
                   onClick={() => toggleFavorite(currentTrack.trackhash)}
-                  aria-label={fav ? "Retirer des favoris" : "Ajouter aux favoris"}
+                  aria-label={fav ? t("common.removeFavorite", "Retirer des favoris") : t("common.addFavorite", "Ajouter aux favoris")}
                   className="ml-4 flex shrink-0 items-center justify-center transition-transform active:scale-100"
                 >
                   <Heart className={cn("size-6", fav ? "fill-[var(--primary)] text-[var(--primary)]" : "text-[var(--text-muted)] hover:text-foreground")} />
@@ -106,27 +108,27 @@ export function NowPlayingPanel() {
 
               {/* Auralis Metadata Card (Spotify style About the artist / Credits cards) */}
               <div className="mb-4 rounded-xl matte-panel-2 p-4">
-                <h3 className="text-[16px] font-bold text-foreground mb-4">À propos du titre</h3>
+                <h3 className="text-[16px] font-bold text-foreground mb-4">{t("panel.aboutTrack", "À propos du titre")}</h3>
                 <div className="flex flex-col gap-3">
                   {currentTrack.album && (
-                    <MetaLine label="Album" value={currentTrack.album} />
+                    <MetaLine label={t("mobile.album", "Album")} value={currentTrack.album} />
                   )}
                   {currentTrack.year && (
-                    <MetaLine label="Année" value={String(currentTrack.year)} />
+                    <MetaLine label={t("panel.year", "Année")} value={String(currentTrack.year)} />
                   )}
                   {currentTrack.genre && (
-                    <MetaLine label="Genre" value={currentTrack.genre} />
+                    <MetaLine label={t("panel.genre", "Genre")} value={currentTrack.genre} />
                   )}
                   {currentTrack.bitrate && (
-                    <MetaLine label="Qualité" value={`${currentTrack.bitrate} kbps`} />
+                    <MetaLine label={t("panel.quality", "Qualité")} value={`${currentTrack.bitrate} kbps`} />
                   )}
-                  <MetaLine label="Durée" value={formatDuration(currentTrack.duration || 0)} />
+                  <MetaLine label={t("panel.duration", "Durée")} value={formatDuration(currentTrack.duration || 0)} />
                 </div>
               </div>
             </>
           ) : (
             <div className="flex flex-1 flex-col items-center justify-center gap-3 px-6 text-center">
-              <p className="text-[14px] text-[var(--text-muted)]">Aucune lecture en cours</p>
+              <p className="text-[14px] text-[var(--text-muted)]">{t("panel.noPlayback", "Aucune lecture en cours")}</p>
             </div>
           )}
         </div>

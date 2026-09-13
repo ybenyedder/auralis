@@ -14,11 +14,16 @@
 // high uncertainty → they get lifted (optimism under uncertainty); once sampled a
 // few times their bonus decays and the taste score takes over. This is the
 // principled version of "explore vs exploit" the static constant only gestured at.
+//
+// HORIZONS MUST MATCH: UCB1 only balances exploration correctly when t and n_i are
+// counted over the SAME window. The engine feeds both from the same 180-day event
+// window (see engine.ts buildAggregates) so a decades-old playcount can't bury a
+// track's uncertainty bonus just because the account is old.
 // ============================================================================
 
-/** The uncertainty bonus for a track surfaced `plays` times, given `total`
- *  interactions in the recent window. Bounded so a single arm can't dominate the
- *  slate. `c` tunes how adventurous the mix is. */
+/** The uncertainty bonus for a track `plays` times within the SAME window that
+ *  `total` interactions are counted over. Bounded so a single arm can't dominate
+ *  the slate. `c` tunes how adventurous the mix is. */
 export function ucbBonus(plays: number, total: number, c = 0.28): number {
   const t = Math.max(2, total); // ln needs t ≥ 1; floor keeps early bonuses sane
   const n = plays + 1; // +1 → an unheard track has finite (large) uncertainty

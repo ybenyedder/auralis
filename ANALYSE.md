@@ -698,5 +698,17 @@ l'ordre de rapport effort/bénéfice :
 Méthode employée pour cet audit : lecture intégrale des sources serveur et
 clients par cinq passes indépendantes, recoupement des affirmations avec le
 code, corrections vérifiées par la suite de tests (`bun run lint`, `typecheck`,
-148 tests vitest, build de production, compilation et tests unitaires Android
+149 tests vitest, build de production, compilation et tests unitaires Android
 avec JDK 21 / SDK 36).
+
+Une passe finale (sept chantiers parallèles du 12 au 14 septembre 2026) a
+traité la quasi-totalité du reste : i18n web intégrale, comptabilité d'écoute
+Android déplacée dans le service, robustesse iOS (interruptions, statut, 401,
+courses), durcissement desktop (identité du serveur local, garde pickFolder,
+avertissement http), performances serveur (cache reco sans embeddings,
+trajectoire bornée, UCB mono-horizon, Markov sans skips, GC pochettes, sidecar
+dynamique, requêtes sargables), perf/a11y web (batch file, jeton d'URL restreint,
+leader BroadcastChannel, CSS mort, semaine ISO), et tests Android dans la CI
+avec verrouillage de `compareVersions`. Restent volontairement : le déplacement
+de SyncManager (SSE Android) hors du ViewModel, la CSP à nonce, et quelques P4
+esthétiques — chacun documenté ci-dessus avec sa raison.

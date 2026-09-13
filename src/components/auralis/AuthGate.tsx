@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { api } from "@/lib/auralis/api";
+import { useT } from "@/lib/auralis/i18n";
 import { AuralisGlyph } from "./BrandMark";
 import { paletteForName } from "@/lib/auralis/brand";
 
@@ -40,6 +41,7 @@ export function AuthGate({ children }: { children: ReactNode }) {
 }
 
 function LoginScreen({ onUnlock }: { onUnlock: () => void }) {
+  const t = useT();
   const [accounts, setAccounts] = useState<string[]>([]);
   const [accountsLoaded, setAccountsLoaded] = useState(false);
   // The profile the user picked. null = still on the Netflix-style profile grid.
@@ -85,7 +87,7 @@ function LoginScreen({ onUnlock }: { onUnlock: () => void }) {
         body: JSON.stringify({ username: (selected ?? "admin").trim() || "admin", password }),
       });
       if (!res.ok) {
-        setError("Mot de passe incorrect");
+        setError(t("auth.wrongPassword", "Mot de passe incorrect"));
         setBusy(false);
         pwRef.current?.focus();
         return;
@@ -99,7 +101,7 @@ function LoginScreen({ onUnlock }: { onUnlock: () => void }) {
       try { window.localStorage.removeItem("auralis.vault.v1"); } catch { /* ignore */ }
       onUnlock();
     } catch {
-      setError("Serveur injoignable");
+      setError(t("toast.serverUnreachable", "Serveur injoignable"));
       setBusy(false);
     }
   };
@@ -122,7 +124,7 @@ function LoginScreen({ onUnlock }: { onUnlock: () => void }) {
         /* ===== Step 1 — Netflix profile grid ===== */
         <div className="relative flex w-full max-w-3xl flex-col items-center">
           <h1 className="mb-10 text-center text-[32px] font-medium tracking-tight text-foreground lg:text-[44px]">
-            Qui écoute ?
+            {t("auth.whoIsListening", "Qui écoute ?")}
           </h1>
           <div className="flex flex-wrap items-start justify-center gap-6 lg:gap-9">
             {!accountsLoaded ? (
@@ -137,18 +139,18 @@ function LoginScreen({ onUnlock }: { onUnlock: () => void }) {
         <form onSubmit={submit} className="relative flex w-full max-w-[360px] flex-col items-center">
           <ProfileAvatar name={selected} size={88} />
           <p className="mt-4 text-[22px] font-bold tracking-tight">{selected}</p>
-          <p className="mb-7 mt-1 text-[13px] text-muted-foreground/80">Saisis ton mot de passe</p>
+          <p className="mb-7 mt-1 text-[13px] text-muted-foreground/80">{t("auth.enterPassword", "Saisis ton mot de passe")}</p>
 
           <input
             ref={pwRef}
             id="pw"
             type="password"
-            aria-label="Mot de passe"
+            aria-label={t("settings.password", "Mot de passe")}
             autoComplete="current-password"
             value={password}
             onChange={(e) => setPassword(e.target.value)}
             className="w-full rounded-xs border border-[var(--line)] bg-[var(--panel)] px-4 py-3.5 text-center text-[16px] tracking-[0.3em] text-foreground outline-none transition-colors placeholder:tracking-normal placeholder:text-muted-foreground/40 focus:border-[var(--line-strong)]"
-            placeholder="Mot de passe"
+            placeholder={t("settings.password", "Mot de passe")}
           />
           <div role="alert" className="min-h-[20px] py-2 text-center text-[13px] text-[var(--destructive)]">{error}</div>
 
@@ -157,14 +159,14 @@ function LoginScreen({ onUnlock }: { onUnlock: () => void }) {
             disabled={busy || !password}
             className="signal-button w-full rounded-full py-3.5 text-[15px] font-bold disabled:opacity-40"
           >
-            {busy ? "Connexion…" : "Se connecter"}
+            {busy ? t("auth.signingIn", "Connexion…") : t("auth.signIn", "Se connecter")}
           </button>
           <button
             type="button"
             onClick={() => { setSelected(null); setError(""); setPassword(""); }}
             className="mt-5 text-[13px] font-semibold uppercase tracking-[0.08em] text-muted-foreground transition-colors hover:text-foreground"
           >
-            ← Changer de profil
+            ← {t("auth.switchProfile", "Changer de profil")}
           </button>
         </form>
       )}

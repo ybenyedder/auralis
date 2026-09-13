@@ -74,10 +74,12 @@ export function buildSession(events: SessionEvent[], featById: Map<string, Featu
       }
       prev = e;
     } else {
-      // A skip anchors the "current position" for recency but can't be a source.
-      // Drop the anchor if the gap since it broke the session window.
-      const gap = prev ? e.played_at - prev.played_at : Infinity;
-      if (gap > SESSION_GAP_MS) prev = null;
+      // A skip BREAKS the chain: whatever played before it must not be linked to
+      // whatever plays next — complete(A) → skip(B) → complete(C) says nothing about
+      // A→C, because B is what the user actually chose to leave. Nulling prev here
+      // keeps every recorded edge a genuine consecutive complete→complete pair
+      // (the session-gap window still applies on the next complete).
+      prev = null;
     }
   }
 
