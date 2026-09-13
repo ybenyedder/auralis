@@ -4,6 +4,17 @@ All notable changes to Auralis are documented here. The format is based on
 [Keep a Changelog](https://keepachangelog.com/) and this project adheres to
 [Semantic Versioning](https://semver.org/).
 
+## [1.19.1] - 2026-09-12
+
+### Corrigé
+- **Android : l'indicateur d'onglet échangeait Bibliothèque et Recherche.**
+  La table de correspondance de l'onglet actif pointait Recherche sur le
+  créneau de Bibliothèque et toutes les vues de la bibliothèque (favoris,
+  récents, réglages, pages de détail…) sur celui de Recherche — appuyer sur
+  Recherche allumait Bibliothèque, et inversement. Le mappage suit désormais
+  l'ordre réellement affiché par le dock, et un test de régression le verrouille
+  (`TabMappingTest`).
+
 ## [1.19.0] - 2026-09-12
 
 ### Ajouté

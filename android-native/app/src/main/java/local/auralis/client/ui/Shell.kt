@@ -94,12 +94,16 @@ import local.auralis.client.ui.theme.LocalAuralis
 // roots; the Library tab owns them.
 private val rootViews = setOf(ViewId.HOME, ViewId.NEW, ViewId.RADIO, ViewId.EXPLORE, ViewId.LIBRARY)
 
-private fun tabOf(view: ViewId): Int = when (view) {
+internal fun tabOf(view: ViewId): Int = when (view) {
     ViewId.HOME -> 0
     ViewId.NEW -> 1
     ViewId.RADIO -> 2
-    ViewId.EXPLORE -> 3
-    else -> 4 // library + favourites + all secondary/detail destinations
+    // L'ordre du dock est Accueil(0), Nouveau(1), Radio(2), BIBLIOTHÈQUE(3),
+    // RECHERCHE(4) : EXPLORE pointait sur le créneau Bibliothèque et toutes les
+    // vues de la bibliothèque (secondaires comprises) tombaient sur Recherche —
+    // l'indicateur échangeait les deux derniers onglets.
+    ViewId.EXPLORE -> 4
+    else -> 3 // Bibliothèque + favoris, récents, dossiers, réglages, détails…
 }
 
 private fun titleOf(view: ViewId): String = when (view) {
