@@ -36,6 +36,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -105,8 +107,9 @@ private fun Cmd(title: String, subtitle: String, onClick: () -> Unit) {
     }
 }
 
-// Fullscreen audio-reactive visualizer (procedural bar spectrum animated while
-// playing; settles when paused). The current track title is shown beneath.
+// Fullscreen "visualizer" — purely DECORATIVE: the bar heights come from a looping
+// sine animation, not from the audio signal (no audio tap is wired). It is labelled
+// as such in the UI and for accessibility so it isn't mistaken for a real spectrum.
 @Composable
 fun VisualizerOverlay(title: String?, isPlaying: Boolean, onClose: () -> Unit) {
     val colors = LocalAuralis.current
@@ -115,7 +118,10 @@ fun VisualizerOverlay(title: String?, isPlaying: Boolean, onClose: () -> Unit) {
         0f, 1f, infiniteRepeatable(tween(1400, easing = LinearEasing)), label = "vt",
     )
     val bars = 44
-    Box(Modifier.fillMaxSize().background(colors.background).systemBarsPadding().clickable { onClose() }) {
+    Box(
+        Modifier.fillMaxSize().background(colors.background).systemBarsPadding().clickable { onClose() }
+            .semantics { contentDescription = "Visualiseur décoratif, non synchronisé à l'audio" },
+    ) {
         Row(
             Modifier.fillMaxWidth().fillMaxHeight(0.6f).align(Alignment.Center).padding(horizontal = 16.dp),
             horizontalArrangement = Arrangement.spacedBy(3.dp),
@@ -135,6 +141,8 @@ fun VisualizerOverlay(title: String?, isPlaying: Boolean, onClose: () -> Unit) {
         Column(Modifier.align(Alignment.BottomCenter).padding(bottom = 40.dp), horizontalAlignment = Alignment.CenterHorizontally) {
             Text(title ?: "", color = colors.foreground, fontSize = 15.sp, fontWeight = FontWeight.Bold)
             Spacer(Modifier.height(4.dp))
+            Text("Animation décorative", color = colors.textFaint, fontSize = 11.sp)
+            Spacer(Modifier.height(2.dp))
             Text("Touchez pour fermer", color = colors.textFaint, fontSize = 11.sp)
         }
     }

@@ -98,6 +98,22 @@ struct PlayerView: View {
 
     private var controls: some View {
         VStack(spacing: 14) {
+            // Playback failure banner — published by the player when the current item
+            // reports `.failed`; disappears on its own as soon as a new load clears it.
+            if let error = app.player.playbackError {
+                HStack(spacing: 8) {
+                    Image(systemName: "exclamationmark.triangle.fill")
+                        .font(.caption).foregroundStyle(app.accentColor)
+                    Text(error).font(.caption.weight(.medium)).foregroundStyle(.white).lineLimit(2)
+                    Spacer(minLength: 8)
+                    Button { app.player.playbackError = nil } label: {
+                        Image(systemName: "xmark").font(.caption2.weight(.bold)).foregroundStyle(.white.opacity(0.7))
+                    }
+                }
+                .padding(.horizontal, 12).padding(.vertical, 8)
+                .background(.white.opacity(0.14), in: RoundedRectangle(cornerRadius: 10, style: .continuous))
+                .padding(.horizontal, 24)
+            }
             if let track = app.currentTrack {
                 HStack {
                     VStack(alignment: .leading, spacing: 2) {

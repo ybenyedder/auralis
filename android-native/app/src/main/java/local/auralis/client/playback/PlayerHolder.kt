@@ -19,7 +19,6 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.launch
 import local.auralis.client.model.Track
 import local.auralis.client.net.AuralisApi
-import local.auralis.client.sync.SyncManager
 
 data class PlaybackSnapshot(
     val currentId: String? = null,
@@ -35,10 +34,16 @@ data class PlaybackSnapshot(
 // UI-side bridge to the playback service. Connects a MediaController, mirrors the
 // player state into flows for Compose, and exposes transport/queue controls. Maps
 // MediaItem.mediaId == trackhash so the ViewModel can resolve back to Track objects.
+//
+// Deliberately UI-lifetime: released with the ViewModel. Everything that must
+// outlive a UI swipe (scrobble/skip/sleep/session accounting, Auralis Connect
+// command execution + hub presence, endless autoplay) lives in the process-
+// lifetime PlaybackAccounting, which binds its own controller to the same
+// session — appends and remote commands issued there are visible through this
+// controller's events like any other session change.
 class PlayerHolder(
     private val context: Context,
     private val api: AuralisApi,
-    private val syncManager: SyncManager
 ) {
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main)
     private var controller: MediaController? = null
@@ -64,21 +69,6 @@ class PlayerHolder(
      *  from a natural advance. */
     var onTrackChanged: ((String?, Int) -> Unit)? = null
 
-    /** Invoked when the queue runs dry while autoplay should continue. */
-    var onNeedContinuation: (() -> Unit)? = null
-
-    /** Handle an incoming transport command from a remote device (Auralis Connect).
-     *  The hub protocol carries play/pause/next/prev/seek — see src/store/sync.ts. */
-    fun handleRemoteCommand(command: String, position: Long? = null) {
-        when (command) {
-            "play" -> play()
-            "pause" -> pause()
-            "next" -> next()
-            "prev" -> prev()
-            "seek" -> if (position != null) seekTo(position)
-        }
-    }
-
     private val listener = object : Player.Listener {
         override fun onEvents(player: Player, events: Player.Events) {
             pushSnapshot()
@@ -86,24 +76,11 @@ class PlayerHolder(
 
         override fun onMediaItemTransition(mediaItem: MediaItem?, reason: Int) {
             onTrackChanged?.invoke(mediaItem?.mediaId, reason)
-            maybeContinue()
-        }
-
-        override fun onPlaybackStateChanged(state: Int) {
-            if (state == Player.STATE_ENDED) maybeContinue()
         }
     }
 
     fun connect() {
         if (controller != null) return
-        syncManager.connect() // Auralis Connect: register on the hub + hear commands
-
-        // Execute transport commands from remote devices as they arrive.
-        scope.launch {
-            syncManager.incomingCommand.collect { command ->
-                command?.let { handleRemoteCommand(it.type, it.position) }
-            }
-        }
 
         val token = SessionToken(context, ComponentName(context, PlaybackService::class.java))
         val future = MediaController.Builder(context, token).buildAsync()
@@ -140,10 +117,12 @@ class PlayerHolder(
         controller?.removeListener(listener)
         controller?.release()
         controller = null
-        syncManager.disconnect() // Stop SSE connection
+        // The Auralis Connect stream is NOT dropped here: it is owned by
+        // PlaybackAccounting (process lifetime) and must keep the phone on the hub
+        // after this ViewModel — and this controller — are gone.
         // Without this the position ticker's `while (true) { delay(250) }` loop
-        // in startTicker() keeps running forever — it only checks `controller`
-        // per iteration, it never observes that the scope should stop.
+        // keeps running forever — it only checks `controller` per iteration, it
+        // never observes that the scope should stop.
         scope.cancel()
     }
 
@@ -153,16 +132,6 @@ class PlayerHolder(
                 controller?.let { _position.value = it.currentPosition.coerceAtLeast(0L) }
                 delay(250)
             }
-        }
-    }
-
-    private fun maybeContinue() {
-        val c = controller ?: return
-        // Near the tail of the queue with nothing after → ask for more (endless listening).
-        if (c.mediaItemCount > 0 && c.currentMediaItemIndex >= c.mediaItemCount - 1 &&
-            c.repeatMode == Player.REPEAT_MODE_OFF
-        ) {
-            onNeedContinuation?.invoke()
         }
     }
 
@@ -183,18 +152,9 @@ class PlayerHolder(
             durationMs = c.duration.coerceAtLeast(0L),
             hasItems = c.mediaItemCount > 0,
         )
-
-        // Publish sync state for Auralis Connect
-        val currentTrack = c.currentMediaItem?.mediaMetadata
-        syncManager.publishState(
-            trackhash = c.currentMediaItem?.mediaId,
-            title = currentTrack?.title?.toString(),
-            artist = currentTrack?.artist?.toString(),
-            image = currentTrack?.artworkUri?.toString(),
-            position = c.currentPosition.coerceAtLeast(0L),
-            duration = c.duration.coerceAtLeast(0L),
-            isPlaying = c.playWhenReady
-        )
+        // Hub publication of this snapshot moved to PlaybackAccounting
+        // (publishNowPlaying), which observes the same session and keeps
+        // publishing after the UI dies.
     }
 
     // ---- controls ----------------------------------------------------------
@@ -206,11 +166,6 @@ class PlayerHolder(
         c.prepare()
         c.playWhenReady = true
         pushSnapshot()
-    }
-
-    fun appendTracks(tracks: List<Track>) {
-        val c = controller ?: return
-        c.addMediaItems(tracks.map { it.toMediaItem(api) })
     }
 
     /** Restore a queue without auto-playing — seeks to [positionMs] and stays paused. */
@@ -242,8 +197,6 @@ class PlayerHolder(
         pushSnapshot()
     }
 
-    fun play() { controller?.play(); pushSnapshot() }
-    fun pause() { controller?.pause(); pushSnapshot() }
     fun next() { controller?.seekToNextMediaItem(); pushSnapshot() }
     fun prev() {
         val c = controller ?: return

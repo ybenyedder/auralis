@@ -709,6 +709,15 @@ avertissement http), performances serveur (cache reco sans embeddings,
 trajectoire bornée, UCB mono-horizon, Markov sans skips, GC pochettes, sidecar
 dynamique, requêtes sargables), perf/a11y web (batch file, jeton d'URL restreint,
 leader BroadcastChannel, CSS mort, semaine ISO), et tests Android dans la CI
-avec verrouillage de `compareVersions`. Restent volontairement : le déplacement
-de SyncManager (SSE Android) hors du ViewModel, la CSP à nonce, et quelques P4
+avec verrouillage de `compareVersions`. Restent volontairement : la CSP à nonce, et quelques P4
 esthétiques — chacun documenté ci-dessus avec sa raison.
+
+Une vague du 14 septembre 2026 a ensuite déplacé SyncManager et l'autoplay
+infini dans le scope process-lifetime Android (la télécommande Connect et la
+file infinie survivent désormais à la fermeture de l'app), polli les écrans
+Compose (calculs hors thread UI, a11y, annulation réseau), câblé le wake lock
+web, traduit les derniers littéraux de DetailView, épinglé douze comportements
+serveur récents en tests permanents (161 tests), et corrigé les quatre
+régressions trouvées par une chasse adversariale sur le diff de la session
+(sentinel retour web, greffe playCounts, last_used_at haché, intervalle
+watcher).

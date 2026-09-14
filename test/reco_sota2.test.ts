@@ -163,6 +163,46 @@ test("engine: UCB exploration surfaces an unheard track above an over-played one
   assert.ok(rankOf(forYou, "fresh") < rankOf(forYou, "overplayed"), "the under-sampled track carries more exploration value");
 });
 
+test("engine: UCB counts are 180-day windowed — a high LIFETIME count outside the window no longer buries exploration", async () => {
+  const { db, invalidateReco, recommend } = await mods();
+  db.exec("DELETE FROM play_events; DELETE FROM playcounts; DELETE FROM favorites; DELETE FROM dislikes; DELETE FROM tracks;");
+  const DAY = 86_400_000;
+  const now = Date.now();
+  // Veteran + active + 5 fillers: IDENTICAL audio and mood, so taste/content/
+  // mood/session terms cancel and only the exploration term can separate them.
+  addTrack(db, "veteran", { mood: "chill", energy: 0.3, bpm: 80 });
+  addTrack(db, "active", { mood: "chill", energy: 0.3, bpm: 80 });
+  for (let i = 0; i < 5; i++) addTrack(db, `filler${i}`, { mood: "chill", energy: 0.3, bpm: 80 });
+  // "veteran": high LIFETIME playcount, but EVERY play is ~250 days old — outside
+  // the 180-day window, so it counts toward neither t nor n_i any more.
+  for (let i = 0; i < 3; i++) {
+    db.prepare("INSERT INTO play_events (user_id, trackhash, played_at) VALUES (1, 'veteran', ?)").run(now - 250 * DAY);
+  }
+  db.prepare("INSERT INTO playcounts (user_id, trackhash, count, last_played) VALUES (1, 'veteran', 500, 0)").run();
+  // "active": the same 3 plays but 175 days ago — inside the window (so n_i = 3),
+  // yet so old that their taste weight is negligible (~0.3% each).
+  for (let i = 0; i < 3; i++) {
+    db.prepare("INSERT INTO play_events (user_id, trackhash, played_at) VALUES (1, 'active', ?)").run(now - 175 * DAY);
+  }
+  // Fillers set the windowed total (t = 8) and dominate the taste signal; the
+  // 1-day spacing keeps them out of each other's 30-min Markov session window.
+  for (let i = 0; i < 5; i++) {
+    db.prepare("INSERT INTO play_events (user_id, trackhash, played_at) VALUES (1, ?, ?)").run(`filler${i}`, now - (2 + i) * DAY);
+  }
+  invalidateReco(1);
+  const { forYou } = recommend(1, 50);
+  const rank = (h: string) => rankOf(forYou, h);
+  // Windowed rule: n_i(veteran) = 0 → maximum uncertainty bonus; n_i(active) = 3
+  // → already sampled, smaller bonus. The gap (~0.16) dwarfs the tiny taste edge
+  // active's decayed events give it, so the OUT-of-window veteran must rank ABOVE
+  // the in-window active. Under lifetime counts (the old behaviour) n_i(veteran)
+  // would be 501 and its bonus would collapse below active's — flipping the order.
+  assert.ok(
+    rank("veteran") < rank("active"),
+    "an all-time-popular but currently unplayed track keeps its exploration lift over a window-sampled one",
+  );
+});
+
 test("engine: dissonance taste lifts a happy-sound/sad-words track for a listener who likes that tension", async () => {
   const { db, setFavorite, invalidateReco, recommend } = await mods();
   db.exec("DELETE FROM play_events; DELETE FROM playcounts; DELETE FROM favorites; DELETE FROM dislikes; DELETE FROM tracks;");

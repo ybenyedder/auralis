@@ -21,10 +21,12 @@ import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import local.auralis.client.data.Prefs
 import local.auralis.client.model.ListeningStats
 import local.auralis.client.model.Track
 import local.auralis.client.net.AuralisApi
+import local.auralis.client.sync.SyncManager
 import org.json.JSONArray
 import org.json.JSONObject
 import java.util.concurrent.atomic.AtomicBoolean
@@ -45,7 +47,8 @@ data class AccountingState(
 
 /**
  * Process-lifetime owner of the play accounting: scrobble gate, skip detection,
- * sleep timer, last-session persistence, stats + taste-profile refresh.
+ * sleep timer, last-session persistence, stats + taste-profile refresh, endless
+ * autoplay (queue continuation) and the Auralis Connect session.
  *
  * WHY this exists: these loops used to live in AppViewModel's viewModelScope, so
  * swiping the app away cancelled them while PlaybackService kept playing —
@@ -55,9 +58,12 @@ data class AccountingState(
  * PlaybackService.onCreate and AppViewModel.init call [get] + [start]; the
  * companion + [started] flag guarantee exactly one instance and one ticker.
  *
- * It binds its OWN MediaController to the session: the UI's PlayerHolder is still
- * released with the ViewModel (that also drops its SSE SyncManager), while this
- * controller keeps observing/pausing playback for as long as the process lives.
+ * It binds its OWN MediaController to the session: the UI's PlayerHolder is
+ * released with the ViewModel, while this controller keeps observing/pausing
+ * playback for as long as the process lives. The same controller is the single
+ * executor for (a) remote transport commands arriving over Auralis Connect and
+ * (b) endless-autoplay appends — both used to run through the UI's controller
+ * and stopped working at the first app swipe.
  *
  * Concurrency: the scope is Main (every MediaController call must run on the
  * controller's application thread); the gate/skip/sleep fields below are only
@@ -92,6 +98,20 @@ class PlaybackAccounting private constructor(private val context: Context) {
     private val _messages = MutableSharedFlow<String>(extraBufferCapacity = 8)
     val messages: SharedFlow<String> = _messages.asSharedFlow()
 
+    // Auralis Connect (SSE hub client), a process-lifetime singleton in its own
+    // right: built on THIS class' api so hub credentials follow onServerConfigured
+    // exactly like the accounting's own HTTP calls. Owned here rather than in the
+    // ViewModel so the phone stays registered on the hub (and keeps executing
+    // remote commands) after the UI is swiped away.
+    private val sync = SyncManager.get(context, api)
+
+    // Pass-through surfaces for the UI (device roster, connection state). Types
+    // are inferred from SyncManager so this class stays free of sync-model imports.
+    val syncConnected get() = sync.connected
+    val syncDevices get() = sync.devices
+    val syncNowPlaying get() = sync.nowPlaying
+    val syncControllingId get() = sync.controllingId
+
     private val started = AtomicBoolean(false)
     private var controller: MediaController? = null
 
@@ -121,6 +141,12 @@ class PlaybackAccounting private constructor(private val context: Context) {
             val p = prefs.load()
             api.configure(p.serverBase, p.token)
             connectController()
+            // Register on the Auralis Connect hub right away: the stream loop waits
+            // for a configured token on its own (pre-login polling), so connecting
+            // unconditionally matches the old UI-driven timing while also covering
+            // UI-less starts (Android Auto started playback first).
+            sync.connect()
+            listenForRemoteCommands()
         }
         scope.launch { tickerLoop() }
     }
@@ -132,18 +158,77 @@ class PlaybackAccounting private constructor(private val context: Context) {
             // Same failure mode as PlayerHolder: buildAsync can throw after process
             // death/service kill — degrade to no accounting rather than crash.
             val c = runCatching { future.get() }.getOrNull() ?: return@addListener
-            controller = c.also {
-                it.addListener(listener)
-                // Arm the gate for whatever is already playing (we may be attaching
-                // mid-track after a UI death).
-                onTransition(it.currentMediaItem?.mediaId, Player.MEDIA_ITEM_TRANSITION_REASON_PLAYLIST_CHANGED)
-            }
+            c.addListener(listener)
+            controller = c
+            // Arm the gate for whatever is already playing (we may be attaching
+            // mid-track after a UI death). NOTE: everything below runs AFTER the
+            // controller field is assigned — these helpers read it, and the old
+            // `controller = c.also { … }` shape silently hid the field from them.
+            onTransition(c.currentMediaItem?.mediaId, Player.MEDIA_ITEM_TRANSITION_REASON_PLAYLIST_CHANGED)
+            // Announce ourselves on the hub immediately (onEvents only fires on
+            // the next state change; the roster would otherwise wait for one).
+            publishNowPlaying()
+            // Continuation is deliberately NOT triggered at attach: like the
+            // PlayerHolder it replaces, it fires on transition/STATE_ENDED only —
+            // a restored queue paused on its last item must not grow at boot.
         }, ContextCompat.getMainExecutor(context))
+    }
+
+    /**
+     * Execute transport commands arriving over Auralis Connect against THIS class'
+     * controller — the single process-lifetime executor. The collector used to live
+     * in PlayerHolder's scope, so a remote "next"/"pause" stopped working the
+     * moment the UI was swiped away; commands are semantics-identical to
+     * PlayerHolder.handleRemoteCommand (including prev's 3s restart rule).
+     */
+    private fun listenForRemoteCommands() {
+        scope.launch {
+            sync.incomingCommand.collect { cmd ->
+                val c = controller ?: return@collect
+                when (cmd?.type) {
+                    "play" -> c.play()
+                    "pause" -> c.pause()
+                    "next" -> c.seekToNextMediaItem()
+                    "prev" -> if (c.currentPosition > 3000) c.seekTo(0) else c.seekToPreviousMediaItem()
+                    "seek" -> cmd.position?.let { c.seekTo(it.coerceAtLeast(0L)) }
+                }
+            }
+        }
+    }
+
+    /** Push this device's now-playing snapshot to the hub. Driven from THIS class'
+     *  controller listener (was PlayerHolder's pushSnapshot): the roster keeps
+     *  seeing the phone's progress after the UI dies. SyncManager throttles and
+     *  skips publishes on its own (not connected / remote-controlling another
+     *  device), so firing on every player event is cheap. */
+    private fun publishNowPlaying() {
+        val c = controller ?: return
+        val meta = c.currentMediaItem?.mediaMetadata
+        sync.publishState(
+            trackhash = c.currentMediaItem?.mediaId,
+            title = meta?.title?.toString(),
+            artist = meta?.artist?.toString(),
+            image = meta?.artworkUri?.toString(),
+            position = c.currentPosition.coerceAtLeast(0L),
+            duration = c.duration.coerceAtLeast(0L),
+            isPlaying = c.playWhenReady,
+        )
     }
 
     private val listener = object : Player.Listener {
         override fun onMediaItemTransition(mediaItem: MediaItem?, reason: Int) {
             onTransition(mediaItem?.mediaId, reason)
+            // A transition onto the last queue item is itself a tail — ask for more
+            // now so ~20 tracks always sit ahead (same trigger as PlayerHolder).
+            maybeContinue()
+        }
+
+        override fun onPlaybackStateChanged(state: Int) {
+            if (state == Player.STATE_ENDED) maybeContinue()
+        }
+
+        override fun onEvents(player: Player, events: Player.Events) {
+            publishNowPlaying()
         }
     }
 
@@ -294,12 +379,122 @@ class PlaybackAccounting private constructor(private val context: Context) {
         _state.update { it.copy(forYou = tracks, recoScores = scores) }
     }
 
+    // ---- endless autoplay (queue continuation) ------------------------------
+
+    /** Guards a double-append: near-tail fires from BOTH the transition onto the
+     *  last item and STATE_ENDED, and a second trigger can land before the first
+     *  append does. Main-confined (this scope + the ViewModel's main-thread
+     *  calls), so a plain flag is enough — same mechanism the ViewModel used. */
+    private var continuationInFlight = false
+
+    /** Queue sits at its tail with repeat off → ask for more (endless listening).
+     *  Trigger points and conditions are copied verbatim from PlayerHolder, which
+     *  owned this before the loop moved into the process-lifetime scope. */
+    private fun maybeContinue() {
+        val c = controller ?: return
+        if (c.mediaItemCount > 0 && c.currentMediaItemIndex >= c.mediaItemCount - 1 &&
+            c.repeatMode == Player.REPEAT_MODE_OFF
+        ) {
+            appendContinuation()
+        }
+    }
+
+    private fun appendContinuation() {
+        if (!autoplay) return // endless listening disabled — stop at queue end
+        if (continuationInFlight) return // a continuation is already computed/appended
+        val c = controller ?: return
+        // The service-only path (Auto started playback, UI never came up) runs with
+        // an empty library index: no current Track to rank around — same early-out
+        // as the ViewModel's currentTrack() ?: return.
+        val current = library[c.currentMediaItem?.mediaId] ?: return
+        // Capture everything the ranking needs BEFORE hopping off the main thread.
+        val queued = (0 until c.mediaItemCount).map { c.getMediaItemAt(it).mediaId }.toSet()
+        val dis = dislikes
+        val tracks = library.values.toList() // same encounter order as ui.tracks
+        val counts = _state.value.playCounts
+        val scores = _state.value.recoScores
+        continuationInFlight = true
+        scope.launch {
+            try {
+                // Build + rank the radio pool off the main thread — two full-library
+                // filters and a sort over 10k tracks at every queue end (this used
+                // to jank the UI thread from the ViewModel).
+                val ranked = withContext(Dispatchers.Default) {
+                    rankContinuation(current, tracks, queued, dis, counts, scores)
+                }
+                // Back on Main (this scope) — MediaController.addMediaItems must run
+                // on the controller's application thread. Appending through THIS
+                // controller mutates the shared session queue, so the UI's own
+                // PlayerHolder snapshot (and the queue screen) still sees the growth.
+                if (ranked.isNotEmpty()) c.addMediaItems(ranked.map { it.toMediaItem(api) })
+            } finally {
+                continuationInFlight = false
+            }
+        }
+    }
+
+    /** Radio-pool ranking, logic identical to the ViewModel's appendContinuation:
+     *  prefer never-played tracks close to the current vibe; once everything has
+     *  been heard, fall back to least-played; recycle (shuffled, dislikes and the
+     *  current track excluded) rather than stopping dead. */
+    private fun rankContinuation(
+        current: Track,
+        tracks: List<Track>,
+        queued: Set<String>,
+        dis: Set<String>,
+        counts: Map<String, Int>,
+        scores: Map<String, Double>,
+    ): List<Track> {
+        fun eligible(t: Track) = t.trackhash !in queued && t.trackhash !in dis
+        fun close(t: Track) =
+            (t.primaryArtistHash != null && t.primaryArtistHash == current.primaryArtistHash) ||
+                (t.genre != null && t.genre == current.genre)
+        val never = tracks.filter { eligible(it) && (counts[it.trackhash] ?: 0) == 0 }
+        return when {
+            never.isNotEmpty() -> {
+                val closeNever = never.filter { close(it) }
+                val pick = if (closeNever.size >= 10) closeNever else never
+                pick.shuffled().take(20)
+            }
+            else -> {
+                val fresh = tracks.filter { eligible(it) }
+                if (fresh.isNotEmpty()) {
+                    // Least-played first (a light taste-score jitter breaks ties),
+                    // then shuffled so consecutive appends don't march the same list.
+                    fresh.sortedWith(
+                        compareBy({ counts[it.trackhash] ?: 0 }, { -(scores[it.trackhash] ?: 0.0) })
+                    ).take(40).shuffled().take(20)
+                } else {
+                    tracks.filter { it.trackhash != current.trackhash && it.trackhash !in dis }
+                        .shuffled().take(20)
+                }
+            }
+        }
+    }
+
     // ---- inputs from the UI / service ----------------------------------------
 
     fun setLibrary(index: Map<String, Track>) { library = index }
 
-    /** Keep the accounting's own API credentials in step with the UI session. */
-    fun onServerConfigured(base: String, token: String?) { api.configure(base, token) }
+    /** Current dislike set, pushed by the ViewModel whenever its UiState one
+     *  changes (server truth after a state fetch + every toggle). The continuation
+     *  picker must honor it even though the loop no longer runs in the ViewModel. */
+    @Volatile private var dislikes: Set<String> = emptySet()
+    fun setDislikes(set: Set<String>) { dislikes = set }
+
+    /** Endless-listening toggle (Settings), pushed by the ViewModel on change and
+     *  at boot. Defaults to true — the same value UiState boots with. */
+    @Volatile private var autoplay = true
+    fun setAutoplay(on: Boolean) { autoplay = on }
+
+    /** Keep the accounting's API credentials — and the Auralis Connect session —
+     *  in step with the UI session: the hub registration follows the token, so the
+     *  device leaves the roster the moment it is cleared (logout / server change)
+     *  and re-registers on login. */
+    fun onServerConfigured(base: String, token: String?) {
+        api.configure(base, token)
+        if (token.isNullOrBlank()) sync.disconnect() else sync.connect()
+    }
 
     /** Server truth after a state fetch — the accounting then stays authoritative
      *  via its optimistic scrobble bumps (single source, no merge conflicts). */

@@ -190,7 +190,14 @@ function AuralisShell() {
   // exits as expected.
   useEffect(() => {
     if (typeof window === "undefined") return;
-    window.history.pushState({ auralis: true }, "");
+    // The sentinel marks the boundary between us and the app exit. Strict mode
+    // double-mounts this effect, so the guard keeps exactly ONE entry.
+    const armSentinel = () => {
+      if (!(window.history.state as { auralis?: boolean } | null)?.auralis) {
+        window.history.pushState({ auralis: true }, "");
+      }
+    };
+    armSentinel();
     const onPopState = () => {
       const s = usePlayer.getState();
       if (s.fullscreenPlayer) {
@@ -200,11 +207,23 @@ function AuralisShell() {
       } else {
         return; // nothing to pop — let the back gesture leave the app
       }
-      window.history.pushState({ auralis: true }, "");
+      armSentinel();
     };
     window.addEventListener("popstate", onPopState);
     return () => window.removeEventListener("popstate", onPopState);
   }, []);
+
+  // Re-arm the sentinel whenever in-app history exists but the browser buffer
+  // was spent (a Back pressed at root consumed it, then the user navigated
+  // deeper): without this, the next Back would exit despite a stack to pop.
+  const navDepth = usePlayer((s) => s.navHistory.length);
+  const fullscreen = usePlayer((s) => s.fullscreenPlayer);
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    if ((navDepth > 0 || fullscreen) && !(window.history.state as { auralis?: boolean } | null)?.auralis) {
+      window.history.pushState({ auralis: true }, "");
+    }
+  }, [navDepth, fullscreen]);
 
   // Desktop (Electron) OS media keys → transport controls.
   useEffect(() => {
@@ -270,6 +289,70 @@ function AuralisShell() {
     if (!mediaSupported()) return;
     setMediaPlaybackState(isPlaying ? "playing" : "paused");
   }, [isPlaying]);
+
+  // Screen Wake Lock: with the fullscreen player or the visualizer open during
+  // playback the screen IS the product (karaoke lyrics / visualizer) — keep it
+  // awake instead of letting the OS dim it mid-song. Fully guarded: feature-
+  // detected via "wakeLock" in navigator, failures swallowed (denied permission,
+  // insecure context), and because browsers auto-release the lock when the tab
+  // is hidden we re-acquire on visibilitychange while the surface is still up.
+  useEffect(() => {
+    type SentinelLike = {
+      release: () => Promise<void>;
+      addEventListener: (type: "release", listener: () => void) => void;
+      removeEventListener: (type: "release", listener: () => void) => void;
+    };
+    type WakeLockNavigator = { wakeLock?: { request: (type: "screen") => Promise<SentinelLike> } };
+    let sentinel: SentinelLike | null = null;
+    let disposed = false;
+    // The OS can revoke the lock on its own (battery saver, tab hidden); drop
+    // the stale handle so a later dependency change / visibility return
+    // re-acquires instead of thinking a lock is still held.
+    const onSentinelRelease = () => { sentinel = null; };
+
+    const wanted = () => {
+      const s = usePlayer.getState();
+      return s.isPlaying && (s.fullscreenPlayer || s.visualizerOpen);
+    };
+
+    const release = () => {
+      const current = sentinel;
+      sentinel = null;
+      current?.removeEventListener("release", onSentinelRelease);
+      // release() rejects when the sentinel was already released — expected.
+      void current?.release().catch(() => {});
+    };
+
+    const acquire = async () => {
+      if (disposed || sentinel || !wanted()) return;
+      if (typeof navigator === "undefined" || !("wakeLock" in navigator)) return;
+      try {
+        const lock = await (navigator as unknown as WakeLockNavigator).wakeLock?.request("screen");
+        if (!lock) return;
+        // Unmounted while the request was in flight — undo immediately.
+        if (disposed) { void lock.release().catch(() => {}); return; }
+        lock.addEventListener("release", onSentinelRelease);
+        sentinel = lock;
+      } catch {
+        /* Denied or unsupported — the screen simply sleeps as it did before. */
+      }
+    };
+
+    if (wanted()) void acquire();
+    else release();
+
+    // Re-acquire when the tab becomes visible again if the karaoke/visualizer
+    // surface is still open and playing (the browser dropped it while hidden).
+    const onVisibility = () => {
+      if (document.visibilityState === "visible") void acquire();
+    };
+    document.addEventListener("visibilitychange", onVisibility);
+    return () => {
+      disposed = true;
+      document.removeEventListener("visibilitychange", onVisibility);
+      release();
+    };
+  }, [fullscreenPlayer, visualizerOpen, isPlaying]);
 
   // Reset lyric UI on track change; auto-resolve when the lyrics pane is open.
   useEffect(() => {

@@ -332,7 +332,11 @@ hydrateFromServer: async () => {
         // visually rewind the counters until the next reconcile.
         const serverCounts = s.playCounts as Record<string, number>;
         const graftedCounts: Record<string, number> = { ...serverCounts };
-        for (const [hash, before] of Object.entries(beforeCounts)) {
+        // Union of before/after keys: a FIRST-ever scrobble landing mid-fetch has
+        // no `before` entry and must still beat the (0) server snapshot.
+        const graftKeys = new Set([...Object.keys(beforeCounts), ...Object.keys(local.playCounts)]);
+        for (const hash of graftKeys) {
+          const before = beforeCounts[hash] ?? 0;
           const now = local.playCounts[hash] ?? 0;
           if (now > before && (serverCounts[hash] ?? 0) < now) graftedCounts[hash] = now;
         }

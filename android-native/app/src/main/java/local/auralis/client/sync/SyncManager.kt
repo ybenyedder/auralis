@@ -29,11 +29,17 @@ import java.util.concurrent.TimeUnit
  * carries the device roster, every device's now-playing snapshot and transport
  * commands aimed at us; we publish our own snapshot over POST /api/sync.
  *
+ * Process-lifetime singleton owned by PlaybackAccounting (see [get]): it used to
+ * be constructed per-AppViewModel, so swiping the app away tore down the SSE
+ * stream — the phone vanished from the hub and remote devices lost control of it
+ * while the service kept playing. It now lives and dies with the process, and
+ * credentials are read live from PlaybackAccounting's own [AuralisApi].
+ *
  * SSE is parsed by hand over the streaming response body — the okhttp-sse artifact
  * isn't in the offline Gradle cache this project pins its deps to, and the wire
  * format is just "event:"/"data:" lines, so a tiny parser avoids the dependency.
  */
-class SyncManager(
+class SyncManager private constructor(
     private val api: AuralisApi,
     context: Context,
 ) {
@@ -45,6 +51,18 @@ class SyncManager(
         private const val DEFAULT_NAME = "Téléphone"
         /** Minimum gap between two state POSTs (the listener fires on every event). */
         private const val PUBLISH_MIN_INTERVAL_MS = 1500L
+
+        @Volatile private var instance: SyncManager? = null
+
+        /** Process-wide singleton, same pattern as PlaybackAccounting.get: both the
+         *  accounting singleton and (transitively) every ViewModel resolve to this
+         *  one instance, so exactly one SSE stream exists per process. The [api]
+         *  argument is PlaybackAccounting's own instance — its only caller — so the
+         *  base/token read live by the stream loop follow onServerConfigured. */
+        fun get(context: Context, api: AuralisApi): SyncManager =
+            instance ?: synchronized(this) {
+                instance ?: SyncManager(api, context.applicationContext).also { instance = it }
+            }
     }
 
     private val prefs: SharedPreferences = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
@@ -77,7 +95,8 @@ class SyncManager(
     private val _controllingId = MutableStateFlow<String?>(null)
     val controllingId: StateFlow<String?> = _controllingId
 
-    /** Transport commands aimed at this device, for PlayerHolder to execute. */
+    /** Transport commands aimed at this device, for PlaybackAccounting to execute
+     *  against its own process-lifetime MediaController. */
     private val _incomingCommand = MutableStateFlow<RemoteCommand?>(null)
     val incomingCommand: StateFlow<RemoteCommand?> = _incomingCommand
 
@@ -130,8 +149,8 @@ class SyncManager(
 
     /**
      * Push this device's playback snapshot to the hub. Fire-and-forget: called from
-     * PlayerHolder's listener callbacks (not a coroutine), so it launches its own
-     * IO job and throttles repeats.
+     * PlaybackAccounting's controller listener (not a coroutine), so it launches its
+     * own IO job and throttles repeats.
      */
     fun publishState(
         trackhash: String?,
@@ -202,7 +221,7 @@ class SyncManager(
         while (wantConnected) {
             val token = api.token
             if (api.base.isBlank() || token.isNullOrBlank()) {
-                delay(5000) // pre-login: PlayerHolder connects before boot() finishes
+                delay(5000) // pre-login: the stream starts before boot() finishes
                 continue
             }
             try {

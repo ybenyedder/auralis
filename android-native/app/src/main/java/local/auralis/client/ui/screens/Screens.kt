@@ -40,6 +40,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -48,10 +49,17 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.semantics.clearAndSetSemantics
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
+import local.auralis.client.model.Album
+import local.auralis.client.model.Artist
 import local.auralis.client.model.Moods
 import local.auralis.client.model.Track
 import local.auralis.client.ui.AppViewModel
@@ -80,6 +88,18 @@ private fun seededShuffle(list: List<Track>, seed: Long): List<Track> {
     return arr
 }
 
+/**
+ * Heavy derivation off the UI thread. Same recomputation semantics as
+ * `remember(keys) { compute() }` — it reruns whenever any key changes — but the
+ * computation runs on Dispatchers.Default and the PREVIOUS value keeps rendering
+ * while a recomputation is in flight, so sorting or grouping a 10k library never
+ * blocks composition (the synchronous remembers used to do the full pass on the
+ * main thread at every library update / sort toggle).
+ */
+@Composable
+internal fun <T> derivedAsync(vararg keys: Any?, initial: T, compute: suspend () -> T): T =
+    produceState(initial, *keys) { value = withContext(Dispatchers.Default) { compute() } }.value
+
 @Composable
 private fun currentTrackOf(vm: AppViewModel): String? {
     // Reactive: .value would snapshot once at composition and never update while
@@ -97,35 +117,30 @@ fun HomeScreen(vm: AppViewModel, ui: UiState) {
 
     val recentsTracks = remember(ui.recents, ui.trackByHash) { ui.recents.mapNotNull { ui.trackByHash[it] } }
     val daySeed = System.currentTimeMillis() / 86_400_000L
-    val pool = remember(ui.tracks, ui.favorites, ui.playCounts) {
-        ui.tracks.filter { it.isFavorite || (ui.playCounts[it.trackhash] ?: 0) > 0 }.ifEmpty { ui.tracks }
-    }
-    val mix = remember(pool, daySeed) { seededShuffle(pool, daySeed).take(30) }
-    val recentlyAdded = remember(ui.tracks) {
-        ui.tracks.filter { it.addedAt != null }.sortedByDescending { it.addedAt }.take(12)
-    }
-    val topTracks = remember(ui.tracks, ui.playCounts) {
-        ui.tracks.sortedByDescending { ui.playCounts[it.trackhash] ?: 0 }.filter { (ui.playCounts[it.trackhash] ?: 0) > 0 }.take(5)
-    }
-    val recentSet = remember(ui.recents) { ui.recents.take(30).toSet() }
-    val rediscover = remember(ui.tracks, ui.favorites, recentSet) {
-        ui.tracks.filter { ui.favorites.contains(it.trackhash) && it.trackhash !in recentSet }.take(12)
-    }
-    val neverPlayed = remember(ui.tracks, ui.playCounts) {
-        ui.tracks.filter { (ui.playCounts[it.trackhash] ?: 0) == 0 }
-    }
-    val discoveries = remember(neverPlayed, daySeed) {
-        if (neverPlayed.size >= 4) seededShuffle(neverPlayed, daySeed + 7).take(12) else emptyList()
+    // Every full-library pass of the home screen (favourite/recent pool, "added"
+    // sort, most-played sort, rediscover, discoveries) derived off the main thread.
+    val home = derivedAsync(ui.tracks, ui.favorites, ui.playCounts, ui.recents, daySeed, initial = HomeDerived.EMPTY) {
+        val pool = ui.tracks.filter { it.isFavorite || (ui.playCounts[it.trackhash] ?: 0) > 0 }.ifEmpty { ui.tracks }
+        val neverPlayed = ui.tracks.filter { (ui.playCounts[it.trackhash] ?: 0) == 0 }
+        val recentSet = ui.recents.take(30).toSet()
+        HomeDerived(
+            mix = seededShuffle(pool, daySeed).take(30),
+            recentlyAdded = ui.tracks.filter { it.addedAt != null }.sortedByDescending { it.addedAt }.take(12),
+            topTracks = ui.tracks.sortedByDescending { ui.playCounts[it.trackhash] ?: 0 }
+                .filter { (ui.playCounts[it.trackhash] ?: 0) > 0 }.take(5),
+            rediscover = ui.tracks.filter { ui.favorites.contains(it.trackhash) && it.trackhash !in recentSet }.take(12),
+            discoveries = if (neverPlayed.size >= 4) seededShuffle(neverPlayed, daySeed + 7).take(12) else emptyList(),
+            favTracks = ui.tracks.filter { ui.favorites.contains(it.trackhash) },
+        )
     }
     val current = currentTrackOf(vm)
-    val favTracks = remember(ui.tracks, ui.favorites) { ui.tracks.filter { ui.favorites.contains(it.trackhash) } }
     val quickTiles = buildList {
-        if (favTracks.isNotEmpty()) {
+        if (home.favTracks.isNotEmpty()) {
             add(
                 QuickTileItem(
                     "liked", "Titres likés", null, null, null, liked = true,
                     onOpen = { vm.navigate(ViewId.FAVORITES) },
-                    onPlay = { vm.playList(favTracks) },
+                    onPlay = { vm.playList(home.favTracks) },
                 ),
             )
         }
@@ -133,7 +148,12 @@ fun HomeScreen(vm: AppViewModel, ui: UiState) {
             add(
                 QuickTileItem(
                     t.trackhash, t.title, t.displayArtist, t.image, t.albumhash ?: t.title, liked = false,
-                    onOpen = { vm.playTrack(t, recentsTracks, recentsTracks.indexOf(t)) },
+                    // Tile body → the album page; only the round play button plays.
+                    onOpen = {
+                        val hash = t.albumhash
+                        if (hash != null) vm.navigate(ViewId.ALBUM, hash)
+                        else vm.playTrack(t, recentsTracks, recentsTracks.indexOf(t))
+                    },
                     onPlay = { vm.playTrack(t, recentsTracks, recentsTracks.indexOf(t)) },
                 ),
             )
@@ -194,15 +214,15 @@ fun HomeScreen(vm: AppViewModel, ui: UiState) {
         }
 
         // Mix du jour — a daily 5-track starter list.
-        if (mix.isNotEmpty()) {
+        if (home.mix.isNotEmpty()) {
             item {
                 Spacer(Modifier.height(24.dp))
-                SectionHeader("Mix du jour", "Tout lire") { vm.playList(mix) }
+                SectionHeader("Mix du jour", "Tout lire") { vm.playList(home.mix) }
             }
-            items(mix.take(5), key = { it.trackhash }) { t ->
+            items(home.mix.take(5), key = { it.trackhash }) { t ->
                 TrackRow(
                     t, isCurrent = t.trackhash == current, isFavorite = ui.favorites.contains(t.trackhash),
-                    onClick = { vm.playTrack(t, mix, mix.indexOf(t)) },
+                    onClick = { vm.playTrack(t, home.mix, home.mix.indexOf(t)) },
                     onToggleFavorite = { vm.toggleFavorite(t.trackhash) }, onMore = { vm.openTrackMenu(t) },
                 )
             }
@@ -220,51 +240,51 @@ fun HomeScreen(vm: AppViewModel, ui: UiState) {
             }
         }
 
-        if (recentlyAdded.isNotEmpty()) {
+        if (home.recentlyAdded.isNotEmpty()) {
             item {
                 Spacer(Modifier.height(24.dp))
                 SectionHeader("Ajouts récents", "Tout afficher") { vm.navigate(ViewId.NEW) }
                 LazyRow(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                    items(recentlyAdded, key = { it.trackhash }) { t ->
-                        MiniTrackCard(t, t.trackhash == current) { vm.playTrack(t, recentlyAdded, recentlyAdded.indexOf(t)) }
+                    items(home.recentlyAdded, key = { it.trackhash }) { t ->
+                        MiniTrackCard(t, t.trackhash == current) { vm.playTrack(t, home.recentlyAdded, home.recentlyAdded.indexOf(t)) }
                     }
                 }
             }
         }
 
-        if (rediscover.isNotEmpty()) {
+        if (home.rediscover.isNotEmpty()) {
             item {
                 Spacer(Modifier.height(24.dp))
-                SectionHeader("À redécouvrir", "Tout lire") { vm.playList(rediscover) }
+                SectionHeader("À redécouvrir", "Tout lire") { vm.playList(home.rediscover) }
                 LazyRow(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                    items(rediscover, key = { it.trackhash }) { t ->
-                        MiniTrackCard(t, t.trackhash == current) { vm.playTrack(t, rediscover, rediscover.indexOf(t)) }
+                    items(home.rediscover, key = { it.trackhash }) { t ->
+                        MiniTrackCard(t, t.trackhash == current) { vm.playTrack(t, home.rediscover, home.rediscover.indexOf(t)) }
                     }
                 }
             }
         }
 
-        if (discoveries.isNotEmpty()) {
+        if (home.discoveries.isNotEmpty()) {
             item {
                 Spacer(Modifier.height(24.dp))
                 SectionHeader("Découvertes", "Tout lire") { vm.playUnheardMix() }
                 LazyRow(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                    items(discoveries, key = { it.trackhash }) { t ->
-                        MiniTrackCard(t, t.trackhash == current) { vm.playTrack(t, discoveries, discoveries.indexOf(t)) }
+                    items(home.discoveries, key = { it.trackhash }) { t ->
+                        MiniTrackCard(t, t.trackhash == current) { vm.playTrack(t, home.discoveries, home.discoveries.indexOf(t)) }
                     }
                 }
             }
         }
 
-        if (topTracks.isNotEmpty()) {
+        if (home.topTracks.isNotEmpty()) {
             item {
                 Spacer(Modifier.height(24.dp))
                 SectionHeader("Titres forts")
             }
-            items(topTracks, key = { it.trackhash }) { t ->
+            items(home.topTracks, key = { it.trackhash }) { t ->
                 TrackRow(
                     t, isCurrent = t.trackhash == current, isFavorite = ui.favorites.contains(t.trackhash),
-                    onClick = { vm.playTrack(t, topTracks, topTracks.indexOf(t)) },
+                    onClick = { vm.playTrack(t, home.topTracks, home.topTracks.indexOf(t)) },
                     onToggleFavorite = { vm.toggleFavorite(t.trackhash) }, onMore = { vm.openTrackMenu(t) },
                 )
             }
@@ -287,6 +307,20 @@ fun HomeScreen(vm: AppViewModel, ui: UiState) {
     }
 }
 
+// Full-library derivations of HomeScreen, computed by derivedAsync.
+private class HomeDerived(
+    val mix: List<Track>,
+    val recentlyAdded: List<Track>,
+    val topTracks: List<Track>,
+    val rediscover: List<Track>,
+    val discoveries: List<Track>,
+    val favTracks: List<Track>,
+) {
+    companion object {
+        val EMPTY = HomeDerived(emptyList(), emptyList(), emptyList(), emptyList(), emptyList(), emptyList())
+    }
+}
+
 /** Apple Music "top picks" hero card: near-full-width editorial art with the
  *  red play control overlaid, title + artist beneath. */
 @Composable
@@ -305,10 +339,14 @@ private fun HeroTrackCard(t: Track, isCurrent: Boolean, onClick: () -> Unit) {
                     .size(38.dp)
                     .clip(CircleShape)
                     .background(colors.accent)
-                    .clickable { onClick() },
+                    .clickable { onClick() }
+                    // The card itself is the accessible play control; this overlay
+                    // would otherwise be announced as a second, identical "Lire"
+                    // target for the exact same action.
+                    .clearAndSetSemantics {},
                 contentAlignment = Alignment.Center,
             ) {
-                Icon(Icons.Filled.PlayArrow, "Lire", tint = colors.ink, modifier = Modifier.size(20.dp))
+                Icon(Icons.Filled.PlayArrow, null, tint = colors.ink, modifier = Modifier.size(20.dp))
             }
         }
         Text(
@@ -327,75 +365,87 @@ private fun HeroTrackCard(t: Track, isCurrent: Boolean, onClick: () -> Unit) {
 @Composable
 fun NewScreen(vm: AppViewModel, ui: UiState) {
     val current = currentTrackOf(vm)
-    val recentAlbums = remember(ui.tracks, ui.albums) {
+    val daySeed = System.currentTimeMillis() / 86_400_000L
+    // recentAlbums is O(tracks x albums) (a firstOrNull scan per newest track) and
+    // the genre grouping walks the whole library — derive off the main thread.
+    val derived = derivedAsync(ui.tracks, ui.albums, ui.playCounts, daySeed, initial = NewDerived.EMPTY) {
         val newestPerAlbum = ui.tracks.filter { it.addedAt != null }
             .sortedByDescending { it.addedAt }
             .distinctBy { it.albumhash }
             .mapNotNull { t -> ui.albums.firstOrNull { it.albumhash == t.albumhash } }
-        newestPerAlbum.ifEmpty { ui.albums.sortedByDescending { it.year ?: 0 } }
-    }
-    val recentTracks = remember(ui.tracks) {
-        ui.tracks.filter { it.addedAt != null }.sortedByDescending { it.addedAt }.take(15)
-    }
-    val genres = remember(ui.tracks) {
-        ui.tracks.filter { !it.genre.isNullOrBlank() }
-            .groupBy { it.genre!! }
-            .entries.sortedByDescending { it.value.size }
-    }
-    val daySeed = System.currentTimeMillis() / 86_400_000L
-    val neverPlayed = remember(ui.tracks, ui.playCounts) { ui.tracks.filter { (ui.playCounts[it.trackhash] ?: 0) == 0 } }
-    val discoveries = remember(neverPlayed, daySeed) {
-        if (neverPlayed.size >= 4) seededShuffle(neverPlayed, daySeed + 7).take(12) else emptyList()
+        val neverPlayed = ui.tracks.filter { (ui.playCounts[it.trackhash] ?: 0) == 0 }
+        NewDerived(
+            recentAlbums = newestPerAlbum.ifEmpty { ui.albums.sortedByDescending { it.year ?: 0 } },
+            recentTracks = ui.tracks.filter { it.addedAt != null }.sortedByDescending { it.addedAt }.take(15),
+            genres = ui.tracks.filter { !it.genre.isNullOrBlank() }
+                .groupBy { it.genre!! }
+                .entries.sortedByDescending { it.value.size },
+            discoveries = if (neverPlayed.size >= 4) seededShuffle(neverPlayed, daySeed + 7).take(12) else emptyList(),
+        )
     }
 
     LazyColumn(contentPadding = bottomPad) {
         item {
             Column(Modifier.padding(top = 6.dp, bottom = 12.dp)) { LargeTitle("Nouveau") }
         }
-        if (recentAlbums.isEmpty()) {
+        // Guard on the raw library, not the async list: while the first derivation is
+        // still running we must not flash the "nothing new" hint.
+        if (ui.tracks.isEmpty() && ui.albums.isEmpty()) {
             item { EmptyHint("Rien de neuf", "Lance un scan serveur pour indexer de nouveaux fichiers.") }
             return@LazyColumn
         }
-        if (recentAlbums.isNotEmpty()) {
+        if (derived.recentAlbums.isNotEmpty()) {
             item {
                 SectionHeader("Nouveaux albums", "Tout afficher") { vm.navigate(ViewId.LIBRARY) }
                 LazyRow(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                    items(recentAlbums.take(12), key = { it.albumhash }) { a ->
+                    items(derived.recentAlbums.take(12), key = { it.albumhash }) { a ->
                         AlbumCard(a, onPlay = { vm.playList(ui.tracks.filter { t -> t.albumhash == a.albumhash }) }) { vm.navigate(ViewId.ALBUM, a.albumhash) }
                     }
                 }
             }
         }
-        if (recentTracks.isNotEmpty()) {
+        if (derived.recentTracks.isNotEmpty()) {
             item { Spacer(Modifier.height(24.dp)); SectionHeader("Ajouts récents") }
-            items(recentTracks, key = { it.trackhash }) { t ->
+            items(derived.recentTracks, key = { it.trackhash }) { t ->
                 TrackRow(
                     t, isCurrent = t.trackhash == current, isFavorite = ui.favorites.contains(t.trackhash),
-                    onClick = { vm.playTrack(t, recentTracks, recentTracks.indexOf(t)) },
+                    onClick = { vm.playTrack(t, derived.recentTracks, derived.recentTracks.indexOf(t)) },
                     onToggleFavorite = { vm.toggleFavorite(t.trackhash) }, onMore = { vm.openTrackMenu(t) },
                 )
             }
         }
-        if (discoveries.isNotEmpty()) {
+        if (derived.discoveries.isNotEmpty()) {
             item {
                 Spacer(Modifier.height(24.dp))
-                SectionHeader("Fraîchement découverts", "Tout lire") { vm.playList(discoveries) }
+                SectionHeader("Fraîchement découverts", "Tout lire") { vm.playList(derived.discoveries) }
                 LazyRow(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                    items(discoveries, key = { it.trackhash }) { t ->
-                        MiniTrackCard(t, t.trackhash == current) { vm.playTrack(t, discoveries, discoveries.indexOf(t)) }
+                    items(derived.discoveries, key = { it.trackhash }) { t ->
+                        MiniTrackCard(t, t.trackhash == current) { vm.playTrack(t, derived.discoveries, derived.discoveries.indexOf(t)) }
                     }
                 }
             }
         }
-        if (genres.isNotEmpty()) {
+        if (derived.genres.isNotEmpty()) {
             item {
                 Spacer(Modifier.height(24.dp))
                 SectionHeader("Nouveautés par genre")
                 LazyRow(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                    items(genres.take(10), key = { it.key }) { e -> GenreCard(e.key, e.value.size) { vm.playShuffled(e.value) } }
+                    items(derived.genres.take(10), key = { it.key }) { e -> GenreCard(e.key, e.value.size) { vm.playShuffled(e.value) } }
                 }
             }
         }
+    }
+}
+
+// Full-library derivations of NewScreen, computed by derivedAsync.
+private class NewDerived(
+    val recentAlbums: List<Album>,
+    val recentTracks: List<Track>,
+    val genres: List<Map.Entry<String, List<Track>>>,
+    val discoveries: List<Track>,
+) {
+    companion object {
+        val EMPTY = NewDerived(emptyList(), emptyList(), emptyList(), emptyList())
     }
 }
 
@@ -408,15 +458,17 @@ fun RadioScreen(vm: AppViewModel, ui: UiState) {
     val colors = LocalAuralis.current
     val current = currentTrackOf(vm)
     val daySeed = System.currentTimeMillis() / 86_400_000L
-    val pool = remember(ui.tracks, ui.favorites, ui.playCounts) {
-        ui.tracks.filter { it.isFavorite || (ui.playCounts[it.trackhash] ?: 0) > 0 }.ifEmpty { ui.tracks }
-    }
-    val mix = remember(pool, daySeed) { seededShuffle(pool, daySeed).take(30) }
-    val genres = remember(ui.tracks) {
-        ui.tracks.filter { !it.genre.isNullOrBlank() }
-            .groupBy { it.genre!! }
-            .entries.filter { it.value.size >= 3 }
-            .sortedByDescending { it.value.size }
+    // Same full-library passes as the home screen (pool filter, daily shuffle, genre
+    // grouping) — derived off the main thread.
+    val radio = derivedAsync(ui.tracks, ui.favorites, ui.playCounts, daySeed, initial = RadioDerived.EMPTY) {
+        val pool = ui.tracks.filter { it.isFavorite || (ui.playCounts[it.trackhash] ?: 0) > 0 }.ifEmpty { ui.tracks }
+        RadioDerived(
+            mix = seededShuffle(pool, daySeed).take(30),
+            genres = ui.tracks.filter { !it.genre.isNullOrBlank() }
+                .groupBy { it.genre!! }
+                .entries.filter { it.value.size >= 3 }
+                .sortedByDescending { it.value.size },
+        )
     }
 
     LazyColumn(contentPadding = bottomPad) {
@@ -429,7 +481,7 @@ fun RadioScreen(vm: AppViewModel, ui: UiState) {
         }
 
         // Station hero — the daily mix as a big red editorial card.
-        if (mix.isNotEmpty()) {
+        if (radio.mix.isNotEmpty()) {
             item {
                 Box(
                     Modifier
@@ -441,7 +493,7 @@ fun RadioScreen(vm: AppViewModel, ui: UiState) {
                                 listOf(Color(0xFFFA233B), Color(0xFFFC5C7A), Color(0xFFFFAEBE)),
                             ),
                         )
-                        .clickable { vm.playList(mix) }
+                        .clickable { vm.playList(radio.mix) }
                         .padding(20.dp),
                 ) {
                     Column(Modifier.align(Alignment.BottomStart)) {
@@ -507,12 +559,12 @@ fun RadioScreen(vm: AppViewModel, ui: UiState) {
         }
 
         // Genre stations — Apple Music's colourful browse tiles.
-        if (genres.isNotEmpty()) {
+        if (radio.genres.isNotEmpty()) {
             item {
                 Spacer(Modifier.height(24.dp))
                 SectionHeader("Stations par genre")
                 Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                    genres.take(12).chunked(2).forEach { row ->
+                    radio.genres.take(12).chunked(2).forEach { row ->
                         Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                             row.forEach { e ->
                                 GenreCard(e.key, e.value.size, Modifier.weight(1f)) { vm.playShuffled(e.value) }
@@ -523,6 +575,16 @@ fun RadioScreen(vm: AppViewModel, ui: UiState) {
                 }
             }
         }
+    }
+}
+
+// Full-library derivations of RadioScreen, computed by derivedAsync.
+private class RadioDerived(
+    val mix: List<Track>,
+    val genres: List<Map.Entry<String, List<Track>>>,
+) {
+    companion object {
+        val EMPTY = RadioDerived(emptyList(), emptyList())
     }
 }
 
@@ -678,7 +740,7 @@ fun SearchScreen(vm: AppViewModel, ui: UiState) {
         Spacer(Modifier.height(8.dp))
         val res = ui.searchResult
         if (ui.searchQuery.isBlank()) {
-            val genres = remember(ui.tracks) {
+            val genres = derivedAsync(ui.tracks, initial = emptyList<Map.Entry<String, List<Track>>>()) {
                 ui.tracks.filter { !it.genre.isNullOrBlank() }
                     .groupBy { it.genre!! }.filter { it.value.size >= 3 }
                     .entries.sortedByDescending { it.value.size }.take(12)
@@ -799,27 +861,34 @@ fun LibraryScreen(vm: AppViewModel, ui: UiState) {
         )
     }
 
-    val sortedAlbums = remember(ui.albums, sort) {
-        when (sort) {
+    // Sorting the whole catalogue (and totalling artist plays — a pass over every
+    // track's artist list) on each sort toggle / library update — off the main thread.
+    val lib = derivedAsync(ui.albums, ui.artists, ui.tracks, ui.playCounts, sort, initial = LibraryDerived.EMPTY) {
+        val artistPlays = artistPlayTotals(ui.tracks, ui.playCounts)
+        val sortedAlbums = when (sort) {
             1 -> ui.albums.sortedByDescending { it.title.lowercase() }
             2 -> ui.albums.sortedByDescending { it.year ?: 0 }
             else -> ui.albums.sortedBy { it.title.lowercase() }
         }
-    }
-    val artistPlays = remember(ui.tracks, ui.playCounts) { artistPlayTotals(ui.tracks, ui.playCounts) }
-    val sortedArtists = remember(ui.artists, sort, artistPlays) {
-        when (sort) {
+        val sortedArtists = when (sort) {
             1 -> ui.artists.sortedByDescending { it.name.lowercase() }
             2 -> ui.artists.sortedByDescending { artistPlays[it.artisthash] ?: 0 }
             else -> ui.artists.sortedBy { it.name.lowercase() }
         }
-    }
-    val sortedTracks = remember(ui.tracks, sort, ui.playCounts) {
-        when (sort) {
+        val sortedTracks = when (sort) {
             1 -> ui.tracks.sortedByDescending { it.title.lowercase() }
             2 -> ui.tracks.sortedByDescending { ui.playCounts[it.trackhash] ?: 0 }
             else -> ui.tracks.sortedBy { it.title.lowercase() }
         }
+        LibraryDerived(
+            albums = sortedAlbums,
+            // Grid cards are chunked into rows here too so the LazyColumn below can
+            // window them without re-chunking the catalogue on the main thread.
+            albumRows = sortedAlbums.chunked(2),
+            artists = sortedArtists,
+            artistRows = sortedArtists.chunked(3),
+            tracks = sortedTracks,
+        )
     }
 
     Column(Modifier.fillMaxWidth()) {
@@ -895,8 +964,9 @@ fun LibraryScreen(vm: AppViewModel, ui: UiState) {
         // on-screen rows compose). The old single `item { GridOf… }` composed every
         // album/artist card at once — thousands of nodes + art fetches in one frame on
         // a large catalogue, the exact "crash at 10k" the windowing is meant to avoid.
-        val albumRows = remember(sortedAlbums) { sortedAlbums.chunked(2) }
-        val artistRows = remember(sortedArtists) { sortedArtists.chunked(3) }
+        // The chunking itself lives inside the async derivation (`lib` above).
+        val albumRows = lib.albumRows
+        val artistRows = lib.artistRows
         when (tab) {
             0 -> {
                 val ordered = remember(ui.playlists) { ui.playlists.sortedWith(compareByDescending { it.pinned }) }
@@ -906,9 +976,20 @@ fun LibraryScreen(vm: AppViewModel, ui: UiState) {
                             Box(Modifier.weight(1f)) {
                                 PlaylistTile(if (pl.pinned) "📌 ${pl.name}" else pl.name, pl.trackhashes.size, pl.id, pl.imageHash) { vm.navigate(ViewId.PLAYLIST, pl.id) }
                             }
-                            Text(if (pl.pinned) "📌" else "📍", fontSize = 14.sp, modifier = Modifier.clickable { vm.togglePin(pl.id) }.padding(6.dp))
-                            Text("▲", color = colors.textMuted, fontSize = 14.sp, modifier = Modifier.clickable { vm.movePlaylist(pl.id, -1) }.padding(6.dp))
-                            Text("▼", color = colors.textMuted, fontSize = 14.sp, modifier = Modifier.clickable { vm.movePlaylist(pl.id, 1) }.padding(6.dp))
+                            // Glyph-only buttons get French content descriptions so
+                            // TalkBack announces the action, not the emoji/arrow.
+                            Text(if (pl.pinned) "📌" else "📍", fontSize = 14.sp,
+                                modifier = Modifier.clickable { vm.togglePin(pl.id) }
+                                    .semantics { contentDescription = if (pl.pinned) "Désépingler" else "Épingler" }
+                                    .padding(6.dp))
+                            Text("▲", color = colors.textMuted, fontSize = 14.sp,
+                                modifier = Modifier.clickable { vm.movePlaylist(pl.id, -1) }
+                                    .semantics { contentDescription = "Monter" }
+                                    .padding(6.dp))
+                            Text("▼", color = colors.textMuted, fontSize = 14.sp,
+                                modifier = Modifier.clickable { vm.movePlaylist(pl.id, 1) }
+                                    .semantics { contentDescription = "Descendre" }
+                                    .padding(6.dp))
                         }
                     }
                     if (ui.playlists.isEmpty()) item { EmptyHint("Aucune playlist", "Touche « + Nouvelle », ou ⋮ sur un titre pour l'ajouter à une playlist.") }
@@ -924,7 +1005,7 @@ fun LibraryScreen(vm: AppViewModel, ui: UiState) {
                         repeat(3 - rowItems.size) { Spacer(Modifier.weight(1f)) }
                     }
                 }
-                else items(sortedArtists, key = { it.artisthash }) { a -> ArtistRow(a) { vm.navigate(ViewId.ARTIST, a.artisthash) } }
+                else items(lib.artists, key = { it.artisthash }) { a -> ArtistRow(a) { vm.navigate(ViewId.ARTIST, a.artisthash) } }
             }
             2 -> LazyColumn(contentPadding = bottomPad) {
                 if (grid) itemsIndexed(albumRows, key = { _, row -> row.first().albumhash }) { i, rowItems ->
@@ -936,13 +1017,13 @@ fun LibraryScreen(vm: AppViewModel, ui: UiState) {
                         if (rowItems.size == 1) Spacer(Modifier.weight(1f))
                     }
                 }
-                else items(sortedAlbums, key = { it.albumhash }) { a -> AlbumRow(a) { vm.navigate(ViewId.ALBUM, a.albumhash) } }
+                else items(lib.albums, key = { it.albumhash }) { a -> AlbumRow(a) { vm.navigate(ViewId.ALBUM, a.albumhash) } }
             }
             3 -> LazyColumn(contentPadding = bottomPad) {
-                itemsIndexed(sortedTracks, key = { _, t -> t.trackhash }) { idx, t ->
+                itemsIndexed(lib.tracks, key = { _, t -> t.trackhash }) { idx, t ->
                     TrackRow(
                         t, index = idx, isCurrent = t.trackhash == current, isFavorite = ui.favorites.contains(t.trackhash),
-                        onClick = { vm.playTrack(t, sortedTracks, idx) },
+                        onClick = { vm.playTrack(t, lib.tracks, idx) },
                         onToggleFavorite = { vm.toggleFavorite(t.trackhash) }, onMore = { vm.openTrackMenu(t) },
                     )
                 }
@@ -975,6 +1056,19 @@ private fun artistPlayTotals(tracks: List<Track>, playCounts: Map<String, Int>):
         }
     }
     return totals
+}
+
+// Sorted library state of LibraryScreen, computed by derivedAsync.
+private class LibraryDerived(
+    val albums: List<Album>,
+    val albumRows: List<List<Album>>,
+    val artists: List<Artist>,
+    val artistRows: List<List<Artist>>,
+    val tracks: List<Track>,
+) {
+    companion object {
+        val EMPTY = LibraryDerived(emptyList(), emptyList(), emptyList(), emptyList(), emptyList())
+    }
 }
 
 @Composable
@@ -1155,6 +1249,15 @@ fun FoldersScreen(vm: AppViewModel, ui: UiState) {
 fun InsightsScreen(vm: AppViewModel, ui: UiState) {
     val colors = LocalAuralis.current
     val stats = ui.stats
+    // Previously recomputed the full O(tracks x artists) total on EVERY
+    // recomposition of the LazyColumn block (it wasn't even remembered).
+    val artistPlays = remember(ui.tracks, ui.playCounts) { artistPlayTotals(ui.tracks, ui.playCounts) }
+    val topArtists = remember(ui.artists, artistPlays) {
+        ui.artists
+            .filter { (artistPlays[it.artisthash] ?: 0) > 0 }
+            .sortedByDescending { artistPlays[it.artisthash] ?: 0 }
+            .take(8)
+    }
     LazyColumn(contentPadding = bottomPad) {
         item {
             Column(Modifier.padding(vertical = 10.dp)) {
@@ -1193,11 +1296,6 @@ fun InsightsScreen(vm: AppViewModel, ui: UiState) {
             Spacer(Modifier.height(20.dp))
             SectionHeader("Artistes les plus écoutés")
         }
-        val artistPlays = artistPlayTotals(ui.tracks, ui.playCounts)
-        val topArtists = ui.artists
-            .filter { (artistPlays[it.artisthash] ?: 0) > 0 }
-            .sortedByDescending { artistPlays[it.artisthash] ?: 0 }
-            .take(8)
         items(topArtists) { a ->
             Row(Modifier.fillMaxWidth().clickable { vm.navigate(ViewId.ARTIST, a.artisthash) }.padding(vertical = 8.dp), verticalAlignment = Alignment.CenterVertically) {
                 Text(a.name, color = colors.foreground, fontSize = 14.sp, modifier = Modifier.weight(1f), maxLines = 1, overflow = TextOverflow.Ellipsis)

@@ -17,12 +17,16 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import android.graphics.BitmapFactory
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlinx.coroutines.withContext
 import okhttp3.OkHttpClient
 import okhttp3.Request
 import java.io.File
+import java.io.IOException
 import java.security.MessageDigest
 import java.util.concurrent.TimeUnit
+import kotlin.coroutines.resume
+import kotlin.coroutines.resumeWithException
 
 // A tiny async network image: OkHttp fetch + BitmapFactory decode, backed by a
 // two-tier cache — an in-memory LRU AND a persistent on-disk layer under cacheDir/art.
@@ -80,12 +84,30 @@ private object ArtCache {
                 decodeBounded(bytes)
             }.getOrNull()?.let { cache.put(url, it); return@withContext it }
         }
-        // Miss → fetch, write through to disk, decode.
+        // Miss → fetch, write through to disk, decode. The fetch is awaited
+        // COOPERATIVELY: each visible image suspends in its LaunchedEffect coroutine,
+        // so when the composable leaves composition (fast scroll) the cancellation
+        // reaches the socket via call.cancel() instead of the old blocking execute()
+        // piling up orphaned requests.
         runCatching {
-            val req = Request.Builder().url(url).get().build()
-            client.newCall(req).execute().use { resp ->
-                if (!resp.isSuccessful) return@use null
-                val bytes = resp.body?.bytes() ?: return@use null
+            val call = client.newCall(Request.Builder().url(url).get().build())
+            val resp = suspendCancellableCoroutine { cont ->
+                cont.invokeOnCancellation { call.cancel() }
+                call.enqueue(object : okhttp3.Callback {
+                    override fun onFailure(call: okhttp3.Call, e: IOException) {
+                        cont.resumeWithException(e)
+                    }
+
+                    override fun onResponse(call: okhttp3.Call, response: okhttp3.Response) {
+                        // If the awaiter was cancelled in the meantime, close the body
+                        // instead of leaking the connection.
+                        cont.resume(response) { _, _, _ -> response.close() }
+                    }
+                })
+            }
+            resp.use {
+                if (!it.isSuccessful) return@use null
+                val bytes = it.body?.bytes() ?: return@use null
                 runCatching { file.writeBytes(bytes) } // best-effort persistence
                 decodeBounded(bytes)?.also { cache.put(url, it) }
             }

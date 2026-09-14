@@ -9,6 +9,8 @@ import kotlinx.coroutines.withContext
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import local.auralis.client.data.Prefs
@@ -24,7 +26,6 @@ import local.auralis.client.net.AuralisApi
 import local.auralis.client.playback.PlaybackAccounting
 import local.auralis.client.playback.PlaybackSnapshot
 import local.auralis.client.playback.PlayerHolder
-import local.auralis.client.sync.SyncManager
 import org.json.JSONArray
 import org.json.JSONObject
 
@@ -107,13 +108,21 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
 
     private val prefs = Prefs(app)
     val api = AuralisApi()
-    private val syncManager = SyncManager(api, app)
-    val player = PlayerHolder(app, api, syncManager)
+    val player = PlayerHolder(app, api)
 
     // Process-lifetime accounting (scrobbles, skips, sleep timer, session save,
-    // stats/reco). Owned OUTSIDE the viewModelScope so it survives this ViewModel
-    // being cleared when the user swipes the app away mid-playback.
+    // stats/reco, endless autoplay, Auralis Connect). Owned OUTSIDE the
+    // viewModelScope so it survives this ViewModel being cleared when the user
+    // swipes the app away mid-playback.
     private val accounting = PlaybackAccounting.get(app)
+
+    // Auralis Connect surfaces, process-lifetime (roster of hub devices, stream
+    // state, which device this phone is remote-controlling). Pass-through: the
+    // owner is the accounting singleton, so the data stays live across UI restarts.
+    val syncConnected get() = accounting.syncConnected
+    val syncDevices get() = accounting.syncDevices
+    val syncNowPlaying get() = accounting.syncNowPlaying
+    val syncControllingId get() = accounting.syncControllingId
 
     private val _ui = MutableStateFlow(UiState())
     val ui: StateFlow<UiState> = _ui.asStateFlow()
@@ -124,11 +133,9 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
     // index helpers
     private var trackIndex: Map<String, Track> = emptyMap()
     fun track(hash: String?): Track? = hash?.let { trackIndex[it] }
-    fun currentTrack(): Track? = track(player.snapshot.value.currentId)
 
     init {
         player.onTrackChanged = { id, _ -> onTrackChanged(id) }
-        player.onNeedContinuation = { appendContinuation() }
         player.connect()
         accounting.setLibrary(trackIndex)
         accounting.start()
@@ -152,6 +159,16 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
             }
         }
         viewModelScope.launch { accounting.messages.collect { notify(it) } }
+        // Push the UI-owned inputs the process-lifetime loops consume: the autoplay
+        // toggle and the dislike set live in UiState (and Prefs), but the endless-
+        // autoplay picker now runs in PlaybackAccounting and must see every change
+        // (boot, settings toggle, server-truth refresh, per-track dislikes).
+        viewModelScope.launch {
+            _ui.map { it.autoplay }.distinctUntilChanged().collect { accounting.setAutoplay(it) }
+        }
+        viewModelScope.launch {
+            _ui.map { it.dislikes }.distinctUntilChanged().collect { accounting.setDislikes(it) }
+        }
         boot()
         checkForUpdate()
     }
@@ -226,6 +243,10 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
         viewModelScope.launch {
             player.stop()
             prefs.clearSession()
+            // The accounting (and with it the Auralis Connect registration) follows
+            // the cleared session — the phone leaves the hub instead of lingering
+            // on the old server until the stream happens to drop.
+            accounting.onServerConfigured(_ui.value.serverBase, null)
             _ui.update { it.copy(phase = Phase.CONNECT, message = null) }
         }
     }
@@ -422,74 +443,11 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
     fun removeFromQueue(index: Int) = player.removeAt(index)
     fun clearQueue() { player.clearQueueExceptCurrent(); notify("File vidée") }
 
-    // Guards against a double-append: now that the pool is built off-main and appended
-    // asynchronously, a second onNeedContinuation can fire (queue still at its tail)
-    // before the first append lands. Main-thread confined, so a plain flag is enough.
-    private var continuationInFlight = false
-
-    private fun appendContinuation() {
-        if (!_ui.value.autoplay) return // endless listening disabled — stop at queue end
-        if (continuationInFlight) return // a continuation is already being computed/appended
-        val current = currentTrack() ?: return
-        val ui = _ui.value
-        // Capture everything the ranking needs BEFORE hopping off the main thread.
-        val queued = player.snapshot.value.queueIds.toSet()
-        val dis = ui.dislikes
-        val tracks = ui.tracks
-        val scores = ui.recoScores
-        continuationInFlight = true
-        viewModelScope.launch {
-            try {
-                // Build + rank the radio pool off the main thread — two full-library filters
-                // and a sort over 10k tracks used to run on the UI thread at every queue end.
-                val ranked = withContext(Dispatchers.Default) {
-                    fun eligible(t: Track) = t.trackhash !in queued && t.trackhash !in dis
-                    fun close(t: Track) =
-                        (t.primaryArtistHash != null && t.primaryArtistHash == current.primaryArtistHash) ||
-                            (t.genre != null && t.genre == current.genre)
-                    val counts = ui.playCounts
-                    // Endless-session exploration: surface tracks the user has NEVER
-                    // played first (shuffled), staying close to the current vibe when
-                    // enough of them exist, so an all-day autoplay keeps discovering
-                    // new music instead of recycling the same rotation. When the whole
-                    // library has been queued (long sessions), recycle it — shuffled,
-                    // dislikes and current track excluded — rather than stopping dead.
-                    val never = tracks.filter { eligible(it) && (counts[it.trackhash] ?: 0) == 0 }
-                    when {
-                        never.isNotEmpty() -> {
-                            val closeNever = never.filter { close(it) }
-                            val pick = if (closeNever.size >= 10) closeNever else never
-                            pick.shuffled().take(20)
-                        }
-                        else -> {
-                            val fresh = tracks.filter { eligible(it) }
-                            if (fresh.isNotEmpty()) {
-                                // Least-played first (a light taste-score jitter breaks ties),
-                                // then shuffled so consecutive appends don't march the same list.
-                                fresh.sortedWith(
-                                    compareBy({ counts[it.trackhash] ?: 0 }, { -(scores[it.trackhash] ?: 0.0) })
-                                ).take(40).shuffled().take(20)
-                            } else {
-                                tracks.filter { it.trackhash != current.trackhash && it.trackhash !in dis }
-                                    .shuffled().take(20)
-                            }
-                        }
-                    }
-                }
-                // Back on the main thread (viewModelScope) — MediaController.addMediaItems must
-                // run on the controller's application thread.
-                if (ranked.isNotEmpty()) player.appendTracks(ranked)
-            } finally {
-                continuationInFlight = false
-            }
-        }
-    }
-
     // ---- track change → lyrics ----------------------------------------------
-    // Skip detection, the scrobble gate, the sleep end-of-track stop and the
-    // whole 1s/5s accounting loops live in PlaybackAccounting (they must keep
-    // running after this ViewModel is cleared); only the UI-side lyrics reset
-    // and fetch remain here.
+    // Skip detection, the scrobble gate, the sleep end-of-track stop, the
+    // whole 1s/5s accounting loops AND endless autoplay (queue continuation)
+    // live in PlaybackAccounting (they must keep running after this ViewModel
+    // is cleared); only the UI-side lyrics reset and fetch remain here.
 
     private fun onTrackChanged(id: String?) {
         _ui.update { it.copy(lyrics = LyricsResult.NONE) }
@@ -846,6 +804,10 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
                 val token = if (res.isNull("token")) null else res.optString("token", null)
                 if (token != null) {
                     api.configure(_ui.value.serverBase, token)
+                    // Rotation must reach the accounting's api too: the accounting
+                    // (scrobbles) and the sync client read THEIR instance, and a
+                    // stale token there would fail every call after a password change.
+                    accounting.onServerConfigured(_ui.value.serverBase, token)
                     prefs.setServer(_ui.value.serverBase, token, _ui.value.username)
                 }
                 notify("Mot de passe mis à jour")
@@ -981,9 +943,10 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
 
     override fun onCleared() {
         // Deliberately NOT touching PlaybackAccounting: it must keep scrobbling,
-        // saving the session and honoring the sleep timer while the service keeps
-        // playing after the UI (this ViewModel) is gone. Releasing the UI's
-        // PlayerHolder only drops this ViewModel's own controller + SSE sync.
+        // saving the session, honoring the sleep timer, executing remote commands,
+        // staying on the Auralis Connect hub and continuing endless autoplay while
+        // the service keeps playing after the UI (this ViewModel) is gone.
+        // Releasing the UI's PlayerHolder only drops this ViewModel's own controller.
         player.release()
         super.onCleared()
     }

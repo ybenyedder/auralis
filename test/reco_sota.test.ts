@@ -114,6 +114,41 @@ test("session: Markov transitions learn what follows what", () => {
   assert.ok(model.transitionAffinity("unseen") === 0, "an unseen track has no transition signal");
 });
 
+test("session: a skip breaks the chain — complete(A) → skip(B) → complete(C) records NO A→C edge", () => {
+  const feat = new Map<string, FeatureVector | null>([
+    ["a", fv(0.5, 0.5)],
+    ["b", fv(0.6, 0.5)],
+    ["c", fv(0.4, 0.5)],
+    ["d", fv(0.45, 0.5)],
+  ]);
+  const t0 = 2_500_000;
+  const step = (h: string, i: number, kind: "complete" | "skip"): SessionEvent => ({
+    trackhash: h, played_at: t0 + i * 60_000, kind,
+  });
+
+  // A completed, B was skipped, C completed — whatever the user left A for, this
+  // says nothing about A→C, so no edge may exist between them.
+  const withSkip = buildSession(
+    [step("a", 0, "complete"), step("b", 1, "skip"), step("c", 2, "complete")],
+    feat, t0 + 181_000,
+  );
+  assert.equal(withSkip.transitionAffinity("c"), 0, "no A→C transition is recorded across the skip");
+  assert.equal(withSkip.transitionAffinity("a"), 0, "A seeds no outgoing edge either");
+
+  // Control: the very same completes WITHOUT the skip do learn A→C — proving the
+  // absence above comes from the skip, not from the fixture.
+  const noSkip = buildSession([step("a", 0, "complete"), step("c", 2, "complete")], feat, t0 + 181_000);
+  assert.ok(noSkip.transitionAffinity("c") > 0, "without the skip, A→C is learned normally");
+
+  // The skip only severs links ACROSS it: an edge formed before it survives.
+  const beforeSkip = buildSession(
+    [step("a", 0, "complete"), step("b", 1, "complete"), step("c", 2, "skip"), step("d", 3, "complete")],
+    feat, t0 + 241_000,
+  );
+  assert.ok(beforeSkip.transitionAffinity("b") > 0, "A→B (completed before the skip) is still recorded");
+  assert.equal(beforeSkip.transitionAffinity("d"), 0, "nothing links into D across the skip");
+});
+
 // ---------------------------------------------------------------------------
 // 3. UCB exploration.
 // ---------------------------------------------------------------------------

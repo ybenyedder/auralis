@@ -129,17 +129,6 @@ fun SettingsScreen(vm: AppViewModel, ui: UiState) {
         }
 
         item {
-            Card("Apparence") {
-                Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                    Column(Modifier.weight(1f)) {
-                        Text("Thème", color = colors.foreground, fontSize = 14.sp, fontWeight = FontWeight.SemiBold)
-                        Text("Sombre ou clair selon votre système", color = colors.textMuted, fontSize = 11.sp)
-                    }
-                }
-            }
-        }
-
-        item {
             val dur = ui.tracks.sumOf { it.duration ?: 0.0 }
             Card("Bibliothèque") {
                 Field("Dossier source", ui.root ?: "—")

@@ -47,12 +47,16 @@ export function buildContinuation(current: Track | null, queued: Track[], librar
   const affinity = (t: Track) =>
     (t.artists ?? []).some((a) => curArtists.has(a.artisthash)) || (!!curGenre && t.genre === curGenre) ? 1 : 0;
 
+  // Precompute the jittered score per track and sort on a STABLE key — a
+  // comparator that calls Math.random() inline is an inconsistent total order
+  // (the Android port documented the same pitfall).
+  const jitter = new Map(heard.map((t) => [t.trackhash, rank(t)]));
   const picks = [
     ...shuffleArray(unheard),
     ...[...heard].sort(
       (a, b) =>
         (playCounts[a.trackhash] ?? 0) - (playCounts[b.trackhash] ?? 0) ||
-        affinity(b) - affinity(a) + rank(b) - rank(a),
+        affinity(b) - affinity(a) + (jitter.get(b.trackhash) ?? 0) - (jitter.get(a.trackhash) ?? 0),
     ),
   ];
   const seen = new Set<string>();

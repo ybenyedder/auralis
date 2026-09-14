@@ -10,6 +10,12 @@ import { applyMode, normalizeMode } from "@/lib/auralis/themes";
 import { translate } from "@/lib/auralis/messages";
 import { shuffleArray, reorderWithFirst, buildContinuation, clampOffset, DEFAULT_LYRICS_OFFSET, parseRules, loadPersisted, initialLocale, initialMode, initial, nextToastSeq } from "./helpers";
 
+// Auto-dismiss handle of the CURRENT toast. notify() used to schedule a fresh
+// window.setTimeout per call and never cancel the previous one, so toasts
+// replacing each other in quick succession piled up stale timers (each keeping
+// its closure alive until it fired). One toast slot → one live timer.
+let toastTimer: number | null = null;
+
 export const createUiSlice: StateCreator<PlayerState, [], [], Pick<PlayerState, "view" | "navHistory" | "searchQuery" | "searchFocus" | "commandOpen" | "rightPanelOpen" | "fullscreenPlayer" | "lyricsOpen" | "queueOpen" | "helpOpen" | "miniPlayer" | "karaokeMode" | "lyricsOffset" | "visualizerOpen" | "mode" | "flatBackdrop" | "contextMenu" | "toast" | "lyricsLoading" | "lyricsStatus" | "lyricsPlain" | "aligning" | "syncReady" | "sleepTimer" | "locale" | "navigate" | "back" | "setSearch" | "setSearchFocus" | "setCommandOpen" | "toggleRightPanel" | "toggleFullscreenPlayer" | "toggleLyrics" | "toggleQueue" | "setHelpOpen" | "toggleMiniPlayer" | "toggleKaraoke" | "adjustLyricsOffset" | "resetLyricsOffset" | "toggleVisualizer" | "closeVisualizer" | "setMode" | "setFlatBackdrop" | "closeFullscreenPlayer" | "openContextMenu" | "openAlbumContextMenu" | "openArtistContextMenu" | "closeContextMenu" | "notify" | "dismissToast" | "setLocale" | "startSleepTimer" | "sleepAfterTrack" | "cancelSleepTimer">> = (set, get) => ({
 view: { view: "home" },
 
@@ -200,8 +206,12 @@ notify: (message, opts) => {
       const id = nextToastSeq();
       set({ toast: { id, message, tone: opts?.tone ?? "success", action: opts?.action } });
       if (typeof window !== "undefined") {
+        // Only the newest toast's dismissal matters — cancel the previous
+        // schedule so replaced toasts stop accumulating timers.
+        if (toastTimer !== null) window.clearTimeout(toastTimer);
         // Give an actionable toast (e.g. "Annuler") longer to be clicked.
-        window.setTimeout(() => {
+        toastTimer = window.setTimeout(() => {
+          toastTimer = null;
           if (get().toast?.id === id) set({ toast: null });
         }, opts?.action ? 5200 : 2600);
       }

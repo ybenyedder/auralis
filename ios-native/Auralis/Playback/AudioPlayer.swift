@@ -13,8 +13,8 @@ final class AudioPlayer: ObservableObject {
     @Published var isPlaying = false
     @Published var position: Double = 0
     @Published var duration: Double = 0
-    /// Localized failure message for the current item (nil while healthy) — set
-    /// when the AVPlayerItem reports `.failed`, cleared on each new load. The UI
+    /// Guaranteed-French failure message for the current item (nil while healthy) —
+    /// set when the AVPlayerItem reports `.failed`, cleared on each new load. The UI
     /// can surface it; the queue does not auto-advance past a broken track.
     @Published var playbackError: String?
 
@@ -194,7 +194,7 @@ final class AudioPlayer: ObservableObject {
         case .failed:
             // Surface the failure (rate 0 in Now Playing) and keep the queue put.
             isPlaying = false
-            playbackError = underlyingError?.localizedDescription ?? "Impossible de lire ce morceau"
+            playbackError = Self.failureMessage(underlyingError)
             updateNowPlayingElapsed()
         case .readyToPlay:
             playbackError = nil
@@ -203,6 +203,27 @@ final class AudioPlayer: ObservableObject {
         @unknown default:
             break
         }
+    }
+
+    /// French failure text for the banner — AVFoundation / URLSession
+    /// localizedDescription would leak English on non-French devices.
+    private static func failureMessage(_ error: Error?) -> String {
+        guard let error else { return "Impossible de lire ce morceau" }
+        if let url = error as? URLError {
+            switch url.code {
+            case .timedOut, .cannotFindHost, .cannotConnectToHost,
+                 .notConnectedToInternet, .networkConnectionLost, .dnsLookupFailed:
+                return "Serveur injoignable — vérifiez votre connexion"
+            case .badURL:
+                return "Adresse de lecture invalide"
+            default:
+                return "Lecture interrompue par une erreur réseau"
+            }
+        }
+        if (error as NSError).domain == AVFoundationErrorDomain {
+            return "Format audio non pris en charge ou fichier illisible"
+        }
+        return "Impossible de lire ce morceau"
     }
 
     private func updateNowPlayingInfo(title: String, artist: String, artworkURL: URL?) {

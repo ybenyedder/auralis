@@ -303,7 +303,7 @@ function decodeSessionToken(token: string | undefined | null, request?: Request)
     if (now - row.last_used_at > 3600000) {
       const ip = request ? request.headers.get("x-forwarded-for")?.split(',')[0].trim() || "127.0.0.1" : null;
       const ua = request ? request.headers.get("user-agent") : null;
-      getDb().prepare("UPDATE sessions SET last_used_at = ?, ip_address = coalesce(?, ip_address), user_agent = coalesce(?, user_agent) WHERE id = ?").run(now, ip, ua, token);
+      getDb().prepare("UPDATE sessions SET last_used_at = ?, ip_address = coalesce(?, ip_address), user_agent = coalesce(?, user_agent) WHERE id IN (?, ?)").run(now, ip, ua, hashToken(token), token);
     }
     return row.user_id;
   } catch {

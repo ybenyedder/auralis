@@ -46,6 +46,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -53,6 +55,8 @@ import androidx.compose.ui.unit.sp
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import local.auralis.client.model.Album
+import local.auralis.client.model.Track
 import local.auralis.client.ui.AppViewModel
 import local.auralis.client.ui.UiState
 import local.auralis.client.ui.ViewId
@@ -71,7 +75,8 @@ import local.auralis.client.ui.theme.LocalAuralis
 fun AlbumDetail(vm: AppViewModel, ui: UiState, albumhash: String) {
     val colors = LocalAuralis.current
     val album = remember(ui.albums, albumhash) { ui.albums.find { it.albumhash == albumhash } }
-    val tracks = remember(ui.tracks, albumhash) {
+    // Filtering the whole library down to this album runs off the main thread.
+    val tracks = derivedAsync(ui.tracks, albumhash, initial = emptyList<Track>()) {
         ui.tracks.filter { it.albumhash == albumhash }
             .sortedWith(compareBy({ it.disc ?: 1 }, { it.track ?: 0 }))
     }
@@ -117,15 +122,21 @@ fun AlbumDetail(vm: AppViewModel, ui: UiState, albumhash: String) {
 fun ArtistDetail(vm: AppViewModel, ui: UiState, artisthash: String) {
     val colors = LocalAuralis.current
     val artist = remember(ui.artists, artisthash) { ui.artists.find { it.artisthash == artisthash } }
-    val tracks = remember(ui.tracks, artisthash) {
-        ui.tracks.filter { it.primaryArtistHash == artisthash || it.artists.any { a -> a.artisthash == artisthash } }
+    // Matching every track's artist list + every album's artist list walks the whole
+    // library twice — derive off the main thread (see derivedAsync in Screens.kt).
+    val derived = derivedAsync(ui.tracks, ui.albums, ui.playCounts, artisthash, initial = ArtistDetailDerived.EMPTY) {
+        val artistTracks = ui.tracks.filter {
+            it.primaryArtistHash == artisthash || it.artists.any { a -> a.artisthash == artisthash }
+        }
+        ArtistDetailDerived(
+            tracks = artistTracks,
+            albums = ui.albums.filter { it.albumartists.any { a -> a.artisthash == artisthash } },
+            top = artistTracks.sortedByDescending { ui.playCounts[it.trackhash] ?: it.playcount }.take(8),
+        )
     }
-    val albums = remember(ui.albums, artisthash) {
-        ui.albums.filter { it.albumartists.any { a -> a.artisthash == artisthash } }
-    }
-    val top = remember(tracks, ui.playCounts) {
-        tracks.sortedByDescending { ui.playCounts[it.trackhash] ?: it.playcount }.take(8)
-    }
+    val tracks = derived.tracks
+    val albums = derived.albums
+    val top = derived.top
     val playback by vm.playback.collectAsState()
     val current = playback.currentId
     val isPlayingThis = playback.isPlaying && tracks.any { it.trackhash == current }
@@ -260,8 +271,10 @@ fun PlaylistDetail(vm: AppViewModel, ui: UiState, playlistId: String) {
                         }
                         HeroShuffleButton(enabled = tracks.isNotEmpty()) { vm.playShuffled(tracks) }
                         Spacer(Modifier.weight(1f))
+                        // Glyph-only pin button: TalkBack announces the action, not the emoji.
                         Text(if (pl?.pinned == true) "📌" else "📍", fontSize = 18.sp,
-                            modifier = Modifier.clickable { vm.togglePin(playlistId) })
+                            modifier = Modifier.clickable { vm.togglePin(playlistId) }
+                                .semantics { contentDescription = if (pl?.pinned == true) "Désépingler" else "Épingler" })
                         Icon(Icons.Filled.Edit, "Renommer", tint = colors.textMuted,
                             modifier = Modifier.size(22.dp).clickable { newName = pl?.name ?: ""; renaming = true })
                         Icon(Icons.Filled.Delete, "Supprimer", tint = colors.destructive,
@@ -285,5 +298,16 @@ fun PlaylistDetail(vm: AppViewModel, ui: UiState, playlistId: String) {
             }
         }
         if (tracks.isEmpty()) item { EmptyHint("Playlist vide", "Ajoute des titres via le menu ⋮ d'un morceau.") }
+    }
+}
+
+// Full-library derivations of ArtistDetail, computed by derivedAsync.
+private class ArtistDetailDerived(
+    val tracks: List<Track>,
+    val albums: List<Album>,
+    val top: List<Track>,
+) {
+    companion object {
+        val EMPTY = ArtistDetailDerived(emptyList(), emptyList(), emptyList())
     }
 }

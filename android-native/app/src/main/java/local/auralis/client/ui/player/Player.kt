@@ -54,6 +54,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -75,6 +76,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import local.auralis.client.model.LyricsResult
 import local.auralis.client.model.Track
@@ -99,7 +101,9 @@ import kotlin.math.abs
 @Composable
 fun MiniPlayer(track: Track, playback: PlaybackSnapshot, positionMs: Long, vm: AppViewModel, onOpen: () -> Unit) {
     val colors = LocalAuralis.current
-    val dur = (track.duration ?: 0.0) * 1000.0
+    // Player-reported duration first: stream metadata can omit `duration`, which left
+    // this hairline stuck at zero even though playback knows the length.
+    val dur = if (playback.durationMs > 0) playback.durationMs.toDouble() else (track.duration ?: 0.0) * 1000.0
     val progress = if (dur > 0) (positionMs / dur).toFloat().coerceIn(0f, 1f) else 0f
     var miniDx by remember { mutableStateOf(0f) }
     Column(
@@ -290,7 +294,9 @@ fun FullscreenPlayer(
             }
 
             // Scrubber (custom thin Apple Music slider) + time labels.
-            val durMs = (track.duration ?: 0.0) * 1000.0
+            // Prefer the player-reported duration: when metadata lacks `duration` the
+            // bar used to stay dead at zero even though playback knows the length.
+            val durMs = if (playback.durationMs > 0) playback.durationMs else ((track.duration ?: 0.0) * 1000.0).toLong()
             var scrub by remember { mutableStateOf<Float?>(null) }
             val progress = scrub ?: if (durMs > 0) (positionMs / durMs).toFloat().coerceIn(0f, 1f) else 0f
             AMSlider(
@@ -472,8 +478,15 @@ private fun LyricsPane(ui: UiState, vm: AppViewModel, positionMs: Long, track: T
     val colors = LocalAuralis.current
     val lyrics = ui.lyrics
     val posSec = positionMs / 1000.0 + ui.lyricsOffset
+    // AppViewModel already fetches lyrics on every track change; this pane-open call
+    // only covers a track that was already playing before the ViewModel existed
+    // (session restore — the track-change hook never ran for it). Wait a beat and
+    // re-check the LIVE idle state (rememberUpdatedState: the effect lambda captures
+    // stale values) so the two paths never race and request the same track twice.
+    val stillIdle by rememberUpdatedState(ui.lyrics === LyricsResult.NONE && !ui.lyricsLoading)
     LaunchedEffect(track.trackhash) {
-        if (ui.lyrics === LyricsResult.NONE && !ui.lyricsLoading) vm.fetchLyrics(false)
+        delay(500)
+        if (stillIdle) vm.fetchLyrics(false)
     }
     if (ui.lyricsLoading) {
         Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {

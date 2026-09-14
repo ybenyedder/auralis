@@ -4,6 +4,59 @@ All notable changes to Auralis are documented here. The format is based on
 [Keep a Changelog](https://keepachangelog.com/) and this project adheres to
 [Semantic Versioning](https://semver.org/).
 
+## [1.21.0] - 2026-09-14
+
+Six chantiers parallèles supplémentaires, puis une chasse aux régressions dont
+les quatre trouvailles sont corrigées ici.
+
+### Ajouté
+- **Android : la télécommande Auralis Connect et l'autoplay infini survivent
+  maintenant à la fermeture de l'app.** SyncManager (contrôle à distance) et
+  `appendContinuation` (extension de file jamais-écoutée) vivent dans le scope
+  process-lifetime de `PlaybackAccounting` : un autre appareil garde la main,
+  la file continue de s'étendre, et la rotation du token (changement de mot de
+  passe, déconnexion) reconnecte proprement le hub.
+- **Android : écrans fluides sur grandes bibliothèques** — les tris/filtres/
+  regroupements d'accueil, nouveau, radio, bibliothèque et pages de détail
+  sont calculés hors du thread UI (l'ancien comportement freezait la
+  composition), le scrubber utilise la durée du lecteur, les requêtes d'images
+  sont annulées au défilement rapide, et les contrôles épingler/monter/
+  descendre sont annotés pour TalkBack.
+- **Web : wake lock plein écran** — l'écran ne s'endort plus quand le lecteur
+  plein écran ou le visualiseur est ouvert (reprise après visibilitychange).
+- **Tests : 12 nouveaux tests serveur** épinglent les comportements récents —
+  sidecar `.lrc` édité (gagne/perd selon mtime), GC des pochettes orphelines
+  (référencées conservées, junk intacte, idempotent), UCB fenêtré 180 jours
+  (mutation-vérifié), rupture Markov sur skip, bornes de mois et minuit local
+  des stats, contrat du jeton d'URL de l'API.
+
+### Corrigé
+- **Web : le geste retour Android redevient fiable après un retour « à la
+  racine »** — la sentinelle d'historique était consommée définitivement au
+  premier back sans pile, puis la navigation suivante devenait inatteignable
+  par le geste ; elle est réarmée dès que la pile ou le lecteur plein écran
+  réexiste, et le double-push du Strict Mode est écarté.
+- **Web : les compteurs d'écoute ne rembobinent plus au premier scrobble
+  effectué pendant une synchro** (la greffe n'itérait que les titres déjà
+  connus avant la requête).
+- **Serveur : le rafraîchissement `last_used_at` des sessions pointait sur
+  l'identifiant brut au lieu du hash** — écriture morte depuis le hachage des
+  jetons (aucun lecteur aujourd'hui, mais toute future UI « sessions actives »
+  aurait affiché des données gelées).
+- **Serveur : l'intervalle de re-scan du watcher peut fuir** quand un événement
+  arrive pendant un scan puis que le suivant part direct — nettoyé.
+- **Reco : le tri de la continuation avec jitter aléatoire inline est un ordre
+  non stable** — le score est précalculé par titre (le port Android avait
+  documenté le même piège).
+- **Opérateurs derrière un proxy : un rejet CSRF avec X-Forwarded-Host présent
+  mais AURALIS_TRUST_PROXY non défini journalise désormais la marche à suivre**
+  au lieu d'échouer en silence.
+- **Android : fetch de paroles dédoublonné** avec garde de course, tuiles
+  récentes qui naviguent vers l'album, visualiseur honnêtement étiqueté
+  « décoratif », carte Apparence morte retirée.
+- **Web : pinch-zoom réautorisé** (WCAG 1.4.4), fuite de minuteurs de toast
+  corrigée, nag d'installation mémorisé par navigateur.
+
 ## [1.20.0] - 2026-09-14
 
 Sept chantiers menés en parallèle pour finir la liste de l'audit — détail des

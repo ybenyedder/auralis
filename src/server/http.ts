@@ -2,8 +2,11 @@
 // hardening, consistent JSON responses and baseline security headers.
 
 import { NextResponse } from "next/server";
+import { createLogger } from "./logger";
 import { isAuthenticated, getRequestUser, getTokenUser, type UserRow } from "./auth";
 
+const log = createLogger("http");
+let csrfXfhWarned = false;
 const SECURITY_HEADERS: Record<string, string> = {
   "X-Content-Type-Options": "nosniff",
   "Referrer-Policy": "no-referrer",
@@ -131,6 +134,13 @@ export function checkCsrf(request: Request): NextResponse | null {
   }
 
   if (allowed.has(sourceHost)) return null;
+  // Upgrading note for operators behind a rewriting reverse proxy: since the
+  // trust-proxy gating, their public host arrives in X-Forwarded-Host which is
+  // no longer trusted by default — say so once instead of failing silently.
+  if (!trustProxy && request.headers.get("x-forwarded-host") && !csrfXfhWarned) {
+    csrfXfhWarned = true;
+    log.warn("CSRF rejection with an X-Forwarded-Host present but AURALIS_TRUST_PROXY unset — if you are behind a rewriting reverse proxy, set AURALIS_TRUST_PROXY=1 (or AURALIS_ALLOWED_ORIGINS).");
+  }
   return json({ error: "Origine de la requête non autorisée" }, { status: 403 });
 }
 

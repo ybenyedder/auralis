@@ -60,6 +60,9 @@ export function initWatcher() {
       if (getScanProgress().status !== "scanning") {
         log.info("triggering scan from watch mode");
         pendingRescan = false;
+        // A completion poll armed by an earlier mid-scan event would otherwise
+        // linger forever once pendingRescan is consumed here.
+        if (completionPoll) { clearInterval(completionPoll); completionPoll = undefined; }
         void runScan();
       } else {
         // An event landing mid-scan used to be DROPPED — but the file it

@@ -312,7 +312,7 @@ fun TrackRow(
                     .then(if (checked) Modifier.background(colors.accent) else Modifier.border(1.5.dp, colors.textFaint, CircleShape)),
                 contentAlignment = Alignment.Center,
             ) {
-                if (checked) Icon(Icons.Filled.Check, null, tint = colors.ink, modifier = Modifier.size(14.dp))
+                if (checked) Icon(Icons.Filled.Check, "Sélectionné", tint = colors.ink, modifier = Modifier.size(14.dp))
             }
             Spacer(Modifier.width(12.dp))
         } else if (index != null) {

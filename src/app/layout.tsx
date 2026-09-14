@@ -58,8 +58,9 @@ export const viewport = {
   themeColor: "#000000",
   width: "device-width",
   initialScale: 1,
-  maximumScale: 1,
-  userScalable: false,
+  // No maximumScale/userScalable here: they blocked pinch-zoom (WCAG 1.4.4
+  // resize-text failure; Android honors the meta tag). The OS default —
+  // user-scalable — applies instead.
   // Cover the notch / home-indicator so the mobile chrome can paint into the
   // safe-area insets instead of leaving system letterboxing.
   viewportFit: "cover" as const,

@@ -123,3 +123,54 @@ test("resetUserStats is scoped to the user (no cross-user wipe — IDOR-safe)", 
   assert.equal(getListeningStats(1).totalPlays, 0, "user 1 cleared");
   assert.equal(getListeningStats(2).totalPlays, 5, "user 2 untouched");
 });
+
+// The day/month bucketing moved from strftime('...','localtime') to JS computed
+// over indexed queries. These pin that the results still match the old LOCAL-time
+// semantics — not UTC.
+
+test("month boundary: events on the last day and the first day of adjacent months land in separate month buckets", async () => {
+  const { db } = await setup();
+  const { listRecapMonths, getMonthlyRecap } = await import("../src/server/reco/recap");
+  addTrack(db, "m1", 200);
+  addTrack(db, "m2", 240);
+  // Local wall-clock construction (2026-01-31 23:59 and 2026-02-01 00:01 local):
+  // always in the past, so the assertion never depends on the machine's clock —
+  // and 2 minutes apart ACROSS the boundary. A UTC-based bucketing would merge
+  // one side into the other month in any timezone offset from UTC.
+  const lastJan = new Date(2026, 0, 31, 23, 59, 0).getTime();
+  const firstFeb = new Date(2026, 1, 1, 0, 1, 0).getTime();
+  addEvent(db, "m1", lastJan);
+  addEvent(db, "m2", firstFeb);
+
+  const months = listRecapMonths(UID).filter((k) => k === "2026-01" || k === "2026-02");
+  assert.deepEqual(months, ["2026-02", "2026-01"], "two distinct month buckets, newest first");
+
+  const jan = getMonthlyRecap(UID, "2026-01");
+  const feb = getMonthlyRecap(UID, "2026-02");
+  assert.equal(jan.totalPlays, 1, "January owns exactly its last-day event");
+  assert.equal(feb.totalPlays, 1, "February owns exactly its first-day event");
+  assert.equal(jan.listeningSeconds, 200, "January's listening time comes only from its own event");
+  assert.equal(feb.listeningSeconds, 240);
+  assert.equal(getMonthlyRecap(UID, "2026-03").totalPlays, 0, "no leakage into the following month");
+});
+
+test("local midnight crossing: events either side of local midnight bucket on different days (timezone/DST safety)", async () => {
+  const { db, getListeningStats } = await setup();
+  const now = new Date();
+  addTrack(db, "t", 180);
+  // Built from LOCAL wall-clock components: 23:59:30 yesterday and 00:00:30
+  // today — 60s apart across local midnight regardless of the UTC offset or a
+  // DST transition (local midnight never moves). A UTC-day bucketing would merge
+  // one of them into the other's day for any non-UTC offset.
+  const yesterdayLate = new Date(now.getFullYear(), now.getMonth(), now.getDate() - 1, 23, 59, 30).getTime();
+  const todayEarly = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 0, 0, 30).getTime();
+  addEvent(db, "t", yesterdayLate);
+  addEvent(db, "t", todayEarly);
+
+  const s = getListeningStats(UID);
+  assert.notEqual(s.playsByDay[5].day, s.playsByDay[6].day, "the two sides of local midnight are distinct day keys");
+  assert.equal(s.playsByDay[5].count, 1, "yesterday's 23:59:30 event buckets on yesterday");
+  assert.equal(s.playsByDay[6].count, 1, "today's 00:00:30 event buckets on today");
+  assert.equal(s.todayPlays, 1);
+  assert.equal(s.streak, 2, "yesterday + today chain the streak across midnight");
+});

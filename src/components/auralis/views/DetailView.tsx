@@ -145,7 +145,7 @@ export function AlbumDetail({ albumhash }: { albumhash: string }) {
           />
           <div className="mt-4 min-w-0 lg:mt-0 lg:pb-2">
             <p className="text-[10px] font-semibold uppercase tracking-[0.08em] text-[var(--brass)]">
-              Album
+              {t("mobile.album")}
             </p>
             <h1 className="mt-1 text-[clamp(24px,7vw,32px)] font-black leading-tight tracking-tight text-foreground lg:text-[clamp(30px,4.5vw,56px)] lg:leading-none">
               {album.title}
@@ -280,7 +280,7 @@ export function ArtistDetail({ artisthash }: { artisthash: string }) {
           )}
           <div className="mt-4 min-w-0 lg:mt-0 lg:pb-1">
             <p className="text-[10px] font-semibold uppercase tracking-[0.08em] text-[var(--brass)]">
-              Artiste
+              {t("common.artistLabel")}
             </p>
             <h1 className="mt-1 text-[clamp(24px,7vw,32px)] font-black leading-tight tracking-tight text-foreground lg:text-[clamp(30px,4.5vw,56px)] lg:leading-none">
               {artist.name}
@@ -291,7 +291,8 @@ export function ArtistDetail({ artisthash }: { artisthash: string }) {
               </p>
             )}
             <p className="mt-2 text-[12px] text-muted-foreground">
-              {artistPlays > 0 ? `${t("common.playsCount", "{count} écoutes", { count: formatCount(artistPlays) })} · ` : ""}
+              {/* Key exists in both dicts — no need for a hardcoded FR fallback. */}
+              {artistPlays > 0 ? `${t("common.playsCount", undefined, { count: formatCount(artistPlays) })} · ` : ""}
               {plural(artist.albumcount ?? artistAlbums.length, "album")} ·{" "}
               {t("common.tracksCount", undefined, { count: artist.trackcount ?? artistTracks.length })}
               {artist.genres?.length ? ` · ${artist.genres.join(", ")}` : ""}
@@ -786,7 +787,9 @@ export function SettingsView() {
         const text = String(reader.result ?? "{}");
         const parsed = JSON.parse(text);
         if (!parsed || typeof parsed !== "object")
-          throw new Error("JSON invalide");
+          // Internal guard only: the catch below swaps this for the translated
+          // "invalid import" toast — the message itself is never displayed.
+          throw new Error("Invalid JSON");
         window.localStorage.setItem(STORAGE_KEY, JSON.stringify(parsed));
         window.location.reload();
       } catch {
@@ -1469,6 +1472,9 @@ function ModeSelector({ mode, setMode }: { mode: Mode; setMode: (m: Mode) => voi
 // immediately — instead of hunting through a single action row.
 function LanguageSelector({ locale, setLocale }: { locale: "fr" | "en"; setLocale: (l: "fr" | "en") => void }) {
   const t = useT();
+  // "Français"/"English" stay literal on purpose: language autonyms are proper
+  // names rendered in their own language in every locale (same convention as
+  // the LOCALES catalogue in messages.ts).
   const options: { id: "fr" | "en"; label: string; hint: string }[] = [
     { id: "fr", label: "Français", hint: t("settings.language.fr.hint") },
     { id: "en", label: "English", hint: t("settings.language.en.hint") },
