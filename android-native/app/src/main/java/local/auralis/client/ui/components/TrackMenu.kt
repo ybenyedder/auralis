@@ -27,6 +27,7 @@ import androidx.compose.material.icons.filled.FavoriteBorder
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.PlaylistAdd
+import androidx.compose.material.icons.filled.PlaylistRemove
 import androidx.compose.material.icons.filled.QueueMusic
 import androidx.compose.material.icons.filled.ThumbDown
 import androidx.compose.material3.Icon
@@ -91,6 +92,16 @@ fun TrackMenu(track: Track, ui: UiState, vm: AppViewModel, onDismiss: () -> Unit
                 MenuRow(Icons.Filled.PlayArrow, "Lire ensuite") { vm.addNext(track); onDismiss() }
                 MenuRow(Icons.Filled.QueueMusic, "Ajouter à la file") { vm.addToEnd(track); onDismiss() }
                 MenuRow(Icons.Filled.PlaylistAdd, "Ajouter à une playlist") { pickingPlaylist = true }
+                // Context-aware removal: when this sheet opens from inside a
+                // playlist that contains the track, offer to pull it out — the
+                // row-level trash is the other path, but users look here first.
+                val openPlaylistId = ui.nav.takeIf { it.view == ViewId.PLAYLIST }?.id
+                val openPlaylist = openPlaylistId?.let { pid -> ui.playlists.find { it.id == pid } }
+                if (openPlaylist != null && openPlaylist.trackhashes.contains(track.trackhash)) {
+                    MenuRow(Icons.Filled.PlaylistRemove, "Retirer de « ${openPlaylist.name} »") {
+                        vm.removeFromPlaylist(openPlaylist.id, track.trackhash); onDismiss()
+                    }
+                }
                 MenuDivider()
                 MenuRow(Icons.Filled.AutoAwesome, "Sélectionner (Mix IA)") { vm.enterSelection(track.trackhash); onDismiss() }
                 val fav = ui.favorites.contains(track.trackhash)

@@ -213,6 +213,41 @@ fun HomeScreen(vm: AppViewModel, ui: UiState) {
             }
         }
 
+        // "Jamais écoutés" hero — mirrors the PWA home (same indigo card as the
+        // Radio tab): the discovery entry point lives on the ACCUEIL tab, where
+        // users look for it, not only buried in Radio.
+        if (ui.tracks.any { (ui.playCounts[it.trackhash] ?: 0) == 0 && it.trackhash !in ui.dislikes }) {
+            item {
+                Spacer(Modifier.height(16.dp))
+                Box(
+                    Modifier
+                        .fillMaxWidth()
+                        .height(150.dp)
+                        .clip(RoundedCornerShape(14.dp))
+                        .background(
+                            Brush.linearGradient(
+                                listOf(Color(0xFF1E3A8A), Color(0xFF4F46E5)),
+                            ),
+                        )
+                        .clickable { vm.playUnheardMix() }
+                        .padding(20.dp),
+                ) {
+                    Column(Modifier.align(Alignment.BottomStart)) {
+                        Text("Jamais écoutés", color = Color.White, style = AMType.Title1)
+                        Spacer(Modifier.height(4.dp))
+                        Text(
+                            "Mix aléatoire de titres que tu n'as jamais joués",
+                            color = Color.White.copy(alpha = 0.85f), style = AMType.Subhead,
+                        )
+                    }
+                    Icon(
+                        Icons.Filled.PlayArrow, "Lire le mix jamais écoutés",
+                        tint = Color.White, modifier = Modifier.align(Alignment.BottomEnd).size(44.dp),
+                    )
+                }
+            }
+        }
+
         // Mix du jour — a daily 5-track starter list.
         if (home.mix.isNotEmpty()) {
             item {

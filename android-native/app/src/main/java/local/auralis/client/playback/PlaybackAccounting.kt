@@ -5,6 +5,7 @@ import android.content.Context
 import android.os.SystemClock
 import androidx.core.content.ContextCompat
 import androidx.media3.common.MediaItem
+import androidx.media3.common.PlaybackException
 import androidx.media3.common.Player
 import androidx.media3.session.MediaController
 import androidx.media3.session.SessionToken
@@ -132,6 +133,11 @@ class PlaybackAccounting private constructor(private val context: Context) {
     private var listenedMs = 0L
     private var lastPos = 0L
     private var scrobbled = false
+
+    /** Consecutive playback errors without any real progress in between; see
+     *  [listener.onPlayerError]. Main-confined like the rest of the gate state. */
+    private var errorStreak = 0
+
     private var lastSessionJson: String? = null
     private var recoJob: Job? = null
 
@@ -227,6 +233,35 @@ class PlaybackAccounting private constructor(private val context: Context) {
             if (state == Player.STATE_ENDED) maybeContinue()
         }
 
+        override fun onPlayWhenReadyChanged(playWhenReady: Boolean, reason: Int) {
+            // A queue restored ON its last item never fires a transition onto the
+            // tail (attach deliberately doesn't continue), so the first play press
+            // is the last chance to grow the queue before STATE_ENDED.
+            if (playWhenReady) maybeContinue()
+        }
+
+        override fun onPlayerError(error: PlaybackException) {
+            // A failed stream (flaky mobile network, dead file) parks the player in
+            // STATE_IDLE — without this, playback just went silent mid-queue. Skip to
+            // the next item; at the tail, grow the queue and the post-append nudge in
+            // appendContinuation resumes. Bounded so a wholly unreachable server
+            // can't spin the queue forever.
+            val c = controller ?: return
+            errorStreak += 1
+            if (errorStreak == 1) _messages.tryEmit("Piste illisible — passage à la suivante")
+            if (errorStreak >= 6) {
+                _messages.tryEmit("Lecture interrompue : trop d'erreurs d'affilée")
+                return
+            }
+            if (c.hasNextMediaItem()) {
+                c.seekToNextMediaItem()
+                c.prepare()
+                c.play()
+            } else {
+                maybeContinue()
+            }
+        }
+
         override fun onEvents(player: Player, events: Player.Events) {
             publishNowPlaying()
         }
@@ -276,7 +311,12 @@ class PlaybackAccounting private constructor(private val context: Context) {
             val id = c.currentMediaItem?.mediaId
             if (c.playWhenReady && id != null) {
                 val delta = pos - lastPos
-                if (delta in 1..2000) listenedMs += delta
+                if (delta in 1..2000) {
+                    listenedMs += delta
+                    // Real progress = the current item streams fine; any earlier
+                    // error streak is ancient history.
+                    if (errorStreak != 0) errorStreak = 0
+                }
                 lastPos = pos
                 val dur = c.duration.coerceAtLeast(0L)
                 val threshold = if (dur > 0) minOf(30_000L, dur / 2) else 30_000L
@@ -426,7 +466,19 @@ class PlaybackAccounting private constructor(private val context: Context) {
                 // on the controller's application thread. Appending through THIS
                 // controller mutates the shared session queue, so the UI's own
                 // PlayerHolder snapshot (and the queue screen) still sees the growth.
-                if (ranked.isNotEmpty()) c.addMediaItems(ranked.map { it.toMediaItem(api) })
+                if (ranked.isNotEmpty()) {
+                    c.addMediaItems(ranked.map { it.toMediaItem(api) })
+                    // Appending onto a terminal player does NOT restart playback:
+                    // ExoPlayer only auto-advances between READY items, so a queue that
+                    // reached STATE_ENDED (or STATE_IDLE after an error) stays silent
+                    // even with 20 fresh tracks sitting right there. Hop onto the first
+                    // appended item — the seek exits ENDED and re-prepares from IDLE.
+                    if (c.playbackState == Player.STATE_ENDED || c.playbackState == Player.STATE_IDLE) {
+                        c.seekToNextMediaItem()
+                        c.prepare()
+                        c.play()
+                    }
+                }
             } finally {
                 continuationInFlight = false
             }

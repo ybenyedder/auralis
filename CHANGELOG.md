@@ -4,6 +4,42 @@ All notable changes to Auralis are documented here. The format is based on
 [Keep a Changelog](https://keepachangelog.com/) and this project adheres to
 [Semantic Versioning](https://semver.org/).
 
+## [1.21.1] - 2026-09-29
+
+Trois remontées terrain de l'app Android, toutes vérifiées de bout en bout sur
+émulateur contre un serveur de dev (playlist de pistes de 6-9 s pour observer
+les fins de file, coupure réseau en pleine lecture).
+
+### Ajouté
+- **Android : la carte « Jamais écoutés » est sur l'accueil.** Elle n'existait
+  que dans l'onglet Radio ; elle siège désormais entre les tuiles d'accès
+  rapide et « Mix du jour », au même endroit que sur la PWA — même carte
+  indigo, même mix aléatoire relancé à chaque appui.
+- **Android : « Retirer de cette playlist » dans le menu ⋮ d'un titre** lorsque
+  la feuille s'ouvre depuis l'écran de la playlist concernée.
+
+### Corrigé
+- **Android : supprimer un titre de sa playlist est enfin visible.** L'ancien
+  « Retirer » était un libellé gris 12sp que personne ne trouvait — chaque
+  rangée porte maintenant une corbeille (cible tactile 40 dp, teinte
+  destructive, annoncée par TalkBack), avec toast de confirmation « Retiré de
+  « … » ».
+- **Android : la musique ne s'arrête plus en fin de file.** L'extension de file
+  (`appendContinuation`) atterrissait sur un player `STATE_ENDED` sans jamais
+  le relancer : les titres étaient bien ajoutés, mais le silence restait.
+  Après l'ajout, un player terminé (ENDED, ou IDLE après erreur) saute
+  désormais sur le premier titre ajouté et reprend la lecture. Une file
+  restaurée POSITIONNÉE sur son dernier titre déclenche aussi la continuation
+  au premier appui sur Lecture (plus aucun transition vers la queue n'arrive
+  pour la déclencher).
+- **Android : une erreur de lecture ne tue plus la session.** Aucun
+  `onPlayerError` n'était branché : un stream qui échoue (réseau mobile
+  capricieux, serveur injoignable) laissait le player en `STATE_IDLE`, muet,
+  au milieu d'une file pleine. Désormais : toast « Piste illisible », passage
+  au titre suivant, et arrêt propre après 6 échecs consécutifs sans aucune
+  progression réelle (un serveur mort ne fait pas tourner la file en boucle).
+  Le compteur retombe à zéro dès qu'un titre progresse réellement.
+
 ## [1.21.0] - 2026-09-14
 
 Six chantiers parallèles supplémentaires, puis une chasse aux régressions dont

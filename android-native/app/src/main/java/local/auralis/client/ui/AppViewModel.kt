@@ -676,6 +676,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
     fun removeFromPlaylist(playlistId: String, trackhash: String) {
         val pl = _ui.value.playlists.find { it.id == playlistId } ?: return
         upsertPlaylist(pl.copy(trackhashes = pl.trackhashes.filter { it != trackhash }))
+        notify("Retiré de « ${pl.name} »")
     }
 
     fun renamePlaylist(playlistId: String, name: String) {

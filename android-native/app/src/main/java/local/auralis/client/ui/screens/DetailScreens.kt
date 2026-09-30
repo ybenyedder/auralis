@@ -293,8 +293,20 @@ fun PlaylistDetail(vm: AppViewModel, ui: UiState, playlistId: String) {
                         onToggleFavorite = { vm.toggleFavorite(t.trackhash) }, onMore = { vm.openTrackMenu(t) },
                     )
                 }
-                Text("Retirer", color = colors.textFaint, fontSize = 12.sp,
-                    modifier = Modifier.clickable { vm.removeFromPlaylist(playlistId, t.trackhash) }.padding(8.dp))
+                // A real button, not the old 12sp "Retirer" caption: users scanning
+                // for a trash affordance never found it. 40dp touch target,
+                // destructive tint, announced by TalkBack.
+                Box(
+                    Modifier
+                        .padding(start = 4.dp)
+                        .size(40.dp)
+                        .clip(RoundedCornerShape(20.dp))
+                        .clickable { vm.removeFromPlaylist(playlistId, t.trackhash) }
+                        .semantics { contentDescription = "Retirer de la playlist" },
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Icon(Icons.Filled.Delete, contentDescription = null, tint = colors.destructive, modifier = Modifier.size(20.dp))
+                }
             }
         }
         if (tracks.isEmpty()) item { EmptyHint("Playlist vide", "Ajoute des titres via le menu ⋮ d'un morceau.") }
