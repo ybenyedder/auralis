@@ -89,7 +89,7 @@ jobs:
         with:
           distribution: temurin
           java-version: 21
-      - uses: android-actions/setup-android@v3
+      - uses: android-actions/setup-android@v4
       - name: Install dependencies
         # npm ci refuserait la dépendance git du lock (@electron/rebuild →
         # @electron/node-gyp) ; on résout comme le job desktop.

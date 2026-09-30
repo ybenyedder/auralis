@@ -109,7 +109,7 @@ jobs:
 
       # Same SDK setup as the release.yml android job; the runner + this action
       # export ANDROID_HOME, which is all the Gradle build needs.
-      - uses: android-actions/setup-android@v3
+      - uses: android-actions/setup-android@v4
 
       # `full` flavor variant (the shipped, self-updating channel); the shared
       # src/test suite compiles against src/main either way.

@@ -38,7 +38,7 @@ jobs:
           distribution: temurin
           java-version: 21
 
-      - uses: android-actions/setup-android@v3
+      - uses: android-actions/setup-android@v4
 
       # Same signing story as release.yml: the stable upload keystore lives in
       # the ANDROID_KEYSTORE_BASE64 secret (it is gitignored since the original
