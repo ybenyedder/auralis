@@ -4,6 +4,44 @@ All notable changes to Auralis are documented here. The format is based on
 [Keep a Changelog](https://keepachangelog.com/) and this project adheres to
 [Semantic Versioning](https://semver.org/).
 
+## [1.22.1] - 2026-10-06
+
+Passe d'audit complète de la v1.22.0 (sécurité, robustesse, E2E navigateur
+réel), corrections vérifiées une à une sur un serveur de dev.
+
+### Corrigé
+- **Sécurité : `/api/download` applique désormais le contrôle CSRF** comme
+  toutes les routes mutantes (les sessions cookie sans Origin valables sont
+  refusées ; les clients à jeton restent exemptés). L'annulation d'un job est
+  réservée à son demandeur (ou à l'admin), et la liste des jobs ne montre plus
+  aux non-admin que leurs propres requêtes.
+- **Téléchargement : l'identifiant vidéo est validé** (`^[A-Za-z0-9_-]{11}$`) —
+  un `videoId` forgé ne peut plus injecter de paramètres d'URL yt-dlp ni de
+  séparateurs de chemin dans le nom de fichier `[id]`.
+- **Téléchargement : la miniature ne se fait plus passer pour l'audio.**
+  Découvert en E2E réel : sur un échec 403 de YouTube, yt-dlp laisse quand même
+  la miniature `.webp` sur le gabarit de sortie — elle était alors « secourue »
+  comme fichier téléchargé (puis comme « déjà téléchargé » par la dédup,
+  court-circuitant le vrai téléchargement). Désormais seul un fichier AUDIO
+  compte, aux trois endroits : chemin imprimé, détection d'existant, secours
+  « fichier le plus récent » ; les `.webp` parasites sont nettoyés.
+- **Téléchargement : réessais avec rotation de client YouTube.** YouTube
+  répond 403 de façon aléatoire sur des requêtes valides (PO token) — jusqu'à
+  4 tentatives, chacune retirant des URLs fraîches, les suivantes avec
+  `player_client` alternatif. Vérifié en live (échecs ~50 % → succès).
+- **Téléchargement : la course au scan est comblée.** Si un scan est déjà en
+  cours (rescan au démarrage, autre job), `runScan()` rendait immédiatement et
+  le fichier fraîchement déposé pouvait manquer le scan → boucle bornée de
+  re-scan (3 essais) avant d'abandonner.
+- **Web : la session persistée est fenêtrée** (50 avant / 200 après le titre
+  courant). L'écoute infinie fait croître la file sans borne ; sauvegarder
+  TOUTE la file gonflait localStorage à chaque écriture. La restauration
+  tolérait déjà la troncature.
+
+### Ajouté
+- **5 tests d'intégration** sur la route de téléchargement (401, CSRF 403,
+  videoId invalide ×5, liste des jobs, DELETE) — suite à 164 tests verts.
+
 ## [1.22.0] - 2026-10-06
 
 Deux chantiers demandés par le terrain : « la musique s'arrête parfois en

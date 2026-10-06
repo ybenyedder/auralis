@@ -87,14 +87,23 @@ export const usePlayer = create<PlayerState>()(
         // later lost the resume entirely. The element's clock reads 0 for a
         // restored-but-not-yet-played track, so fall back to the playhead store,
         // which carries the position the scrubber is showing.
-        lastSession: state.currentTrack
-          ? {
-              trackhash: state.currentTrack.trackhash,
-              queueHashes: state.queue.map((t) => t.trackhash),
-              currentIndex: state.currentIndex,
-              position: getAudioTime() || usePlayhead.getState().position || 0,
-            }
-          : hydrated ? undefined : loadPersisted().lastSession,
+        lastSession: (() => {
+          if (!state.currentTrack) return hydrated ? undefined : loadPersisted().lastSession;
+          // Endless autoplay grows the queue without bound (20 tracks per
+          // queue-tail, forever); persisting it whole would bloat localStorage
+          // on every single store write. Keep a window around the current
+          // track — restoreLastSession re-finds the current track by hash and
+          // already tolerates a truncated queue ("resume it alone" branch).
+          const hashes = state.queue.map((t) => t.trackhash);
+          const start = Math.max(0, state.currentIndex - 50);
+          const windowed = hashes.slice(start, start + 250);
+          return {
+            trackhash: state.currentTrack.trackhash,
+            queueHashes: windowed,
+            currentIndex: Math.max(0, Math.min(state.currentIndex - start, windowed.length - 1)),
+            position: getAudioTime() || usePlayhead.getState().position || 0,
+          };
+        })(),
       } as Persisted),
       onRehydrateStorage: () => (state, error) => {
         if (state && !error) {

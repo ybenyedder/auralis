@@ -13,6 +13,7 @@ import path from "path";
 import { createLogger } from "../logger";
 import { getConfig } from "../config";
 import { getDb } from "../db";
+import { isSupportedAudioPath } from "../paths";
 import { runScan } from "./scanner";
 
 const log = createLogger("downloader");
@@ -115,8 +116,6 @@ function runYtDlp(args: string[], timeoutMs: number): Promise<{ code: number; st
   if (!bin) return Promise.resolve({ code: -1, stdout: "", stderr: "yt-dlp not found" });
   return new Promise((resolve) => {
     const child = spawn(/*turbopackIgnore: true*/ bin, args, { stdio: ["ignore", "pipe", "pipe"] });
-    let stdout = "";
-    let stderr = "";
     let out = "";
     let err = "";
     const timer = setTimeout(() => child.kill("SIGKILL"), timeoutMs);
@@ -134,9 +133,7 @@ function runYtDlp(args: string[], timeoutMs: number): Promise<{ code: number; st
     });
     child.on("close", (code) => {
       clearTimeout(timer);
-      stdout = out;
-      stderr = err;
-      resolve({ code: code ?? -1, stdout, stderr });
+      resolve({ code: code ?? -1, stdout: out, stderr: err });
     });
   });
 }
@@ -212,6 +209,11 @@ const MAX_QUEUED = 6;
 const MAX_ACTIVE_PER_USER = 2;
 const DOWNLOAD_TIMEOUT_MS = 10 * 60 * 1000;
 const MAX_COMPLETED_JOBS = 30;
+/** YouTube video ids are exactly 11 chars of this alphabet. Validating the
+ *  CLIENT-SUPPLIED id keeps it from smuggling query params into the watch URL,
+ *  path separators into the `[id]` filename marker, or anything else into a
+ *  yt-dlp argument it wasn't meant to be. */
+const VIDEO_ID_RE = /^[A-Za-z0-9_-]{11}$/;
 
 function activeCount(): number {
   let n = 0;
@@ -247,11 +249,16 @@ function trackByFilepath(filepath: string): { trackhash: string; title: string }
   }
 }
 
-/** Same video already downloaded? Match the `[VIDEOID]` marker in the filename. */
+/** Same video already downloaded? Match the `[VIDEOID]` marker in the filename —
+ *  AUDIO files only: the embedded-thumbnail .webp lands on the same output
+ *  template even when (or after) the audio download failed, and once
+ *  masqueraded as "already downloaded", skipping the real download. */
 function existingFileFor(videoId: string): string | null {
   const dir = downloadsDir();
   try {
-    const hit = fs.readdirSync(/*turbopackIgnore: true*/ dir).find((name) => name.includes(`[${videoId}]`));
+    const hit = fs.readdirSync(/*turbopackIgnore: true*/ dir).find(
+      (name) => name.includes(`[${videoId}]`) && isSupportedAudioPath(name),
+    );
     return hit ? path.join(dir, hit) : null;
   } catch {
     return null;
@@ -274,6 +281,9 @@ export function startDownload(opts: {
 }): { ok: true; job: DownloadJob } | { ok: false; error: string; status: number } {
   if (!downloadsEnabled()) {
     return { ok: false, error: "Téléchargement indisponible : installez yt-dlp sur le serveur", status: 503 };
+  }
+  if (opts.videoId && !VIDEO_ID_RE.test(opts.videoId)) {
+    return { ok: false, error: "Identifiant vidéo invalide", status: 400 };
   }
   const activeForUser = [...jobs.values()].filter(
     (j) => j.requestedBy === opts.requestedBy && j.status !== "done" && j.status !== "error",
@@ -397,65 +407,103 @@ async function execute(job: DownloadJob) {
       }
       args.push(`https://www.youtube.com/watch?v=${job.videoId}`);
 
-      finalPath = await new Promise<string | null>((resolve) => {
-        const bin = findYtDlp();
-        if (!bin) {
-          resolve(null);
-          return;
+      // YouTube intermittently answers 403 on perfectly valid requests (seen
+      // live: the same command failed twice then succeeded untouched — the
+      // stream URLs it hands out sometimes demand a PO token this server has no
+      // way to mint). Each attempt re-extracts FRESH URLs and later ones rotate
+      // the player client, which re-rolls the dice on the 403.
+      for (let attempt = 1; attempt <= 4 && !finalPath && job.error !== "Annulé"; attempt++) {
+        if (attempt > 1) {
+          job.error = null;
+          await new Promise((r) => setTimeout(r, 1200 * attempt));
         }
-        const child = spawn(/*turbopackIgnore: true*/ bin, args, { stdio: ["ignore", "pipe", "pipe"] });
-        running.set(job.id, child);
-        let printed = "";
-        let tail = "";
-        let done = false;
-        const finish = (value: string | null) => {
-          if (done) return;
-          done = true;
-          running.delete(job.id);
-          clearTimeout(timer);
-          resolve(value);
-        };
-        const timer = setTimeout(() => {
-          child.kill("SIGKILL");
-          finish(null);
-        }, DOWNLOAD_TIMEOUT_MS);
-        child.stdout.on("data", (chunk: Buffer) => {
-          const text = chunk.toString();
-          printed += text;
-          tail = (tail + text).slice(-4000);
-          const pct = /\[download\]\s+(\d+(?:\.\d+)?)%/.exec(text);
-          if (pct) {
-            const value = Math.round(Number.parseFloat(pct[1]));
-            if (Number.isFinite(value)) job.progress = Math.max(job.progress, Math.min(99, value));
+        const clientArgs =
+          attempt === 1
+            ? []
+            : attempt === 2
+              ? ["--extractor-args", "youtube:player_client=default,tv"]
+              : ["--extractor-args", "youtube:player_client=default,web_safari,tv"];
+        const fullArgs = attempt === 1 ? args : [...args.slice(0, -1), ...clientArgs, args[args.length - 1]];
+        finalPath = await new Promise<string | null>((resolve) => {
+          const bin = findYtDlp();
+          if (!bin) {
+            job.error = "yt-dlp introuvable sur le serveur";
+            resolve(null);
+            return;
           }
-        });
-        child.stderr.on("data", (chunk: Buffer) => {
-          tail = (tail + chunk.toString()).slice(-4000);
-        });
-        child.on("error", () => finish(null));
-        child.on("close", (code) => {
-          if (code === 0) {
-            // The final path is the last absolute path yt-dlp printed.
-            const match = [...printed.matchAll(/[^\n"]*\/[^\n"]+\.[a-z0-9]{2,4}\s*$/gim)].pop();
-            const candidate = match?.[0]?.trim();
-            finish(candidate && fs.existsSync(candidate) ? candidate : null);
-          } else if (job.error === "Annulé") {
+          const child = spawn(/*turbopackIgnore: true*/ bin, fullArgs, { stdio: ["ignore", "pipe", "pipe"] });
+          running.set(job.id, child);
+          let printed = "";
+          let tail = "";
+          let done = false;
+          const finish = (value: string | null) => {
+            if (done) return;
+            done = true;
+            running.delete(job.id);
+            clearTimeout(timer);
+            resolve(value);
+          };
+          const timer = setTimeout(() => {
+            child.kill("SIGKILL");
             finish(null);
-          } else {
-            job.error = sanitize(tail || `yt-dlp a échoué (code ${code})`);
-            finish(null);
-          }
+          }, DOWNLOAD_TIMEOUT_MS);
+          child.stdout.on("data", (chunk: Buffer) => {
+            const text = chunk.toString();
+            printed += text;
+            tail = (tail + text).slice(-4000);
+            const pct = /\[download\]\s+(\d+(?:\.\d+)?)%/.exec(text);
+            if (pct) {
+              const value = Math.round(Number.parseFloat(pct[1]));
+              if (Number.isFinite(value)) job.progress = Math.max(job.progress, Math.min(99, value));
+            }
+          });
+          child.stderr.on("data", (chunk: Buffer) => {
+            tail = (tail + chunk.toString()).slice(-4000);
+          });
+          child.on("error", () => finish(null));
+          child.on("close", (code) => {
+            if (code === 0) {
+              // after_move:filepath prints the FINAL path — but on failures the
+              // thumbnail write (same output template) can leave its own path
+              // behind; only an AUDIO file counts (the library scans audio only,
+              // a rescued .webp thumbnail once masqueraded as the download).
+              const match = [...printed.matchAll(/[^\n"]*\/[^\n"]+\.[a-z0-9]{2,5}\s*$/gim)]
+                .map((m) => m[0].trim())
+                .reverse()
+                .find((p) => isSupportedAudioPath(p) && fs.existsSync(p));
+              finish(match ?? null);
+            } else if (job.error === "Annulé") {
+              finish(null);
+            } else {
+              job.error = sanitize(tail || `yt-dlp a échoué (code ${code})`);
+              finish(null);
+            }
+          });
         });
-      });
+      }
 
       if (job.error === "Annulé") throw new Error("Annulé");
       if (!finalPath) {
-        // Last resort: newest audio file that appeared in the dir during the run.
+        // Drop non-audio leftovers for THIS video (the embedded-thumbnail .webp
+        // lands on the output template even when the audio download fails) so a
+        // failed job doesn't litter the music folder.
+        try {
+          for (const name of fs.readdirSync(/*turbopackIgnore: true*/ dir)) {
+            if (name.includes(`[${job.videoId}]`) && !isSupportedAudioPath(name)) {
+              fs.rmSync(path.join(dir, name), { force: true });
+            }
+          }
+        } catch {
+          /* best effort */
+        }
+        // Last resort: the newest AUDIO file that appeared in the dir during
+        // the run (audio-only, for the same thumbnail-masquerade reason).
         try {
           const since = job.startedAt - 2000;
           const newest = fs
             .readdirSync(/*turbopackIgnore: true*/ dir)
             .map((name) => path.join(dir, name))
+            .filter((p) => isSupportedAudioPath(p))
             .filter((p) => {
               try {
                 return fs.statSync(p).mtimeMs >= since;
@@ -472,25 +520,38 @@ async function execute(job: DownloadJob) {
       if (!finalPath) throw new Error(job.error || "Le téléchargement n'a produit aucun fichier");
     }
 
-    // Index the new file so it shows up like any other library track.
+    // Index the new file so it shows up like any other library track. runScan()
+    // is incremental (mtime+size diff) but NOT queued: when a scan is already in
+    // flight (app-start rescan, another download), it returns that scan's
+    // progress immediately and OUR file may miss it — hence a bounded retry
+    // rather than a single attempt.
     job.status = "scanning";
     job.progress = 100;
-    await runScan();
-
-    const row =
-      trackByFilepath(finalPath) ??
-      trackByFilepath(finalPath.replace(/\\/g, "/")) ??
-      (() => {
-        // runScan stores library-relative paths — retry the relative form.
-        const rel = path.relative(getConfig().musicDir, finalPath);
-        return trackByFilepath(rel);
-      })();
+    const rel = path.relative(getConfig().musicDir, finalPath);
+    const candidates = [rel, finalPath.replace(/\\/g, "/")];
+    let row: { trackhash: string; title: string } | null = null;
+    for (let attempt = 0; attempt < 3 && !row; attempt++) {
+      if (attempt > 0) await new Promise((r) => setTimeout(r, 2000));
+      await runScan();
+      row = candidates.map((p) => trackByFilepath(p)).find((found) => found !== null) ?? null;
+    }
     if (!row) throw new Error("Fichier téléchargé mais introuvable au scan");
 
     job.status = "done";
     job.trackhash = row.trackhash;
     job.title = row.title || job.title;
     job.finishedAt = Date.now();
+    // The thumbnail sidecar (non-audio, same template name) is no longer needed
+    // once it's embedded in the file — drop it so it can't confuse a later job.
+    try {
+      for (const name of fs.readdirSync(/*turbopackIgnore: true*/ dir)) {
+        if (name.includes(`[${job.videoId}]`) && !isSupportedAudioPath(name)) {
+          fs.rmSync(path.join(dir, name), { force: true });
+        }
+      }
+    } catch {
+      /* best effort */
+    }
     log.info("download imported", { videoId: job.videoId, trackhash: row.trackhash });
   } catch (err) {
     job.status = "error";

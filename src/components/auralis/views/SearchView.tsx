@@ -224,12 +224,12 @@ export function SearchView() {
 
   // Active/recent download jobs keyed by videoId — drives each row's button state.
   const [jobs, setJobs] = useState<Record<string, DownloadJobView>>({});
-  const pollTimers = useRef<ReturnType<typeof setTimeout>[]>([]);
+  const pollTimers = useRef<Set<ReturnType<typeof setTimeout>>>(new Set());
 
   useEffect(
     () => () => {
       for (const timer of pollTimers.current) clearTimeout(timer);
-      pollTimers.current = [];
+      pollTimers.current.clear();
     },
     [],
   );
@@ -254,6 +254,7 @@ export function SearchView() {
 
   const pollJob = (videoId: string, jobId: string, attempt = 0) => {
     const timer = setTimeout(() => {
+      pollTimers.current.delete(timer);
       void api
         .get<{ job: DownloadJobView }>(`/api/download?job=${encodeURIComponent(jobId)}`)
         .then((res) => {
@@ -279,7 +280,7 @@ export function SearchView() {
           if (attempt < 600) pollJob(videoId, jobId, attempt + 1);
         });
     }, 1200);
-    pollTimers.current.push(timer);
+    pollTimers.current.add(timer);
   };
 
   const startDownload = (result: OnlineResult) => {
