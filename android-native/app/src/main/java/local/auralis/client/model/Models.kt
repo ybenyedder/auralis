@@ -424,10 +424,56 @@ data class SearchResult(
     companion object {
         val EMPTY = SearchResult(emptyList(), emptyList(), emptyList())
 
-        fun from(o: JSONObject) = SearchResult(
+        fun from(o: JSONObject): SearchResult = SearchResult(
             tracks = o.optJSONArray("tracks")?.objects()?.map { Track.from(it) } ?: emptyList(),
             albums = o.optJSONArray("albums")?.objects()?.map { Album.from(it) } ?: emptyList(),
             artists = o.optJSONArray("artists")?.objects()?.map { Artist.from(it) } ?: emptyList(),
+        )
+    }
+}
+
+// ---- online (downloadable) search + download jobs ---------------------------
+
+/** A YouTube hit offered for download when the library can't answer the query. */
+data class OnlineTrack(
+    val videoId: String,
+    val title: String,
+    val uploader: String,
+    val duration: Double,
+    val thumbnail: String?,
+    val url: String,
+) {
+    companion object {
+        fun from(o: JSONObject): OnlineTrack = OnlineTrack(
+            videoId = o.strOr("videoId", ""),
+            title = o.strOr("title", ""),
+            uploader = o.strOr("uploader", "YouTube"),
+            duration = o.doubleOrNull("duration") ?: 0.0,
+            thumbnail = o.str("thumbnail"),
+            url = o.strOr("url", ""),
+        )
+    }
+}
+
+/** Server-side yt-dlp download job (downloader.ts wire shape). */
+data class DownloadJobDto(
+    val id: String,
+    val status: String, // queued | resolving | downloading | scanning | done | error
+    val progress: Int,
+    val trackhash: String?,
+    val error: String?,
+    val title: String?,
+) {
+    val busy: Boolean get() = status == "queued" || status == "resolving" || status == "downloading" || status == "scanning"
+
+    companion object {
+        fun from(o: JSONObject): DownloadJobDto = DownloadJobDto(
+            id = o.strOr("id", ""),
+            status = o.strOr("status", "error"),
+            progress = o.intOrNull("progress") ?: 0,
+            trackhash = o.str("trackhash"),
+            error = o.str("error"),
+            title = o.str("title"),
         )
     }
 }

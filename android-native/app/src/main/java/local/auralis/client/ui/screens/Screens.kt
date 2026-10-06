@@ -26,12 +26,16 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Album
+import androidx.compose.material.icons.filled.Check
+import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.Download
 import androidx.compose.material.icons.filled.Favorite
 import androidx.compose.material.icons.filled.MusicNote
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.QueueMusic
 import androidx.compose.material.icons.filled.Search
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
@@ -60,7 +64,9 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import local.auralis.client.model.Album
 import local.auralis.client.model.Artist
+import local.auralis.client.model.DownloadJobDto
 import local.auralis.client.model.Moods
+import local.auralis.client.model.OnlineTrack
 import local.auralis.client.model.Track
 import local.auralis.client.ui.AppViewModel
 import local.auralis.client.ui.UiState
@@ -68,6 +74,7 @@ import local.auralis.client.ui.ViewId
 import local.auralis.client.ui.components.Eyebrow
 import local.auralis.client.ui.components.GhostPill
 import local.auralis.client.ui.components.LargeTitle
+import local.auralis.client.ui.components.NetworkImage
 import local.auralis.client.ui.components.PlayPill
 import local.auralis.client.ui.components.SectionHeader
 import local.auralis.client.ui.components.TrackRow
@@ -838,12 +845,108 @@ fun SearchScreen(vm: AppViewModel, ui: UiState) {
                         )
                     }
                 }
-                if (res.tracks.isEmpty() && res.albums.isEmpty() && res.artists.isEmpty()) {
+                // Downloadable online hits — shown when the library answers poorly
+                // (fewer than 5 local tracks) so anything missing can be fetched.
+                val showOnline = ui.onlineLoading || (ui.onlineEnabled && ui.onlineResults.isNotEmpty())
+                if (showOnline && res.tracks.size < 5) {
+                    item { SectionHeader("Trouver ailleurs") }
+                    if (ui.onlineLoading) {
+                        item {
+                            Text(
+                                "Recherche en ligne…",
+                                color = colors.textMuted, fontSize = 13.sp, fontWeight = FontWeight.Medium,
+                                modifier = Modifier.padding(vertical = 10.dp),
+                            )
+                        }
+                    }
+                    items(ui.onlineResults, key = { "online-${it.videoId}" }) { hit ->
+                        OnlineRow(hit = hit, job = ui.downloadJobs[hit.videoId]) { vm.downloadOnline(it) }
+                    }
+                }
+                if (res.tracks.isEmpty() && res.albums.isEmpty() && res.artists.isEmpty() && !showOnline) {
                     item { EmptyHint("Aucun résultat", "Essaie d'autres mots-clés.") }
                 }
             }
         }
     }
+}
+
+/** One downloadable YouTube hit: thumbnail, title, uploader, and a button whose
+ *  label follows the server-side download job (queued → % → ajouté). */
+@Composable
+private fun OnlineRow(hit: OnlineTrack, job: DownloadJobDto?, onDownload: (OnlineTrack) -> Unit) {
+    val colors = LocalAuralis.current
+    val busy = job?.busy == true
+    val done = job?.status == "done"
+    val failed = job?.status == "error"
+    val label = when {
+        done -> "Ajouté"
+        failed -> "Réessayer"
+        job?.status == "downloading" -> "${job.progress.coerceIn(0, 100)} %"
+        job?.status == "scanning" -> "Ajout…"
+        busy -> "En file"
+        else -> "Télécharger"
+    }
+    Row(
+        Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(12.dp))
+            .background(colors.panel2)
+            .padding(horizontal = 10.dp, vertical = 8.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        NetworkImage(
+            url = hit.thumbnail,
+            modifier = Modifier.size(52.dp).clip(RoundedCornerShape(8.dp)),
+            fallback = { Box(Modifier.size(52.dp).clip(RoundedCornerShape(8.dp)).background(colors.panel3)) },
+        )
+        Spacer(Modifier.width(10.dp))
+        Column(Modifier.weight(1f)) {
+            Text(hit.title, color = colors.foreground, fontSize = 14.sp, fontWeight = FontWeight.Bold, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            Text(
+                "${hit.uploader} · ${formatLongDuration(hit.duration)}",
+                color = colors.textMuted, fontSize = 12.sp, fontWeight = FontWeight.Medium,
+                maxLines = 1, overflow = TextOverflow.Ellipsis,
+            )
+        }
+        Spacer(Modifier.width(8.dp))
+        Row(
+            Modifier
+                .clip(CircleShape)
+                .background(
+                    when {
+                        done -> colors.panel3
+                        failed -> Color(0x26FF5252)
+                        else -> colors.accent
+                    },
+                )
+                .clickable(enabled = !busy && !done) { onDownload(hit) }
+                .padding(horizontal = 14.dp, vertical = 8.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            if (busy) {
+                CircularProgressIndicator(
+                    color = colors.foreground, strokeWidth = 2.dp,
+                    modifier = Modifier.size(14.dp),
+                )
+                Spacer(Modifier.width(6.dp))
+            } else {
+                Icon(
+                    when {
+                        done -> Icons.Filled.Check
+                        failed -> Icons.Filled.Close
+                        else -> Icons.Filled.Download
+                    },
+                    contentDescription = label,
+                    tint = if (failed) Color(0xFFFF6B6B) else colors.foreground,
+                    modifier = Modifier.size(16.dp),
+                )
+                Spacer(Modifier.width(6.dp))
+            }
+            Text(label, color = if (failed) Color(0xFFFF6B6B) else colors.foreground, fontSize = 12.sp, fontWeight = FontWeight.Bold)
+        }
+    }
+    Spacer(Modifier.height(8.dp))
 }
 
 // ============================ LIBRARY =====================================

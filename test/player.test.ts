@@ -88,6 +88,49 @@ test("autoplay appends a similar continuation at the end of the queue", async ()
   assert.ok(s.shuffledQueue.slice(2).every((t) => t.trackhash !== "t0" && t.trackhash !== "t1"), "appended excludes already-queued");
 });
 
+test("autoplay RECYCLES when the queue already holds the whole library — never falls silent (the 'plus de musique' bug)", async () => {
+  const { usePlayer, useLibraryStore } = await stores();
+  const lib = Array.from({ length: 12 }, (_, i) => mk(`all${i}`));
+  useLibraryStore.setState({ tracks: lib });
+  // Queue = the entire library, playing the last item.
+  usePlayer.setState({
+    queue: lib, shuffledQueue: lib, currentIndex: lib.length - 1, currentTrack: lib[lib.length - 1],
+    autoplay: true, repeat: "off", isPlaying: true, playCounts: {}, dislikes: new Set(),
+  });
+  usePlayer.getState().playNext();
+  const s = usePlayer.getState();
+  assert.equal(s.isPlaying, true, "playback keeps going instead of stopping dead");
+  assert.ok(s.shuffledQueue.length > lib.length, "a recycled continuation was appended");
+  assert.equal(s.currentIndex, lib.length, "advanced onto the first recycled track");
+  assert.ok(s.shuffledQueue[lib.length].trackhash !== lib[lib.length - 1].trackhash, "recycled batch doesn't immediately repeat the just-played track");
+});
+
+test("autoplay recycles from the QUEUE when the library index is empty (transient reload failure)", async () => {
+  const { usePlayer, useLibraryStore } = await stores();
+  const q = [mk("q0"), mk("q1"), mk("q2"), mk("q3"), mk("q4"), mk("q5")];
+  useLibraryStore.setState({ tracks: [] });
+  usePlayer.setState({
+    queue: q, shuffledQueue: q, currentIndex: q.length - 1, currentTrack: q[q.length - 1],
+    autoplay: true, repeat: "off", isPlaying: true, playCounts: {}, dislikes: new Set(),
+  });
+  usePlayer.getState().playNext();
+  const s = usePlayer.getState();
+  assert.equal(s.isPlaying, true, "queue-recycling keeps the music going with no library loaded");
+  assert.ok(s.shuffledQueue.length > q.length, "the queue itself was recycled into a continuation");
+});
+
+test("autoplay still stops when literally everything is disliked (a real dead end)", async () => {
+  const { usePlayer, useLibraryStore } = await stores();
+  const lib = [mk("d0"), mk("d1")];
+  useLibraryStore.setState({ tracks: lib });
+  usePlayer.setState({
+    queue: lib, shuffledQueue: lib, currentIndex: 1, currentTrack: lib[1],
+    autoplay: true, repeat: "off", isPlaying: true, dislikes: new Set(["d0", "d1"]),
+  });
+  usePlayer.getState().playNext();
+  assert.equal(usePlayer.getState().isPlaying, false, "all-disliked library is the only legitimate stop");
+});
+
 test("autoplay continuation prioritises NEVER-played tracks, randomised (H24 exploration, not the same rotation)", async () => {
   const { buildContinuation } = await import("../src/store/slices/helpers");
   const { usePlayer, useLibraryStore } = await stores();

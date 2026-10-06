@@ -443,10 +443,14 @@ class PlaybackAccounting private constructor(private val context: Context) {
         if (!autoplay) return // endless listening disabled — stop at queue end
         if (continuationInFlight) return // a continuation is already computed/appended
         val c = controller ?: return
-        // The service-only path (Auto started playback, UI never came up) runs with
-        // an empty library index: no current Track to rank around — same early-out
-        // as the ViewModel's currentTrack() ?: return.
-        val current = library[c.currentMediaItem?.mediaId] ?: return
+        val currentId = c.currentMediaItem?.mediaId ?: return
+        // An empty library index used to be a hard early-out — but it happens in
+        // real sessions (playback started from Android Auto with no UI, or the
+        // library fetch failed at boot), and it meant the queue ran to its tail
+        // and playback went SILENT ("je me balade et là ya plus de musique").
+        // Rank around the current track when we can; otherwise recycle the
+        // queue's own items below. Playback only stops when the user asked.
+        val current = library[currentId]
         // Capture everything the ranking needs BEFORE hopping off the main thread.
         val queued = (0 until c.mediaItemCount).map { c.getMediaItemAt(it).mediaId }.toSet()
         val dis = dislikes
@@ -459,15 +463,32 @@ class PlaybackAccounting private constructor(private val context: Context) {
                 // Build + rank the radio pool off the main thread — two full-library
                 // filters and a sort over 10k tracks at every queue end (this used
                 // to jank the UI thread from the ViewModel).
-                val ranked = withContext(Dispatchers.Default) {
-                    rankContinuation(current, tracks, queued, dis, counts, scores)
+                val ranked = if (current != null) {
+                    withContext(Dispatchers.Default) {
+                        rankContinuation(current, tracks, queued, dis, counts, scores)
+                    }
+                } else {
+                    emptyList()
                 }
                 // Back on Main (this scope) — MediaController.addMediaItems must run
                 // on the controller's application thread. Appending through THIS
                 // controller mutates the shared session queue, so the UI's own
                 // PlayerHolder snapshot (and the queue screen) still sees the growth.
-                if (ranked.isNotEmpty()) {
-                    c.addMediaItems(ranked.map { it.toMediaItem(api) })
+                val toAdd: List<MediaItem> = if (ranked.isNotEmpty()) {
+                    ranked.map { it.toMediaItem(api) }
+                } else {
+                    // No library to rank from (empty index) or nothing left to rank:
+                    // recycle the queue's OWN items, shuffled, dislikes and the
+                    // playing track excluded — the session keeps going instead of
+                    // dying at the tail.
+                    val items = (0 until c.mediaItemCount).map { c.getMediaItemAt(it) }
+                        .filter { it.mediaId != currentId && it.mediaId !in dis && it.localConfiguration != null }
+                        .shuffled()
+                        .take(20)
+                    if (items.isNotEmpty()) items else listOfNotNull(c.currentMediaItem)
+                }
+                if (toAdd.isNotEmpty()) {
+                    c.addMediaItems(toAdd)
                     // Appending onto a terminal player does NOT restart playback:
                     // ExoPlayer only auto-advances between READY items, so a queue that
                     // reached STATE_ENDED (or STATE_IDLE after an error) stays silent

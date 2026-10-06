@@ -99,9 +99,15 @@ export const useLibraryStore = create<LibraryState>((set, get) => ({
       if (!Array.isArray(payload.tracks)) throw new Error("Invalid library payload");
       get().applyPayload(payload);
     } catch (error) {
+      // Keep whatever catalogue is already in memory. A transient reload failure
+      // (server busy, flaky network, session blip — the SSE stream reloads on every
+      // scan end) used to wipe tracks to [], which killed autoplay continuation and
+      // emptied every view mid-session: "the music just stopped while browsing".
+      // Wiping is only correct when the server SAYS the library is empty (an empty
+      // tracks array in a valid payload, handled by applyPayload above).
       set({
-        tracks: [], albums: [], artists: [], folders: [], trackIndex: new Map(),
-        status: "error", error: error instanceof Error ? error.message : "Library scan failed",
+        status: get().tracks.length > 0 ? "ready" : "error",
+        error: error instanceof Error ? error.message : "Library scan failed",
       });
     }
   },

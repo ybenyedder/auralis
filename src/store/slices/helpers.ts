@@ -23,15 +23,12 @@ export function reorderWithFirst<T>(list: T[], firstIndex: number): T[] {
 }
 
 export function buildContinuation(current: Track | null, queued: Track[], library: Track[]): Track[] {
-  if (library.length === 0) return [];
-  const inQueue = new Set(queued.map((t) => t.trackhash));
+  // An all-disliked (or empty) catalogue AND queue is the only real dead end.
+  const playablePool = (pool: Track[], isDisliked: (h: string) => boolean) =>
+    pool.filter((t) => !isDisliked(t.trackhash));
   const { scores, disliked } = useReco.getState();
   const { dislikes: playerDislikes, playCounts, recentTrackhashes } = usePlayer.getState();
   const isDisliked = (h: string) => playerDislikes.has(h) || disliked.has(h);
-  const curArtists = new Set((current?.artists ?? []).map((a) => a.artisthash).filter(Boolean));
-  const curGenre = current?.genre;
-  const available = library.filter((t) => !inQueue.has(t.trackhash) && !isDisliked(t.trackhash));
-  if (available.length === 0) return [];
 
   // Endless-session exploration: when autoplay reaches the queue tail, surface
   // music the user has NEVER played first (in random order), then the least-played,
@@ -39,6 +36,36 @@ export function buildContinuation(current: Track | null, queued: Track[], librar
   // the taste engine already knows by heart. Recently-heard tracks only re-enter
   // once the library is too small to avoid them.
   const recent = new Set(recentTrackhashes.slice(0, 30));
+  const curArtists = new Set((current?.artists ?? []).map((a) => a.artisthash).filter(Boolean));
+  const curGenre = current?.genre;
+
+  let available: Track[];
+  let recycle = false;
+  if (library.length > 0) {
+    const inQueue = new Set(queued.map((t) => t.trackhash));
+    const fresh = library.filter((t) => !inQueue.has(t.trackhash) && !isDisliked(t.trackhash));
+    if (fresh.length > 0) {
+      available = fresh;
+    } else {
+      // The queue already holds every playable track (whole-library play, or a
+      // long autoplay session that kept appending): rather than stopping dead,
+      // RECYCLE — same tracks again, least-recently-heard first. This was the
+      // "je me balade et là ya plus de musique" bug: an endless session that
+      // eventually queued the entire library fell silent at the queue tail.
+      recycle = true;
+      const notJustPlayed = playablePool(library, isDisliked).filter((t) => !recent.has(t.trackhash));
+      available = notJustPlayed.length >= 10 ? notJustPlayed : playablePool(library, isDisliked);
+    }
+  } else if (queued.length > 0) {
+    // Library not loaded (transient reload failure) but the queue still has
+    // tracks — keep the music going by recycling the queue itself.
+    recycle = true;
+    available = queued.filter((t) => !isDisliked(t.trackhash));
+  } else {
+    return [];
+  }
+  if (available.length === 0) return [];
+
   const notJustPlayed = available.filter((t) => !recent.has(t.trackhash));
   const pool = notJustPlayed.length >= 10 ? notJustPlayed : available;
   const unheard = pool.filter((t) => !(playCounts[t.trackhash] > 0));
@@ -51,22 +78,31 @@ export function buildContinuation(current: Track | null, queued: Track[], librar
   // comparator that calls Math.random() inline is an inconsistent total order
   // (the Android port documented the same pitfall).
   const jitter = new Map(heard.map((t) => [t.trackhash, rank(t)]));
-  const picks = [
-    ...shuffleArray(unheard),
-    ...[...heard].sort(
-      (a, b) =>
-        (playCounts[a.trackhash] ?? 0) - (playCounts[b.trackhash] ?? 0) ||
-        affinity(b) - affinity(a) + (jitter.get(b.trackhash) ?? 0) - (jitter.get(a.trackhash) ?? 0),
-    ),
-  ];
+  // Recycling shuffles everything: re-hearing the same rotation in the same
+  // order feels like a stuck record, not an endless session.
+  const picks = recycle
+    ? shuffleArray(pool)
+    : [
+        ...shuffleArray(unheard),
+        ...[...heard].sort(
+          (a, b) =>
+            (playCounts[a.trackhash] ?? 0) - (playCounts[b.trackhash] ?? 0) ||
+            affinity(b) - affinity(a) + (jitter.get(b.trackhash) ?? 0) - (jitter.get(a.trackhash) ?? 0),
+        ),
+      ];
   const seen = new Set<string>();
   const out: Track[] = [];
+  const currentHash = current?.trackhash;
   for (const t of picks) {
     if (seen.has(t.trackhash)) continue;
+    if (recycle && currentHash && t.trackhash === currentHash) continue;
     seen.add(t.trackhash);
     out.push(t);
     if (out.length >= 20) break;
   }
+  // Recycling excluded everything (single-track queue, all else disliked): loop
+  // the current track rather than going silent — matches repeat-all semantics.
+  if (out.length === 0 && current && !isDisliked(current.trackhash)) return [current];
   return out;
 }
 

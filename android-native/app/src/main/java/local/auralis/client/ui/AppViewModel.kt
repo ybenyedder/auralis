@@ -5,6 +5,7 @@ import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.isActive
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -19,6 +20,8 @@ import local.auralis.client.model.Artist
 import local.auralis.client.model.LyricsResult
 import local.auralis.client.model.ListeningStats
 import local.auralis.client.model.MonthlyRecap
+import local.auralis.client.model.DownloadJobDto
+import local.auralis.client.model.OnlineTrack
 import local.auralis.client.model.PlaylistDto
 import local.auralis.client.model.SearchResult
 import local.auralis.client.model.Track
@@ -71,6 +74,12 @@ data class UiState(
 
     val searchQuery: String = "",
     val searchResult: SearchResult = SearchResult.EMPTY,
+
+    // Online (downloadable) search results + their download jobs, keyed by videoId.
+    val onlineResults: List<OnlineTrack> = emptyList(),
+    val onlineEnabled: Boolean = false,
+    val onlineLoading: Boolean = false,
+    val downloadJobs: Map<String, DownloadJobDto> = emptyMap(),
 
     val lyrics: LyricsResult = LyricsResult.NONE,
     val lyricsLoading: Boolean = false,
@@ -902,7 +911,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
     fun setSearch(query: String) {
         _ui.update { it.copy(searchQuery = query) }
         if (query.isBlank()) {
-            _ui.update { it.copy(searchResult = SearchResult.EMPTY) }
+            _ui.update { it.copy(searchResult = SearchResult.EMPTY, onlineResults = emptyList(), onlineLoading = false) }
             return
         }
         viewModelScope.launch {
@@ -910,6 +919,76 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
             if (_ui.value.searchQuery != query) return@launch
             val res = api.search(query)
             if (_ui.value.searchQuery == query) _ui.update { it.copy(searchResult = res) }
+            // The library answers poorly (or not at all) → also ask the server's
+            // yt-dlp for downloadable hits ("that song isn't here — fetch it").
+            if (_ui.value.searchQuery == query && query.length >= 2 && res.tracks.size < 5) {
+                _ui.update { it.copy(onlineLoading = true) }
+                val (enabled, online) = api.searchOnline(query)
+                if (_ui.value.searchQuery == query) {
+                    _ui.update { it.copy(onlineEnabled = enabled, onlineResults = online, onlineLoading = false) }
+                }
+            } else if (_ui.value.searchQuery == query) {
+                _ui.update { it.copy(onlineResults = emptyList(), onlineLoading = false) }
+            }
+        }
+    }
+
+    /** Download an online hit onto the server, watch the job, then play the
+     *  imported track. The button state comes from downloadJobs[videoId]. */
+    fun downloadOnline(hit: OnlineTrack) {
+        val existing = _ui.value.downloadJobs[hit.videoId]
+        if (existing != null && existing.busy) return
+        _ui.update {
+            it.copy(downloadJobs = it.downloadJobs + (hit.videoId to DownloadJobDto("", "queued", 0, null, null, hit.title)))
+        }
+        viewModelScope.launch {
+            val job = runCatching { api.startDownload(hit.videoId, hit.title, _ui.value.searchQuery.ifBlank { hit.title }) }.getOrNull()
+            if (job == null) {
+                _ui.update {
+                    it.copy(downloadJobs = it.downloadJobs + (hit.videoId to DownloadJobDto("", "error", 0, null, "Démarrage impossible", hit.title)))
+                }
+                notify("Téléchargement impossible")
+                return@launch
+            }
+            var current: DownloadJobDto = job
+            var misses = 0
+            while (isActive) {
+                _ui.update { it.copy(downloadJobs = it.downloadJobs + (hit.videoId to current)) }
+                if (current.status == "done" || current.status == "error") break
+                delay(1500)
+                val next: DownloadJobDto? = runCatching { api.downloadJob(job.id) }.getOrNull()
+                if (next == null) {
+                    // Transient poll failures are fine; give up after a long outage.
+                    if (++misses > 60) {
+                        current = current.copy(status = "error", error = "Serveur injoignable")
+                        break
+                    }
+                    continue
+                }
+                misses = 0
+                current = next
+            }
+            _ui.update { it.copy(downloadJobs = it.downloadJobs + (hit.videoId to current)) }
+            if (current.status == "error") {
+                notify(current.error?.takeIf { it.isNotBlank() } ?: "Échec du téléchargement")
+                return@launch
+            }
+            notify("Ajouté à la bibliothèque")
+            // Reload so the new file is indexed, then play it as soon as it
+            // materialises in the track index.
+            loadAll()
+            val hash = current.trackhash
+            if (hash != null) {
+                var tries = 0
+                while (tries++ < 30) {
+                    val track = trackIndex[hash]
+                    if (track != null) {
+                        playTrack(track, listOf(track))
+                        return@launch
+                    }
+                    delay(500)
+                }
+            }
         }
     }
 

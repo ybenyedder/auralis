@@ -4,6 +4,43 @@ All notable changes to Auralis are documented here. The format is based on
 [Keep a Changelog](https://keepachangelog.com/) and this project adheres to
 [Semantic Versioning](https://semver.org/).
 
+## [1.22.0] - 2026-10-06
+
+Deux chantiers demandés par le terrain : « la musique s'arrête parfois en
+pleine session » et « quand je cherche un titre que je n'ai pas, télécharge-le ».
+Tout est vérifié de bout en bout : tests unitaires sur la continuation, build
+web + Android, et un téléchargement réel mené au complet sur un serveur de dev
+(POST /api/download → mp3 taggé → scan → trackhash → stream 200).
+
+### Ajouté
+- **Téléchargement à la demande depuis la recherche (web + Android).** Quand la
+  bibliothèque répond mal à une requête (moins de 5 titres trouvés), une
+  section « Trouver ailleurs » propose des résultats YouTube via yt-dlp côté
+  serveur. Un appui télécharge le titre SUR LE SERVEUR (mp3 taggé, pochette
+  intégrée), le scan l'indexe comme n'importe quel fichier, et il se met à
+  jouer dès qu'il apparaît. Nouvelle route `POST/GET/DELETE /api/download`
+  (jobs avec progression, annulation, déduplication par vidéo, quotas
+  2 actifs + 6 en file, 2 par utilisateur), `GET /api/search?online=1` pour
+  les suggestions en ligne. Configuration : `AURALIS_DOWNLOADS` (défaut actif),
+  `AURALIS_YTDLP` (chemin du binaire), `AURALIS_DOWNLOADS_DIR` (défaut
+  « Auralis Downloads » dans le dossier musique). ffmpeg optionnel (mp3 +
+  miniature sans lui : m4a natif). i18n FR/EN complète.
+
+### Corrigé
+- **La lecture ne tombe plus jamais en silence en fin de file (web + Android).**
+  La continuation d'écoute infinie mourait dès que TOUTE la bibliothèque était
+  déjà en file (session longue, lecture de toute la librairie) : le pool
+  « titres pas encore en file » se vidait et la lecture s'arrêtait net — le bug
+  « je me balade et là ya plus de musique ». Elle RECYCLE désormais les titres
+  (mélangés, hors titres tout juste joués, le moins récemment écouté d'abord),
+  et ne s'arrête que si tout est détesté. Sur Android, même chose : l'index
+  bibliothèque vide (démarrage Android Auto sans UI, échec de chargement) ne
+  coupe plus la continuation — la file elle-même est recyclée.
+- **Un échec de rechargement de la bibliothèque ne la vide plus (web).** Le flux
+  SSE relance un chargement à chaque fin de scan ; une erreur transitoire
+  effaçait `tracks` → plus rien à jouer, vues vides. Le catalogue en mémoire
+  est conservé ; il n'est remplacé que par une réponse valide du serveur.
+
 ## [1.21.1] - 2026-09-29
 
 Trois remontées terrain de l'app Android, toutes vérifiées de bout en bout sur

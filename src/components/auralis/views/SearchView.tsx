@@ -1,12 +1,12 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState, useDeferredValue } from "react";
-import { Search, X, Play, Loader2, Clock, Trash2 } from "lucide-react";
+import { Search, X, Play, Loader2, Clock, Trash2, Download, Check, AlertCircle } from "lucide-react";
 import { usePlayer } from "@/store/player";
 import { shuffleArray } from "@/store/slices/helpers";
 import { useLibraryStore, artistPlayTotals } from "@/store/library";
 import { api } from "@/lib/auralis/api";
-import { paletteForName, trackArtist, trackTitle } from "@/lib/auralis/brand";
+import { paletteForName, trackArtist, trackTitle, formatDuration } from "@/lib/auralis/brand";
 import { useT } from "@/lib/auralis/i18n";
 import { cn, foldAccents } from "@/lib/utils";
 import type { Track } from "@/lib/auralis/types";
@@ -18,6 +18,25 @@ import { VirtualList } from "../Virtualized";
 import { SkeletonCategoryGrid } from "../Skeletons";
 
 type ResultTab = "all" | "songs" | "albums" | "artists";
+
+// Online (downloadable) results + download jobs — mirrors the server's
+// downloader.ts shapes without importing the server module (client-safe).
+interface OnlineResult {
+  videoId: string;
+  title: string;
+  uploader: string;
+  duration: number;
+  thumbnail: string | null;
+  url: string;
+}
+type DownloadJobStatus = "queued" | "resolving" | "downloading" | "scanning" | "done" | "error";
+interface DownloadJobView {
+  id: string;
+  status: DownloadJobStatus;
+  progress: number;
+  trackhash: string | null;
+  error: string | null;
+}
 
 const RECENT_KEY = "auralis.recentSearches";
 const MAX_RECENT = 8;
@@ -44,8 +63,10 @@ export function SearchView() {
   const setSearch = usePlayer((s) => s.setSearch);
   const playList = usePlayer((s) => s.playList);
   const navigate = usePlayer((s) => s.navigate);
+  const notify = usePlayer((s) => s.notify);
   const playCounts = usePlayer((s) => s.playCounts);
   const tracks = useLibraryStore((s) => s.tracks);
+  const trackIndex = useLibraryStore((s) => s.trackIndex);
   const albums = useLibraryStore((s) => s.albums);
   const rawArtists = useLibraryStore((s) => s.artists);
   const status = useLibraryStore((s) => s.status);
@@ -165,6 +186,120 @@ export function SearchView() {
     return [...serverTracks, ...client.filter((tr) => !seen.has(tr.trackhash))];
   }, [serverTracks, results]);
 
+  // ---- online results ("not in the library? download it") ------------------
+  // Only asked for when the local search is starving (< 5 track hits): the
+  // server then runs a yt-dlp YouTube search and offers downloadable results.
+  const [online, setOnline] = useState<{ enabled: boolean; results: OnlineResult[]; error?: string } | null>(null);
+  const [onlineLoading, setOnlineLoading] = useState(false);
+  useEffect(() => {
+    if (!deferredQuery || deferredQuery.length < 2 || trackResults.length >= 5) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
+      setOnline(null);
+      setOnlineLoading(false);
+      return;
+    }
+    let cancelled = false;
+    setOnlineLoading(true);
+    const id = setTimeout(() => {
+      void api
+        .get<{ online?: { enabled: boolean; results: OnlineResult[]; error?: string } }>(
+          `/api/search?q=${encodeURIComponent(deferredQuery)}&online=1&limit=8`,
+        )
+        .then((res) => {
+          if (cancelled) return;
+          setOnline(res.online ?? null);
+          setOnlineLoading(false);
+        })
+        .catch(() => {
+          if (cancelled) return;
+          setOnline(null);
+          setOnlineLoading(false);
+        });
+    }, 550);
+    return () => {
+      cancelled = true;
+      clearTimeout(id);
+    };
+  }, [deferredQuery, trackResults.length]);
+
+  // Active/recent download jobs keyed by videoId — drives each row's button state.
+  const [jobs, setJobs] = useState<Record<string, DownloadJobView>>({});
+  const pollTimers = useRef<ReturnType<typeof setTimeout>[]>([]);
+
+  useEffect(
+    () => () => {
+      for (const timer of pollTimers.current) clearTimeout(timer);
+      pollTimers.current = [];
+    },
+    [],
+  );
+
+  const patchJob = (videoId: string, patch: Partial<DownloadJobView>) =>
+    setJobs((prev) => {
+      const cur = prev[videoId] ?? { id: "", status: "queued" as DownloadJobStatus, progress: 0, trackhash: null, error: null };
+      return { ...prev, [videoId]: { ...cur, ...patch } };
+    });
+
+  // A finished download hands back a trackhash; the scan SSE reloads the library,
+  // and once the track materialises it starts playing on its own.
+  const [autoPlayHash, setAutoPlayHash] = useState<string | null>(null);
+  useEffect(() => {
+    if (!autoPlayHash) return;
+    const track = trackIndex.get(autoPlayHash);
+    if (!track) return;
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setAutoPlayHash(null);
+    playList([track], 0);
+  }, [autoPlayHash, trackIndex, playList]);
+
+  const pollJob = (videoId: string, jobId: string, attempt = 0) => {
+    const timer = setTimeout(() => {
+      void api
+        .get<{ job: DownloadJobView }>(`/api/download?job=${encodeURIComponent(jobId)}`)
+        .then((res) => {
+          const job = res.job;
+          if (!job) return;
+          patchJob(videoId, job);
+          if (job.status === "done") {
+            if (job.trackhash) {
+              // Track already indexed (fast scan)? Play now; otherwise wait for
+              // the SSE-driven library reload to surface it (autoPlayHash effect).
+              const track = useLibraryStore.getState().trackIndex.get(job.trackhash);
+              if (track) playList([track], 0);
+              else setAutoPlayHash(job.trackhash);
+              notify(t("search.downloadDone", "Ajouté à la bibliothèque — lecture"), { tone: "success" });
+            }
+          } else if (job.status === "error") {
+            notify(job.error || t("search.downloadFailed", "Échec du téléchargement"), { tone: "error" });
+          } else if (attempt < 600) {
+            pollJob(videoId, jobId, attempt + 1);
+          }
+        })
+        .catch(() => {
+          if (attempt < 600) pollJob(videoId, jobId, attempt + 1);
+        });
+    }, 1200);
+    pollTimers.current.push(timer);
+  };
+
+  const startDownload = (result: OnlineResult) => {
+    patchJob(result.videoId, { status: "queued", progress: 0, error: null });
+    void api
+      .post<{ ok: boolean; job?: { id: string }; error?: string }>("/api/download", {
+        query: searchQuery || result.title,
+        videoId: result.videoId,
+        title: result.title,
+      })
+      .then((res) => {
+        if (!res?.ok || !res.job) throw new Error(res?.error || "no job");
+        pollJob(result.videoId, res.job.id);
+      })
+      .catch((err: unknown) => {
+        patchJob(result.videoId, { status: "error", error: err instanceof Error ? err.message : "error" });
+        notify(t("search.downloadFailed", "Échec du téléchargement"), { tone: "error" });
+      });
+  };
+
   // "Meilleur résultat": prefer an exact/prefix artist hit, then exact album, then
   // the top-ranked track, then whatever else surfaced — mirrors Spotify's top hit.
   const best = useMemo(() => {
@@ -183,6 +318,24 @@ export function SearchView() {
   }, [results, trackResults, deferredQuery]);
 
   const placeholder = t("search.placeholder", "Que souhaitez-vous écouter ?");
+
+  // The downloadable section appears whenever the local library can't answer the
+  // query well — empty results OR fewer than 5 track hits — and the server has
+  // yt-dlp (or we're still asking it).
+  const onlineVisible =
+    !!deferredQuery &&
+    deferredQuery.length >= 2 &&
+    trackResults.length < 5 &&
+    (onlineLoading || (!!online?.enabled && online.results.length > 0));
+  const onlineSection = onlineVisible ? (
+    <OnlineSection
+      results={online?.results ?? []}
+      jobs={jobs}
+      loading={onlineLoading}
+      onStart={startDownload}
+      t={t}
+    />
+  ) : null;
 
   const searchBar = (sticky: boolean) => (
     <div
@@ -322,18 +475,21 @@ export function SearchView() {
       )}
 
       {empty || emptyForTab ? (
-        <div className="flex flex-col items-center justify-center gap-3 py-12 text-center lg:py-20">
-          <div className="grid h-16 w-16 place-items-center rounded-lg border border-dashed border-[var(--line-strong)]">
-            <Search className="size-7 text-muted-foreground/60" />
+        <div className="space-y-8">
+          <div className="flex flex-col items-center justify-center gap-3 py-8 text-center lg:py-12">
+            <div className="grid h-16 w-16 place-items-center rounded-lg border border-dashed border-[var(--line-strong)]">
+              <Search className="size-7 text-muted-foreground/60" />
+            </div>
+            <p className="text-[14px] font-bold text-muted-foreground">
+              {emptyForTab
+                ? t("search.noResultsIn", `Aucun résultat dans "${TABS.find((tb) => tb.id === tab)?.label}" pour “${searchQuery}”`, {
+                    tab: TABS.find((tb) => tb.id === tab)?.label ?? "",
+                    query: searchQuery,
+                  })
+                : t("search.noResults", `Aucun résultat pour “${searchQuery}”`, { query: searchQuery })}
+            </p>
           </div>
-          <p className="text-[14px] font-bold text-muted-foreground">
-            {emptyForTab
-              ? t("search.noResultsIn", `Aucun résultat dans "${TABS.find((tb) => tb.id === tab)?.label}" pour “${searchQuery}”`, {
-                  tab: TABS.find((tb) => tb.id === tab)?.label ?? "",
-                  query: searchQuery,
-                })
-              : t("search.noResults", `Aucun résultat pour “${searchQuery}”`, { query: searchQuery })}
-          </p>
+          {onlineSection}
         </div>
       ) : (
         results && (
@@ -389,9 +545,134 @@ export function SearchView() {
                 </VirtualList>
               </section>
             )}
+
+            {onlineSection}
           </div>
         )
       )}
+    </div>
+  );
+}
+
+/** Downloadable online results — the "search something you don't own" shelf.
+ *  Each row fetches the track onto the SERVER via yt-dlp; the library scan then
+ *  makes it a normal track (and it starts playing once imported). */
+function OnlineSection({
+  results,
+  jobs,
+  loading,
+  onStart,
+  t,
+}: {
+  results: OnlineResult[];
+  jobs: Record<string, DownloadJobView>;
+  loading: boolean;
+  onStart: (result: OnlineResult) => void;
+  t: (key: string, fallback?: string, params?: Record<string, string | number>) => string;
+}) {
+  return (
+    <section aria-label={t("search.online", "Trouver ailleurs")}>
+      <SectionHeader title={t("search.online", "Trouver ailleurs")} eyebrow={loading ? undefined : `${results.length}`} />
+      <p className="mb-3 text-[12px] font-medium text-muted-foreground">
+        {t("search.onlineHint", "Pas dans ta bibliothèque — télécharge-le sur le serveur")}
+      </p>
+      {loading && (
+        <div className="flex items-center gap-2 px-1 py-4 text-[13px] font-semibold text-muted-foreground">
+          <Loader2 className="size-4 animate-spin" />
+          {t("search.onlineSearching", "Recherche en ligne…")}
+        </div>
+      )}
+      {!loading && results.length === 0 && (
+        <p className="px-1 py-4 text-[13px] font-semibold text-muted-foreground">
+          {t("search.onlineUnavailable", "Téléchargement indisponible : yt-dlp manque sur le serveur")}
+        </p>
+      )}
+      <div className="flex flex-col gap-2">
+        {results.map((result) => (
+          <OnlineRow key={result.videoId} result={result} job={jobs[result.videoId]} onStart={onStart} t={t} />
+        ))}
+      </div>
+    </section>
+  );
+}
+
+function OnlineRow({
+  result,
+  job,
+  onStart,
+  t,
+}: {
+  result: OnlineResult;
+  job?: DownloadJobView;
+  onStart: (result: OnlineResult) => void;
+  t: (key: string, fallback?: string, params?: Record<string, string | number>) => string;
+}) {
+  const status = job?.status;
+  const busy = status === "queued" || status === "resolving" || status === "downloading" || status === "scanning";
+  const label =
+    status === "queued" || status === "resolving"
+      ? t("search.downloadQueued", "En file")
+      : status === "downloading"
+        ? t("search.downloadRunning", "{progress} %", { progress: job?.progress ?? 0 })
+        : status === "scanning"
+          ? t("search.downloadScanning", "Ajout à la bibliothèque…")
+          : status === "done"
+            ? t("search.downloaded", "Ajouté")
+            : status === "error"
+              ? t("search.downloadFailed", "Échec — réessayer")
+              : t("search.download", "Télécharger");
+
+  return (
+    <div className="matte-panel flex items-center gap-3 rounded-lg p-2 pr-3">
+      {result.thumbnail ? (
+        // YouTube thumbnail — remote, lazy, never blocks the row.
+        // eslint-disable-next-line @next/next/no-img-element
+        <img
+          src={result.thumbnail}
+          alt=""
+          loading="lazy"
+          referrerPolicy="no-referrer"
+          className="h-14 w-14 shrink-0 rounded-md object-cover"
+        />
+      ) : (
+        <div className="grid h-14 w-14 shrink-0 place-items-center rounded-md bg-[var(--surface-2)]">
+          <Download className="size-5 text-muted-foreground" />
+        </div>
+      )}
+      <div className="min-w-0 flex-1">
+        <p className="truncate text-[14px] font-bold text-foreground">{result.title}</p>
+        <p className="truncate text-[12px] font-semibold text-muted-foreground">
+          {result.uploader} · {formatDuration(result.duration)}
+        </p>
+        {status === "downloading" && (
+          <div className="mt-1.5 h-1 overflow-hidden rounded-full bg-[var(--surface-2)]">
+            <div
+              className="h-full rounded-full bg-[var(--accent,var(--foreground))]"
+              style={{ width: `${Math.max(3, job?.progress ?? 0)}%` }}
+            />
+          </div>
+        )}
+      </div>
+      <button
+        onClick={() => !busy && status !== "done" && onStart(result)}
+        disabled={busy || status === "done"}
+        aria-label={`${label} — ${result.title}`}
+        className={cn(
+          "tap-press flex h-11 shrink-0 items-center gap-2 rounded-full px-4 text-[12px] font-bold transition-colors lg:h-9",
+          status === "done"
+            ? "bg-[var(--surface-2)] text-muted-foreground"
+            : status === "error"
+              ? "bg-red-500/15 text-red-400 hover:bg-red-500/25"
+              : busy
+                ? "bg-[var(--surface-2)] text-muted-foreground"
+                : "bg-foreground text-background hover:opacity-90",
+        )}
+      >
+        {busy && <Loader2 className="size-4 animate-spin" />}
+        {status === "done" && <Check className="size-4" />}
+        {status === "error" && <AlertCircle className="size-4" />}
+        <span>{label}</span>
+      </button>
     </div>
   );
 }

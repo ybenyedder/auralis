@@ -4,9 +4,11 @@ import android.net.Uri
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import local.auralis.client.model.AuthResult
+import local.auralis.client.model.DownloadJobDto
 import local.auralis.client.model.LibrarySnapshot
 import local.auralis.client.model.ListeningStats
 import local.auralis.client.model.LyricsResult
+import local.auralis.client.model.OnlineTrack
 import local.auralis.client.model.RecapResult
 import local.auralis.client.model.RecommendResult
 import local.auralis.client.model.SearchResult
@@ -160,6 +162,45 @@ class AuralisApi {
                 resp.body?.string()?.let { SearchResult.from(JSONObject(it)) } ?: SearchResult.EMPTY
             }
         }.getOrDefault(SearchResult.EMPTY)
+    }
+
+    /** Local search + downloadable YouTube hits (server yt-dlp). online.enabled
+     *  is false when the server can't download (no binary) — callers hide the
+     *  section then. Best-effort: offline/old servers get an empty result. */
+    suspend fun searchOnline(query: String): Pair<Boolean, List<OnlineTrack>> = withContext(Dispatchers.IO) {
+        if (query.isBlank()) return@withContext false to emptyList()
+        runCatching {
+            val url = ("$base/api/search".toHttpUrlOrNull() ?: return@runCatching false to emptyList()).newBuilder()
+                .addQueryParameter("q", query)
+                .addQueryParameter("limit", "8")
+                .addQueryParameter("online", "1")
+                .build()
+            client.newCall(authed(Request.Builder().url(url).get())).execute().use { resp ->
+                val body = resp.body?.string()?.let { JSONObject(it) } ?: return@use false to emptyList()
+                val online = body.optJSONObject("online") ?: return@use false to emptyList()
+                val enabled = online.optBoolean("enabled", false)
+                val arr = online.optJSONArray("results")
+                val results = (0 until (arr?.length() ?: 0)).mapNotNull { i ->
+                    arr?.optJSONObject(i)?.let { OnlineTrack.from(it) }?.takeIf { it.videoId.isNotBlank() }
+                }
+                enabled to results
+            }
+        }.getOrDefault(false to emptyList())
+    }
+
+    /** Start (or join) a server-side download job for one online hit. */
+    suspend fun startDownload(videoId: String, title: String, query: String): DownloadJobDto? {
+        val body = JSONObject().put("videoId", videoId).put("title", title).put("query", query)
+        val res = post("/api/download", body)
+        val job = res.optJSONObject("job") ?: return null
+        return DownloadJobDto.from(job).takeIf { it.id.isNotBlank() }
+    }
+
+    /** Poll one download job's status. */
+    suspend fun downloadJob(id: String): DownloadJobDto? {
+        val res = runCatching { getObj("/api/download?job=${Uri.encode(id)}") }.getOrDefault(JSONObject())
+        val job = res.optJSONObject("job") ?: return null
+        return DownloadJobDto.from(job).takeIf { it.id.isNotBlank() }
     }
 
     suspend fun lyrics(trackhash: String, force: Boolean): LyricsResult = withContext(Dispatchers.IO) {
