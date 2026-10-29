@@ -21,11 +21,10 @@ export async function POST(request: Request) {
   const csrf = checkCsrf(request);
   if (csrf) return csrf;
 
-  // Awaited verdict: downloadsEnabled() is optimistic on the very first call
-  // (before the binary probe resolves) and would let a job start that then
-  // fails with an obscure spawn error.
+  // Awaited verdict kept for API compatibility — the download engine is pure
+  // JS now, so availability is purely a configuration question.
   if (!(await downloadsAvailable())) {
-    return json({ ok: false, error: "Téléchargement indisponible : installez yt-dlp sur le serveur" }, { status: 503 });
+    return json({ ok: false, error: "Téléchargement désactivé sur ce serveur" }, { status: 503 });
   }
 
   const parsed = await readJsonBody<{ query?: string; videoId?: string; title?: string }>(request);

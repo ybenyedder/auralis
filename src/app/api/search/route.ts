@@ -19,7 +19,7 @@ export async function GET(request: Request) {
   }
 
   const local = search(q, limit);
-  // `online=1`: also ask yt-dlp for YouTube hits so the client can offer tracks
+  // `online=1`: also ask the JS YouTube engine for hits so the client can offer tracks
   // that are NOT in the library yet ("search it and download it"). The client
   // asks for it when its local results are starving (or empty).
   let online: { enabled: boolean; results: OnlineResult[]; error?: string };

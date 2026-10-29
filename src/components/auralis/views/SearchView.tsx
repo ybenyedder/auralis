@@ -188,7 +188,7 @@ export function SearchView() {
 
   // ---- online results ("not in the library? download it") ------------------
   // Only asked for when the local search is starving (< 5 track hits): the
-  // server then runs a yt-dlp YouTube search and offers downloadable results.
+  // server then runs a YouTube search (pure-JS engine) and offers downloadable results.
   const [online, setOnline] = useState<{ enabled: boolean; results: OnlineResult[]; error?: string } | null>(null);
   const [onlineLoading, setOnlineLoading] = useState(false);
   useEffect(() => {
@@ -322,7 +322,7 @@ export function SearchView() {
 
   // The downloadable section appears whenever the local library can't answer the
   // query well — empty results OR fewer than 5 track hits — and the server has
-  // yt-dlp (or we're still asking it).
+  // online downloads enabled (or we're still asking it).
   const onlineVisible =
     !!deferredQuery &&
     deferredQuery.length >= 2 &&
@@ -556,8 +556,8 @@ export function SearchView() {
 }
 
 /** Downloadable online results — the "search something you don't own" shelf.
- *  Each row fetches the track onto the SERVER via yt-dlp; the library scan then
- *  makes it a normal track (and it starts playing once imported). */
+ *  Each row fetches the track onto the SERVER (JS YouTube engine); the library
+ *  scan then makes it a normal track (and it starts playing once imported). */
 function OnlineSection({
   results,
   jobs,
@@ -585,7 +585,7 @@ function OnlineSection({
       )}
       {!loading && results.length === 0 && (
         <p className="px-1 py-4 text-[13px] font-semibold text-muted-foreground">
-          {t("search.onlineUnavailable", "Téléchargement indisponible : yt-dlp manque sur le serveur")}
+          {t("search.onlineUnavailable", "Téléchargement indisponible")}
         </p>
       )}
       <div className="flex flex-col gap-2">

@@ -53,20 +53,16 @@ FROM node:22-slim AS runner
 # `docker stop` ou d'une mise à jour.
 # ffmpeg : requis par l'analyse audio (BPM, énergie, humeur) et l'alignement
 # des paroles — sans lui le serveur démarre mais dégrade silencieusement la
-# recommandation et le karaoké.
-# yt-dlp (binaire autonome PyInstaller) : moteur de la recherche + du
-# téléchargement à la demande (« Trouver ailleurs »). Le binaire autonome
-# plutôt que le paquet Debian (trop vieux — YouTube casse les vieilles
-# versions en quelques mois) ou le zipapp (qui exigerait Python dans l'image).
+# recommandation et le karaoké. Il améliore aussi le téléchargement à la
+# demande (« Trouver ailleurs ») : tags + pochette intégrés dans le fichier.
+# Le téléchargement YouTube lui-même est 100 % JavaScript (moteur InnerTube
+# embarqué, cf. src/server/library/youtube.ts) : plus aucune dépendance
+# Python / yt-dlp dans l'image.
 RUN apt-get update \
-    && apt-get install -y --no-install-recommends dumb-init ffmpeg curl ca-certificates \
+    && apt-get install -y --no-install-recommends dumb-init ffmpeg ca-certificates \
     && rm -rf /var/lib/apt/lists/* \
     && mkdir -p /music /data \
-    && chown -R node:node /music /data \
-    && curl -fsSL https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp_linux \
-        -o /usr/local/bin/yt-dlp \
-    && chmod +x /usr/local/bin/yt-dlp \
-    && /usr/local/bin/yt-dlp --version
+    && chown -R node:node /music /data
 
 # Volumes montés par docker-compose.yml : /music (bibliothèque) et /data
 # (base SQLite, cache pochettes, sauvegardes). Créés dans la couche ci-dessus

@@ -1,8 +1,9 @@
 // Integration tests for the download route's hardening: auth, CSRF (cookie
 // sessions must not mutate cross-site), client-supplied videoId validation, and
 // the jobs listing shape. Uses the same real-Request-against-real-route pattern
-// as httpRoutes.test.ts; /bin/true stands in for yt-dlp so availability is
-// portable (the probe only checks the exit code).
+// as httpRoutes.test.ts. The download engine is pure JS (no binary to stand in
+// for) — availability is purely configuration, so these tests never touch the
+// network.
 
 import { test } from "vitest";
 import assert from "node:assert/strict";
@@ -13,7 +14,6 @@ import path from "path";
 const tmp = fs.mkdtempSync(path.join(os.tmpdir(), "auralis-download-test-"));
 process.env.AURALIS_DATA_DIR = tmp;
 process.env.AURALIS_LYRICS_ONLINE = "false";
-process.env.AURALIS_YTDLP = "/bin/true";
 process.on("exit", () => { try { fs.rmSync(tmp, { recursive: true, force: true }); } catch { /* best effort */ } });
 
 const URL_ = "http://localhost:4237/api/download";
@@ -51,7 +51,7 @@ test("POST /api/download enforces CSRF for cookie sessions (no Origin → 403)",
   assert.equal(res.status, 403);
 });
 
-test("POST /api/download rejects a malformed videoId (no path/query smuggling into the yt-dlp URL or filename)", async () => {
+test("POST /api/download rejects a malformed videoId (no path/query smuggling into the watch URL or filename)", async () => {
   const { createUser, createSessionToken, POST } = await mods();
   const user = await createUser("dlvalid", "correct-horse-battery-staple", false);
   if (typeof user.id !== "number") throw new Error("createUser failed");

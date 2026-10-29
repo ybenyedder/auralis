@@ -164,9 +164,9 @@ class AuralisApi {
         }.getOrDefault(SearchResult.EMPTY)
     }
 
-    /** Local search + downloadable YouTube hits (server yt-dlp). online.enabled
-     *  is false when the server can't download (no binary) — callers hide the
-     *  section then. Best-effort: offline/old servers get an empty result. */
+    /** Local search + downloadable YouTube hits (server JS YouTube engine).
+     *  online.enabled is false when the server has downloads disabled — callers
+     *  hide the section then. Best-effort: offline/old servers get an empty result. */
     suspend fun searchOnline(query: String): Pair<Boolean, List<OnlineTrack>> = withContext(Dispatchers.IO) {
         if (query.isBlank()) return@withContext false to emptyList()
         runCatching {

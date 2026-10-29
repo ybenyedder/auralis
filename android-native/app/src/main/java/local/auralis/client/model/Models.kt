@@ -455,7 +455,7 @@ data class OnlineTrack(
     }
 }
 
-/** Server-side yt-dlp download job (downloader.ts wire shape). */
+/** Server-side download job (downloader.ts wire shape). */
 data class DownloadJobDto(
     val id: String,
     val status: String, // queued | resolving | downloading | scanning | done | error

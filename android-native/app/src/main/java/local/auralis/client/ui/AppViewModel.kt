@@ -920,7 +920,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
             val res = api.search(query)
             if (_ui.value.searchQuery == query) _ui.update { it.copy(searchResult = res) }
             // The library answers poorly (or not at all) → also ask the server's
-            // yt-dlp for downloadable hits ("that song isn't here — fetch it").
+            // YouTube engine for downloadable hits ("that song isn't here — fetch it").
             if (_ui.value.searchQuery == query && query.length >= 2 && res.tracks.size < 5) {
                 _ui.update { it.copy(onlineLoading = true) }
                 val (enabled, online) = api.searchOnline(query)
