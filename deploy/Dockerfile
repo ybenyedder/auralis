@@ -79,6 +79,10 @@ ENV NODE_ENV=production \
 # Sortie autonome de Next.js : server.js + les node_modules strictement
 # nécessaires (dont le binaire better-sqlite3 compilé à l'étape précédente).
 COPY --from=builder --chown=node:node /app/.next/standalone ./
+# @swc/helpers est exclu du traceur (comme tout @swc) pour ne pas gonfler le
+# bundle — mais la sortie compilée de Next en a besoin à l'exécution : on le
+# recopie explicitement (sinon « Cannot find module '@swc/helpers' » au boot).
+COPY --from=builder --chown=node:node /app/node_modules/@swc/helpers ./node_modules/@swc/helpers
 # Bundles statiques du client et dossier public (icônes PWA, robots.txt...).
 # Les deux sont servis par server.js depuis son propre répertoire.
 COPY --from=builder --chown=node:node /app/.next/static ./.next/static
