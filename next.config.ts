@@ -19,7 +19,20 @@ const nextConfig: NextConfig = {
   // Produce a self-contained server bundle that the Electron desktop shell spawns.
   output: "standalone",
   // Native / Node-only packages must be required at runtime, never bundled.
-  serverExternalPackages: ["better-sqlite3", "music-metadata", "shazamio-core"],
+  serverExternalPackages: ["better-sqlite3", "music-metadata", "shazamio-core", "youtubei.js"],
+  // ESM-only runtime externals (youtubei.js) escape the standalone tracer —
+  // turbopack emits them as runtime path references the tracer can't follow,
+  // so the packaged server (Docker, desktop, `npm run serve`) would crash with
+  // "Cannot find package 'youtubei.js'". List them explicitly.
+  outputFileTracingIncludes: {
+    "*": [
+      "node_modules/youtubei.js/**",
+      "node_modules/@bufbuild/**",
+      "node_modules/fflate/**",
+      "node_modules/meriyah/**",
+      "node_modules/shazamio-core/**",
+    ],
+  },
   // The standalone tracer otherwise copies the whole project root into
   // .next/standalone — including build outputs (dist-desktop), the native-app
   // sources (android/mobile) and the prior package — which snowballs the desktop

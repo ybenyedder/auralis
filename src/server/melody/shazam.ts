@@ -65,8 +65,11 @@ interface ShazamCoreModule {
  *  The WASM decoder is unreliable on compressed containers, so the server
  *  feeds it PCM it decoded itself (ffmpeg); raw-bytes mode is the last resort. */
 async function buildSignatures(audio: Buffer): Promise<RawSignature[]> {
-  const mod = (await import(/*turbopackIgnore: true*/ "shazamio-core")) as unknown as ShazamCoreModule;
-  const core = mod.default ?? mod;
+  const mod = (await import("shazamio-core")) as unknown as {
+    recognizeBytes?: (bytes: Uint8Array, offset?: number, seconds?: number) => RawSignature[];
+    default?: ShazamCoreModule;
+  };
+  const core = (mod.default ?? mod) as ShazamCoreModule;
 
   if (core.DecodedSignature && (await hasFfmpeg())) {
     const pcm = await decodePcmBuffer(writeTemp(audio), { maxSeconds: 30, sampleRate: 44100 });

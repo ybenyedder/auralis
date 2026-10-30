@@ -26,7 +26,10 @@ const log = createLogger("youtube");
 type InnertubeSession = Awaited<ReturnType<typeof createSession>>;
 
 async function createSession() {
-  const { Innertube } = await import(/*turbopackIgnore: true*/ "youtubei.js");
+  // NOTE: no turbopackIgnore here — the import must stay visible to the
+  // standalone tracer so youtubei.js (and its deps) land in node_modules of
+  // the packaged server (see next.config.ts serverExternalPackages).
+  const { Innertube } = await import("youtubei.js");
   return Innertube.create();
 }
 
