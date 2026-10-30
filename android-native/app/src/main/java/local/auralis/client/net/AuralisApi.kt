@@ -166,10 +166,6 @@ class AuralisApi {
         return recoTracks(qs.toString())
     }
 
-    /** Mood-trajectory radio (web fetchTrajectory) — e.g. winddown / warmup. */
-    suspend fun recommendTrajectory(path: String, limit: Int = 40): List<RecoTrack> =
-        recoTracks("/api/recommend?path=${Uri.encode(path)}&limit=$limit")
-
     /** "Discover" mix — taste-ranked tracks the user has never played (web fetchDiscovery). */
     suspend fun recommendDiscovery(limit: Int = 60): List<RecoTrack> =
         recoTracks("/api/recommend?mode=discovery&limit=$limit")

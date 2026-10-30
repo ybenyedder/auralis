@@ -10,8 +10,8 @@ import kotlin.random.Random
 
 /**
  * JVM unit tests for the pure shelf derivations in Reco.kt — the web semantics
- * (DailyMixes.tsx weekKey + mixes, HomeView.tsx moodRecs, RadioView.tsx random
- * seed) that the home/radio screens build on.
+ * (DailyMixes.tsx weekKey + mixes, HomeView.tsx moodRecs) that the home screen
+ * builds on.
  */
 class RecoLogicTest {
 
@@ -47,23 +47,6 @@ class RecoLogicTest {
         assertEquals("2020-W53", isoWeekKey(utc(2021, 1, 1), tz))
         // 2026-01-01 is a Thursday — week 1 of 2026.
         assertEquals("2026-W01", isoWeekKey(utc(2026, 1, 1), tz))
-    }
-
-    // ---- random radio seed (RadioView.startRandomRadio) ---------------------
-
-    @Test
-    fun `randomRadioSeed returns null on an empty library`() {
-        assertNull(randomRadioSeed(emptyList(), Random(1)))
-    }
-
-    @Test
-    fun `randomRadioSeed always picks a library track`() {
-        val tracks = listOf(track("a"), track("b"), track("c"))
-        repeat(50) { seed ->
-            val pick = randomRadioSeed(tracks, Random(seed.toLong()))
-            assertTrue("pick must be one of the library", pick in tracks)
-        }
-        assertEquals(track("solo"), randomRadioSeed(listOf(track("solo")), Random(7)))
     }
 
     // ---- daily mood mixes (DailyMixes.tsx) ----------------------------------

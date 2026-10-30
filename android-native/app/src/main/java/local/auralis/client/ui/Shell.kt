@@ -36,7 +36,6 @@ import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.LibraryMusic
 import androidx.compose.material.icons.filled.PlayArrow
-import androidx.compose.material.icons.filled.Radio
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Star
 import androidx.compose.material3.Icon
@@ -70,7 +69,6 @@ import local.auralis.client.i18n.tr
 import local.auralis.client.ui.components.LocalHazeState
 import local.auralis.client.ui.components.LocalHazeStyle
 import local.auralis.client.ui.components.LocalSelection
-import local.auralis.client.ui.components.RadioWavesIcon
 import local.auralis.client.ui.components.SelectionController
 import local.auralis.client.ui.components.amFrosted
 import local.auralis.client.ui.player.MiniPlayer
@@ -83,35 +81,28 @@ import local.auralis.client.ui.screens.InsightsScreen
 import local.auralis.client.ui.screens.LibraryScreen
 import local.auralis.client.ui.screens.NewScreen
 import local.auralis.client.ui.screens.PlaylistDetail
-import local.auralis.client.ui.screens.RadioScreen
 import local.auralis.client.ui.screens.RecentsScreen
 import local.auralis.client.ui.screens.SearchScreen
 import local.auralis.client.ui.screens.SettingsScreen
 import local.auralis.client.ui.theme.AMType
 import local.auralis.client.ui.theme.LocalAuralis
 
-// Apple Music's mobile navigation is five tabs: Home (Accueil), New (Nouveau),
-// Radio, Library (Bibliothèque) and Search (Recherche). Secondary destinations
+// Apple Music's mobile navigation is four tabs: Home (Accueil), New (Nouveau),
+// Search (Recherche) and Library (Bibliothèque). Secondary destinations
 // (favourites, recents, folders, insights, settings, details) live under these
 // roots; the Library tab owns them.
-private val rootViews = setOf(ViewId.HOME, ViewId.NEW, ViewId.RADIO, ViewId.EXPLORE, ViewId.LIBRARY)
+private val rootViews = setOf(ViewId.HOME, ViewId.NEW, ViewId.EXPLORE, ViewId.LIBRARY)
 
 internal fun tabOf(view: ViewId): Int = when (view) {
     ViewId.HOME -> 0
     ViewId.NEW -> 1
-    ViewId.RADIO -> 2
-    // L'ordre du dock est Accueil(0), Nouveau(1), Radio(2), BIBLIOTHÈQUE(3),
-    // RECHERCHE(4) : EXPLORE pointait sur le créneau Bibliothèque et toutes les
-    // vues de la bibliothèque (secondaires comprises) tombaient sur Recherche —
-    // l'indicateur échangeait les deux derniers onglets.
-    ViewId.EXPLORE -> 4
+    ViewId.EXPLORE -> 2
     else -> 3 // Bibliothèque + favoris, récents, dossiers, réglages, détails…
 }
 
 private fun titleKeyOf(view: ViewId): String = when (view) {
     ViewId.HOME -> "nav.home"
     ViewId.NEW -> "nav.new"
-    ViewId.RADIO -> "radio.title"
     ViewId.EXPLORE -> "search.title"
     ViewId.LIBRARY -> "nav.library"
     ViewId.FAVORITES -> "favorites.title"
@@ -429,7 +420,6 @@ private fun MainContent(vm: AppViewModel, ui: UiState) {
         when (nav.view) {
             ViewId.HOME -> HomeScreen(vm, ui)
             ViewId.NEW -> NewScreen(vm, ui)
-            ViewId.RADIO -> RadioScreen(vm, ui)
             ViewId.EXPLORE -> SearchScreen(vm, ui)
             ViewId.LIBRARY -> LibraryScreen(vm, ui)
             ViewId.FAVORITES -> FavoritesScreen(vm, ui)
@@ -444,7 +434,7 @@ private fun MainContent(vm: AppViewModel, ui: UiState) {
     }
 }
 
-/** Apple Music tab bar: five roots, active tinted with the red accent, floating
+/** Apple Music tab bar: four roots, active tinted with the red accent, floating
  *  over the scrolling content with a hairline top edge. */
 @Composable
 private fun Dock(activeView: ViewId, onTab: (ViewId) -> Unit) {
@@ -454,9 +444,8 @@ private fun Dock(activeView: ViewId, onTab: (ViewId) -> Unit) {
     val tabs = listOf(
         Tab(ViewId.HOME, tr("nav.home"), Icons.Filled.Home),
         Tab(ViewId.NEW, tr("nav.new"), Icons.Filled.Star),
-        Tab(ViewId.RADIO, tr("radio.title"), RadioWavesIcon),
-        Tab(ViewId.LIBRARY, tr("nav.library"), Icons.Filled.LibraryMusic),
         Tab(ViewId.EXPLORE, tr("search.title"), Icons.Filled.Search),
+        Tab(ViewId.LIBRARY, tr("nav.library"), Icons.Filled.LibraryMusic),
     )
     // Frosted translucent bar — content scrolled underneath blurs through.
     Column(Modifier.fillMaxWidth().amFrosted(null, colors.panel)) {

@@ -31,18 +31,19 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Album
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Download
 import androidx.compose.material.icons.filled.Explore
 import androidx.compose.material.icons.filled.Favorite
+import androidx.compose.material.icons.filled.Link
 import androidx.compose.material.icons.filled.Mic
 import androidx.compose.material.icons.filled.MusicNote
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.QueueMusic
-import androidx.compose.material.icons.filled.Radio
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
@@ -83,12 +84,10 @@ import local.auralis.client.model.MoodMix
 import local.auralis.client.model.MoodRecs
 import local.auralis.client.model.Moods
 import local.auralis.client.model.OnlineTrack
-import local.auralis.client.model.SMART_PRESETS
 import local.auralis.client.model.Track
-import local.auralis.client.model.Trajectories
-import local.auralis.client.model.Trajectory
 import local.auralis.client.model.dailyMoodMixes
 import local.auralis.client.model.moodRecs
+import local.auralis.client.playback.QueueSource
 import local.auralis.client.ui.AppViewModel
 import local.auralis.client.ui.UiState
 import local.auralis.client.ui.ViewId
@@ -153,7 +152,6 @@ fun HomeScreen(vm: AppViewModel, ui: UiState) {
         val recentSet = ui.recents.take(30).toSet()
         val recs = moodRecs(ui.tracks, ui.playCounts, ui.dislikes, ui.moodAffinities, ui.recoScores)
         HomeDerived(
-            recentlyAdded = ui.tracks.filter { it.addedAt != null }.sortedByDescending { it.addedAt }.take(12),
             topTracks = ui.tracks.sortedByDescending { ui.playCounts[it.trackhash] ?: 0 }
                 .filter { (ui.playCounts[it.trackhash] ?: 0) > 0 }.take(5),
             rediscover = ui.tracks.filter { ui.favorites.contains(it.trackhash) && it.trackhash !in recentSet }.take(12),
@@ -170,7 +168,9 @@ fun HomeScreen(vm: AppViewModel, ui: UiState) {
                 QuickTileItem(
                     "liked", tr("home.likedTracks"), null, null, null, liked = true,
                     onOpen = { vm.navigate(ViewId.FAVORITES) },
-                    onPlay = { vm.playList(home.favTracks) },
+                    // "Titres likés" plays a shuffled queue of the liked tracks
+                    // ONLY — the continuation stays inside the liked set.
+                    onPlay = { vm.playShuffled(home.favTracks, QueueSource.Favorites(ui.favorites)) },
                 ),
             )
         }
@@ -191,18 +191,10 @@ fun HomeScreen(vm: AppViewModel, ui: UiState) {
     }
 
     LazyColumn(contentPadding = bottomPad) {
-        // Large title + streak chips (Apple Music opens each tab with a 34pt title).
+        // Large title (Apple Music opens each tab with a 34pt title).
         item {
             Column(Modifier.padding(top = 6.dp, bottom = 12.dp)) {
                 LargeTitle(tr("nav.home"))
-                if (ui.stats.streak > 0) {
-                    Spacer(Modifier.height(8.dp))
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Chip(tr("home.streakChip", params = mapOf("count" to ui.stats.streak)))
-                        Spacer(Modifier.width(8.dp))
-                        Chip(tr("home.weekPlaysChip", params = mapOf("count" to ui.stats.weekPlays)))
-                    }
-                }
             }
         }
 
@@ -243,9 +235,8 @@ fun HomeScreen(vm: AppViewModel, ui: UiState) {
             }
         }
 
-        // "Jamais écoutés" hero — mirrors the PWA home (same indigo card as the
-        // Radio tab): the discovery entry point lives on the ACCUEIL tab, where
-        // users look for it, not only buried in Radio.
+        // "Jamais écoutés" hero — the discovery entry point on the ACCUEIL tab,
+        // where users look for it.
         if (ui.tracks.any { (ui.playCounts[it.trackhash] ?: 0) == 0 && it.trackhash !in ui.dislikes }) {
             item {
                 Spacer(Modifier.height(16.dp))
@@ -266,7 +257,7 @@ fun HomeScreen(vm: AppViewModel, ui: UiState) {
                         Text(tr("home.unheardTitle"), color = Color.White, style = AMType.Title1)
                         Spacer(Modifier.height(4.dp))
                         Text(
-                            tr("radio.unheardSub"),
+                            tr("home.unheardSub"),
                             color = Color.White.copy(alpha = 0.85f), style = AMType.Subhead,
                         )
                     }
@@ -386,18 +377,6 @@ fun HomeScreen(vm: AppViewModel, ui: UiState) {
             }
         }
 
-        if (home.recentlyAdded.isNotEmpty()) {
-            item {
-                Spacer(Modifier.height(24.dp))
-                SectionHeader(tr("home.recentlyAdded"), tr("common.showAll")) { vm.navigate(ViewId.NEW) }
-                LazyRow(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                    items(home.recentlyAdded, key = { it.trackhash }) { t ->
-                        MiniTrackCard(t, t.trackhash == current) { vm.playTrack(t, home.recentlyAdded, home.recentlyAdded.indexOf(t)) }
-                    }
-                }
-            }
-        }
-
         if (home.rediscover.isNotEmpty()) {
             item {
                 Spacer(Modifier.height(24.dp))
@@ -441,28 +420,11 @@ fun HomeScreen(vm: AppViewModel, ui: UiState) {
                 )
             }
         }
-
-        if (ui.artists.isNotEmpty()) {
-            item {
-                Spacer(Modifier.height(24.dp))
-                SectionHeader(tr("search.artists"), tr("common.showAll")) { vm.navigate(ViewId.LIBRARY) }
-                LazyRow(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                    items(ui.artists.take(12), key = { it.artisthash }) { a ->
-                        ArtistCard(
-                            a,
-                            onPlay = { vm.playList(ui.tracks.filter { t -> t.primaryArtistHash == a.artisthash }) },
-                            onLongPress = { vm.openArtistMenu(a) },
-                        ) { vm.navigate(ViewId.ARTIST, a.artisthash) }
-                    }
-                }
-            }
-        }
     }
 }
 
 // Full-library derivations of HomeScreen, computed by derivedAsync.
 private class HomeDerived(
-    val recentlyAdded: List<Track>,
     val topTracks: List<Track>,
     val rediscover: List<Track>,
     val discoveries: List<Track>,
@@ -471,7 +433,7 @@ private class HomeDerived(
     val moodRecs: MoodRecs?,
 ) {
     companion object {
-        val EMPTY = HomeDerived(emptyList(), emptyList(), emptyList(), emptyList(), emptyList(), emptyList(), null)
+        val EMPTY = HomeDerived(emptyList(), emptyList(), emptyList(), emptyList(), emptyList(), null)
     }
 }
 
@@ -600,202 +562,6 @@ private class NewDerived(
 ) {
     companion object {
         val EMPTY = NewDerived(emptyList(), emptyList(), emptyList(), emptyList())
-    }
-}
-
-// ============================ RADIO ========================================
-
-/** The "Radio" tab — Apple Music's station hub: a daily mix hero, personalised
- *  station cards and genre stations that shuffle-play their pool. */
-@Composable
-fun RadioScreen(vm: AppViewModel, ui: UiState) {
-    val colors = LocalAuralis.current
-    val current = currentTrackOf(vm)
-    val daySeed = System.currentTimeMillis() / 86_400_000L
-    // Same full-library passes as the home screen (pool filter, daily shuffle, genre
-    // grouping) — derived off the main thread.
-    val radio = derivedAsync(ui.tracks, ui.favorites, ui.playCounts, daySeed, initial = RadioDerived.EMPTY) {
-        val pool = ui.tracks.filter { it.isFavorite || (ui.playCounts[it.trackhash] ?: 0) > 0 }.ifEmpty { ui.tracks }
-        RadioDerived(
-            mix = seededShuffle(pool, daySeed).take(30),
-            genres = ui.tracks.filter { !it.genre.isNullOrBlank() }
-                .groupBy { it.genre!! }
-                .entries.filter { it.value.size >= 3 }
-                .sortedByDescending { it.value.size },
-        )
-    }
-
-    LazyColumn(contentPadding = bottomPad) {
-        item {
-            Column(Modifier.padding(top = 6.dp, bottom = 12.dp)) { LargeTitle(tr("radio.title")) }
-        }
-        if (ui.tracks.isEmpty()) {
-            item { EmptyHint(tr("library.emptyNoTracks"), tr("empty.setupLibraryHint")) }
-            return@LazyColumn
-        }
-
-        // Station hero — the daily mix as a big red editorial card.
-        if (radio.mix.isNotEmpty()) {
-            item {
-                Box(
-                    Modifier
-                        .fillMaxWidth()
-                        .height(180.dp)
-                        .clip(RoundedCornerShape(14.dp))
-                        .background(
-                            Brush.linearGradient(
-                                listOf(Color(0xFFFA233B), Color(0xFFFC5C7A), Color(0xFFFFAEBE)),
-                            ),
-                        )
-                        .clickable { vm.playList(radio.mix) }
-                        .padding(20.dp),
-                ) {
-                    Column(Modifier.align(Alignment.BottomStart)) {
-                        Text(tr("radio.dailyMix"), color = Color.White, style = AMType.Title1)
-                        Spacer(Modifier.height(4.dp))
-                        Text(
-                            tr("radio.dailyMixSub"),
-                            color = Color.White.copy(alpha = 0.85f), style = AMType.Subhead,
-                        )
-                    }
-                    Icon(
-                        Icons.Filled.PlayArrow, tr("radio.playDailyMix"),
-                        tint = Color.White, modifier = Modifier.align(Alignment.BottomEnd).size(44.dp),
-                    )
-                }
-            }
-        }
-
-        // "Jamais écoutés" — a random queue of never-played tracks, reshuffled on
-        // every press (the mix the all-day listener asks for).
-        if (ui.tracks.any { (ui.playCounts[it.trackhash] ?: 0) == 0 && it.trackhash !in ui.dislikes }) {
-            item {
-                Box(
-                    Modifier
-                        .fillMaxWidth()
-                        .height(150.dp)
-                        .clip(RoundedCornerShape(14.dp))
-                        .background(
-                            Brush.linearGradient(
-                                listOf(Color(0xFF1E3A8A), Color(0xFF4F46E5)),
-                            ),
-                        )
-                        .clickable { vm.playUnheardMix() }
-                        .padding(20.dp),
-                ) {
-                    Column(Modifier.align(Alignment.BottomStart)) {
-                        Text(tr("home.unheardTitle"), color = Color.White, style = AMType.Title1)
-                        Spacer(Modifier.height(4.dp))
-                        Text(
-                            tr("radio.unheardSub"),
-                            color = Color.White.copy(alpha = 0.85f), style = AMType.Subhead,
-                        )
-                    }
-                    Icon(
-                        Icons.Filled.PlayArrow, tr("home.playUnheardMix"),
-                        tint = Color.White, modifier = Modifier.align(Alignment.BottomEnd).size(44.dp),
-                    )
-                }
-            }
-        }
-
-        // "Radio aléatoire" (web RadioView): a station seeded from a RANDOM library
-        // track — so the tab itself starts radios.
-        item {
-            Spacer(Modifier.height(12.dp))
-            Box(
-                Modifier
-                    .fillMaxWidth()
-                    .height(150.dp)
-                    .clip(RoundedCornerShape(14.dp))
-                    .background(
-                        Brush.linearGradient(
-                            listOf(Color(0xFF7C2D12), Color(0xFFD95F45)),
-                        ),
-                    )
-                    .clickable { vm.startRandomRadio() }
-                    .padding(20.dp),
-            ) {
-                Column(Modifier.align(Alignment.BottomStart)) {
-                    Text(tr("radio.randomRadio"), color = Color.White, style = AMType.Title1)
-                    Spacer(Modifier.height(4.dp))
-                    Text(
-                        tr("radio.randomRadioSub"),
-                        color = Color.White.copy(alpha = 0.85f), style = AMType.Subhead,
-                    )
-                }
-                Icon(
-                    Icons.Filled.Radio, tr("radio.startRandomAria"),
-                    tint = Color.White, modifier = Modifier.align(Alignment.BottomEnd).size(44.dp),
-                )
-            }
-        }
-
-        // "Voyages sonores" (web MoodMixes): mood-trajectory radios — a set that
-        // glides along a named arc through feeling-space (/api/recommend?path=).
-        item {
-            Spacer(Modifier.height(24.dp))
-            SectionHeader(tr("home.journeys"))
-            Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                Trajectories.ALL.chunked(2).forEach { row ->
-                    Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                        row.forEach { tr ->
-                            TrajectoryCard(tr, Modifier.weight(1f)) { vm.startTrajectory(tr.id, tr.label) }
-                        }
-                        if (row.size == 1) Spacer(Modifier.weight(1f))
-                    }
-                }
-            }
-        }
-
-        // Personalised station shelf.
-        if (ui.forYou.isNotEmpty()) {
-            item {
-                Spacer(Modifier.height(24.dp))
-                SectionHeader(tr("home.forYou"), tr("common.playAll")) { vm.playList(ui.forYou) }
-                LazyRow(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                    items(ui.forYou.take(10), key = { it.trackhash }) { t ->
-                        HeroTrackCard(t, t.trackhash == current) { vm.playTrack(t, ui.forYou, ui.forYou.indexOf(t)) }
-                    }
-                }
-            }
-        }
-
-        // Genre stations — Apple Music's colourful browse tiles.
-        if (radio.genres.isNotEmpty()) {
-            item {
-                Spacer(Modifier.height(24.dp))
-                SectionHeader(tr("radio.stationsByGenre"))
-                Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                    radio.genres.take(12).chunked(2).forEach { row ->
-                        Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                            row.forEach { e ->
-                                GenreCard(e.key, e.value.size, Modifier.weight(1f)) { vm.playShuffled(e.value) }
-                            }
-                            if (row.size == 1) Spacer(Modifier.weight(1f))
-                        }
-                    }
-                }
-            }
-        }
-    }
-}
-
-// Full-library derivations of RadioScreen, computed by derivedAsync.
-private class RadioDerived(
-    val mix: List<Track>,
-    val genres: List<Map.Entry<String, List<Track>>>,
-) {
-    companion object {
-        val EMPTY = RadioDerived(emptyList(), emptyList())
-    }
-}
-
-@Composable
-private fun Chip(text: String) {
-    val colors = LocalAuralis.current
-    Box(Modifier.clip(CircleShape).background(colors.panel2).padding(horizontal = 12.dp, vertical = 6.dp)) {
-        Text(text, color = colors.textMuted, fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
     }
 }
 
@@ -958,25 +724,6 @@ private fun MixCard(
         Spacer(Modifier.height(8.dp))
         Text(label, color = colors.foreground, fontSize = 14.sp, fontWeight = FontWeight.Bold, maxLines = 1, overflow = TextOverflow.Ellipsis)
         Text(sublabel, color = colors.textMuted, fontSize = 12.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
-    }
-}
-
-/** Web MoodMixes trajectory card: a gradient tile per named arc, bold label +
- *  blurb — one tap starts the mood-trajectory radio. */
-@Composable
-private fun TrajectoryCard(tr: Trajectory, modifier: Modifier = Modifier, onClick: () -> Unit) {
-    Box(
-        modifier
-            .height(96.dp)
-            .clip(RoundedCornerShape(12.dp))
-            .background(Brush.linearGradient(listOf(hexColor(tr.c0), hexColor(tr.c1))))
-            .clickable { onClick() }
-            .padding(12.dp),
-    ) {
-        Column(Modifier.align(Alignment.BottomStart)) {
-            Text(tr.label, color = Color.White, style = AMType.Headline, maxLines = 1, overflow = TextOverflow.Ellipsis)
-            Text(tr.blurb, color = Color.White.copy(alpha = 0.8f), style = AMType.Caption1, maxLines = 1, overflow = TextOverflow.Ellipsis)
-        }
     }
 }
 
@@ -1201,9 +948,10 @@ fun LibraryScreen(vm: AppViewModel, ui: UiState) {
     var newName by remember { mutableStateOf("") }
     var sort by remember { mutableStateOf(0) }
     var grid by remember { mutableStateOf(true) }
-    // Playlist import: smart-playlist presets, a SAF file picker (.m3u/.m3u8/.json)
-    // and the streaming-service link importer (web LibraryView).
-    var showSmart by remember { mutableStateOf(false) }
+    // The single "+" menu holds every creation affordance: new playlist, the
+    // SAF file picker (.m3u/.m3u8/.json) and the streaming-service link importer
+    // (web LibraryView) — the screen itself stays focused on the content.
+    var showAddMenu by remember { mutableStateOf(false) }
     var showLink by remember { mutableStateOf(false) }
     var linkUrl by remember { mutableStateOf("") }
     var linkBusy by remember { mutableStateOf(false) }
@@ -1269,40 +1017,6 @@ fun LibraryScreen(vm: AppViewModel, ui: UiState) {
         )
     }
 
-    // Smart-playlist presets (web SMART_PRESETS): one tap creates a rules-driven
-    // playlist stored through the same `playlist.upsert` action the web uses.
-    if (showSmart) {
-        androidx.compose.material3.AlertDialog(
-            onDismissRequest = { showSmart = false },
-            containerColor = colors.panel,
-            title = { Text(tr("library.smartPlaylist"), color = colors.foreground) },
-            text = {
-                Column {
-                    Text(
-                        tr("library.smartHint"),
-                        color = colors.textMuted, fontSize = 12.sp,
-                    )
-                    Spacer(Modifier.height(8.dp))
-                    SMART_PRESETS.forEach { preset ->
-                        Row(
-                            Modifier.fillMaxWidth().clip(RoundedCornerShape(10.dp))
-                                .clickable {
-                                    showSmart = false
-                                    vm.createSmartPlaylist(preset.config) { id -> vm.navigate(ViewId.PLAYLIST, id) }
-                                }
-                                .padding(horizontal = 12.dp, vertical = 12.dp),
-                        ) {
-                            Text(tr(preset.nameKey), color = colors.foreground, fontSize = 14.sp, fontWeight = FontWeight.SemiBold)
-                        }
-                    }
-                }
-            },
-            confirmButton = {
-                androidx.compose.material3.TextButton(onClick = { showSmart = false }) { Text(tr("common.cancel"), color = colors.textMuted) }
-            },
-        )
-    }
-
     // Streaming-service link import: the server resolves the URL to a tracklist
     // (rate-limited 10/min per account), then it's matched against THIS library.
     if (showLink) {
@@ -1338,6 +1052,25 @@ fun LibraryScreen(vm: AppViewModel, ui: UiState) {
         )
     }
 
+    // The single "+" menu: every creation affordance behind one clean button.
+    if (showAddMenu) {
+        local.auralis.client.ui.components.MenuSheetScaffold(onDismiss = { showAddMenu = false }) {
+            Text(
+                tr("library.addMenu"), color = colors.textMuted, fontSize = 12.sp,
+                modifier = Modifier.padding(horizontal = 12.dp, vertical = 4.dp),
+            )
+            local.auralis.client.ui.components.MenuRow(Icons.Filled.QueueMusic, tr("ctx.newPlaylist")) {
+                showAddMenu = false; showCreate = true
+            }
+            local.auralis.client.ui.components.MenuRow(Icons.Filled.Download, tr("library.importFile")) {
+                showAddMenu = false; importFile.launch(arrayOf("*/*"))
+            }
+            local.auralis.client.ui.components.MenuRow(Icons.Filled.Link, tr("library.importLink")) {
+                showAddMenu = false; showLink = true
+            }
+        }
+    }
+
     // Sorting the whole catalogue (and totalling artist plays — a pass over every
     // track's artist list) on each sort toggle / library update — off the main thread.
     val lib = derivedAsync(ui.albums, ui.artists, ui.tracks, ui.playCounts, sort, initial = LibraryDerived.EMPTY) {
@@ -1369,7 +1102,7 @@ fun LibraryScreen(vm: AppViewModel, ui: UiState) {
     }
 
     Column(Modifier.fillMaxWidth()) {
-        // Large title + the red "new playlist" action beside it (Apple Music header).
+        // Large title + the single "+" action beside it (Apple Music header).
         Row(
             Modifier.fillMaxWidth().padding(start = 16.dp, end = 16.dp, top = 6.dp),
             verticalAlignment = Alignment.CenterVertically,
@@ -1377,14 +1110,18 @@ fun LibraryScreen(vm: AppViewModel, ui: UiState) {
             LargeTitle(tr("nav.library"), Modifier.weight(1f))
             Box(
                 Modifier
+                    .size(36.dp)
                     .clip(CircleShape)
                     .background(colors.accent)
-                    .clickable { showCreate = true }
-                    .padding(horizontal = 14.dp, vertical = 8.dp),
-            ) { Text(tr("library.newPlaylistShort"), color = colors.ink, style = AMType.Footnote, fontWeight = FontWeight.Bold) }
+                    .clickable { showAddMenu = true },
+                contentAlignment = Alignment.Center,
+            ) {
+                Icon(Icons.Filled.Add, contentDescription = tr("library.addMenu"), tint = colors.ink, modifier = Modifier.size(22.dp))
+            }
         }
-        // Secondary destinations (also reachable here, mirroring the web's "Plus" hub).
-        // "Titres aimés" leads the list — the library's pinned Liked-Songs entry.
+        // The pinned Liked-Songs entry — the library's one content shortcut. (The
+        // recents/folders/insights shortcuts were removed as clutter; those views
+        // stay reachable from the search screen's quick-jump palette.)
         Row(
             Modifier
                 .horizontalScroll(rememberScrollState())
@@ -1392,9 +1129,6 @@ fun LibraryScreen(vm: AppViewModel, ui: UiState) {
             horizontalArrangement = Arrangement.spacedBy(8.dp),
         ) {
             PlusChip("❤ " + tr("nav.favorites")) { vm.navigate(ViewId.FAVORITES) }
-            PlusChip(tr("recents.title")) { vm.navigate(ViewId.RECENTS) }
-            PlusChip(tr("folders.title")) { vm.navigate(ViewId.FOLDERS) }
-            PlusChip(tr("insights.eyebrow")) { vm.navigate(ViewId.INSIGHTS) }
         }
         // Apple Music's library tabs: icon + label, active one in the red accent.
         Row(
@@ -1423,18 +1157,6 @@ fun LibraryScreen(vm: AppViewModel, ui: UiState) {
                     )
                 }
                 if (i != tabs.lastIndex) Spacer(Modifier.width(4.dp))
-            }
-        }
-        if (tab == 0) {
-            Row(
-                Modifier
-                    .horizontalScroll(rememberScrollState())
-                    .padding(start = 16.dp, end = 16.dp, bottom = 6.dp),
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
-            ) {
-                PlusChip("⚡ " + tr("library.smartPlaylist")) { showSmart = true }
-                PlusChip(tr("library.importFile")) { importFile.launch(arrayOf("*/*")) }
-                PlusChip(tr("library.importLink")) { showLink = true }
             }
         }
         if (tab != 0) {
@@ -1636,8 +1358,12 @@ fun FavoritesScreen(vm: AppViewModel, ui: UiState) {
                 Text(tr("detail.tracksAndDuration", params = mapOf("count" to favTracks.size, "duration" to formatLongDuration(totalDur))), color = colors.textMuted, fontSize = 13.sp)
                 Spacer(Modifier.height(14.dp))
                 Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                    PlayPill(tr("common.play")) { vm.playList(favTracks) }
-                    GhostPill(tr("common.shuffle")) { vm.playShuffled(favTracks) }
+                    // "Lire" starts a SHUFFLED queue of the liked tracks only —
+                    // random order, and the endless continuation never leaves the
+                    // liked set (no surprise unliked tracks, ever).
+                    PlayPill(tr("common.play")) {
+                        vm.playShuffled(favTracks, QueueSource.Favorites(ui.favorites))
+                    }
                     PlusChip(tr("library.sortLabel", params = mapOf("sort" to sortLabel))) { sort = (sort + 1) % 5 }
                 }
             }
@@ -1645,7 +1371,7 @@ fun FavoritesScreen(vm: AppViewModel, ui: UiState) {
         itemsIndexed(favTracks, key = { _, t -> t.trackhash }) { idx, t ->
             TrackRow(
                 t, isCurrent = t.trackhash == current, isFavorite = true,
-                onClick = { vm.playTrack(t, favTracks, idx) },
+                onClick = { vm.playTrack(t, favTracks, idx, QueueSource.Favorites(ui.favorites)) },
                 onToggleFavorite = { vm.toggleFavorite(t.trackhash) }, onMore = { vm.openTrackMenu(t) },
             )
         }

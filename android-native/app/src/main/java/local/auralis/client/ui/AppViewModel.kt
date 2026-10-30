@@ -39,13 +39,11 @@ import local.auralis.client.model.RecognizeResult
 import local.auralis.client.model.ScanProgress
 import local.auralis.client.model.SearchResult
 import local.auralis.client.model.ShareLinks
-import local.auralis.client.model.SmartConfig
 import local.auralis.client.model.Track
 import local.auralis.client.model.downloadItems
 import local.auralis.client.model.isoWeekKey
 import local.auralis.client.model.matchLibraryTracks
 import local.auralis.client.model.parsePlaylistFile
-import local.auralis.client.model.randomRadioSeed
 import local.auralis.client.model.str
 import local.auralis.client.model.strOr
 import local.auralis.client.net.AuralisApi
@@ -56,15 +54,16 @@ import local.auralis.client.playback.PlaybackGains
 import local.auralis.client.playback.PlaybackSnapshot
 import local.auralis.client.playback.PlayerHolder
 import local.auralis.client.playback.QueueOps
+import local.auralis.client.playback.QueueSource
 import org.json.JSONArray
 import org.json.JSONObject
 
 enum class Phase { BOOT, CONNECT, LOGIN, LOADING, READY, ERROR }
 
-enum class ViewId { HOME, NEW, RADIO, EXPLORE, LIBRARY, FAVORITES, RECENTS, FOLDERS, INSIGHTS, ALBUM, ARTIST, PLAYLIST, SETTINGS }
+enum class ViewId { HOME, NEW, EXPLORE, LIBRARY, FAVORITES, RECENTS, FOLDERS, INSIGHTS, ALBUM, ARTIST, PLAYLIST, SETTINGS }
 
-/** The five Apple Music tab roots — tapping one starts a fresh navigation stack. */
-val rootViewIds = setOf(ViewId.HOME, ViewId.NEW, ViewId.RADIO, ViewId.EXPLORE, ViewId.LIBRARY)
+/** The four Apple Music tab roots — tapping one starts a fresh navigation stack. */
+val rootViewIds = setOf(ViewId.HOME, ViewId.NEW, ViewId.EXPLORE, ViewId.LIBRARY)
 
 data class NavTarget(val view: ViewId, val id: String? = null)
 
@@ -147,6 +146,9 @@ data class UiState(
     val humUploading: Boolean = false,
     val humResult: RecognizeResult? = null,
     val humError: String? = null,
+    /** Literal server-side failure text (e.g. "Enregistrement vide"), rendered
+     *  under the catalogue-key error banner so failures never look silent. */
+    val humErrorDetail: String? = null,
     /** Download jobs for global-catalog matches ("Ajouter à la bibliothèque"),
      *  keyed by the match's query. */
     val humRemoteJobs: Map<String, DownloadJobDto> = emptyMap(),
@@ -489,12 +491,24 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
 
     // ---- playback ----------------------------------------------------------
 
-    fun playTrack(track: Track, list: List<Track> = listOf(track), startIndex: Int = list.indexOf(track)) {
+    /** Start a queue from [list]. [source] records what the queue was seeded
+     *  from — endless autoplay never leaves a FAVORITES/PLAYLIST set (see
+     *  playback/QueueContinuation.kt). */
+    fun playTrack(
+        track: Track,
+        list: List<Track> = listOf(track),
+        startIndex: Int = list.indexOf(track),
+        source: QueueSource = QueueSource.Library,
+    ) {
+        accounting.setQueueSource(source)
         player.playTracks(list, if (startIndex < 0) 0 else startIndex)
     }
 
-    fun playList(list: List<Track>, startIndex: Int = 0) {
-        if (list.isNotEmpty()) player.playTracks(list, startIndex)
+    fun playList(list: List<Track>, startIndex: Int = 0, source: QueueSource = QueueSource.Library) {
+        if (list.isNotEmpty()) {
+            accounting.setQueueSource(source)
+            player.playTracks(list, startIndex)
+        }
     }
 
     /// "Jamais écoutés": a RANDOM queue of every track this account never played
@@ -550,27 +564,8 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
         }
     }
 
-    /// "Radio aléatoire" (web RadioView): a station seeded from a RANDOM library track.
-    fun startRandomRadio() {
-        val seed = randomRadioSeed(_ui.value.tracks)
-        if (seed == null) { notify(tr("library.emptyNoTracks")); return }
-        startRadio(seed)
-    }
-
-    /// Mood-trajectory radio (web MoodMixes → startTrajectory): a set that glides
-    /// along a named arc through feeling-space ("winddown", "warmup", …).
-    fun startTrajectory(path: String, label: String) {
-        notify(tr("toast.preparingJourney"))
-        viewModelScope.launch {
-            val list = api.recommendTrajectory(path).mapNotNull { trackIndex[it.trackhash] }
-            if (list.isEmpty()) {
-                notify(tr("toast.journeyUnavailable"))
-                return@launch
-            }
-            playList(list, 0)
-            notify(if (label.isNotBlank()) tr("toast.journeyTitled", mapOf("label" to label)) else tr("toast.journeyStarted"))
-        }
-    }
+    /// "Radio aléatoire" / mood-trajectory stations lived on the removed Radio
+    /// tab; only the seeded radio (track/album/artist menus) remains.
 
     /// Household Blend (web BlendShelf → startBlend): a mix averaging both tastes.
     fun startBlend(username: String, label: String = username) {
@@ -1044,8 +1039,11 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
 
     // ---- shuffle play ------------------------------------------------------
 
-    fun playShuffled(list: List<Track>) {
+    /** Shuffled queue of [list] only — [source] constrains endless autoplay to
+     *  the same set (favorites "Lire", playlist shuffle…). */
+    fun playShuffled(list: List<Track>, source: QueueSource = QueueSource.Library) {
         if (list.isEmpty()) return
+        accounting.setQueueSource(source)
         player.setShuffle(true)
         viewModelScope.launch { prefs.setPlayback(shuffle = true) }
         player.playTracks(list.shuffled(), 0)
@@ -1082,6 +1080,17 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
         if (tracks.isEmpty()) return
         val idx = o.optInt("index", 0).coerceIn(0, tracks.lastIndex)
         val pos = o.optLong("position", 0L)
+        // Restore the queue-source constraint too: a favorites/playlist session
+        // keeps its continuation inside the set after a restart (the tag resolves
+        // against the CURRENT favorites/playlist contents).
+        val ui = _ui.value
+        accounting.setQueueSource(
+            QueueSource.fromTag(
+                o.optString("source", QueueSource.TAG_LIBRARY),
+                ui.favorites,
+                ui.playlists.associate { p -> p.id to p.trackhashes },
+            ),
+        )
         // A resumed track was already partly heard last session; leaving it now isn't
         // a fresh skip (the gate can't see the prior listening).
         if (pos > 0) tracks.getOrNull(idx)?.let { accounting.exemptFromSkip(it.trackhash) }
@@ -1101,25 +1110,6 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
             if (!api.apiLastOk) { notify(tr("toast.playlistCreateFailed")); return@launch }
             val id = res.optString("id", "")
             refreshState()
-            if (id.isNotBlank()) onCreated(id)
-        }
-    }
-
-    /** Create a SMART playlist from a rule config — stored through the SAME
-     *  `playlist.upsert` action the web uses (the config rides the `rules` JSON
-     *  field), so web and Android see each other's smart playlists. */
-    fun createSmartPlaylist(config: SmartConfig, onCreated: (String) -> Unit = {}) {
-        viewModelScope.launch {
-            val name = config.label?.takeIf { it.isNotBlank() } ?: "Smart playlist"
-            val pl = JSONObject()
-                .put("name", name)
-                .put("trackhashes", JSONArray())
-                .put("rules", SmartConfig.toJson(config))
-            val res = api.putState(JSONObject().put("action", "playlist.upsert").put("playlist", pl))
-            if (!api.apiLastOk) { notify(tr("toast.playlistCreateFailed")); return@launch }
-            val id = res.optString("id", "")
-            refreshState()
-            notify(tr("toast.smartCreated", mapOf("name" to name)))
             if (id.isNotBlank()) onCreated(id)
         }
     }
@@ -1772,12 +1762,14 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
         }
     }
 
-    // ---- "Chercher en chantant" (hum-to-search recognition) ------------------
+    // ---- "Identifier la musique" (music recognition) ------------------------
     // The mic sheet records ~12 s (MediaRecorder, in HumSearch.kt) and posts the
-    // raw bytes to /api/recognize; the matches land in UiState for the sheet.
+    // raw bytes to POST /api/recognize; the verdict lands in UiState for the
+    // sheet. The server answers with REAL Shazam matches first (`remote`) plus
+    // local melody-index matches (`local`).
 
     fun openHumSheet() {
-        _ui.update { it.copy(humSheetOpen = true, humUploading = false, humResult = null, humError = null) }
+        _ui.update { it.copy(humSheetOpen = true, humUploading = false, humResult = null, humError = null, humErrorDetail = null) }
     }
 
     fun closeHumSheet() {
@@ -1785,24 +1777,32 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     /** Clear the sheet's error banner (e.g. before a retry). */
-    fun clearHumError() { _ui.update { it.copy(humError = null) } }
+    fun clearHumError() { _ui.update { it.copy(humError = null, humErrorDetail = null) } }
 
     /** Clear the results so the sheet returns to the recording state. */
-    fun clearHumResult() { _ui.update { it.copy(humResult = null, humError = null) } }
+    fun clearHumResult() { _ui.update { it.copy(humResult = null, humError = null, humErrorDetail = null) } }
 
-    /** The recorder produced nothing usable (no mic, empty file…). */
-    fun failHumRecording() {
-        _ui.update { it.copy(humUploading = false, humResult = null, humError = "hum.uploadFailed") }
+    /** The recorder produced nothing usable (no mic, empty file…) — always with
+     *  a visible message, never a silent empty sheet. */
+    fun failHumRecording(detail: String? = null) {
+        _ui.update { it.copy(humUploading = false, humResult = null, humError = "hum.uploadFailed", humErrorDetail = detail) }
     }
 
     /** Upload the raw recording to POST /api/recognize and keep the verdict. */
     fun submitHumRecording(audio: ByteArray, contentType: String) {
         if (audio.isEmpty()) { failHumRecording(); return }
-        _ui.update { it.copy(humUploading = true, humResult = null, humError = null) }
+        _ui.update { it.copy(humUploading = true, humResult = null, humError = null, humErrorDetail = null) }
         viewModelScope.launch {
             val res = api.recognize(audio, contentType)
+            // A failure MUST surface: the server's own error text when it sent one
+            // (413/415/400…), the generic banner otherwise — never an empty sheet.
             if (!api.apiLastOk) {
-                _ui.update { it.copy(humUploading = false, humError = "hum.uploadFailed") }
+                failHumRecording(res.optString("error").ifBlank { null })
+                return@launch
+            }
+            if (res.length() == 0) {
+                // 2xx with an empty/unparseable body — treat as a failure.
+                failHumRecording()
                 return@launch
             }
             _ui.update { it.copy(humUploading = false, humResult = RecognizeResult.from(res)) }

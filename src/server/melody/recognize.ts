@@ -20,6 +20,7 @@ import { artUrl } from "../library/repository";
 import { decodePcmBuffer, hasFfmpeg } from "./decode";
 import { ContourBuilder, melodyDeltas, melodyHistogram, decodeContour, histogramDistance, UNVOICED } from "./contour";
 import { matchMelody, type MelodyCandidate } from "./match";
+import { shazamRecognize, type ShazamMatch } from "./shazam";
 import { identifyWithAcrcloud, acrcloudConfigured, type AcrMatch } from "./acrcloud";
 
 const log = createLogger("melody");
@@ -43,16 +44,30 @@ export interface RecognizeResult {
   /** Tracks currently in the melody index. */
   indexSize: number;
   local: RecognizeLocalMatch[];
-  /** ACRCloud results, null when unconfigured/unreachable. */
-  remote: AcrMatch[] | null;
+  /** Global identification (Shazam, plus ACRCloud when configured). */
+  remote: Array<ShazamMatch | AcrMatch> | null;
 }
 
 export async function recognizeHum(audio: Buffer, contentType: string): Promise<RecognizeResult> {
-  // The remote engine takes the raw recording — run it regardless of local
-  // readiness so a server without a melody index can still be useful.
-  const remotePromise = acrcloudConfigured()
-    ? identifyWithAcrcloud(audio.subarray(0, 2_000_000), contentType)
-    : Promise.resolve(null);
+  // The global engines take the raw recording — run them regardless of local
+  // readiness so a server without a melody index can still be useful. Real
+  // Shazam first (keyless), ACRCloud appended when configured.
+  const remotePromise: Promise<Array<ShazamMatch | AcrMatch>> = (async () => {
+    const results: Array<ShazamMatch | AcrMatch> = [];
+    try {
+      results.push(...(await shazamRecognize(audio)));
+    } catch (err) {
+      log.warn("shazam failed", { error: err instanceof Error ? err.message.slice(0, 200) : String(err) });
+    }
+    if (acrcloudConfigured()) {
+      try {
+        results.push(...((await identifyWithAcrcloud(audio.subarray(0, 2_000_000), contentType)) ?? []));
+      } catch {
+        /* best effort */
+      }
+    }
+    return results;
+  })();
 
   const base: RecognizeResult = { available: false, indexSize: 0, local: [], remote: null };
   try {
@@ -71,7 +86,8 @@ export async function recognizeHum(audio: Buffer, contentType: string): Promise<
   }
 
   try {
-    base.remote = await remotePromise;
+    const remote = await remotePromise;
+    base.remote = remote.length > 0 ? remote : null;
   } catch {
     base.remote = null;
   }

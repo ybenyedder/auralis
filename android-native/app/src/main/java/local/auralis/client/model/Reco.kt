@@ -11,27 +11,10 @@ import kotlin.random.Random
 // RECOMMENDATION SHELF MODELS (pure)
 // ----------------------------------------------------------------------------
 // The client-side derivations the web shelves run over the server taste-engine
-// data (src/components/auralis/DailyMixes.tsx, HomeView.tsx, MoodMixes.tsx,
-// RadioView.tsx). Kept pure and dependency-free so the JVM unit tests pin the
-// exact web semantics (thresholds, ranking, the ISO-week freeze key).
+// data (src/components/auralis/DailyMixes.tsx, HomeView.tsx). Kept pure and
+// dependency-free so the JVM unit tests pin the exact web semantics (thresholds,
+// ranking, the ISO-week freeze key).
 // ============================================================================
-
-/** A mood-trajectory radio card (web MoodMixes.tsx TRAJECTORIES): a set that
- *  GLIDES through feeling-space along a named arc (server /api/recommend?path=).
- *  Labels resolve through the i18n catalogue (web trajectory.* keys). */
-data class Trajectory(val id: String, val c0: String, val c1: String) {
-    val label: String get() = Messages.t("trajectory.$id")
-    val blurb: String get() = Messages.t("trajectory.$id.blurb")
-}
-
-object Trajectories {
-    val ALL = listOf(
-        Trajectory("winddown", "#1e3a8a", "#0ea5e9"),
-        Trajectory("warmup", "#f97316", "#ef4444"),
-        Trajectory("uplift", "#f59e0b", "#fde047"),
-        Trajectory("focusflow", "#0d9488", "#10b981"),
-    )
-}
 
 /** ISO-8601 year+week key ("2026-W44") so the weekly discover mix is frozen for
  *  the whole week. Thursday trick (web DailyMixes.weekKey): a week's ISO year and
@@ -51,11 +34,6 @@ fun isoWeekKey(nowMs: Long = System.currentTimeMillis(), tz: TimeZone = TimeZone
     val week = ceil(((snap.timeInMillis - yearStart.timeInMillis) / 86_400_000.0 + 1) / 7).toInt()
     return String.format(Locale.US, "%d-W%02d", year, week)
 }
-
-/** The web's "Radio aléatoire" seed pick (RadioView.startRandomRadio): a uniformly
- *  random library track; null on an empty library. */
-fun randomRadioSeed(tracks: List<Track>, random: Random = Random.Default): Track? =
-    if (tracks.isEmpty()) null else tracks[random.nextInt(tracks.size)]
 
 /** One taste-ranked mood mix card (web DailyMixes MixModel). */
 data class MoodMix(val moodId: String, val label: String, val tracks: List<Track>)

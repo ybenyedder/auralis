@@ -69,11 +69,12 @@ import local.auralis.client.ui.UiState
 import local.auralis.client.ui.theme.LocalAuralis
 import java.io.File
 
-// "Chercher en chantant" (hum-to-search): a bottom sheet that records ~12 s of
-// humming/singing with MediaRecorder and posts the raw bytes to POST
-// /api/recognize, then renders the local (library) + global (ACRCloud) matches.
-// The recording loop is Android-only; the score/query maths lives in
-// model/Recognize.kt (JVM-tested).
+// "Identifier la musique" (Shazam-style music recognition): a bottom sheet that
+// records ~12 s of AMBIENT audio (music playing around you) or humming/singing
+// with MediaRecorder and posts the raw bytes to POST /api/recognize. The server
+// answers with REAL Shazam matches first (`remote`, any song in the world) plus
+// the local melody-index matches (`local`). The recording loop is Android-only;
+// the score/query maths lives in model/Recognize.kt (JVM-tested).
 
 /** Recognition listens to at most this much audio (seconds). */
 private const val HUM_MAX_SECONDS = 12
@@ -211,6 +212,12 @@ fun HumSheet(vm: AppViewModel, ui: UiState, onDismiss: () -> Unit) {
                         tr(errorKey ?: "hum.permissionDenied"),
                         color = colors.textMuted, fontSize = 13.sp,
                     )
+                    // Surface the server's own failure text (413/415/400…) so a
+                    // failure never looks like a silent empty sheet.
+                    if (errorKey != null && ui.humErrorDetail != null) {
+                        Spacer(Modifier.height(4.dp))
+                        Text(ui.humErrorDetail!!, color = colors.textFaint, fontSize = 12.sp)
+                    }
                     Spacer(Modifier.height(10.dp))
                     Row {
                         TextButton(onClick = {
@@ -306,9 +313,17 @@ private fun HumResults(
     onRetry: () -> Unit,
 ) {
     val colors = LocalAuralis.current
-    if (result.indexSize == 0) {
-        Text(tr("hum.indexEmpty"), color = colors.textMuted, fontSize = 12.sp)
-        Spacer(Modifier.height(10.dp))
+    val remote = result.remote.orEmpty()
+    // REAL Shazam identifications first ("Identifié"), the library's melody
+    // matches second ("Dans ta bibliothèque") — the world-catalog hit is the
+    // star of this sheet.
+    if (remote.isNotEmpty()) {
+        Text(tr("hum.remoteTitle"), color = colors.foreground, fontSize = 13.sp, fontWeight = FontWeight.Bold)
+        Spacer(Modifier.height(6.dp))
+        remote.forEach { m ->
+            HumRemoteRow(m, ui.humRemoteJobs[m.query]) { vm.downloadHumMatch(m) }
+        }
+        Spacer(Modifier.height(12.dp))
     }
     if (result.local.isNotEmpty()) {
         Text(tr("hum.localTitle"), color = colors.foreground, fontSize = 13.sp, fontWeight = FontWeight.Bold)
@@ -318,17 +333,13 @@ private fun HumResults(
         }
         Spacer(Modifier.height(12.dp))
     }
-    val remote = result.remote
-    if (result.remoteEnabled && !remote.isNullOrEmpty()) {
-        Text(tr("hum.remoteTitle"), color = colors.foreground, fontSize = 13.sp, fontWeight = FontWeight.Bold)
-        Spacer(Modifier.height(6.dp))
-        remote.forEach { m ->
-            HumRemoteRow(m, ui.humRemoteJobs[m.query]) { vm.downloadHumMatch(m) }
-        }
-        Spacer(Modifier.height(12.dp))
-    }
-    if (result.local.isEmpty() && remote.isNullOrEmpty()) {
+    if (remote.isEmpty() && result.local.isEmpty()) {
+        // Informative empty state — never a silent empty sheet.
         Text(tr("hum.noMatch"), color = colors.textMuted, fontSize = 13.sp)
+        if (result.indexSize == 0) {
+            Spacer(Modifier.height(4.dp))
+            Text(tr("hum.indexEmpty"), color = colors.textFaint, fontSize = 12.sp)
+        }
         Spacer(Modifier.height(12.dp))
     }
     Row {
@@ -387,6 +398,11 @@ private fun HumRemoteRow(match: RecognizeRemoteMatch, job: DownloadJobDto?, onDo
                 color = colors.textMuted, fontSize = 12.sp, maxLines = 1, overflow = TextOverflow.Ellipsis,
             )
         }
+        Spacer(Modifier.width(8.dp))
+        Text(
+            tr("hum.score", params = mapOf("pct" to scorePercent(match.score))),
+            color = colors.textMuted, fontSize = 11.sp,
+        )
         Spacer(Modifier.width(8.dp))
         Row(
             Modifier

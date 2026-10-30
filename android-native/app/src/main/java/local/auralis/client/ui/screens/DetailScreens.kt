@@ -70,6 +70,7 @@ import local.auralis.client.model.exportPlaylistJSON
 import local.auralis.client.model.exportPlaylistM3U
 import local.auralis.client.model.isoNow
 import local.auralis.client.model.playlistSlug
+import local.auralis.client.playback.QueueSource
 import local.auralis.client.ui.AppViewModel
 import local.auralis.client.ui.UiState
 import local.auralis.client.ui.ViewId
@@ -118,7 +119,7 @@ fun AlbumDetail(vm: AppViewModel, ui: UiState, albumhash: String) {
                     }
                     HeroShuffleButton(enabled = tracks.isNotEmpty()) { vm.playShuffled(tracks) }
                     // "Démarrer une radio" from the album's first track (web AlbumMenu).
-                    GhostPill(tr("radio.title")) { tracks.firstOrNull()?.let { vm.startRadio(it) } }
+                    GhostPill(tr("common.radio")) { tracks.firstOrNull()?.let { vm.startRadio(it) } }
                 }
             }
         }
@@ -169,7 +170,7 @@ fun ArtistDetail(vm: AppViewModel, ui: UiState, artisthash: String) {
                     }
                     HeroShuffleButton(enabled = tracks.isNotEmpty()) { vm.playShuffled(tracks) }
                     // "Démarrer une radio de l'artiste" from a popular track (web ArtistMenu).
-                    GhostPill(tr("radio.title")) {
+                    GhostPill(tr("common.radio")) {
                         (top.firstOrNull() ?: tracks.firstOrNull())?.let { vm.startRadio(it) }
                     }
                 }
@@ -217,6 +218,10 @@ fun PlaylistDetail(vm: AppViewModel, ui: UiState, playlistId: String) {
     val playback by vm.playback.collectAsState()
     val current = playback.currentId
     val isPlayingThis = playback.isPlaying && tracks.any { it.trackhash == current }
+    // Queue source: playback seeded from THIS playlist never drifts outside it —
+    // "quand je mets lire sur ma playlist, ça lit ma playlist" (the endless
+    // continuation draws from the playlist only, or stops when it is exhausted).
+    val queueSource = remember(tracks) { QueueSource.Playlist(playlistId, tracks.map { it.trackhash }.toSet()) }
     var renaming by remember { mutableStateOf(false) }
     var newName by remember { mutableStateOf(pl?.name ?: "") }
     var showExport by remember { mutableStateOf(false) }
@@ -371,9 +376,9 @@ fun PlaylistDetail(vm: AppViewModel, ui: UiState, playlistId: String) {
                     Spacer(Modifier.height(16.dp))
                     Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(16.dp)) {
                         HeroPlayButton(enabled = tracks.isNotEmpty(), playing = isPlayingThis) {
-                            if (isPlayingThis) vm.togglePlay() else vm.playList(tracks)
+                            if (isPlayingThis) vm.togglePlay() else vm.playList(tracks, source = queueSource)
                         }
-                        HeroShuffleButton(enabled = tracks.isNotEmpty()) { vm.playShuffled(tracks) }
+                        HeroShuffleButton(enabled = tracks.isNotEmpty()) { vm.playShuffled(tracks, queueSource) }
                         Spacer(Modifier.weight(1f))
                         if (!isCollaborator) {
                             // Glyph-only pin button: TalkBack announces the action, not the emoji.
@@ -408,7 +413,7 @@ fun PlaylistDetail(vm: AppViewModel, ui: UiState, playlistId: String) {
                 Box(Modifier.weight(1f)) {
                     TrackRow(
                         t, index = idx, isCurrent = t.trackhash == current, isFavorite = ui.favorites.contains(t.trackhash),
-                        onClick = { vm.playTrack(t, tracks, idx) },
+                        onClick = { vm.playTrack(t, tracks, idx, queueSource) },
                         onToggleFavorite = { vm.toggleFavorite(t.trackhash) }, onMore = { vm.openTrackMenu(t) },
                     )
                 }

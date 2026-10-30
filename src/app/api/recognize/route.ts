@@ -5,7 +5,6 @@
 import { json, checkCsrf } from "@/server/http";
 import { getRequestUser } from "@/server/auth";
 import { recognizeHum } from "@/server/melody/recognize";
-import { acrcloudConfigured } from "@/server/melody/acrcloud";
 import { hasFfmpeg } from "@/server/melody/decode";
 
 export const runtime = "nodejs";
@@ -32,6 +31,8 @@ export async function POST(request: Request) {
   return json({
     ...result,
     ffmpeg: await hasFfmpeg(),
-    remoteEnabled: acrcloudConfigured(),
+    // Global identification (real Shazam) is always on; ACRCloud is the
+    // optional extra.
+    remoteEnabled: true,
   });
 }

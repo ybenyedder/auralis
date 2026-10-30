@@ -4,8 +4,8 @@ import local.auralis.client.i18n.Messages
 import org.json.JSONObject
 import kotlin.math.roundToInt
 
-// "Chercher en chantant" (hum-to-search) wire shapes + pure helpers. Mirrors
-// POST /api/recognize (src/app/api/recognize/route.ts) and GET/POST
+// "Identifier la musique" (music recognition) wire shapes + pure helpers.
+// Mirrors POST /api/recognize (src/app/api/recognize/route.ts) and GET/POST
 // /api/library/melody (src/app/api/library/melody/route.ts). Pure Kotlin
 // (org.json only) — JVM-unit-testable.
 
@@ -32,12 +32,14 @@ data class RecognizeLocalMatch(
     }
 }
 
-/** One global (ACRCloud) identification: any song in the world, title + artists. */
+/** One global identification: any song in the world, title + artists. The
+ *  server runs REAL Shazam first (`source: "shazam"`), ACRCloud appended when
+ *  configured (`"humming"` | "music"`). */
 data class RecognizeRemoteMatch(
     val title: String,
     val artists: List<String>,
     val score: Double,
-    /** "humming" (hummed snippet) | "music" (ambient capture). */
+    /** "shazam" | "humming" (hummed snippet) | "music" (ambient capture). */
     val source: String,
 ) {
     /** Download query for "Ajouter à la bibliothèque" ("<artists> <title>"). */
@@ -53,7 +55,7 @@ data class RecognizeRemoteMatch(
     }
 }
 
-/** POST /api/recognize response (hum-to-search recognition). */
+/** POST /api/recognize response (music recognition). */
 data class RecognizeResult(
     /** Local engine readiness (ffmpeg + a non-empty melody index). */
     val available: Boolean,

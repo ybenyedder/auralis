@@ -356,6 +356,10 @@ class PlaybackAccounting private constructor(private val context: Context) {
             .put("hashes", JSONArray(window))
             .put("index", idx - start)
             .put("position", c.currentPosition.coerceAtLeast(0L))
+            // The queue source rides along so a restored session keeps its
+            // continuation constraint (favorites/playlist queues never drift
+            // into library recommendations after a restart).
+            .put("source", queueSource.tag())
             .toString()
         // Skip redundant DataStore writes: when paused (and not seeking) the
         // serialized session is identical tick after tick.
@@ -459,21 +463,20 @@ class PlaybackAccounting private constructor(private val context: Context) {
         // Capture everything the ranking needs BEFORE hopping off the main thread.
         val queued = (0 until c.mediaItemCount).map { c.getMediaItemAt(it).mediaId }.toSet()
         val dis = dislikes
-        val tracks = library.values.toList() // same encounter order as ui.tracks
+        val source = queueSource
         val counts = _state.value.playCounts
         val scores = _state.value.recoScores
         continuationInFlight = true
         scope.launch {
             try {
-                // Build + rank the radio pool off the main thread — two full-library
+                // Build + rank the pool off the main thread — two full-library
                 // filters and a sort over 10k tracks at every queue end (this used
-                // to jank the UI thread from the ViewModel).
-                val ranked = if (current != null) {
-                    withContext(Dispatchers.Default) {
-                        rankContinuation(current, tracks, queued, dis, counts, scores)
-                    }
-                } else {
-                    emptyList()
+                // to jank the UI thread from the ViewModel). The source constrains
+                // the picker: FAVORITES/PLAYLIST sessions draw only from their
+                // seeded set and return EMPTY once it is exhausted — the queue
+                // then simply ends, never a track outside the set.
+                val ranked = withContext(Dispatchers.Default) {
+                    QueueContinuation.plan(source, current, library, queued, dis, counts, scores)
                 }
                 // Back on Main (this scope) — MediaController.addMediaItems must run
                 // on the controller's application thread. Appending through THIS
@@ -481,16 +484,20 @@ class PlaybackAccounting private constructor(private val context: Context) {
                 // PlayerHolder snapshot (and the queue screen) still sees the growth.
                 val toAdd: List<MediaItem> = if (ranked.isNotEmpty()) {
                     ranked.map { it.toMediaItem(api) }
-                } else {
-                    // No library to rank from (empty index) or nothing left to rank:
-                    // recycle the queue's OWN items, shuffled, dislikes and the
-                    // playing track excluded — the session keeps going instead of
-                    // dying at the tail.
+                } else if (source.allowedHashes() == null) {
+                    // LIBRARY sessions only: no library to rank from (empty index)
+                    // or nothing left to rank → recycle the queue's OWN items,
+                    // shuffled, dislikes and the playing track excluded — the
+                    // session keeps going instead of dying at the tail. Constrained
+                    // sources deliberately do NOT recycle: an exhausted liked set
+                    // or playlist stops the session (the user's explicit ask).
                     val items = (0 until c.mediaItemCount).map { c.getMediaItemAt(it) }
                         .filter { it.mediaId != currentId && it.mediaId !in dis && it.localConfiguration != null }
                         .shuffled()
                         .take(20)
                     if (items.isNotEmpty()) items else listOfNotNull(c.currentMediaItem)
+                } else {
+                    emptyList()
                 }
                 if (toAdd.isNotEmpty()) {
                     c.addMediaItems(toAdd)
@@ -511,48 +518,16 @@ class PlaybackAccounting private constructor(private val context: Context) {
         }
     }
 
-    /** Radio-pool ranking, logic identical to the ViewModel's appendContinuation:
-     *  prefer never-played tracks close to the current vibe; once everything has
-     *  been heard, fall back to least-played; recycle (shuffled, dislikes and the
-     *  current track excluded) rather than stopping dead. */
-    private fun rankContinuation(
-        current: Track,
-        tracks: List<Track>,
-        queued: Set<String>,
-        dis: Set<String>,
-        counts: Map<String, Int>,
-        scores: Map<String, Double>,
-    ): List<Track> {
-        fun eligible(t: Track) = t.trackhash !in queued && t.trackhash !in dis
-        fun close(t: Track) =
-            (t.primaryArtistHash != null && t.primaryArtistHash == current.primaryArtistHash) ||
-                (t.genre != null && t.genre == current.genre)
-        val never = tracks.filter { eligible(it) && (counts[it.trackhash] ?: 0) == 0 }
-        return when {
-            never.isNotEmpty() -> {
-                val closeNever = never.filter { close(it) }
-                val pick = if (closeNever.size >= 10) closeNever else never
-                pick.shuffled().take(20)
-            }
-            else -> {
-                val fresh = tracks.filter { eligible(it) }
-                if (fresh.isNotEmpty()) {
-                    // Least-played first (a light taste-score jitter breaks ties),
-                    // then shuffled so consecutive appends don't march the same list.
-                    fresh.sortedWith(
-                        compareBy({ counts[it.trackhash] ?: 0 }, { -(scores[it.trackhash] ?: 0.0) })
-                    ).take(40).shuffled().take(20)
-                } else {
-                    tracks.filter { it.trackhash != current.trackhash && it.trackhash !in dis }
-                        .shuffled().take(20)
-                }
-            }
-        }
-    }
-
     // ---- inputs from the UI / service ----------------------------------------
 
     fun setLibrary(index: Map<String, Track>) { library = index }
+
+    /** Where the current queue was seeded from (main-confined like the gate
+     *  state; pushed by the ViewModel whenever it starts a queue and on session
+     *  restore). Constrains endless autoplay: a FAVORITES/PLAYLIST session never
+     *  gets tracks outside its seeded set. */
+    @Volatile private var queueSource: QueueSource = QueueSource.Library
+    fun setQueueSource(source: QueueSource) { queueSource = source }
 
     /** Current dislike set, pushed by the ViewModel whenever its UiState one
      *  changes (server truth after a state fetch + every toggle). The continuation

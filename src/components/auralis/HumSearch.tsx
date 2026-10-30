@@ -31,7 +31,7 @@ export interface HumRemoteMatch {
   title: string;
   artists: string[];
   score: number;
-  source: "humming" | "music";
+  source: "humming" | "music" | "shazam" | string;
 }
 
 export interface HumRecognizeResult {

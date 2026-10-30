@@ -132,7 +132,7 @@ fun ArtistMenu(artist: Artist, ui: UiState, vm: AppViewModel, onDismiss: () -> U
 // ---- shared sheet scaffold -------------------------------------------------
 
 @Composable
-private fun MenuSheetScaffold(onDismiss: () -> Unit, content: @Composable ColumnScope.() -> Unit) {
+internal fun MenuSheetScaffold(onDismiss: () -> Unit, content: @Composable ColumnScope.() -> Unit) {
     val colors = LocalAuralis.current
     Box(Modifier.fillMaxSize()) {
         Box(Modifier.fillMaxSize().background(Color(0xAA000000)).clickable { onDismiss() })
