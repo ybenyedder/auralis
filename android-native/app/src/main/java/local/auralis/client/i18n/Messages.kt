@@ -157,6 +157,25 @@ object Messages {
         "search.downloadRetry" to "Réessayer",
         "search.downloadDone" to "Ajouté à la bibliothèque — lecture",
 
+        // ---- hum-to-search ("Chercher en chantant") -------------------------
+        "search.hum" to "Chercher en chantant",
+        "hum.sheetTitle" to "Chercher en chantant",
+        "hum.hint" to "Fredonnez, chantez ou sifflez un extrait (12 s max).",
+        "hum.record" to "Enregistrer",
+        "hum.recording" to "Enregistrement… {sec} s",
+        "hum.stop" to "Arrêter",
+        "hum.analyzing" to "Analyse de l'enregistrement…",
+        "hum.permissionDenied" to "Micro refusé — autorisez le micro pour chercher en chantant.",
+        "hum.retry" to "Réessayer",
+        "hum.localTitle" to "Ta bibliothèque",
+        "hum.remoteTitle" to "Identifié (catalogue mondial)",
+        "hum.addToLibrary" to "Ajouter à la bibliothèque",
+        "hum.addedToLibrary" to "Ajouté à la bibliothèque",
+        "hum.indexEmpty" to "Aucune mélodie indexée — lancez l'indexation depuis les Réglages.",
+        "hum.noMatch" to "Aucune correspondance — réessayez en chantant plus fort ou plus longtemps.",
+        "hum.uploadFailed" to "Impossible d'analyser l'enregistrement",
+        "hum.score" to "{pct} % de correspondance",
+
         // ---- library --------------------------------------------------------
         "library.tabPlaylists" to "Playlists",
         "library.tabArtists" to "Artistes",
@@ -187,6 +206,15 @@ object Messages {
         "library.emptyNoTracks" to "Aucun titre indexé",
         "library.emptyNoPlaylists" to "Aucune playlist",
         "library.emptyNoPlaylistsHint" to "Touche « + Nouvelle », ou ⋮ sur un titre pour l'ajouter à une playlist.",
+
+        // ---- playlist import → download missing tracks ----------------------
+        "import.downloadMissingTitle" to "Titres manquants",
+        "import.downloadMissingHint" to "{count} titres sont introuvables dans la bibliothèque. Les télécharger depuis YouTube et les ajouter à la playlist ?",
+        "import.downloadMissing" to "Télécharger les {count} titres manquants",
+        "import.downloadsRunning" to "Téléchargement des titres manquants",
+        "import.downloading" to "{done} / {total} téléchargés",
+        "import.downloadComplete" to "{done} titres téléchargés",
+        "import.downloadPartial" to "{done} titres téléchargés — {failed} échecs",
 
         // ---- favorites / recents / folders ---------------------------------
         "favorites.headline" to "Tes titres aimés",
@@ -497,6 +525,16 @@ object Messages {
         "settings.downloadBackup" to "Télécharger une sauvegarde",
         "settings.preparing" to "Préparation…",
 
+        // ---- settings: audio recognition (melody index) ---------------------
+        "settings.melody" to "Reconnaissance audio",
+        "settings.melodyIndexed" to "Mélodies indexées",
+        "settings.melodyIndexing" to "Indexation en cours… {done}/{total}",
+        "settings.melodyIndexBtn" to "Indexer la bibliothèque",
+        "settings.melodyIndexStarted" to "Indexation des mélodies lancée",
+        "settings.melodyIndexFailed" to "Impossible de lancer l'indexation",
+        "settings.melodyNoFfmpeg" to "ffmpeg est absent du serveur : la reconnaissance audio est désactivée.",
+        "settings.melodyHelp" to "Reconnaissance mondiale (optionnelle) : définissez ACRACLOUD_HOST, ACRACLOUD_KEY et ACRACLOUD_SECRET dans l'environnement du serveur.",
+
         // ---- toasts ---------------------------------------------------------
         "toast.serverUnreachable" to "Serveur injoignable",
         "toast.shareUnavailable" to "Partage indisponible",
@@ -722,6 +760,25 @@ object Messages {
         "search.downloadRetry" to "Try again",
         "search.downloadDone" to "Added to library — playing",
 
+        // ---- hum-to-search ("Chercher en chantant") -------------------------
+        "search.hum" to "Search by singing",
+        "hum.sheetTitle" to "Search by singing",
+        "hum.hint" to "Hum, sing or whistle a snippet (12 s max).",
+        "hum.record" to "Record",
+        "hum.recording" to "Recording… {sec} s",
+        "hum.stop" to "Stop",
+        "hum.analyzing" to "Analyzing the recording…",
+        "hum.permissionDenied" to "Microphone denied — allow the mic to search by singing.",
+        "hum.retry" to "Try again",
+        "hum.localTitle" to "Your library",
+        "hum.remoteTitle" to "Identified (world catalog)",
+        "hum.addToLibrary" to "Add to library",
+        "hum.addedToLibrary" to "Added to the library",
+        "hum.indexEmpty" to "No melody indexed yet — run the indexing from Settings.",
+        "hum.noMatch" to "No match — try again, singing louder or longer.",
+        "hum.uploadFailed" to "Could not analyze the recording",
+        "hum.score" to "{pct}% match",
+
         // ---- library --------------------------------------------------------
         "library.tabPlaylists" to "Playlists",
         "library.tabArtists" to "Artists",
@@ -752,6 +809,15 @@ object Messages {
         "library.emptyNoTracks" to "No tracks indexed",
         "library.emptyNoPlaylists" to "No playlists",
         "library.emptyNoPlaylistsHint" to "Tap “+ New”, or ⋮ on a track to add it to a playlist.",
+
+        // ---- playlist import → download missing tracks ----------------------
+        "import.downloadMissingTitle" to "Missing tracks",
+        "import.downloadMissingHint" to "{count} tracks aren't in your library. Download them from YouTube and add them to the playlist?",
+        "import.downloadMissing" to "Download the {count} missing tracks",
+        "import.downloadsRunning" to "Downloading missing tracks",
+        "import.downloading" to "{done} / {total} downloaded",
+        "import.downloadComplete" to "{done} tracks downloaded",
+        "import.downloadPartial" to "{done} tracks downloaded — {failed} failed",
 
         // ---- favorites / recents / folders ---------------------------------
         "favorites.headline" to "Your liked tracks",
@@ -1061,6 +1127,16 @@ object Messages {
         "settings.backupHelp" to "Downloads a copy of the database (accounts, playlists, favorites, history) — does not contain the audio files themselves.",
         "settings.downloadBackup" to "Download a backup",
         "settings.preparing" to "Preparing…",
+
+        // ---- settings: audio recognition (melody index) ---------------------
+        "settings.melody" to "Audio recognition",
+        "settings.melodyIndexed" to "Indexed melodies",
+        "settings.melodyIndexing" to "Indexing… {done}/{total}",
+        "settings.melodyIndexBtn" to "Index the library",
+        "settings.melodyIndexStarted" to "Melody indexing started",
+        "settings.melodyIndexFailed" to "Could not start indexing",
+        "settings.melodyNoFfmpeg" to "ffmpeg is missing on the server: audio recognition is disabled.",
+        "settings.melodyHelp" to "Worldwide recognition (optional): set ACRACLOUD_HOST, ACRACLOUD_KEY and ACRACLOUD_SECRET in the server environment.",
 
         // ---- toasts ---------------------------------------------------------
         "toast.serverUnreachable" to "Server unreachable",

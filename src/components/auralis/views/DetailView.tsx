@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState, useCallback } from "react";
 import {
   ArrowDown,
   ArrowUp,
@@ -14,8 +14,10 @@ import {
   ImagePlus,
   Info,
   ListMusic,
+  Loader2,
   Lock,
   LogOut,
+  Mic,
   Palette,
   Pause,
   PencilLine,
@@ -82,6 +84,7 @@ type SettingsSection =
   | "playback"
   | "equalizer"
   | "library"
+  | "recognition"
   | "lyrics"
   | "app"
   | "account"
@@ -872,6 +875,12 @@ export function SettingsView() {
       icon: FolderOpen,
     },
     {
+      id: "recognition",
+      label: t("settings.section.recognition"),
+      detail: t("settings.section.recognition.detail"),
+      icon: Mic,
+    },
+    {
       id: "lyrics",
       label: t("settings.section.lyrics"),
       detail: t("settings.section.lyrics.detail"),
@@ -1252,6 +1261,7 @@ export function SettingsView() {
           {section === "library" && (
             <SettingsCard title={t("settings.library")} rows={libraryRows} />
           )}
+          {section === "recognition" && <RecognitionCard />}
           {section === "lyrics" && (
             <SettingsCard title={t("settings.section.lyrics")} rows={lyricsRows} />
           )}
@@ -1534,6 +1544,145 @@ function EmptyDetail({ label, loading = false, round = false }: { label: string;
         <Disc3 className="size-7 text-muted-foreground/60" />
       </div>
       <p className="text-sm font-bold text-muted-foreground">{label}</p>
+    </div>
+  );
+}
+
+/** "Reconnaissance audio" — melody index status (live progress while the
+ *  indexing pass runs), the admin-only indexing trigger, and how to wire the
+ *  optional ACRCloud global recognition through its env keys. */
+function RecognitionCard() {
+  const t = useT();
+  const notify = usePlayer((state) => state.notify);
+  const [status, setStatus] = useState<{ running: boolean; indexed: number; total: number } | null>(null);
+  const [ffmpeg, setFfmpeg] = useState<boolean | null>(null);
+  const [isAdmin, setIsAdmin] = useState(false);
+  const [busy, setBusy] = useState(false);
+
+  const refresh = useCallback(async (alive?: () => boolean) => {
+    try {
+      const res = await api.get<{ running: boolean; indexed: number; total: number; ffmpeg: boolean }>(
+        "/api/library/melody",
+      );
+      if (alive && !alive()) return;
+      setStatus({ running: res.running, indexed: res.indexed, total: res.total });
+      setFfmpeg(Boolean(res.ffmpeg));
+    } catch {
+      /* server unreachable — keep the last known state */
+    }
+  }, []);
+
+  useEffect(() => {
+    let alive = true;
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- the setStates run after `await`, never synchronously in the effect body
+    void refresh(() => alive);
+    // The indexing POST is admin-only (403) — hide the trigger for non-admins,
+    // same contract as the account manager.
+    void api
+      .get<{ isAdmin?: boolean }>("/api/auth/status")
+      .then((s) => {
+        if (alive) setIsAdmin(Boolean(s.isAdmin));
+      })
+      .catch(() => {});
+    return () => {
+      alive = false;
+    };
+  }, [refresh]);
+
+  // Live progress: poll the pass while it runs, stop the moment it finishes.
+  const running = status?.running ?? false;
+  useEffect(() => {
+    if (!running) return;
+    const id = setInterval(() => void refresh(), 2000);
+    return () => clearInterval(id);
+  }, [running, refresh]);
+
+  const startIndex = async () => {
+    if (busy || running) return;
+    setBusy(true);
+    try {
+      await api.post("/api/library/melody", {});
+      notify(t("settings.melodyIndexStarted", "Indexation des mélodies lancée"));
+      void refresh();
+    } catch {
+      notify(t("settings.melodyIndexFailed", "Impossible de lancer l'indexation"), { tone: "error" });
+    }
+    setBusy(false);
+  };
+
+  const indexed = status?.indexed ?? 0;
+  const total = status?.total ?? 0;
+  const pct = total > 0 ? Math.min(100, Math.round((indexed / total) * 100)) : 0;
+
+  // Translated help text, split on the three env tokens so they keep their
+  // <code> chips (same idiom as the admin password help).
+  const melodyHelp = t("settings.melodyHelp", undefined, {
+    host: "ACRACLOUD_HOST",
+    key: "ACRACLOUD_KEY",
+    secret: "ACRACLOUD_SECRET",
+  }).split(/ACRACLOUD_HOST|ACRACLOUD_KEY|ACRACLOUD_SECRET/);
+
+  return (
+    <div className="matte-panel rounded-lg p-4">
+      <p className="mb-3 text-[10px] font-semibold uppercase tracking-[0.06em] text-muted-foreground/80">
+        {t("settings.section.recognition")}
+      </p>
+      <div className="space-y-1">
+        <div className="flex min-h-[44px] items-center justify-between gap-4 border-b border-[var(--line)] py-2 lg:min-h-0">
+          <span className="text-[13px] text-foreground/90">{t("settings.melodyIndexed", "Mélodies indexées")}</span>
+          <span className="inline-flex max-w-[55%] items-center gap-1.5 truncate rounded-full bg-white/[0.05] px-2.5 py-1 text-[11.5px] font-bold tabular-nums text-muted-foreground">
+            {indexed} / {total}
+          </span>
+        </div>
+        {running && (
+          <div className="border-b border-[var(--line)] py-2">
+            <p className="text-[11.5px] font-semibold text-muted-foreground">
+              {t("settings.melodyIndexing", "Indexation en cours… {done} / {total}", {
+                done: indexed,
+                total: total || "?",
+              })}
+            </p>
+            <div className="mt-1.5 h-1 overflow-hidden rounded-full bg-[var(--surface-2)]">
+              <div
+                className="h-full rounded-full bg-[var(--accent,var(--foreground))]"
+                style={{ width: `${Math.max(3, pct)}%` }}
+              />
+            </div>
+          </div>
+        )}
+        {ffmpeg === false && (
+          <p className="border-b border-[var(--line)] py-2 text-[11.5px] font-semibold text-amber">
+            {t(
+              "settings.melodyFfmpegMissing",
+              "ffmpeg est requis pour indexer la mélodie — installez ffmpeg (ou définissez FFMPEG_PATH)",
+            )}
+          </p>
+        )}
+        {isAdmin && (
+          <div className="flex min-h-[44px] items-center justify-between gap-4 py-2 lg:min-h-0">
+            <span className="text-[13px] text-foreground/90">{t("settings.melodyIndex", "Indexer la bibliothèque")}</span>
+            <button
+              onClick={startIndex}
+              disabled={busy || running || ffmpeg === false}
+              className="tap-press flex min-h-[40px] shrink-0 items-center gap-1.5 rounded-full bg-white/5 px-4 text-[13px] font-bold text-foreground transition-colors duration-200 hover:bg-white/10 active:scale-[0.98] lg:min-h-0 lg:px-3 lg:py-1 lg:text-[12px] disabled:opacity-40"
+            >
+              {(busy || running) && <Loader2 className="size-3.5 animate-spin" />}
+              {busy || running
+                ? t("settings.melodyIndexRunning", "Indexation…")
+                : t("settings.melodyIndexAction", "Indexer")}
+            </button>
+          </div>
+        )}
+      </div>
+      <p className="mt-3 text-[11.5px] leading-relaxed text-muted-foreground/75">
+        {melodyHelp[0]}
+        <code className="rounded bg-[var(--panel-2)] px-1">ACRACLOUD_HOST</code>
+        {melodyHelp[1]}
+        <code className="rounded bg-[var(--panel-2)] px-1">ACRACLOUD_KEY</code>
+        {melodyHelp[2]}
+        <code className="rounded bg-[var(--panel-2)] px-1">ACRACLOUD_SECRET</code>
+        {melodyHelp[3]}
+      </p>
     </div>
   );
 }

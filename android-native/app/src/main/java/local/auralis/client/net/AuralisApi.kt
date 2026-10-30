@@ -6,10 +6,12 @@ import kotlinx.coroutines.withContext
 import local.auralis.client.i18n.Messages
 import local.auralis.client.model.AuthResult
 import local.auralis.client.model.BlendResult
+import local.auralis.client.model.DownloadItem
 import local.auralis.client.model.DownloadJobDto
 import local.auralis.client.model.LibrarySnapshot
 import local.auralis.client.model.ListeningStats
 import local.auralis.client.model.LyricsResult
+import local.auralis.client.model.MelodyStatus
 import local.auralis.client.model.OnlineTrack
 import local.auralis.client.model.RecapResult
 import local.auralis.client.model.RecoTrack
@@ -24,6 +26,7 @@ import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.OkHttpClient
 import okhttp3.Request
 import okhttp3.RequestBody.Companion.toRequestBody
+import org.json.JSONArray
 import org.json.JSONObject
 import java.util.concurrent.TimeUnit
 
@@ -233,12 +236,44 @@ class AuralisApi {
     }
 
     /** Start (or join) a server-side download job for one online hit. */
-    suspend fun startDownload(videoId: String, title: String, query: String): DownloadJobDto? {
-        val body = JSONObject().put("videoId", videoId).put("title", title).put("query", query)
+    suspend fun startDownload(videoId: String?, title: String, query: String): DownloadJobDto? {
+        val body = JSONObject().put("title", title).put("query", query)
+        if (videoId != null) body.put("videoId", videoId)
         val res = post("/api/download", body)
         val job = res.optJSONObject("job") ?: return null
         return DownloadJobDto.from(job).takeIf { it.id.isNotBlank() }
     }
+
+    /** Start (or join) a download job from a plain text query — the hum-to-search
+     *  "Ajouter à la bibliothèque" flow (query-only, no videoId). */
+    suspend fun startDownloadQuery(query: String, title: String?): DownloadJobDto? {
+        val body = JSONObject().put("query", query)
+        if (title != null) body.put("title", title)
+        val res = post("/api/download", body)
+        val job = res.optJSONObject("job") ?: return null
+        return DownloadJobDto.from(job).takeIf { it.id.isNotBlank() }
+    }
+
+    /** Bulk enqueue (playlist import → missing tracks): one job per item
+     *  (POST /api/download `{ items }`, max 200 per batch). Empty on failure. */
+    suspend fun startDownloadBatch(items: List<DownloadItem>): List<DownloadJobDto> {
+        if (items.isEmpty()) return emptyList()
+        val arr = JSONArray()
+        for (item in items) {
+            arr.put(JSONObject().put("query", item.query).apply {
+                if (item.title != null) put("title", item.title)
+            })
+        }
+        val res = post("/api/download", JSONObject().put("items", arr))
+        if (!apiLastOk) return emptyList()
+        return res.optJSONArray("jobs")?.objects()?.map { DownloadJobDto.from(it) } ?: emptyList()
+    }
+
+    /** Every download job owned by this account (bare GET /api/download) — one
+     *  request to poll a whole batch. Null on failure. */
+    suspend fun downloadJobs(): List<DownloadJobDto>? = runCatching {
+        getObj("/api/download").optJSONArray("jobs")?.objects()?.map { DownloadJobDto.from(it) } ?: emptyList()
+    }.getOrNull()
 
     /** Poll one download job's status. */
     suspend fun downloadJob(id: String): DownloadJobDto? {
@@ -246,6 +281,33 @@ class AuralisApi {
         val job = res.optJSONObject("job") ?: return null
         return DownloadJobDto.from(job).takeIf { it.id.isNotBlank() }
     }
+
+    // ---- hum-to-search recognition + melody index --------------------------
+
+    /** POST /api/recognize — upload the RAW recording bytes (humming, singing,
+     *  whistling); the body is the audio itself, decoded server-side via ffmpeg.
+     *  Returns the response JSON — check [apiLastOk] and the `error` field for
+     *  failures (413 too big, 415 wrong type…). */
+    suspend fun recognize(audio: ByteArray, contentType: String): JSONObject = withContext(Dispatchers.IO) {
+        val req = authed(
+            Request.Builder().url("$base/api/recognize")
+                .post(audio.toRequestBody(contentType.toMediaType())),
+        )
+        runCatching {
+            client.newCall(req).execute().use { resp ->
+                apiLastOk = resp.isSuccessful
+                resp.body?.string()?.let { s -> JSONObject(s) } ?: JSONObject()
+            }
+        }.getOrElse { apiLastOk = false; JSONObject() }
+    }
+
+    /** GET /api/library/melody — melody-index status (settings card). */
+    suspend fun melodyStatus(): MelodyStatus? =
+        runCatching { MelodyStatus.from(getJson("/api/library/melody")) }.getOrNull()
+
+    /** POST /api/library/melody — start a melody-index pass (admin). Returns the
+     *  response body; check [apiLastOk] + `error` for the failure verdict. */
+    suspend fun startMelodyIndex(): JSONObject = post("/api/library/melody", JSONObject())
 
     suspend fun lyrics(trackhash: String, force: Boolean): LyricsResult = withContext(Dispatchers.IO) {
         val url = "$base/api/lyrics/${Uri.encode(trackhash)}"

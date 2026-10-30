@@ -590,6 +590,9 @@ data class OnlineTrack(
     }
 }
 
+/** One bulk-download request item (POST /api/download `{ items: [...] }`). */
+data class DownloadItem(val query: String, val title: String?)
+
 /** Server-side download job (downloader.ts wire shape). */
 data class DownloadJobDto(
     val id: String,

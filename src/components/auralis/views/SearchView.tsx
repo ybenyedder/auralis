@@ -16,6 +16,16 @@ import { AlbumCard, ArtistCard } from "../Cards";
 import { Artwork } from "../Artwork";
 import { VirtualList } from "../Virtualized";
 import { SkeletonCategoryGrid } from "../Skeletons";
+import {
+  HumMicButton,
+  HumRecorderPanel,
+  HumResultsView,
+  useHumRecognition,
+  type DownloadJobView,
+  type DownloadJobStatus,
+  type HumLocalMatch,
+  type HumRemoteMatch,
+} from "../HumSearch";
 
 type ResultTab = "all" | "songs" | "albums" | "artists";
 
@@ -28,14 +38,6 @@ interface OnlineResult {
   duration: number;
   thumbnail: string | null;
   url: string;
-}
-type DownloadJobStatus = "queued" | "resolving" | "downloading" | "scanning" | "done" | "error";
-interface DownloadJobView {
-  id: string;
-  status: DownloadJobStatus;
-  progress: number;
-  trackhash: string | null;
-  error: string | null;
 }
 
 const RECENT_KEY = "auralis.recentSearches";
@@ -252,7 +254,7 @@ export function SearchView() {
     playList([track], 0);
   }, [autoPlayHash, trackIndex, playList]);
 
-  const pollJob = (videoId: string, jobId: string, attempt = 0) => {
+  const pollJob = (videoId: string, jobId: string, attempt = 0, playOnDone = true) => {
     const timer = setTimeout(() => {
       pollTimers.current.delete(timer);
       void api
@@ -263,21 +265,27 @@ export function SearchView() {
           patchJob(videoId, job);
           if (job.status === "done") {
             if (job.trackhash) {
-              // Track already indexed (fast scan)? Play now; otherwise wait for
-              // the SSE-driven library reload to surface it (autoPlayHash effect).
-              const track = useLibraryStore.getState().trackIndex.get(job.trackhash);
-              if (track) playList([track], 0);
-              else setAutoPlayHash(job.trackhash);
-              notify(t("search.downloadDone", "Ajouté à la bibliothèque — lecture"), { tone: "success" });
+              if (playOnDone) {
+                // Track already indexed (fast scan)? Play now; otherwise wait for
+                // the SSE-driven library reload to surface it (autoPlayHash effect).
+                const track = useLibraryStore.getState().trackIndex.get(job.trackhash);
+                if (track) playList([track], 0);
+                else setAutoPlayHash(job.trackhash);
+                notify(t("search.downloadDone", "Ajouté à la bibliothèque — lecture"), { tone: "success" });
+              } else {
+                // "Ajouter à la bibliothèque" (hum results) — import without
+                // hijacking playback.
+                notify(t("search.humResults.added", "Ajouté à la bibliothèque"), { tone: "success" });
+              }
             }
           } else if (job.status === "error") {
             notify(job.error || t("search.downloadFailed", "Échec du téléchargement"), { tone: "error" });
           } else if (attempt < 600) {
-            pollJob(videoId, jobId, attempt + 1);
+            pollJob(videoId, jobId, attempt + 1, playOnDone);
           }
         })
         .catch(() => {
-          if (attempt < 600) pollJob(videoId, jobId, attempt + 1);
+          if (attempt < 600) pollJob(videoId, jobId, attempt + 1, playOnDone);
         });
     }, 1200);
     pollTimers.current.add(timer);
@@ -297,6 +305,37 @@ export function SearchView() {
       })
       .catch((err: unknown) => {
         patchJob(result.videoId, { status: "error", error: err instanceof Error ? err.message : "error" });
+        notify(t("search.downloadFailed", "Échec du téléchargement"), { tone: "error" });
+      });
+  };
+
+  // ---- "Chercher en chantant" (hum/sing recognition) ------------------------
+  // The hook owns the mic capture + /api/recognize round-trip; the results view
+  // reuses the very same download-job polling as the online rows above.
+  const hum = useHumRecognition();
+
+  const playHumMatch = (match: HumLocalMatch) => {
+    const track = trackIndex.get(match.trackhash);
+    if (track) {
+      playList([track], 0);
+    } else {
+      notify(t("search.humResults.playFailed", "Titre introuvable dans la bibliothèque"), { tone: "error" });
+    }
+  };
+
+  const startHumDownload = (match: HumRemoteMatch, jobKey: string) => {
+    patchJob(jobKey, { status: "queued", progress: 0, error: null });
+    void api
+      .post<{ ok: boolean; job?: { id: string }; error?: string }>("/api/download", {
+        query: [match.artists.join(" "), match.title].filter(Boolean).join(" "),
+        title: match.title,
+      })
+      .then((res) => {
+        if (!res?.ok || !res.job) throw new Error(res?.error || "no job");
+        pollJob(jobKey, res.job.id, 0, false);
+      })
+      .catch((err: unknown) => {
+        patchJob(jobKey, { status: "error", error: err instanceof Error ? err.message : "error" });
         notify(t("search.downloadFailed", "Échec du téléchargement"), { tone: "error" });
       });
   };
@@ -355,6 +394,7 @@ export function SearchView() {
         className="min-h-[28px] w-full bg-transparent text-[14px] font-medium text-foreground placeholder:text-[var(--text-muted)] outline-none"
       />
       {sticky && searching && query && <Loader2 className="size-4 shrink-0 animate-spin text-[var(--text-muted)]" aria-label="Recherche en cours" />}
+      <HumMicButton onStart={hum.start} disabled={hum.phase !== "idle"} t={t} />
       {sticky && searchQuery && (
         <button
           onClick={() => {
@@ -369,6 +409,62 @@ export function SearchView() {
       )}
     </div>
   );
+
+  // "Chercher en chantant" takes over the results area while capturing,
+  // recognizing, and showing the recognition answers (until dismissed).
+  const humActive = hum.phase !== "idle" || hum.result !== null || hum.error !== null;
+  if (humActive) {
+    return (
+      <div className="fade-up px-4 py-4 lg:px-6 lg:py-5">
+        <div className="safe-px sticky top-0 z-10 -mx-4 mb-4 glass border-b-0 px-4 lg:static lg:mx-0 lg:mb-5 lg:!bg-transparent lg:!backdrop-filter-none lg:px-0 pt-4">
+          {searchBar(true)}
+        </div>
+        <div className="space-y-6">
+          {hum.phase === "recording" && <HumRecorderPanel elapsed={hum.elapsed} onStop={hum.stop} t={t} />}
+          {hum.phase === "recognizing" && (
+            <div className="flex items-center gap-2 px-1 py-4 text-[13px] font-semibold text-muted-foreground">
+              <Loader2 className="size-4 animate-spin" />
+              {t("search.hum.analyzing", "Analyse de l'enregistrement…")}
+            </div>
+          )}
+          {hum.error && (
+            <div className="matte-panel flex items-center gap-2 rounded-lg p-3 text-[13px] font-semibold text-amber">
+              <AlertCircle className="size-4 shrink-0" />
+              {hum.error === "denied"
+                ? t("search.hum.micDenied", "Micro refusé — autorise l'accès au micro pour chercher en chantant")
+                : hum.error === "unsupported"
+                  ? t("search.hum.micUnsupported", "Enregistrement audio non pris en charge par ce navigateur")
+                  : t("search.hum.failed", "Reconnaissance impossible — réessaie")}
+            </div>
+          )}
+          {hum.result && (
+            <div>
+              <div className="mb-4 flex items-center justify-between gap-3">
+                <h2 className="text-[20px] font-bold tracking-tight text-foreground lg:text-[24px]">
+                  {t("search.hum.title", "Chercher en chantant")}
+                </h2>
+                <button
+                  onClick={hum.dismiss}
+                  className="tap-press flex items-center gap-1.5 rounded-full px-3 py-1.5 text-[12px] font-semibold text-muted-foreground transition-colors hover:bg-[var(--surface-2)] hover:text-foreground"
+                  aria-label={t("mobile.close", "Fermer")}
+                >
+                  <X className="size-4" />
+                  <span className="hidden sm:inline">{t("mobile.close", "Fermer")}</span>
+                </button>
+              </div>
+              <HumResultsView
+                result={hum.result}
+                jobs={jobs}
+                onPlayLocal={playHumMatch}
+                onStartRemote={startHumDownload}
+                t={t}
+              />
+            </div>
+          )}
+        </div>
+      </div>
+    );
+  }
 
   if (!query) {
     const loading = (status === "idle" || status === "loading") && albums.length === 0 && artists.length === 0;

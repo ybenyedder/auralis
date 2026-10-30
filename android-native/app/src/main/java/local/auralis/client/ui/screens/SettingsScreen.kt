@@ -31,6 +31,7 @@ import androidx.compose.material3.SliderDefaults
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -319,6 +320,39 @@ fun SettingsScreen(vm: AppViewModel, ui: UiState) {
                 Field(tr("settings.display"), if (withLyrics > 0) tr("settings.lyricsPerTrack") else tr("settings.lyricsHiddenIfEmpty"))
                 Field(tr("settings.convention"), "song.mp3 + song.lrc")
                 Text(tr("settings.lrcHint"), color = colors.textMuted, fontSize = 11.sp)
+            }
+        }
+
+        item {
+            Card(tr("settings.melody")) {
+                LaunchedEffect(Unit) { vm.refreshMelodyStatus() }
+                val melody = ui.melody
+                Field(tr("settings.melodyIndexed"), "${melody?.indexed ?: 0} / ${melody?.total ?: 0}")
+                if (melody?.running == true) {
+                    Spacer(Modifier.height(6.dp))
+                    Text(
+                        tr("settings.melodyIndexing", params = mapOf("done" to melody.indexed, "total" to melody.total)),
+                        color = colors.accent, fontSize = 12.sp, fontWeight = FontWeight.SemiBold,
+                    )
+                    Spacer(Modifier.height(8.dp))
+                    androidx.compose.material3.LinearProgressIndicator(
+                        progress = { if (melody.total > 0) melody.indexed.toFloat() / melody.total else 0f },
+                        modifier = Modifier.fillMaxWidth(),
+                        color = colors.accent,
+                        trackColor = colors.panel2,
+                    )
+                } else if (melody?.ffmpeg == false) {
+                    // The melody engine needs ffmpeg server-side — explain instead
+                    // of offering a button that would 503.
+                    Spacer(Modifier.height(6.dp))
+                    Text(tr("settings.melodyNoFfmpeg"), color = colors.textMuted, fontSize = 11.sp)
+                } else if (ui.isAdmin) {
+                    ActionRow(tr("settings.melodyIndexBtn")) { vm.startIndexingMelody() }
+                }
+                Text(
+                    tr("settings.melodyHelp"),
+                    color = colors.textMuted, fontSize = 11.sp, modifier = Modifier.padding(top = 6.dp),
+                )
             }
         }
 

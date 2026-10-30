@@ -244,6 +244,75 @@ export function startDownload(opts: {
   return { ok: true, job: { ...job } };
 }
 
+/** Bulk enqueue — used by "download the playlist's missing tracks". Batches
+ *  skip the per-user/queue caps at CREATION (the global MAX_ACTIVE pacing still
+ *  trickles the actual downloads) and are rate-limited per user. Every item is
+ *  validated exactly like a single start. */
+const BATCH_MAX_ITEMS = 200;
+const batchStarts = new Map<string, number[]>();
+
+export function startDownloadBatch(opts: {
+  items: Array<{ query: string; videoId?: string; title?: string }>;
+  requestedBy: string;
+}): { ok: true; jobs: DownloadJob[] } | { ok: false; error: string; status: number } {
+  if (!downloadsEnabled()) {
+    return { ok: false, error: "Téléchargement désactivé sur ce serveur", status: 503 };
+  }
+  if (!Array.isArray(opts.items) || opts.items.length === 0) {
+    return { ok: false, error: "Liste de téléchargements vide", status: 400 };
+  }
+  if (opts.items.length > BATCH_MAX_ITEMS) {
+    return { ok: false, error: `Trop de titres d'un coup (max ${BATCH_MAX_ITEMS})`, status: 400 };
+  }
+  const now = Date.now();
+  const starts = (batchStarts.get(opts.requestedBy) ?? []).filter((t) => now - t < 60_000);
+  if (starts.length >= 3) {
+    return { ok: false, error: "Trop de lots de téléchargement — réessayez dans une minute", status: 429 };
+  }
+  for (const item of opts.items) {
+    if (item.videoId && !VIDEO_ID_RE.test(item.videoId)) {
+      return { ok: false, error: "Identifiant vidéo invalide", status: 400 };
+    }
+    if (!item.videoId && !item.query?.trim()) {
+      return { ok: false, error: "Précisez un identifiant vidéo ou une recherche", status: 400 };
+    }
+  }
+  starts.push(now);
+  batchStarts.set(opts.requestedBy, starts);
+
+  const created: DownloadJob[] = [];
+  for (const item of opts.items) {
+    // Dedupe within and against running work: same video already queued → skip.
+    if (item.videoId) {
+      const twin = [...jobs.values()].find(
+        (j) => j.videoId === item.videoId && j.status !== "done" && j.status !== "error",
+      );
+      if (twin) {
+        created.push({ ...twin });
+        continue;
+      }
+    }
+    const job: DownloadJob = {
+      id: `dl_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 8)}`,
+      query: item.query.slice(0, 300),
+      videoId: item.videoId ?? null,
+      title: item.title?.slice(0, 300) ?? null,
+      status: "queued",
+      progress: 0,
+      error: null,
+      trackhash: null,
+      requestedBy: opts.requestedBy,
+      startedAt: now,
+      finishedAt: null,
+    };
+    jobs.set(job.id, job);
+    created.push({ ...job });
+  }
+  pumpQueue();
+  pruneFinished();
+  return { ok: true, jobs: created };
+}
+
 function pruneFinished() {
   const finished = [...jobs.values()]
     .filter((j) => (j.status === "done" || j.status === "error") && j.finishedAt)

@@ -1,12 +1,13 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState, type ComponentType } from "react";
-import { Music2, Disc3, UserRound, ListMusic, ArrowDownUp, LayoutGrid, List, History, FolderTree, BarChart3, Settings, ChevronRight, Plus, Heart, Search, X, Upload, SlidersHorizontal, Link2, Loader2 } from "lucide-react";
+import { Music2, Disc3, UserRound, ListMusic, ArrowDownUp, LayoutGrid, List, History, FolderTree, BarChart3, Settings, ChevronRight, Plus, Heart, Search, X, Upload, SlidersHorizontal, Link2, Loader2, Download } from "lucide-react";
 import { parsePlaylistFile, matchLibraryTracks } from "@/lib/auralis/playlistIO";
 import { api } from "@/lib/auralis/api";
 import { SMART_PRESETS } from "@/lib/auralis/smartlist";
 import { usePlayer } from "@/store/player";
 import { useLibraryStore, artistPlayTotals } from "@/store/library";
+import { useImportDownloads } from "@/store/importDownloads";
 import { TrackRow, TrackListHeader } from "../TrackRow";
 import { AlbumCard, ArtistCard, PlaylistTile } from "../Cards";
 import { VirtualList, VirtualGrid } from "../Virtualized";
@@ -80,6 +81,10 @@ export function LibraryView() {
   const [linkOpen, setLinkOpen] = useState(false);
   const [linkUrl, setLinkUrl] = useState("");
   const [linkBusy, setLinkBusy] = useState(false);
+  // Unmatched import entries, offered as a bulk download once the playlist
+  // exists ("Télécharger les N titres manquants").
+  const [importOffer, setImportOffer] = useState<{ playlistId: string; misses: string[] } | null>(null);
+  const importDl = useImportDownloads();
   const customPlaylists = usePlayer((s) => s.customPlaylists);
   const playCounts = usePlayer((s) => s.playCounts);
   const favorites = usePlayer((s) => s.favorites);
@@ -165,13 +170,19 @@ export function LibraryView() {
     if (!file) return;
     try {
       const res = await parsePlaylistFile(file, tracks);
-      if (res.hashes.length === 0) {
+      if (res.hashes.length === 0 && res.misses.length === 0) {
         notify(t("library.linkNoTracks", "Aucun titre trouvé dans ce lien"), { tone: "error" });
         return;
       }
       const id = importPlaylist(res.name, res.hashes);
       if (res.matched < res.total) notify(`${res.matched}/${res.total} ${t("library.tabTracks", "Titres").toLowerCase()}`, { tone: "info" });
-      navigate("playlist", id);
+      if (res.misses.length > 0) {
+        // Unmatched entries → offer the bulk download instead of navigating away
+        // (the panel lives on this screen and tracks the download progress).
+        setImportOffer({ playlistId: id, misses: res.misses });
+      } else {
+        navigate("playlist", id);
+      }
     } catch {
       notify(t("library.invalidFile", "Fichier de playlist invalide"), { tone: "error" });
     }
@@ -204,7 +215,7 @@ export function LibraryView() {
         return;
       }
       const res = matchLibraryTracks(entries, tracks);
-      if (res.hashes.length === 0) {
+      if (res.hashes.length === 0 && res.misses.length === 0) {
         notify(t("library.linkNoTracks", "Aucun titre trouvé dans ce lien"), { tone: "error" });
         return;
       }
@@ -214,7 +225,13 @@ export function LibraryView() {
       }
       setLinkUrl("");
       setLinkOpen(false);
-      navigate("playlist", id);
+      if (res.misses.length > 0) {
+        // Unmatched entries → offer the bulk download instead of navigating away
+        // (the panel lives on this screen and tracks the download progress).
+        setImportOffer({ playlistId: id, misses: res.misses });
+      } else {
+        navigate("playlist", id);
+      }
     } catch {
       notify(t("library.linkImportFailed", "Impossible d'importer ce lien"), { tone: "error" });
     } finally {
@@ -507,6 +524,30 @@ export function LibraryView() {
 
       {tab === "playlists" && (
         <div>
+          {(importOffer || importDl.total > 0) && (
+            <ImportDownloadPanel
+              offer={importOffer}
+              running={importDl.running}
+              finished={importDl.finished}
+              total={importDl.total}
+              added={importDl.added}
+              failed={importDl.failed}
+              onStart={() => {
+                if (!importOffer) return;
+                useImportDownloads.getState().start(importOffer.playlistId, importOffer.misses);
+                setImportOffer(null);
+              }}
+              onOpen={() => {
+                const id = importOffer?.playlistId ?? importDl.playlistId;
+                if (id) navigate("playlist", id);
+              }}
+              onDismiss={() => {
+                setImportOffer(null);
+                useImportDownloads.getState().dismiss();
+              }}
+              t={t}
+            />
+          )}
           <div className="mb-3">
             {creating ? (
               // Mobile: the input and its two action pills stack (a single row
@@ -682,6 +723,103 @@ function FilterChip({ label, active, onClick }: { label: string; active: boolean
     >
       {label}
     </button>
+  );
+}
+
+/** Post-import panel: offer to bulk-download the entries the library couldn't
+ *  match ("Télécharger les N titres manquants"), then show the live download
+ *  progress ("12 / 47 téléchargés") and the final added/failures summary. */
+function ImportDownloadPanel({
+  offer,
+  running,
+  finished,
+  total,
+  added,
+  failed,
+  onStart,
+  onOpen,
+  onDismiss,
+  t,
+}: {
+  offer: { playlistId: string; misses: string[] } | null;
+  running: boolean;
+  finished: boolean;
+  total: number;
+  added: number;
+  failed: number;
+  onStart: () => void;
+  onOpen: () => void;
+  onDismiss: () => void;
+  t: (key: string, fallback?: string, params?: Record<string, string | number>) => string;
+}) {
+  const settled = added + failed;
+  const pct = total > 0 ? Math.max(3, Math.round((settled / total) * 100)) : 0;
+  return (
+    <div className="matte-panel mb-4 flex items-start gap-3 rounded-lg p-3">
+      <div className="grid size-9 shrink-0 place-items-center rounded-full bg-[var(--surface-2)]">
+        <Download className="size-4 text-muted-foreground" />
+      </div>
+      <div className="min-w-0 flex-1">
+        <p className="text-[13px] font-bold text-foreground">
+          {offer
+            ? t("library.importMissingTitle", "Titres manquants")
+            : finished
+              ? t("library.importDownloadDone", "Playlist mise à jour : {count} titres ajoutés", { count: added })
+              : t("library.importDownloadProgress", "{done} / {total} téléchargés", { done: settled, total })}
+        </p>
+        {offer && (
+          <p className="mt-0.5 text-[12px] font-medium text-muted-foreground">
+            {t("library.importMissingHint", "{count} titres de cette playlist ne sont pas dans ta bibliothèque", {
+              count: offer.misses.length,
+            })}
+          </p>
+        )}
+        {running && (
+          <div className="mt-1.5 h-1 overflow-hidden rounded-full bg-[var(--surface-2)]">
+            <div
+              className="h-full rounded-full bg-[var(--accent,var(--foreground))]"
+              style={{ width: `${pct}%` }}
+            />
+          </div>
+        )}
+        {finished && failed > 0 && (
+          <p className="mt-0.5 text-[11.5px] font-semibold text-amber">
+            {t("library.importDownloadFailures", "{count} échecs", { count: failed })}
+          </p>
+        )}
+        <div className="mt-2 flex flex-wrap items-center gap-2">
+          {offer && (
+            <button
+              onClick={onStart}
+              disabled={running}
+              className="signal-button tap-press inline-flex items-center gap-1.5 rounded-full px-4 py-2 text-[12px] font-bold transition-colors duration-200 disabled:opacity-40"
+            >
+              <Download className="size-3.5" />
+              {t("library.importDownloadMissing", "Télécharger les {count} titres manquants", {
+                count: offer.misses.length,
+              })}
+            </button>
+          )}
+          {(offer || finished) && (
+            <button
+              onClick={onOpen}
+              className="ghost-button tap-press rounded-full px-4 py-2 text-[12px] font-bold transition-colors duration-200"
+            >
+              {t("library.importOpenPlaylist", "Ouvrir la playlist")}
+            </button>
+          )}
+          {!running && (
+            <button
+              onClick={onDismiss}
+              aria-label={t("mobile.close", "Fermer")}
+              className="tap-press grid size-8 place-items-center rounded-full text-muted-foreground transition-colors hover:bg-[var(--surface-2)] hover:text-foreground"
+            >
+              <X className="size-3.5" />
+            </button>
+          )}
+        </div>
+      </div>
+    </div>
   );
 }
 

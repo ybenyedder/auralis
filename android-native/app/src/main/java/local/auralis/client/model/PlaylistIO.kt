@@ -12,7 +12,14 @@ import java.text.Normalizer
 
 data class ExternalTrackEntry(val title: String, val artist: String? = null, val album: String? = null)
 
-data class ImportedPlaylist(val name: String, val hashes: List<String>, val matched: Int, val total: Int)
+data class ImportedPlaylist(
+    val name: String,
+    val hashes: List<String>,
+    val matched: Int,
+    val total: Int,
+    /** Entries with no library counterpart — for the "download missing" offer. */
+    val unmatched: List<ExternalTrackEntry> = emptyList(),
+)
 
 data class LinkImportResult(
     val name: String,
@@ -21,6 +28,8 @@ data class LinkImportResult(
     val total: Int,
     /** "Artist — Title" of the entries we couldn't place, for a "N introuvables" hint. */
     val misses: List<String>,
+    /** The same misses as structured entries — for the "download missing" offer. */
+    val unmatched: List<ExternalTrackEntry> = emptyList(),
 )
 
 private fun trackArtistName(t: Track): String =
@@ -93,6 +102,7 @@ fun matchLibraryTracks(entries: List<ExternalTrackEntry>, library: List<Track>):
     val seen = HashSet<String>()
     val hashes = ArrayList<String>()
     val misses = ArrayList<String>()
+    val unmatched = ArrayList<ExternalTrackEntry>()
     var total = 0
 
     for (e in entries) {
@@ -120,12 +130,15 @@ fun matchLibraryTracks(entries: List<ExternalTrackEntry>, library: List<Track>):
         if (match != null && !seen.contains(match.trackhash)) {
             seen.add(match.trackhash)
             hashes.add(match.trackhash)
-        } else if (match == null && misses.size < 60) {
-            misses.add("${if (e.artist != null) "${e.artist} — " else ""}${e.title}")
+        } else if (match == null) {
+            // The display hint stays capped at 60, but EVERY miss is kept as a
+            // structured entry so the caller can offer to download the lot.
+            if (misses.size < 60) misses.add("${if (e.artist != null) "${e.artist} — " else ""}${e.title}")
+            unmatched.add(e)
         }
     }
 
-    return LinkImportResult("", hashes, hashes.size, total, misses)
+    return LinkImportResult("", hashes, hashes.size, total, misses, unmatched)
 }
 
 private fun normPath(p: String): String =
@@ -199,6 +212,7 @@ fun parsePlaylistFile(fileName: String, text: String, library: List<Track>): Imp
 
     var name = fileName.replace(Regex("\\.[^.]*$"), "")
     val hashes = ArrayList<String>()
+    val unmatched = ArrayList<ExternalTrackEntry>()
     var total = 0
 
     val trimmed = text.removePrefix("\uFEFF").trimStart()
@@ -219,6 +233,9 @@ fun parsePlaylistFile(fileName: String, text: String, library: List<Track>): Imp
                 ?: (fp?.let { byPath[normPath(it)] })
                 ?: (title?.let { byTitle["${it}|${t.str("artist") ?: ""}".lowercase()] })
             if (m != null) hashes.add(m.trackhash)
+            else if (!title.isNullOrBlank()) {
+                unmatched.add(ExternalTrackEntry(title, t.str("artist")))
+            }
         }
     } else {
         // M3U / M3U8
@@ -248,13 +265,46 @@ fun parsePlaylistFile(fileName: String, text: String, library: List<Track>): Imp
                     m = byTitle["${title}|${artist}".lowercase()]
                 }
             }
-            if (m != null) hashes.add(m.trackhash)
+            if (m != null) {
+                hashes.add(m.trackhash)
+            } else {
+                // No library counterpart: keep a structured entry (the EXTINF
+                // "artist - title" when present, else the file's base name) so the
+                // caller can offer to download the missing tracks.
+                val dash = pendingTitle.indexOf(" - ")
+                when {
+                    dash >= 0 -> unmatched.add(
+                        ExternalTrackEntry(pendingTitle.substring(dash + 3).trim(), pendingTitle.substring(0, dash).trim()),
+                    )
+                    pendingTitle.isNotEmpty() -> unmatched.add(ExternalTrackEntry(pendingTitle, null))
+                    else -> unmatched.add(
+                        ExternalTrackEntry(path.substringAfterLast('/').substringBeforeLast('.').ifBlank { line }, null),
+                    )
+                }
+            }
             pendingTitle = ""
         }
     }
 
-    return ImportedPlaylist(name, hashes, hashes.size, total)
+    return ImportedPlaylist(name, hashes, hashes.size, total, unmatched)
 }
+
+/** Download query for an unmatched import entry ("<artist> <title>"). */
+fun downloadQuery(entry: ExternalTrackEntry): String =
+    listOfNotNull(
+        entry.artist?.trim()?.takeIf { it.isNotEmpty() },
+        entry.title.trim().takeIf { it.isNotEmpty() },
+    ).joinToString(" ")
+
+/** Bulk-download items for the entries a playlist import couldn't match: one
+ *  `{ query, title }` per entry, deduped by query and capped at the server's
+ *  200-item batch limit (POST /api/download `{ items }`). */
+fun downloadItems(entries: List<ExternalTrackEntry>, max: Int = 200): List<DownloadItem> =
+    entries.mapNotNull { e ->
+        val q = downloadQuery(e)
+        if (q.isEmpty()) null
+        else DownloadItem(q, e.title.trim().takeIf { it.isNotEmpty() })
+    }.distinctBy { it.query.lowercase() }.take(max)
 
 /** Extended-M3U export (web exportPlaylistM3U). The URI line is the absolute
  *  stream URL so the file plays in other apps; EXTINF carries "artist - title"

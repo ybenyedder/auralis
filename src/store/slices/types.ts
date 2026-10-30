@@ -103,7 +103,9 @@ export interface PlaylistSlice {
   deletePlaylist: (id: string) => void;
   renamePlaylist: (id: string, name: string) => void;
   setPlaylistCover: (id: string, dataUrl: string | null) => Promise<void>;
-  addToPlaylist: (id: string, track: Track) => void;
+  /** Add a track to a custom playlist. `opts.silent` skips the per-add toast —
+   *  bulk flows (playlist import downloads) report their own summary instead. */
+  addToPlaylist: (id: string, track: Track, opts?: { silent?: boolean }) => void;
   removeFromPlaylist: (id: string, trackhash: string) => void;
   reorderInPlaylist: (id: string, from: number, to: number) => void;
   importPlaylist: (name: string, trackhashes: string[]) => string;

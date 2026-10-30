@@ -37,6 +37,7 @@ import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Download
 import androidx.compose.material.icons.filled.Explore
 import androidx.compose.material.icons.filled.Favorite
+import androidx.compose.material.icons.filled.Mic
 import androidx.compose.material.icons.filled.MusicNote
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.PlayArrow
@@ -1008,6 +1009,18 @@ fun SearchScreen(vm: AppViewModel, ui: UiState) {
                 cursorColor = colors.accent,
             ),
         )
+        Spacer(Modifier.height(8.dp))
+        // "Chercher en chantant" — hum/sing recognition (opens the recording sheet).
+        Box(
+            Modifier.clip(CircleShape).background(colors.panel2).clickable { vm.openHumSheet() }
+                .padding(horizontal = 14.dp, vertical = 7.dp),
+        ) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Icon(Icons.Filled.Mic, null, tint = colors.textMuted, modifier = Modifier.size(16.dp))
+                Spacer(Modifier.width(6.dp))
+                Text(tr("search.hum"), color = colors.textMuted, fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
+            }
+        }
         Spacer(Modifier.height(8.dp))
         val res = ui.searchResult
         if (ui.searchQuery.isBlank()) {

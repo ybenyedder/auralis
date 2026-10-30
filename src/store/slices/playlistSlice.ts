@@ -109,7 +109,7 @@ setPlaylistCover: async (id, dataUrl) => {
       }
     },
 
-addToPlaylist: (id, track) => {
+addToPlaylist: (id, track, opts) => {
       set((s) => {
         const upd = {
           customPlaylists: s.customPlaylists.map((p) => {
@@ -126,7 +126,7 @@ addToPlaylist: (id, track) => {
       // the full upsert is owner-scoped and would be IDOR-rejected.
       if (pl?.collaborator) void api.put("/api/state", { action: "playlist.addTrack", id, trackhash: track.trackhash }).catch(() => {});
       else pushPlaylist(id);
-      get().notify(translate(get().locale, "toast.addedToPlaylist", undefined, { name: pl?.name ?? translate(get().locale, "toast.thePlaylist") }));
+      if (!opts?.silent) get().notify(translate(get().locale, "toast.addedToPlaylist", undefined, { name: pl?.name ?? translate(get().locale, "toast.thePlaylist") }));
     },
 
 removeFromPlaylist: (id, trackhash) => {

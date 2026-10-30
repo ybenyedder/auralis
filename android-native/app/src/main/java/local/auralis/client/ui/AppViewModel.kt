@@ -29,14 +29,19 @@ import local.auralis.client.model.ListeningStats
 import local.auralis.client.model.MonthlyRecap
 import local.auralis.client.model.DownloadJobDto
 import local.auralis.client.model.ExternalTrackEntry
+import local.auralis.client.model.MelodyStatus
 import local.auralis.client.model.MoodAffinity
 import local.auralis.client.model.OnlineTrack
 import local.auralis.client.model.PlaylistDto
+import local.auralis.client.model.RecognizeLocalMatch
+import local.auralis.client.model.RecognizeRemoteMatch
+import local.auralis.client.model.RecognizeResult
 import local.auralis.client.model.ScanProgress
 import local.auralis.client.model.SearchResult
 import local.auralis.client.model.ShareLinks
 import local.auralis.client.model.SmartConfig
 import local.auralis.client.model.Track
+import local.auralis.client.model.downloadItems
 import local.auralis.client.model.isoWeekKey
 import local.auralis.client.model.matchLibraryTracks
 import local.auralis.client.model.parsePlaylistFile
@@ -62,6 +67,23 @@ enum class ViewId { HOME, NEW, RADIO, EXPLORE, LIBRARY, FAVORITES, RECENTS, FOLD
 val rootViewIds = setOf(ViewId.HOME, ViewId.NEW, ViewId.RADIO, ViewId.EXPLORE, ViewId.LIBRARY)
 
 data class NavTarget(val view: ViewId, val id: String? = null)
+
+/** The "Télécharger les N titres manquants" offer shown after a playlist import
+ *  (file or link) left entries without a library counterpart. */
+data class ImportDownloadOffer(
+    val playlistId: String,
+    val playlistName: String,
+    val entries: List<ExternalTrackEntry>,
+)
+
+/** Live progress of the import-missing-tracks download batch. */
+data class ImportDownloadState(
+    val playlistId: String,
+    val total: Int,
+    val done: Int = 0,
+    val failed: Int = 0,
+    val running: Boolean = true,
+)
 
 data class UiState(
     val phase: Phase = Phase.BOOT,
@@ -117,6 +139,24 @@ data class UiState(
     val onlineEnabled: Boolean = false,
     val onlineLoading: Boolean = false,
     val downloadJobs: Map<String, DownloadJobDto> = emptyMap(),
+
+    // "Chercher en chantant" (hum-to-search): the recording sheet + the
+    // POST /api/recognize verdict. `humError` holds a catalogue KEY (not a
+    // translated string) so the sheet follows a live language switch.
+    val humSheetOpen: Boolean = false,
+    val humUploading: Boolean = false,
+    val humResult: RecognizeResult? = null,
+    val humError: String? = null,
+    /** Download jobs for global-catalog matches ("Ajouter à la bibliothèque"),
+     *  keyed by the match's query. */
+    val humRemoteJobs: Map<String, DownloadJobDto> = emptyMap(),
+
+    // Melody index status (settings "Reconnaissance audio" card).
+    val melody: MelodyStatus? = null,
+
+    // Playlist import → download the missing tracks into the new playlist.
+    val importOffer: ImportDownloadOffer? = null,
+    val importDownload: ImportDownloadState? = null,
 
     val lyrics: LyricsResult = LyricsResult.NONE,
     val lyricsLoading: Boolean = false,
@@ -1085,8 +1125,15 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     /** Import a matched set of trackhashes as a NEW playlist. One upsert with the
-     *  full ordered set (N addToPlaylist calls would fire N server round-trips). */
-    fun importPlaylist(name: String, hashes: List<String>, onCreated: (String) -> Unit = {}) {
+     *  full ordered set (N addToPlaylist calls would fire N server round-trips).
+     *  `missing` carries the entries with no library counterpart: they trigger
+     *  the "Télécharger les N titres manquants" offer once the playlist exists. */
+    fun importPlaylist(
+        name: String,
+        hashes: List<String>,
+        missing: List<ExternalTrackEntry> = emptyList(),
+        onCreated: (String) -> Unit = {},
+    ) {
         val clean = name.trim().ifBlank { tr("library.importedName") }
         val unique = hashes.distinct()
         viewModelScope.launch {
@@ -1096,7 +1143,12 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
             val id = res.optString("id", "")
             refreshState()
             notify(tr("toast.playlistImported", mapOf("name" to clean, "count" to unique.size)))
-            if (id.isNotBlank()) onCreated(id)
+            if (id.isNotBlank()) {
+                if (missing.isNotEmpty()) {
+                    _ui.update { it.copy(importOffer = ImportDownloadOffer(id, clean, missing)) }
+                }
+                onCreated(id)
+            }
         }
     }
 
@@ -1130,12 +1182,12 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
                 return@launch
             }
             val m = withContext(Dispatchers.Default) { matchLibraryTracks(entries, _ui.value.tracks) }
-            if (m.hashes.isEmpty()) {
+            if (m.hashes.isEmpty() && m.unmatched.isEmpty()) {
                 notify(tr("library.linkNoTracks"))
                 onDone(false)
                 return@launch
             }
-            importPlaylist(res.optString("name", ""), m.hashes) { id -> navigate(ViewId.PLAYLIST, id) }
+            importPlaylist(res.optString("name", ""), m.hashes, m.unmatched) { id -> navigate(ViewId.PLAYLIST, id) }
             if (m.matched < m.total) notify(tr("toast.matchedCount", mapOf("matched" to m.matched, "total" to m.total)))
             onDone(true)
         }
@@ -1152,12 +1204,107 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
                 notify(tr("library.invalidFile"))
                 return@launch
             }
-            if (parsed.hashes.isEmpty()) {
+            if (parsed.hashes.isEmpty() && parsed.unmatched.isEmpty()) {
                 notify(tr("library.linkNoTracks"))
                 return@launch
             }
-            importPlaylist(parsed.name, parsed.hashes) { id -> navigate(ViewId.PLAYLIST, id) }
+            importPlaylist(parsed.name, parsed.hashes, parsed.unmatched) { id -> navigate(ViewId.PLAYLIST, id) }
             if (parsed.matched < parsed.total) notify(tr("toast.matchedCount", mapOf("matched" to parsed.matched, "total" to parsed.total)))
+        }
+    }
+
+    // ---- playlist import → download the missing tracks ----------------------
+    // After an import, entries with no library counterpart can be fetched through
+    // the server download engine (POST /api/download { items }, one job each) and
+    // dropped into the just-created playlist as each job completes.
+
+    fun dismissImportOffer() { _ui.update { it.copy(importOffer = null) } }
+
+    /** Hide the progress dialog — the batch keeps running in the background and
+     *  the completion toast still fires. */
+    fun dismissImportDownload() { _ui.update { it.copy(importDownload = null) } }
+
+    /** Enqueue every unmatched entry as a download batch, poll the jobs (one bare
+     *  GET covers the whole batch) and add each finished track to the playlist. */
+    fun startImportDownload() {
+        val offer = _ui.value.importOffer ?: return
+        if (_ui.value.importDownload?.running == true) return
+        val playlistId = offer.playlistId
+        _ui.update {
+            it.copy(importOffer = null, importDownload = ImportDownloadState(playlistId, offer.entries.size))
+        }
+        viewModelScope.launch {
+            val jobs = api.startDownloadBatch(downloadItems(offer.entries))
+            if (jobs.isEmpty()) {
+                _ui.update { it.copy(importDownload = null) }
+                notify(tr("toast.downloadStartFailed"))
+                return@launch
+            }
+            // The batch is deduped/capped (≤ 200 jobs server-side) — rebase the
+            // total on what was actually enqueued so the counter can reach it.
+            _ui.update { it.copy(importDownload = it.importDownload?.copy(total = jobs.size)) }
+            val pending = jobs.map { it.id }.toMutableSet()
+            val seenHashes = HashSet<String>()
+            var done = 0
+            var failed = 0
+            var misses = 0
+            while (isActive && pending.isNotEmpty()) {
+                delay(2000)
+                val all = api.downloadJobs()
+                if (all == null) {
+                    // Transient poll failures are fine; give up after a long outage.
+                    if (++misses > 60) {
+                        failed += pending.size
+                        pending.clear()
+                    }
+                    continue
+                }
+                misses = 0
+                for (j in all) {
+                    if (j.id !in pending) continue
+                    when (j.status) {
+                        "done" -> {
+                            pending.remove(j.id)
+                            done++
+                            val h = j.trackhash
+                            if (!h.isNullOrBlank() && seenHashes.add(h)) addDownloadedToPlaylist(playlistId, h)
+                        }
+                        "error" -> {
+                            pending.remove(j.id)
+                            failed++
+                        }
+                        else -> Unit // queued / resolving / downloading / scanning
+                    }
+                }
+                _ui.update { s -> s.copy(importDownload = s.importDownload?.copy(done = done, failed = failed)) }
+            }
+            _ui.update { s -> s.copy(importDownload = s.importDownload?.copy(done = done, failed = failed, running = false)) }
+            loadAll()
+            notify(
+                when {
+                    failed > 0 && done > 0 -> tr("import.downloadPartial", mapOf("done" to done, "failed" to failed))
+                    failed > 0 -> tr("toast.downloadFailed")
+                    else -> tr("import.downloadComplete", mapOf("done" to done))
+                },
+            )
+        }
+    }
+
+    /** Append a freshly downloaded track to the import's playlist — silent
+     *  variant of [addToPlaylist] (one toast per batch, not per track). */
+    private fun addDownloadedToPlaylist(playlistId: String, trackhash: String) {
+        val pl = _ui.value.playlists.find { it.id == playlistId } ?: return
+        if (trackhash in pl.trackhashes) return
+        val next = pl.trackhashes + trackhash
+        if (pl.collaborator) {
+            // Collaborator playlists must use the GRANULAR add — the full upsert is
+            // owner-scoped and would be IDOR-rejected (see addToPlaylist).
+            _ui.update { it.copy(playlists = it.playlists.map { p -> if (p.id == playlistId) p.copy(trackhashes = next) else p }) }
+            viewModelScope.launch {
+                api.putState(JSONObject().put("action", "playlist.addTrack").put("id", playlistId).put("trackhash", trackhash))
+            }
+        } else {
+            upsertPlaylist(pl.copy(trackhashes = next))
         }
     }
 
@@ -1429,6 +1576,46 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
         }
     }
 
+    // ---- melody index ("Reconnaissance audio" settings card) ----------------
+
+    private var melodyPollJob: kotlinx.coroutines.Job? = null
+
+    /** Fetch GET /api/library/melody and keep polling while an index pass runs. */
+    fun refreshMelodyStatus() {
+        viewModelScope.launch {
+            val st = runCatching { api.melodyStatus() }.getOrNull()
+            if (st != null) _ui.update { it.copy(melody = st) }
+            if (st?.running == true) pollMelodyStatus()
+        }
+    }
+
+    private fun pollMelodyStatus() {
+        if (melodyPollJob?.isActive == true) return
+        melodyPollJob = viewModelScope.launch {
+            while (isActive) {
+                delay(2500)
+                val st = runCatching { api.melodyStatus() }.getOrNull() ?: break
+                _ui.update { it.copy(melody = st) }
+                if (!st.running) break
+            }
+        }
+    }
+
+    /** "Indexer la bibliothèque" (admin): POST /api/library/melody, then follow
+     *  the progress through the same GET. */
+    fun startIndexingMelody() {
+        viewModelScope.launch {
+            val res = api.startMelodyIndex()
+            if (api.apiLastOk && res.optBoolean("started", false)) {
+                notify(tr("settings.melodyIndexStarted"))
+                _ui.update { it.copy(melody = it.melody?.copy(running = true) ?: MelodyStatus(true, 0, 0, true)) }
+                pollMelodyStatus()
+            } else {
+                notify(res.optString("error").ifBlank { tr("settings.melodyIndexFailed") })
+            }
+        }
+    }
+
     fun changeMusicDir(dir: String) {
         viewModelScope.launch {
             val res = api.post("/api/library/source", JSONObject().put("dir", dir))
@@ -1582,6 +1769,101 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
                     delay(500)
                 }
             }
+        }
+    }
+
+    // ---- "Chercher en chantant" (hum-to-search recognition) ------------------
+    // The mic sheet records ~12 s (MediaRecorder, in HumSearch.kt) and posts the
+    // raw bytes to /api/recognize; the matches land in UiState for the sheet.
+
+    fun openHumSheet() {
+        _ui.update { it.copy(humSheetOpen = true, humUploading = false, humResult = null, humError = null) }
+    }
+
+    fun closeHumSheet() {
+        _ui.update { it.copy(humSheetOpen = false, humUploading = false) }
+    }
+
+    /** Clear the sheet's error banner (e.g. before a retry). */
+    fun clearHumError() { _ui.update { it.copy(humError = null) } }
+
+    /** Clear the results so the sheet returns to the recording state. */
+    fun clearHumResult() { _ui.update { it.copy(humResult = null, humError = null) } }
+
+    /** The recorder produced nothing usable (no mic, empty file…). */
+    fun failHumRecording() {
+        _ui.update { it.copy(humUploading = false, humResult = null, humError = "hum.uploadFailed") }
+    }
+
+    /** Upload the raw recording to POST /api/recognize and keep the verdict. */
+    fun submitHumRecording(audio: ByteArray, contentType: String) {
+        if (audio.isEmpty()) { failHumRecording(); return }
+        _ui.update { it.copy(humUploading = true, humResult = null, humError = null) }
+        viewModelScope.launch {
+            val res = api.recognize(audio, contentType)
+            if (!api.apiLastOk) {
+                _ui.update { it.copy(humUploading = false, humError = "hum.uploadFailed") }
+                return@launch
+            }
+            _ui.update { it.copy(humUploading = false, humResult = RecognizeResult.from(res)) }
+        }
+    }
+
+    /** Play a local (library) recognition match — the other matches become the queue. */
+    fun playHumMatch(match: RecognizeLocalMatch) {
+        val res = _ui.value.humResult ?: return
+        val track = trackIndex[match.trackhash] ?: return
+        val list = res.local.mapNotNull { trackIndex[it.trackhash] }
+        playTrack(track, list.ifEmpty { listOf(track) }, list.indexOf(track))
+        closeHumSheet()
+    }
+
+    /** "Ajouter à la bibliothèque" for a global-catalog match: start a query
+     *  download, follow the job, then reload the library (no autoplay — the
+     *  point is to OWN the track, not to interrupt what's playing). */
+    fun downloadHumMatch(match: RecognizeRemoteMatch) {
+        val key = match.query
+        if (key.isBlank()) return
+        val existing = _ui.value.humRemoteJobs[key]
+        if (existing != null && existing.busy) return
+        _ui.update {
+            it.copy(humRemoteJobs = it.humRemoteJobs + (key to DownloadJobDto("", "queued", 0, null, null, match.title)))
+        }
+        viewModelScope.launch {
+            val job = runCatching { api.startDownloadQuery(key, match.title) }.getOrNull()
+            if (job == null) {
+                _ui.update {
+                    it.copy(humRemoteJobs = it.humRemoteJobs +
+                        (key to DownloadJobDto("", "error", 0, null, tr("toast.downloadStartFailed"), match.title)))
+                }
+                notify(tr("toast.downloadFailed"))
+                return@launch
+            }
+            var current: DownloadJobDto = job
+            var misses = 0
+            while (isActive) {
+                _ui.update { it.copy(humRemoteJobs = it.humRemoteJobs + (key to current)) }
+                if (current.status == "done" || current.status == "error") break
+                delay(1500)
+                val next: DownloadJobDto? = runCatching { api.downloadJob(job.id) }.getOrNull()
+                if (next == null) {
+                    // Transient poll failures are fine; give up after a long outage.
+                    if (++misses > 60) {
+                        current = current.copy(status = "error", error = tr("toast.serverUnreachable"))
+                        break
+                    }
+                    continue
+                }
+                misses = 0
+                current = next
+            }
+            _ui.update { it.copy(humRemoteJobs = it.humRemoteJobs + (key to current)) }
+            if (current.status == "error") {
+                notify(current.error?.takeIf { it.isNotBlank() } ?: tr("toast.downloadFailed"))
+                return@launch
+            }
+            notify(tr("hum.addedToLibrary"))
+            loadAll()
         }
     }
 

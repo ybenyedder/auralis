@@ -4,6 +4,59 @@ All notable changes to Auralis are documented here. The format is based on
 [Keep a Changelog](https://keepachangelog.com/) and this project adheres to
 [Semantic Versioning](https://semver.org/).
 
+## [1.24.0] - 2026-10-30
+
+Deux demandes : « une sorte de Shazam où tu marmonnes/chantonnes et ça te donne
+la musique » et « quand j'importe une playlist Spotify, télécharge tous les sons
+que je n'ai pas ». La reconnaissance par fredonnement tourne en local contre ta
+propre bibliothèque (validée en réel : mélodie transposée +2 demi-tons, tempo
+différent, bruit → retrouvée à 94 % en tête), avec une reconnaissance mondiale
+optionnelle par ACRCloud, et l'import de playlist télécharge désormais ses
+manquants en un geste.
+
+### Ajouté — « Chercher en chantant » (reconnaissance par fredonnement)
+- **Moteur mélodique local** (`src/server/melody/`, sans dépendance externe) :
+  détection de hauteur YIN, contour mélodique quantisé par trames, appariement
+  par **DTW sous-séquence sur les intervalles** — insensible à la transposition
+  (on marmonne dans la tonalité qu'on veut), au tempo et aux octaves, avec
+  pré-filtrage par histogramme d'intervalles pour rester rapide sur les grosses
+  bibliothèques.
+- **Index de mélodies opt-in** (`POST /api/library/melody`, admin) : passe en
+  arrière-plan qui décode les titres (ffmpeg) et indexe leur contour (table
+  `melody`, migration 013) ; progression visible dans les réglages et dans
+  l'objet `scan` du snapshot. Indexation incrémentielle (nouveaux titres +
+  fichiers modifiés uniquement).
+- **`POST /api/recognize`** : un enregistrement (≤ 30 s, ≤ 8 Mo) →
+  correspondances dans ta bibliothèque (score, pochette, lecture en un tap) +
+  reconnaissance mondiale si configurée.
+- **Reconnaissance mondiale optionnelle (ACRCloud)** : clés
+  `ACRACLOUD_HOST/KEY/SECRET` (documentées dans `.env.example`) — identifie
+  n'importe quelle chanson à partir d'un fredonnement ou de l'ambiance, puis
+  propose « Ajouter à la bibliothèque » (téléchargement YouTube automatique).
+  Sans clés, tout reste local et fonctionne hors ligne.
+- **Web** : micro dans la recherche (« Chercher en chantant », enregistrement
+  ≤ 12 s avec compteur), vue de résultats (bibliothèque + catalogue mondial),
+  section réglages « Reconnaissance audio » (statut d'index, déclenchement
+  admin, aide ACRCloud). **Android** : idem (permission `RECORD_AUDIO`,
+  MediaRecorder, feuille de résultats), carte réglages dédiée.
+
+### Ajouté — Import de playlist → téléchargement des manquants
+- **Téléchargement par lot** (`POST /api/download { items }`, max 200, limité à
+  3 lots/min) : crée un job par titre manquant, la file partagée rythme les
+  téléchargements, déduplication par vidéo.
+- **Web + Android** : après un import (fichier .m3u/.json ou lien
+  Spotify/Deezer/Apple Music/YouTube), les titres introuvables dans la
+  bibliothèque sont proposés en un geste (« Télécharger les N titres
+  manquants ») ; chaque titre téléchargé est **ajouté à la playlist au fil de
+  l'eau**, avec barre de progression « 12 / 47 téléchargés », toast final et
+  compteur d'échecs tolérés.
+
+### Ajouté — Tests
+- Moteur mélodique (YIN sur signaux synthétiques, contour, invariance
+  transposition/tempo, DTW), durcissement des routes (`/api/recognize`,
+  `/api/library/melody`, mode lot), rendu web des états de résultats — 186
+  tests web + 113 tests Android.
+
 ## [1.23.0] - 2026-10-30
 
 Deux demandes : « fini yt-dlp/Python pour YouTube, passe en JS » et « donne à

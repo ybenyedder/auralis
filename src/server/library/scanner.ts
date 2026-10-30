@@ -40,6 +40,10 @@ export interface ScanProgress {
   /** Background audio-analysis (mood classifier) progress, runs after the scan. */
   analyzing: boolean;
   analyzed: number;
+  /** Background melody-index pass ("hum to search"), opt-in via /api/library/melody. */
+  melodyRunning: boolean;
+  melodyIndexed: number;
+  melodyTotal: number;
   analyzeTotal: number;
 }
 
@@ -59,6 +63,9 @@ const progress: ScanProgress = {
   analyzing: false,
   analyzed: 0,
   analyzeTotal: 0,
+  melodyRunning: false,
+  melodyIndexed: 0,
+  melodyTotal: 0,
 };
 
 type Listener = (snapshot: ScanProgress) => void;

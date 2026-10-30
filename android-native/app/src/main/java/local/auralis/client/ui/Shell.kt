@@ -257,6 +257,14 @@ fun Shell(vm: AppViewModel, ui: UiState) {
             local.auralis.client.ui.components.ArtistMenu(a, ui, vm, onDismiss = { vm.closeMenus() })
         }
 
+        // "Chercher en chantant" recording + results sheet (hum-to-search).
+        if (ui.humSheetOpen) {
+            local.auralis.client.ui.components.HumSheet(vm, ui, onDismiss = { vm.closeHumSheet() })
+        }
+
+        // Playlist import → "Télécharger les N titres manquants" + batch progress.
+        local.auralis.client.ui.components.ImportDownloadDialogs(ui, vm)
+
         // Transient toast (optionally with one action — e.g. the queue "Annuler").
         ui.toast?.let { msg ->
             Box(Modifier.fillMaxSize().padding(bottom = 150.dp), contentAlignment = Alignment.BottomCenter) {
