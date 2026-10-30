@@ -3,6 +3,8 @@ package local.auralis.client.ui.screens
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.combinedClickable
+import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.aspectRatio
@@ -11,6 +13,8 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
+import local.auralis.client.i18n.Messages
+import local.auralis.client.i18n.tr
 import local.auralis.client.ui.components.NetworkImage
 import local.auralis.client.ui.theme.LocalApiUrl
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -50,14 +54,21 @@ private fun CardPlayFab(onPlay: () -> Unit, modifier: Modifier = Modifier) {
             .clickable { onPlay() },
         contentAlignment = Alignment.Center,
     ) {
-        Icon(Icons.Filled.PlayArrow, "Lire", tint = Color.White, modifier = Modifier.size(15.dp))
+        Icon(Icons.Filled.PlayArrow, tr("common.play"), tint = Color.White, modifier = Modifier.size(15.dp))
     }
 }
 
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
-fun AlbumCard(album: Album, modifier: Modifier = Modifier.width(150.dp), onPlay: (() -> Unit)? = null, onClick: () -> Unit) {
+fun AlbumCard(
+    album: Album,
+    modifier: Modifier = Modifier.width(150.dp),
+    onPlay: (() -> Unit)? = null,
+    onLongPress: (() -> Unit)? = null,
+    onClick: () -> Unit,
+) {
     val colors = LocalAuralis.current
-    Column(modifier.clickable { onClick() }) {
+    Column(modifier.combinedClickable(onClick = onClick, onLongClick = onLongPress)) {
         Box {
             CoverArt(album.image, album.albumhash, Modifier.fillMaxWidth().aspectRatio(1f), cornerRadius = 8)
             if (onPlay != null) {
@@ -77,12 +88,19 @@ fun AlbumCard(album: Album, modifier: Modifier = Modifier.width(150.dp), onPlay:
     }
 }
 
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
-fun ArtistCard(artist: Artist, modifier: Modifier = Modifier.width(130.dp), onPlay: (() -> Unit)? = null, onClick: () -> Unit) {
+fun ArtistCard(
+    artist: Artist,
+    modifier: Modifier = Modifier.width(130.dp),
+    onPlay: (() -> Unit)? = null,
+    onLongPress: (() -> Unit)? = null,
+    onClick: () -> Unit,
+) {
     val colors = LocalAuralis.current
     val (bg, _, _) = paletteFor(artist.artisthash)
     Column(
-        modifier.clickable { onClick() },
+        modifier.combinedClickable(onClick = onClick, onLongClick = onLongPress),
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
         Box(Modifier.fillMaxWidth().aspectRatio(1f)) {
@@ -122,7 +140,7 @@ fun PlaylistTile(name: String, count: Int, seed: String, imageHash: String? = nu
         androidx.compose.foundation.layout.Spacer(Modifier.width(12.dp))
         Column(Modifier.weight(1f)) {
             Text(name, color = colors.foreground, fontSize = 14.sp, fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis)
-            Text("$count titres", color = colors.textMuted, fontSize = 12.sp)
+            Text(tr("common.tracksCount", params = mapOf("count" to count)), color = colors.textMuted, fontSize = 12.sp)
         }
     }
 }

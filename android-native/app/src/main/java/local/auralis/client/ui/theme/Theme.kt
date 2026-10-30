@@ -179,16 +179,23 @@ private val AuralisType = Typography().let { d ->
 }
 
 /**
- * Root theme. Picks dark or light from the system setting; no per-theme choice
- * and no animated backdrop (flat opaque surfaces, Apple-Music style).
+ * Root theme. [mode] is the persisted appearance setting ("dark" | "light" |
+ * "auto"); "auto" follows the system setting. No animated backdrop (flat opaque
+ * surfaces, Apple-Music style).
  */
 @Composable
 fun AuralisTheme(
+    mode: String = "auto",
     darkTheme: Boolean = isSystemInDarkTheme(),
     content: @Composable () -> Unit,
 ) {
-    val colors = if (darkTheme) darkColors() else lightColors()
-    val scheme = if (darkTheme) {
+    val dark = when (mode) {
+        "dark" -> true
+        "light" -> false
+        else -> darkTheme
+    }
+    val colors = if (dark) darkColors() else lightColors()
+    val scheme = if (dark) {
         darkColorScheme(
             primary = colors.accent,
             onPrimary = colors.ink,

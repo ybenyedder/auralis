@@ -4,6 +4,83 @@ All notable changes to Auralis are documented here. The format is based on
 [Keep a Changelog](https://keepachangelog.com/) and this project adheres to
 [Semantic Versioning](https://semver.org/).
 
+## [1.23.0] - 2026-10-30
+
+Deux demandes : « fini yt-dlp/Python pour YouTube, passe en JS » et « donne à
+l'app Android TOUTES les fonctionnalités du web ». Le téléchargement est
+désormais un moteur JavaScript embarqué (validé par un téléchargement réel de
+bout en bout sur un serveur standalone : recherche → progression → m4a taggé +
+pochette → scan → lecture), et l'Android rattrape l'intégralité du web en 4
+chantiers (lecture, playlists, découverte, réglages/i18n) — build Gradle vert,
+97 tests JVM.
+
+### Changé
+- **Téléchargement YouTube : moteur 100 % JavaScript, yt-dlp/Python supprimé.**
+  Nouveau `src/server/library/youtube.ts` (InnerTube via `youtubei.js`) :
+  recherche YouTube, extraction d'URL de flux déchiffrées, téléchargement
+  streamé avec progression par octets, rotation de clients InnerTube
+  (IOS/ANDROID_VR/VISIONOS) et reconstruction de session pour survivre aux
+  403/PO-token. Le téléchargement devient un `fetch` annulable
+  (`AbortController`) — mêmes jobs, quotas, dédup `[VIDEOID]` et annulation
+  qu'avant. La disponibilité n'est plus qu'une question de config
+  (`AURALIS_DOWNLOADS`).
+- **Métadonnées de téléchargement améliorées.** Nettoyage des titres YouTube
+  (« (Official Audio) », « [HQ] », « #shorts »… sans toucher « (feat. …) »),
+  split « Artiste - Titre », tags (titre/artiste/album/commentaire) et pochette
+  intégrés par ffmpeg en **remux `-c copy`** (aucune transcode — plus rapide et
+  sans perte, sortie `.m4a` ; sans ffmpeg, flux brut conservé comme avant).
+- **Déploiement :** l'image Docker n'installe plus yt-dlp (ni curl) — ffmpeg
+  seul suffit (tags + pochette, analyse, karaoké). Messages web/Android
+  nettoyés de toute mention de yt-dlp.
+- **Corrigé :** le fichier taggué ne peut plus être détruit par ffmpeg (sortie
+  sur fichier `.part` distinct + vérification d'existence défensive) ; les
+  titres de résultats mashés par YouTube (compteurs de vues, retours à la
+  ligne) sont aplanis.
+
+### Ajouté — Android : parité complète avec le web
+- **Lecture :** égaliseur 6 bandes réel (`audiofx.Equalizer` sur la session
+  ExoPlayer) avec les 8 préréglages du web (±12 dB, persistés) ; normalisation
+  du volume Désactivé/Par titre/Par album (gain ReplayGain du serveur, moyenne
+  d'album, split atténuation/`LoudnessEnhancer`) ; fondu enchaîné 0/3/6/12 s ;
+  minuteur de sommeil complet (5/10/15/30/45/60 min + « Fin du titre » + compte
+  à rebours vivant + annulation) ; visualiseur **réellement audio-réactif**
+  (`audiofx.Visualizer` sur la session de l'app, repli décoratif automatique).
+- **Playlists :** playlists intelligentes (port fidèle de `smartlist.ts`, les 7
+  préréglages, évaluation live, stockage interop web via `playlist.upsert`) ;
+  import par lien (Spotify/Deezer/Apple Music/YouTube → `/api/playlist/import`)
+  et par fichier (.m3u/.m3u8/.json via SAF) avec appariement à la bibliothèque ;
+  export **M3U et JSON au format web exact** (fichiers interchangeables) ;
+  partage + collaborateurs (bascule « Partager », invitation, badges
+  Collaboratif/Partagée/Smart).
+- **Découverte & radios :** radios par graine (titre/album/artiste, « Radio
+  aléatoire »), voyages sonores d'humeur (`?path=`), « Blend du foyer » par
+  compte avec score de compatibilité, mix de découverte serveur + « À découvrir
+  cette semaine » figé par semaine ISO, étagère « Pour votre humeur », mix du
+  jour enrichi (logique DailyMixes du web).
+- **Menus & partage :** menus contextuels album/artiste (longue pression) avec
+  les entrées du web, « Partager » titre/album/artiste (partage système +
+  presse-papiers, liens `/?view=…`), « Radio » depuis le menu titre.
+- **File d'attente :** réordonnancement par ligne (▲/▼), « Vider » avec
+  **annulation** (toast « Annuler » qui restaure la file), raccourci « Lecture
+  aléatoire » sur toute la bibliothèque.
+- **Réglages & admin :** téléchargement de sauvegarde SQLite (admin,
+  `/api/backup`), déclenchement d'analyse d'humeur + progression, progression
+  de scan live, statistique de couverture des paroles, sélecteur de thème
+  Sombre/Clair/Système.
+- **Paroles :** alignement forcé mot-à-mot (`/api/lyrics/<hash>/align` avec
+  sondage, karaoké), réinitialisation du décalage.
+- **Insights :** temps d'écoute semaine/total, histogramme des genres, titres
+  par artiste, albums les plus volumineux.
+- **Internationalisation FR/EN complète.** Couche i18n pure (catalogue fr/en
+  clé-compatible avec `messages.ts`, `translate()` avec repli), sélecteur
+  « Langue » dans les réglages (Français/English, noms d'origine), ~450 sites
+  d'appel localisés × 2 langues, formats de dates/durées suivant la locale.
+
+### Ajouté — Tests
+- Moteur JS (nettoyage de titres, split artiste/titre, extensions), Android :
+  97 tests JVM (EQ, gains, DSP, playlists intelligentes, IO playlists,
+  recommandation, liens de partage, file d'attente, catalogue i18n fr↔en).
+
 ## [1.22.1] - 2026-10-06
 
 Passe d'audit complète de la v1.22.0 (sécurité, robustesse, E2E navigateur

@@ -1,5 +1,6 @@
 package local.auralis.client.ui.screens
 
+import android.content.Intent
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
 import android.net.Uri
@@ -27,11 +28,14 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Icon
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.Download
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.PhotoCamera
 import androidx.compose.runtime.Composable
@@ -55,8 +59,17 @@ import androidx.compose.ui.unit.sp
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import local.auralis.client.i18n.Messages
+import local.auralis.client.i18n.tr
 import local.auralis.client.model.Album
+import local.auralis.client.model.SmartConfig
+import local.auralis.client.model.SmartContext
 import local.auralis.client.model.Track
+import local.auralis.client.model.evaluateSmartList
+import local.auralis.client.model.exportPlaylistJSON
+import local.auralis.client.model.exportPlaylistM3U
+import local.auralis.client.model.isoNow
+import local.auralis.client.model.playlistSlug
 import local.auralis.client.ui.AppViewModel
 import local.auralis.client.ui.UiState
 import local.auralis.client.ui.ViewId
@@ -88,22 +101,24 @@ fun AlbumDetail(vm: AppViewModel, ui: UiState, albumhash: String) {
             DetailHero(seed = albumhash) {
                 CoverArt(album?.image, albumhash, Modifier.size(180.dp), cornerRadius = 12)
                 Spacer(Modifier.height(14.dp))
-                Eyebrow("Album")
+                Eyebrow(tr("mobile.album"))
                 Spacer(Modifier.height(2.dp))
-                Text(album?.title ?: "Album", fontSize = 26.sp, fontWeight = FontWeight.Black, color = colors.foreground)
+                Text(album?.title ?: tr("mobile.album"), fontSize = 26.sp, fontWeight = FontWeight.Black, color = colors.foreground)
                 Text(album?.artistName ?: "", color = colors.textMuted, fontSize = 14.sp,
                     modifier = Modifier.clickable {
                         album?.albumartists?.firstOrNull()?.let { vm.navigate(ViewId.ARTIST, it.artisthash) }
                     })
                 Spacer(Modifier.height(4.dp))
                 val dur = tracks.sumOf { it.duration ?: 0.0 }
-                Text("${tracks.size} titres · ${formatLongDuration(dur)}", color = colors.textFaint, fontSize = 12.sp)
+                Text(tr("detail.tracksAndDuration", params = mapOf("count" to tracks.size, "duration" to formatLongDuration(dur))), color = colors.textFaint, fontSize = 12.sp)
                 Spacer(Modifier.height(16.dp))
                 Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(18.dp)) {
                     HeroPlayButton(enabled = tracks.isNotEmpty(), playing = isPlayingThis) {
                         if (isPlayingThis) vm.togglePlay() else vm.playList(tracks)
                     }
                     HeroShuffleButton(enabled = tracks.isNotEmpty()) { vm.playShuffled(tracks) }
+                    // "Démarrer une radio" from the album's first track (web AlbumMenu).
+                    GhostPill(tr("radio.title")) { tracks.firstOrNull()?.let { vm.startRadio(it) } }
                 }
             }
         }
@@ -145,19 +160,23 @@ fun ArtistDetail(vm: AppViewModel, ui: UiState, artisthash: String) {
             DetailHero(seed = artisthash, centered = true) {
                 CoverArt(artist?.image, artisthash, Modifier.size(150.dp).clip(CircleShape))
                 Spacer(Modifier.height(14.dp))
-                Text(artist?.name ?: "Artiste", fontSize = 26.sp, fontWeight = FontWeight.Black, color = colors.foreground)
-                Text("${tracks.size} titres · ${albums.size} albums", color = colors.textMuted, fontSize = 13.sp)
+                Text(artist?.name ?: tr("mobile.artist"), fontSize = 26.sp, fontWeight = FontWeight.Black, color = colors.foreground)
+                Text(tr("ctx.albumsAndTracks", params = mapOf("albums" to albums.size, "tracks" to tracks.size)), color = colors.textMuted, fontSize = 13.sp)
                 Spacer(Modifier.height(16.dp))
                 Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(18.dp)) {
                     HeroPlayButton(enabled = tracks.isNotEmpty(), playing = isPlayingThis) {
                         if (isPlayingThis) vm.togglePlay() else vm.playList(top.ifEmpty { tracks })
                     }
                     HeroShuffleButton(enabled = tracks.isNotEmpty()) { vm.playShuffled(tracks) }
+                    // "Démarrer une radio de l'artiste" from a popular track (web ArtistMenu).
+                    GhostPill(tr("radio.title")) {
+                        (top.firstOrNull() ?: tracks.firstOrNull())?.let { vm.startRadio(it) }
+                    }
                 }
             }
         }
         if (top.isNotEmpty()) {
-            item { local.auralis.client.ui.components.SectionHeader("Populaire") }
+            item { local.auralis.client.ui.components.SectionHeader(tr("detail.popular")) }
             items(top, key = { it.trackhash }) { t ->
                 val idx = top.indexOf(t)
                 TrackRow(
@@ -170,9 +189,9 @@ fun ArtistDetail(vm: AppViewModel, ui: UiState, artisthash: String) {
         if (albums.isNotEmpty()) {
             item {
                 Spacer(Modifier.height(16.dp))
-                local.auralis.client.ui.components.SectionHeader("Discographie")
+                local.auralis.client.ui.components.SectionHeader(tr("detail.discography"))
                 LazyRow(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                    items(albums, key = { it.albumhash }) { a -> AlbumCard(a) { vm.navigate(ViewId.ALBUM, a.albumhash) } }
+                    items(albums, key = { it.albumhash }) { a -> AlbumCard(a, onLongPress = { vm.openAlbumMenu(a) }) { vm.navigate(ViewId.ALBUM, a.albumhash) } }
                 }
             }
         }
@@ -183,14 +202,35 @@ fun ArtistDetail(vm: AppViewModel, ui: UiState, artisthash: String) {
 fun PlaylistDetail(vm: AppViewModel, ui: UiState, playlistId: String) {
     val colors = LocalAuralis.current
     val pl = remember(ui.playlists, playlistId) { ui.playlists.find { it.id == playlistId } }
-    val tracks = remember(pl, ui.trackByHash) { pl?.trackhashes?.mapNotNull { ui.trackByHash[it] } ?: emptyList() }
+    // Smart playlists are computed LIVE from their rules against the whole library
+    // (so they always reflect the current collection); static ones resolve hashes.
+    val smartConfig = remember(pl?.rules) { pl?.rules?.let { SmartConfig.fromJson(it) } }
+    val isSmart = smartConfig != null
+    val isCollaborator = pl?.collaborator == true
+    val tracks = if (isSmart) {
+        derivedAsync(ui.tracks, ui.favorites, ui.playCounts, pl?.rules, initial = emptyList<Track>()) {
+            smartConfig?.let { evaluateSmartList(ui.tracks, it, SmartContext(ui.favorites, ui.playCounts)) } ?: emptyList()
+        }
+    } else {
+        remember(pl, ui.trackByHash) { pl?.trackhashes?.mapNotNull { ui.trackByHash[it] } ?: emptyList() }
+    }
     val playback by vm.playback.collectAsState()
     val current = playback.currentId
     val isPlayingThis = playback.isPlaying && tracks.any { it.trackhash == current }
     var renaming by remember { mutableStateOf(false) }
     var newName by remember { mutableStateOf(pl?.name ?: "") }
+    var showExport by remember { mutableStateOf(false) }
+    var showInvite by remember { mutableStateOf(false) }
+    var inviteName by remember { mutableStateOf("") }
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
+    // Badges mirroring the web PlaylistDetail eyebrow (collab > smart > shared > local).
+    val badge = when {
+        isCollaborator -> tr("detail.collabBadge", params = mapOf("owner" to (pl?.owner ?: tr("detail.someone"))))
+        isSmart -> tr("detail.smartBadge")
+        pl?.shared == true -> tr("detail.sharedBadge")
+        else -> tr("detail.localBadge")
+    }
     val pickCover = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { uri: Uri? ->
         if (uri == null) return@rememberLauncherForActivityResult
         scope.launch(Dispatchers.IO) {
@@ -226,28 +266,91 @@ fun PlaylistDetail(vm: AppViewModel, ui: UiState, playlistId: String) {
                 "data:image/jpeg;base64," + Base64.encodeToString(out.toByteArray(), Base64.NO_WRAP)
             }.getOrNull()
             if (dataUrl == null) {
-                withContext(Dispatchers.Main) { vm.notify("Image invalide ou illisible") }
+                withContext(Dispatchers.Main) { vm.notify(Messages.t("detail.imageUnreadable")) }
             } else {
                 withContext(Dispatchers.Main) { vm.setPlaylistCover(playlistId, dataUrl) }
             }
         }
     }
+
+    // "Exporter" → M3U or JSON → share sheet. The content builders are the web's
+    // byte-compatible formats (web exportPlaylistM3U / exportPlaylistJSON), so a
+    // file shared to VLC (M3U) or re-imported (JSON) works identically.
+    fun shareExport(m3u: Boolean) {
+        val name = pl?.name ?: "playlist"
+        val content = if (m3u) exportPlaylistM3U(name, tracks, vm.api.base) else exportPlaylistJSON(name, tracks, isoNow())
+        val send = Intent(Intent.ACTION_SEND).apply {
+            type = if (m3u) "audio/x-mpegurl" else "application/json"
+            putExtra(Intent.EXTRA_SUBJECT, playlistSlug(name) + if (m3u) ".m3u8" else ".json")
+            putExtra(Intent.EXTRA_TEXT, content)
+        }
+        runCatching { context.startActivity(Intent.createChooser(send, Messages.t("detail.exportPlaylist"))) }
+        showExport = false
+    }
+
+    if (showExport) {
+        AlertDialog(
+            onDismissRequest = { showExport = false },
+            containerColor = colors.panel,
+            title = { Text(tr("detail.exportPlaylist"), color = colors.foreground) },
+            text = {
+                Column {
+                    ExportOption("M3U", tr("detail.exportM3uHint")) { shareExport(m3u = true) }
+                    ExportOption("JSON", tr("detail.exportJsonHint")) { shareExport(m3u = false) }
+                }
+            },
+            confirmButton = {
+                TextButton(onClick = { showExport = false }) { Text(tr("common.cancel"), color = colors.textMuted) }
+            },
+        )
+    }
+
+    if (showInvite) {
+        AlertDialog(
+            onDismissRequest = { showInvite = false },
+            containerColor = colors.panel,
+            title = { Text(tr("detail.inviteTitle"), color = colors.foreground) },
+            text = {
+                OutlinedTextField(
+                    value = inviteName, onValueChange = { inviteName = it }, singleLine = true,
+                    placeholder = { Text(tr("common.username"), color = colors.textFaint) },
+                    modifier = Modifier.fillMaxWidth(),
+                )
+            },
+            confirmButton = {
+                TextButton(
+                    enabled = inviteName.isNotBlank(),
+                    onClick = {
+                        vm.addPlaylistCollaborator(playlistId, inviteName.trim())
+                        inviteName = ""
+                        showInvite = false
+                    },
+                ) { Text(tr("detail.invite"), color = colors.accent) }
+            },
+            dismissButton = {
+                TextButton(onClick = { showInvite = false }) { Text(tr("common.cancel"), color = colors.textMuted) }
+            },
+        )
+    }
+
     LazyColumn(contentPadding = PaddingValues(start = 16.dp, end = 16.dp, bottom = 170.dp)) {
         item {
             DetailHero(seed = playlistId) {
                 Box {
                     CoverArt(pl?.imageHash?.let { "/api/art/$it" }, playlistId, Modifier.size(180.dp), cornerRadius = 12)
-                    Box(
-                        Modifier
-                            .align(Alignment.BottomEnd)
-                            .padding(6.dp)
-                            .size(32.dp)
-                            .clip(CircleShape)
-                            .background(Color.Black.copy(alpha = 0.6f))
-                            .clickable { pickCover.launch("image/*") },
-                        contentAlignment = Alignment.Center,
-                    ) {
-                        Icon(Icons.Filled.PhotoCamera, "Changer la pochette", tint = Color.White, modifier = Modifier.size(16.dp))
+                    if (!isCollaborator) {
+                        Box(
+                            Modifier
+                                .align(Alignment.BottomEnd)
+                                .padding(6.dp)
+                                .size(32.dp)
+                                .clip(CircleShape)
+                                .background(Color.Black.copy(alpha = 0.6f))
+                                .clickable { pickCover.launch("image/*") },
+                            contentAlignment = Alignment.Center,
+                        ) {
+                            Icon(Icons.Filled.PhotoCamera, tr("detail.changeCover"), tint = Color.White, modifier = Modifier.size(16.dp))
+                        }
                     }
                 }
                 Spacer(Modifier.height(14.dp))
@@ -256,14 +359,15 @@ fun PlaylistDetail(vm: AppViewModel, ui: UiState, playlistId: String) {
                         modifier = Modifier.fillMaxWidth())
                     Spacer(Modifier.height(8.dp))
                     Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                        PlayPill("Enregistrer") { vm.renamePlaylist(playlistId, newName); renaming = false }
-                        GhostPill("Annuler") { renaming = false }
+                        PlayPill(tr("common.save")) { vm.renamePlaylist(playlistId, newName); renaming = false }
+                        GhostPill(tr("common.cancel")) { renaming = false }
                     }
                 } else {
-                    Eyebrow("Playlist")
+                    Eyebrow(badge)
                     Spacer(Modifier.height(2.dp))
-                    Text(pl?.name ?: "Playlist", fontSize = 26.sp, fontWeight = FontWeight.Black, color = colors.foreground)
-                    Text("${tracks.size} titres", color = colors.textMuted, fontSize = 13.sp)
+                    Text(pl?.name ?: tr("mobile.playlist"), fontSize = 26.sp, fontWeight = FontWeight.Black, color = colors.foreground)
+                    val dur = tracks.sumOf { it.duration ?: 0.0 }
+                    Text(tr("detail.tracksAndDuration", params = mapOf("count" to tracks.size, "duration" to formatLongDuration(dur))), color = colors.textMuted, fontSize = 13.sp)
                     Spacer(Modifier.height(16.dp))
                     Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(16.dp)) {
                         HeroPlayButton(enabled = tracks.isNotEmpty(), playing = isPlayingThis) {
@@ -271,14 +375,29 @@ fun PlaylistDetail(vm: AppViewModel, ui: UiState, playlistId: String) {
                         }
                         HeroShuffleButton(enabled = tracks.isNotEmpty()) { vm.playShuffled(tracks) }
                         Spacer(Modifier.weight(1f))
-                        // Glyph-only pin button: TalkBack announces the action, not the emoji.
-                        Text(if (pl?.pinned == true) "📌" else "📍", fontSize = 18.sp,
-                            modifier = Modifier.clickable { vm.togglePin(playlistId) }
-                                .semantics { contentDescription = if (pl?.pinned == true) "Désépingler" else "Épingler" })
-                        Icon(Icons.Filled.Edit, "Renommer", tint = colors.textMuted,
-                            modifier = Modifier.size(22.dp).clickable { newName = pl?.name ?: ""; renaming = true })
-                        Icon(Icons.Filled.Delete, "Supprimer", tint = colors.destructive,
-                            modifier = Modifier.size(22.dp).clickable { vm.deletePlaylist(playlistId); vm.navigate(ViewId.LIBRARY) })
+                        if (!isCollaborator) {
+                            // Glyph-only pin button: TalkBack announces the action, not the emoji.
+                            Text(if (pl?.pinned == true) "📌" else "📍", fontSize = 18.sp,
+                                modifier = Modifier.clickable { vm.togglePin(playlistId) }
+                                    .semantics { contentDescription = Messages.t(if (pl?.pinned == true) "common.unpin" else "common.pin") })
+                            Icon(Icons.Filled.Edit, tr("detail.rename"), tint = colors.textMuted,
+                                modifier = Modifier.size(22.dp).clickable { newName = pl?.name ?: ""; renaming = true })
+                            Icon(Icons.Filled.Delete, tr("detail.delete"), tint = colors.destructive,
+                                modifier = Modifier.size(22.dp).clickable { vm.deletePlaylist(playlistId); vm.navigate(ViewId.LIBRARY) })
+                        }
+                    }
+                    // Export works for every playlist (incl. smart + collaborator);
+                    // share/invite are owner-only and hidden for smart (rules, not
+                    // tracks, are what's shared) — mirroring the web buttons.
+                    Spacer(Modifier.height(12.dp))
+                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                        GhostPill(tr("detail.export")) { showExport = true }
+                        if (!isCollaborator && !isSmart) {
+                            GhostPill(if (pl?.shared == true) tr("detail.shared") else tr("ctx.share")) {
+                                vm.sharePlaylist(playlistId, pl?.shared != true)
+                            }
+                            if (pl?.shared == true) GhostPill(tr("detail.invite")) { showInvite = true }
+                        }
                     }
                 }
             }
@@ -295,21 +414,46 @@ fun PlaylistDetail(vm: AppViewModel, ui: UiState, playlistId: String) {
                 }
                 // A real button, not the old 12sp "Retirer" caption: users scanning
                 // for a trash affordance never found it. 40dp touch target,
-                // destructive tint, announced by TalkBack.
-                Box(
-                    Modifier
-                        .padding(start = 4.dp)
-                        .size(40.dp)
-                        .clip(RoundedCornerShape(20.dp))
-                        .clickable { vm.removeFromPlaylist(playlistId, t.trackhash) }
-                        .semantics { contentDescription = "Retirer de la playlist" },
-                    contentAlignment = Alignment.Center,
-                ) {
-                    Icon(Icons.Filled.Delete, contentDescription = null, tint = colors.destructive, modifier = Modifier.size(20.dp))
+                // destructive tint, announced by TalkBack. Smart playlists compute
+                // their rows from rules — there's nothing to remove (web hides it).
+                if (!isSmart) {
+                    Box(
+                        Modifier
+                            .padding(start = 4.dp)
+                            .size(40.dp)
+                            .clip(RoundedCornerShape(20.dp))
+                            .clickable { vm.removeFromPlaylist(playlistId, t.trackhash) }
+                            .semantics { contentDescription = Messages.t("detail.removeTrackAria") },
+                        contentAlignment = Alignment.Center,
+                    ) {
+                        Icon(Icons.Filled.Delete, contentDescription = null, tint = colors.destructive, modifier = Modifier.size(20.dp))
+                    }
                 }
             }
         }
-        if (tracks.isEmpty()) item { EmptyHint("Playlist vide", "Ajoute des titres via le menu ⋮ d'un morceau.") }
+        if (tracks.isEmpty()) item {
+            EmptyHint(
+                tr("detail.emptyPlaylist"),
+                if (isSmart) tr("detail.smartEmpty") else tr("detail.addFromMenu"),
+            )
+        }
+    }
+}
+
+@Composable
+private fun ExportOption(label: String, hint: String, onClick: () -> Unit) {
+    val colors = LocalAuralis.current
+    Row(
+        Modifier.fillMaxWidth().clip(RoundedCornerShape(10.dp)).clickable { onClick() }
+            .padding(horizontal = 12.dp, vertical = 12.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Icon(Icons.Filled.Download, contentDescription = null, tint = colors.foreground, modifier = Modifier.size(22.dp))
+        Spacer(Modifier.width(14.dp))
+        Column {
+            Text(label, color = colors.foreground, fontSize = 14.sp, fontWeight = FontWeight.SemiBold)
+            Text(hint, color = colors.textMuted, fontSize = 12.sp)
+        }
     }
 }
 

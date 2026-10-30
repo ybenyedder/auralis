@@ -59,12 +59,14 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.input.nestedscroll.NestedScrollConnection
 import androidx.compose.ui.input.nestedscroll.NestedScrollSource
 import androidx.compose.ui.input.nestedscroll.nestedScroll
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import dev.chrisbanes.haze.HazeState
 import dev.chrisbanes.haze.HazeStyle
 import dev.chrisbanes.haze.HazeTint
 import dev.chrisbanes.haze.hazeSource
+import local.auralis.client.i18n.tr
 import local.auralis.client.ui.components.LocalHazeState
 import local.auralis.client.ui.components.LocalHazeStyle
 import local.auralis.client.ui.components.LocalSelection
@@ -106,20 +108,20 @@ internal fun tabOf(view: ViewId): Int = when (view) {
     else -> 3 // Bibliothèque + favoris, récents, dossiers, réglages, détails…
 }
 
-private fun titleOf(view: ViewId): String = when (view) {
-    ViewId.HOME -> "Accueil"
-    ViewId.NEW -> "Nouveau"
-    ViewId.RADIO -> "Radio"
-    ViewId.EXPLORE -> "Recherche"
-    ViewId.LIBRARY -> "Bibliothèque"
-    ViewId.FAVORITES -> "Favoris"
-    ViewId.RECENTS -> "Récents"
-    ViewId.FOLDERS -> "Dossiers"
-    ViewId.INSIGHTS -> "Analyse"
-    ViewId.SETTINGS -> "Réglages"
-    ViewId.ALBUM -> "Album"
-    ViewId.ARTIST -> "Artiste"
-    ViewId.PLAYLIST -> "Playlist"
+private fun titleKeyOf(view: ViewId): String = when (view) {
+    ViewId.HOME -> "nav.home"
+    ViewId.NEW -> "nav.new"
+    ViewId.RADIO -> "radio.title"
+    ViewId.EXPLORE -> "search.title"
+    ViewId.LIBRARY -> "nav.library"
+    ViewId.FAVORITES -> "favorites.title"
+    ViewId.RECENTS -> "recents.title"
+    ViewId.FOLDERS -> "folders.title"
+    ViewId.INSIGHTS -> "insights.eyebrow"
+    ViewId.SETTINGS -> "nav.settings"
+    ViewId.ALBUM -> "mobile.album"
+    ViewId.ARTIST -> "mobile.artist"
+    ViewId.PLAYLIST -> "mobile.playlist"
 }
 
 @Composable
@@ -247,16 +249,33 @@ fun Shell(vm: AppViewModel, ui: UiState) {
             local.auralis.client.ui.components.TrackMenu(t, ui, vm, onDismiss = { vm.closeTrackMenu() })
         }
 
-        // Transient toast.
+        // Album / artist context menus (web ContextMenu AlbumMenu / ArtistMenu).
+        ui.contextAlbum?.let { a ->
+            local.auralis.client.ui.components.AlbumMenu(a, ui, vm, onDismiss = { vm.closeMenus() })
+        }
+        ui.contextArtist?.let { a ->
+            local.auralis.client.ui.components.ArtistMenu(a, ui, vm, onDismiss = { vm.closeMenus() })
+        }
+
+        // Transient toast (optionally with one action — e.g. the queue "Annuler").
         ui.toast?.let { msg ->
             Box(Modifier.fillMaxSize().padding(bottom = 150.dp), contentAlignment = Alignment.BottomCenter) {
-                Box(
+                Row(
                     Modifier.padding(horizontal = 24.dp)
                         .clip(androidx.compose.foundation.shape.RoundedCornerShape(999.dp))
                         .background(colors.panel3)
                         .padding(horizontal = 18.dp, vertical = 11.dp),
+                    verticalAlignment = Alignment.CenterVertically,
                 ) {
                     Text(msg, color = colors.foreground, fontSize = 13.sp, style = AMType.Footnote)
+                    ui.toastActionLabel?.let { label ->
+                        Spacer(Modifier.width(12.dp))
+                        Text(
+                            label, color = colors.accent, fontSize = 13.sp, style = AMType.Footnote,
+                            fontWeight = FontWeight.Bold,
+                            modifier = Modifier.clickable { vm.runToastAction() },
+                        )
+                    }
                 }
             }
         }
@@ -266,9 +285,10 @@ fun Shell(vm: AppViewModel, ui: UiState) {
             local.auralis.client.ui.components.CommandPalette(vm, ui) { vm.closeCommand() }
         }
 
-        // Audio visualizer.
+        // Audio visualizer (real waveform amplitudes when the tap is live).
         if (ui.visualizerOpen) {
-            local.auralis.client.ui.components.VisualizerOverlay(current?.title, playback.isPlaying) { vm.toggleVisualizer() }
+            val amps by vm.visualizerAmps.collectAsState()
+            local.auralis.client.ui.components.VisualizerOverlay(current?.title, playback.isPlaying, amps) { vm.toggleVisualizer() }
         }
     }
     }
@@ -288,18 +308,18 @@ private fun SelectionBar(ui: UiState, vm: AppViewModel) {
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Icon(
-            Icons.Filled.Close, "Quitter la sélection", tint = colors.textMuted,
+            Icons.Filled.Close, tr("sel.exit"), tint = colors.textMuted,
             modifier = Modifier.size(22.dp).clickable { vm.exitSelection() },
         )
         Spacer(Modifier.width(12.dp))
         Text(
-            if (count > 0) "$count sélectionné${if (count > 1) "s" else ""}" else "Choisissez des titres",
+            if (count > 0) tr(if (count > 1) "sel.selectedMany" else "sel.selectedOne", params = mapOf("count" to count)) else tr("sel.pickTracks"),
             color = colors.foreground, style = AMType.Footnote,
             modifier = Modifier.weight(1f),
         )
         if (count > 0) {
             Icon(
-                Icons.Filled.PlayArrow, "Lire la sélection", tint = colors.foreground,
+                Icons.Filled.PlayArrow, tr("sel.playSelection"), tint = colors.foreground,
                 modifier = Modifier.size(24.dp).clickable { vm.playSelection() },
             )
             Spacer(Modifier.width(12.dp))
@@ -314,7 +334,7 @@ private fun SelectionBar(ui: UiState, vm: AppViewModel) {
         ) {
             Icon(Icons.Filled.AutoAwesome, null, tint = colors.ink, modifier = Modifier.size(16.dp))
             Spacer(Modifier.width(6.dp))
-            Text("Mon mix", color = colors.ink, style = AMType.Footnote)
+            Text(tr("sel.createMix"), color = colors.ink, style = AMType.Footnote)
         }
     }
 }
@@ -340,11 +360,11 @@ private fun Header(vm: AppViewModel, ui: UiState, titleAlpha: Float) {
         verticalAlignment = Alignment.CenterVertically,
     ) {
         if (!isRoot) {
-            Icon(Icons.Filled.ArrowBack, "Retour", tint = colors.accent,
+            Icon(Icons.Filled.ArrowBack, tr("common.back"), tint = colors.accent,
                 modifier = Modifier.size(26.dp).clickable { vm.back() })
             Spacer(Modifier.width(8.dp))
             Text(
-                titleOf(ui.nav.view),
+                tr(titleKeyOf(ui.nav.view)),
                 color = colors.foreground,
                 style = AMType.Headline,
             )
@@ -353,7 +373,7 @@ private fun Header(vm: AppViewModel, ui: UiState, titleAlpha: Float) {
             // Collapsed large title, centered — visible only once scrolled.
             Box(Modifier.weight(1f).fillMaxWidth(), contentAlignment = Alignment.Center) {
                 Text(
-                    titleOf(ui.nav.view),
+                    tr(titleKeyOf(ui.nav.view)),
                     color = colors.foreground,
                     style = AMType.Headline,
                     modifier = Modifier.graphicsLayer { alpha = titleAlpha },
@@ -424,11 +444,11 @@ private fun Dock(activeView: ViewId, onTab: (ViewId) -> Unit) {
     val active = tabOf(activeView)
     data class Tab(val view: ViewId, val label: String, val icon: ImageVector)
     val tabs = listOf(
-        Tab(ViewId.HOME, "Accueil", Icons.Filled.Home),
-        Tab(ViewId.NEW, "Nouveau", Icons.Filled.Star),
-        Tab(ViewId.RADIO, "Radio", RadioWavesIcon),
-        Tab(ViewId.LIBRARY, "Bibliothèque", Icons.Filled.LibraryMusic),
-        Tab(ViewId.EXPLORE, "Recherche", Icons.Filled.Search),
+        Tab(ViewId.HOME, tr("nav.home"), Icons.Filled.Home),
+        Tab(ViewId.NEW, tr("nav.new"), Icons.Filled.Star),
+        Tab(ViewId.RADIO, tr("radio.title"), RadioWavesIcon),
+        Tab(ViewId.LIBRARY, tr("nav.library"), Icons.Filled.LibraryMusic),
+        Tab(ViewId.EXPLORE, tr("search.title"), Icons.Filled.Search),
     )
     // Frosted translucent bar — content scrolled underneath blurs through.
     Column(Modifier.fillMaxWidth().amFrosted(null, colors.panel)) {

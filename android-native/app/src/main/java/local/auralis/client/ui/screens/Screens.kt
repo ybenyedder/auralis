@@ -1,8 +1,13 @@
 package local.auralis.client.ui.screens
 
+import android.provider.OpenableColumns
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.combinedClickable
+import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -10,6 +15,7 @@ import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.aspectRatio
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
@@ -29,11 +35,13 @@ import androidx.compose.material.icons.filled.Album
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Download
+import androidx.compose.material.icons.filled.Explore
 import androidx.compose.material.icons.filled.Favorite
 import androidx.compose.material.icons.filled.MusicNote
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.QueueMusic
+import androidx.compose.material.icons.filled.Radio
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
@@ -46,6 +54,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -53,6 +62,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
@@ -61,13 +71,23 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import local.auralis.client.i18n.Messages
+import local.auralis.client.i18n.tr
 import local.auralis.client.model.Album
 import local.auralis.client.model.Artist
 import local.auralis.client.model.DownloadJobDto
+import local.auralis.client.model.MoodMix
+import local.auralis.client.model.MoodRecs
 import local.auralis.client.model.Moods
 import local.auralis.client.model.OnlineTrack
+import local.auralis.client.model.SMART_PRESETS
 import local.auralis.client.model.Track
+import local.auralis.client.model.Trajectories
+import local.auralis.client.model.Trajectory
+import local.auralis.client.model.dailyMoodMixes
+import local.auralis.client.model.moodRecs
 import local.auralis.client.ui.AppViewModel
 import local.auralis.client.ui.UiState
 import local.auralis.client.ui.ViewId
@@ -125,19 +145,21 @@ fun HomeScreen(vm: AppViewModel, ui: UiState) {
     val recentsTracks = remember(ui.recents, ui.trackByHash) { ui.recents.mapNotNull { ui.trackByHash[it] } }
     val daySeed = System.currentTimeMillis() / 86_400_000L
     // Every full-library pass of the home screen (favourite/recent pool, "added"
-    // sort, most-played sort, rediscover, discoveries) derived off the main thread.
-    val home = derivedAsync(ui.tracks, ui.favorites, ui.playCounts, ui.recents, daySeed, initial = HomeDerived.EMPTY) {
-        val pool = ui.tracks.filter { it.isFavorite || (ui.playCounts[it.trackhash] ?: 0) > 0 }.ifEmpty { ui.tracks }
+    // sort, most-played sort, rediscover, discoveries, mood shelves) derived off
+    // the main thread.
+    val home = derivedAsync(ui.tracks, ui.favorites, ui.playCounts, ui.recents, ui.dislikes, ui.recoScores, ui.moodAffinities, daySeed, initial = HomeDerived.EMPTY) {
         val neverPlayed = ui.tracks.filter { (ui.playCounts[it.trackhash] ?: 0) == 0 }
         val recentSet = ui.recents.take(30).toSet()
+        val recs = moodRecs(ui.tracks, ui.playCounts, ui.dislikes, ui.moodAffinities, ui.recoScores)
         HomeDerived(
-            mix = seededShuffle(pool, daySeed).take(30),
             recentlyAdded = ui.tracks.filter { it.addedAt != null }.sortedByDescending { it.addedAt }.take(12),
             topTracks = ui.tracks.sortedByDescending { ui.playCounts[it.trackhash] ?: 0 }
                 .filter { (ui.playCounts[it.trackhash] ?: 0) > 0 }.take(5),
             rediscover = ui.tracks.filter { ui.favorites.contains(it.trackhash) && it.trackhash !in recentSet }.take(12),
             discoveries = if (neverPlayed.size >= 4) seededShuffle(neverPlayed, daySeed + 7).take(12) else emptyList(),
             favTracks = ui.tracks.filter { ui.favorites.contains(it.trackhash) },
+            moodMixes = dailyMoodMixes(ui.tracks, ui.dislikes, ui.recoScores),
+            moodRecs = recs,
         )
     }
     val current = currentTrackOf(vm)
@@ -145,7 +167,7 @@ fun HomeScreen(vm: AppViewModel, ui: UiState) {
         if (home.favTracks.isNotEmpty()) {
             add(
                 QuickTileItem(
-                    "liked", "Titres likés", null, null, null, liked = true,
+                    "liked", tr("home.likedTracks"), null, null, null, liked = true,
                     onOpen = { vm.navigate(ViewId.FAVORITES) },
                     onPlay = { vm.playList(home.favTracks) },
                 ),
@@ -171,13 +193,13 @@ fun HomeScreen(vm: AppViewModel, ui: UiState) {
         // Large title + streak chips (Apple Music opens each tab with a 34pt title).
         item {
             Column(Modifier.padding(top = 6.dp, bottom = 12.dp)) {
-                LargeTitle("Accueil")
+                LargeTitle(tr("nav.home"))
                 if (ui.stats.streak > 0) {
                     Spacer(Modifier.height(8.dp))
                     Row(verticalAlignment = Alignment.CenterVertically) {
-                        Chip("🔥 ${ui.stats.streak} jours d'affilée")
+                        Chip(tr("home.streakChip", params = mapOf("count" to ui.stats.streak)))
                         Spacer(Modifier.width(8.dp))
-                        Chip("${ui.stats.weekPlays} écoutes cette semaine")
+                        Chip(tr("home.weekPlaysChip", params = mapOf("count" to ui.stats.weekPlays)))
                     }
                 }
             }
@@ -186,8 +208,8 @@ fun HomeScreen(vm: AppViewModel, ui: UiState) {
         if (ui.tracks.isEmpty()) {
             item {
                 EmptyHint(
-                    "Aucun titre indexé",
-                    "Configure le dossier de musique sur ton serveur puis relance le scan.",
+                    tr("library.emptyNoTracks"),
+                    tr("empty.setupLibraryHint"),
                 )
             }
             return@LazyColumn
@@ -196,7 +218,7 @@ fun HomeScreen(vm: AppViewModel, ui: UiState) {
         // "Pour vous" — Apple Music's top hero shelf: large editorial cards.
         if (ui.forYou.isNotEmpty()) {
             item {
-                SectionHeader("Pour vous", "Tout lire") { vm.playList(ui.forYou) }
+                SectionHeader(tr("home.forYou"), tr("common.playAll")) { vm.playList(ui.forYou) }
                 LazyRow(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                     items(ui.forYou.take(10), key = { it.trackhash }) { t ->
                         HeroTrackCard(t, t.trackhash == current) { vm.playTrack(t, ui.forYou, ui.forYou.indexOf(t)) }
@@ -240,40 +262,121 @@ fun HomeScreen(vm: AppViewModel, ui: UiState) {
                         .padding(20.dp),
                 ) {
                     Column(Modifier.align(Alignment.BottomStart)) {
-                        Text("Jamais écoutés", color = Color.White, style = AMType.Title1)
+                        Text(tr("home.unheardTitle"), color = Color.White, style = AMType.Title1)
                         Spacer(Modifier.height(4.dp))
                         Text(
-                            "Mix aléatoire de titres que tu n'as jamais joués",
+                            tr("radio.unheardSub"),
                             color = Color.White.copy(alpha = 0.85f), style = AMType.Subhead,
                         )
                     }
                     Icon(
-                        Icons.Filled.PlayArrow, "Lire le mix jamais écoutés",
+                        Icons.Filled.PlayArrow, tr("home.playUnheardMix"),
                         tint = Color.White, modifier = Modifier.align(Alignment.BottomEnd).size(44.dp),
                     )
                 }
             }
         }
 
-        // Mix du jour — a daily 5-track starter list.
-        if (home.mix.isNotEmpty()) {
+        // "Vos mix du jour" (web DailyMixes): the weekly "À découvrir cette semaine"
+        // mix (server ?mode=discovery, frozen per ISO week) + one taste-ranked mix
+        // per mood (engine scores re-rank each bucket; dislikes excluded).
+        if (home.moodMixes.isNotEmpty() || ui.discoverTracks.size >= 4) {
             item {
                 Spacer(Modifier.height(24.dp))
-                SectionHeader("Mix du jour", "Tout lire") { vm.playList(home.mix) }
+                SectionHeader(tr("home.dailyMixes"))
+                LazyRow(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                    if (ui.discoverTracks.size >= 4) {
+                        item {
+                            MixCard(
+                                label = tr("home.discoverWeek"),
+                                sublabel = tr("home.unheardTracks", params = mapOf("count" to ui.discoverTracks.size)),
+                                c0 = Color(0xFF1E3A8A), c1 = Color(0xFF4F46E5),
+                                covers = ui.discoverTracks, icon = true,
+                            ) { vm.playList(ui.discoverTracks) }
+                        }
+                    }
+                    items(home.moodMixes, key = { it.moodId }) { m ->
+                        val mood = Moods.byId(m.moodId)
+                        MixCard(
+                            label = m.label,
+                            sublabel = tr("common.tracksCount", params = mapOf("count" to m.tracks.size)),
+                            c0 = hexColor(mood?.c0 ?: "#888888"), c1 = hexColor(mood?.c1 ?: "#555555"),
+                            covers = m.tracks,
+                        ) { vm.playList(m.tracks) }
+                    }
+                }
             }
-            items(home.mix.take(5), key = { it.trackhash }) { t ->
-                TrackRow(
-                    t, isCurrent = t.trackhash == current, isFavorite = ui.favorites.contains(t.trackhash),
-                    onClick = { vm.playTrack(t, home.mix, home.mix.indexOf(t)) },
-                    onToggleFavorite = { vm.toggleFavorite(t.trackhash) }, onMore = { vm.openTrackMenu(t) },
-                )
+        }
+
+        // "Blend du foyer" (web BlendShelf): one card per other account, each a
+        // mix that averages both tastes (engine-side) + its match score.
+        if (ui.blendMembers.isNotEmpty()) {
+            item {
+                Spacer(Modifier.height(24.dp))
+                SectionHeader(tr("home.blend"))
+                LazyRow(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                    items(ui.blendMembers, key = { it.username }) { m ->
+                        val (c0, c1, _) = local.auralis.client.ui.components.paletteFor(m.username)
+                        Box(
+                            Modifier.width(160.dp).height(120.dp)
+                                .clip(RoundedCornerShape(12.dp))
+                                .background(Brush.linearGradient(listOf(c0, c1)))
+                                .clickable { vm.startBlend(m.username, m.username) }
+                                .padding(14.dp),
+                        ) {
+                            Column(Modifier.align(Alignment.BottomStart)) {
+                                Text(
+                                    tr("home.blendWith", params = mapOf("user" to m.username)), color = Color.White,
+                                    style = AMType.Subhead, fontWeight = FontWeight.Bold,
+                                    maxLines = 1, overflow = TextOverflow.Ellipsis,
+                                )
+                                Text(
+                                    tr("home.blendMatch", params = mapOf("match" to m.match)),
+                                    color = Color.White.copy(alpha = 0.8f), style = AMType.Caption1,
+                                    maxLines = 1, overflow = TextOverflow.Ellipsis,
+                                )
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        // "Pour votre humeur" (web HomeView moodRecs): discovery within the vibe the
+        // user already loves — the mood they listen to most (engine affinity first),
+        // surfaced as tracks from it the engine scores highest / they played least.
+        home.moodRecs?.let { mr ->
+            val mood = Moods.byId(mr.moodId)
+            item {
+                Spacer(Modifier.height(24.dp))
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Box(
+                        Modifier.size(44.dp).clip(RoundedCornerShape(10.dp))
+                            .background(hexColor(mood?.c0 ?: "#888888")),
+                        contentAlignment = Alignment.Center,
+                    ) { Icon(Icons.Filled.MusicNote, null, tint = Color.White, modifier = Modifier.size(22.dp)) }
+                    Spacer(Modifier.width(12.dp))
+                    Column(Modifier.weight(1f)) {
+                        Eyebrow(tr("home.forMood"))
+                        Text(mood?.label ?: mr.moodId, style = AMType.Title3, color = colors.foreground)
+                    }
+                    Text(
+                        tr("common.playAll"), color = colors.accent, style = AMType.Subhead,
+                        modifier = Modifier.clickable { vm.playList(mr.recs) },
+                    )
+                }
+                LazyRow(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                    items(mr.recs, key = { it.trackhash }) { t ->
+                        MiniTrackCard(t, t.trackhash == current) { vm.playTrack(t, mr.recs, mr.recs.indexOf(t)) }
+                    }
+                }
             }
         }
 
         if (recentsTracks.isNotEmpty()) {
             item {
                 Spacer(Modifier.height(24.dp))
-                SectionHeader("Écoutés récemment", "Tout afficher") { vm.navigate(ViewId.RECENTS) }
+                SectionHeader(tr("nav.recents"), tr("common.showAll")) { vm.navigate(ViewId.RECENTS) }
                 LazyRow(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                     items(recentsTracks.take(10), key = { it.trackhash }) { t ->
                         MiniTrackCard(t, t.trackhash == current) { vm.playTrack(t, recentsTracks, recentsTracks.indexOf(t)) }
@@ -285,7 +388,7 @@ fun HomeScreen(vm: AppViewModel, ui: UiState) {
         if (home.recentlyAdded.isNotEmpty()) {
             item {
                 Spacer(Modifier.height(24.dp))
-                SectionHeader("Ajouts récents", "Tout afficher") { vm.navigate(ViewId.NEW) }
+                SectionHeader(tr("home.recentlyAdded"), tr("common.showAll")) { vm.navigate(ViewId.NEW) }
                 LazyRow(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                     items(home.recentlyAdded, key = { it.trackhash }) { t ->
                         MiniTrackCard(t, t.trackhash == current) { vm.playTrack(t, home.recentlyAdded, home.recentlyAdded.indexOf(t)) }
@@ -297,7 +400,7 @@ fun HomeScreen(vm: AppViewModel, ui: UiState) {
         if (home.rediscover.isNotEmpty()) {
             item {
                 Spacer(Modifier.height(24.dp))
-                SectionHeader("À redécouvrir", "Tout lire") { vm.playList(home.rediscover) }
+                SectionHeader(tr("home.rediscover"), tr("common.playAll")) { vm.playList(home.rediscover) }
                 LazyRow(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                     items(home.rediscover, key = { it.trackhash }) { t ->
                         MiniTrackCard(t, t.trackhash == current) { vm.playTrack(t, home.rediscover, home.rediscover.indexOf(t)) }
@@ -306,13 +409,19 @@ fun HomeScreen(vm: AppViewModel, ui: UiState) {
             }
         }
 
-        if (home.discoveries.isNotEmpty()) {
+        // "Découvertes" — the SERVER's ?mode=discovery mix (taste-ranked never-played
+        // tracks, frozen per ISO week) replaces the purely-local sample; the local
+        // fallback keeps the shelf alive before the first fetch / offline.
+        val discover = if (ui.discoverTracks.isNotEmpty()) ui.discoverTracks else home.discoveries
+        if (discover.isNotEmpty()) {
             item {
                 Spacer(Modifier.height(24.dp))
-                SectionHeader("Découvertes", "Tout lire") { vm.playUnheardMix() }
+                SectionHeader(tr("home.discoveries"), tr("common.playAll")) {
+                    if (ui.discoverTracks.isNotEmpty()) vm.playList(ui.discoverTracks) else vm.playUnheardMix()
+                }
                 LazyRow(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                    items(home.discoveries, key = { it.trackhash }) { t ->
-                        MiniTrackCard(t, t.trackhash == current) { vm.playTrack(t, home.discoveries, home.discoveries.indexOf(t)) }
+                    items(discover, key = { it.trackhash }) { t ->
+                        MiniTrackCard(t, t.trackhash == current) { vm.playTrack(t, discover, discover.indexOf(t)) }
                     }
                 }
             }
@@ -321,7 +430,7 @@ fun HomeScreen(vm: AppViewModel, ui: UiState) {
         if (home.topTracks.isNotEmpty()) {
             item {
                 Spacer(Modifier.height(24.dp))
-                SectionHeader("Titres forts")
+                SectionHeader(tr("home.topTracks"))
             }
             items(home.topTracks, key = { it.trackhash }) { t ->
                 TrackRow(
@@ -335,12 +444,13 @@ fun HomeScreen(vm: AppViewModel, ui: UiState) {
         if (ui.artists.isNotEmpty()) {
             item {
                 Spacer(Modifier.height(24.dp))
-                SectionHeader("Artistes", "Tout afficher") { vm.navigate(ViewId.LIBRARY) }
+                SectionHeader(tr("search.artists"), tr("common.showAll")) { vm.navigate(ViewId.LIBRARY) }
                 LazyRow(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                     items(ui.artists.take(12), key = { it.artisthash }) { a ->
                         ArtistCard(
                             a,
                             onPlay = { vm.playList(ui.tracks.filter { t -> t.primaryArtistHash == a.artisthash }) },
+                            onLongPress = { vm.openArtistMenu(a) },
                         ) { vm.navigate(ViewId.ARTIST, a.artisthash) }
                     }
                 }
@@ -351,15 +461,16 @@ fun HomeScreen(vm: AppViewModel, ui: UiState) {
 
 // Full-library derivations of HomeScreen, computed by derivedAsync.
 private class HomeDerived(
-    val mix: List<Track>,
     val recentlyAdded: List<Track>,
     val topTracks: List<Track>,
     val rediscover: List<Track>,
     val discoveries: List<Track>,
     val favTracks: List<Track>,
+    val moodMixes: List<MoodMix>,
+    val moodRecs: MoodRecs?,
 ) {
     companion object {
-        val EMPTY = HomeDerived(emptyList(), emptyList(), emptyList(), emptyList(), emptyList(), emptyList())
+        val EMPTY = HomeDerived(emptyList(), emptyList(), emptyList(), emptyList(), emptyList(), emptyList(), null)
     }
 }
 
@@ -428,26 +539,26 @@ fun NewScreen(vm: AppViewModel, ui: UiState) {
 
     LazyColumn(contentPadding = bottomPad) {
         item {
-            Column(Modifier.padding(top = 6.dp, bottom = 12.dp)) { LargeTitle("Nouveau") }
+            Column(Modifier.padding(top = 6.dp, bottom = 12.dp)) { LargeTitle(tr("nav.new")) }
         }
         // Guard on the raw library, not the async list: while the first derivation is
         // still running we must not flash the "nothing new" hint.
         if (ui.tracks.isEmpty() && ui.albums.isEmpty()) {
-            item { EmptyHint("Rien de neuf", "Lance un scan serveur pour indexer de nouveaux fichiers.") }
+            item { EmptyHint(tr("new.nothingNew"), tr("new.nothingNewHint")) }
             return@LazyColumn
         }
         if (derived.recentAlbums.isNotEmpty()) {
             item {
-                SectionHeader("Nouveaux albums", "Tout afficher") { vm.navigate(ViewId.LIBRARY) }
+                SectionHeader(tr("new.newAlbums"), tr("common.showAll")) { vm.navigate(ViewId.LIBRARY) }
                 LazyRow(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                     items(derived.recentAlbums.take(12), key = { it.albumhash }) { a ->
-                        AlbumCard(a, onPlay = { vm.playList(ui.tracks.filter { t -> t.albumhash == a.albumhash }) }) { vm.navigate(ViewId.ALBUM, a.albumhash) }
+                        AlbumCard(a, onPlay = { vm.playList(ui.tracks.filter { t -> t.albumhash == a.albumhash }) }, onLongPress = { vm.openAlbumMenu(a) }) { vm.navigate(ViewId.ALBUM, a.albumhash) }
                     }
                 }
             }
         }
         if (derived.recentTracks.isNotEmpty()) {
-            item { Spacer(Modifier.height(24.dp)); SectionHeader("Ajouts récents") }
+            item { Spacer(Modifier.height(24.dp)); SectionHeader(tr("home.recentlyAdded")) }
             items(derived.recentTracks, key = { it.trackhash }) { t ->
                 TrackRow(
                     t, isCurrent = t.trackhash == current, isFavorite = ui.favorites.contains(t.trackhash),
@@ -459,7 +570,7 @@ fun NewScreen(vm: AppViewModel, ui: UiState) {
         if (derived.discoveries.isNotEmpty()) {
             item {
                 Spacer(Modifier.height(24.dp))
-                SectionHeader("Fraîchement découverts", "Tout lire") { vm.playList(derived.discoveries) }
+                SectionHeader(tr("new.freshDiscovered"), tr("common.playAll")) { vm.playList(derived.discoveries) }
                 LazyRow(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                     items(derived.discoveries, key = { it.trackhash }) { t ->
                         MiniTrackCard(t, t.trackhash == current) { vm.playTrack(t, derived.discoveries, derived.discoveries.indexOf(t)) }
@@ -470,7 +581,7 @@ fun NewScreen(vm: AppViewModel, ui: UiState) {
         if (derived.genres.isNotEmpty()) {
             item {
                 Spacer(Modifier.height(24.dp))
-                SectionHeader("Nouveautés par genre")
+                SectionHeader(tr("new.byGenre"))
                 LazyRow(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                     items(derived.genres.take(10), key = { it.key }) { e -> GenreCard(e.key, e.value.size) { vm.playShuffled(e.value) } }
                 }
@@ -515,10 +626,10 @@ fun RadioScreen(vm: AppViewModel, ui: UiState) {
 
     LazyColumn(contentPadding = bottomPad) {
         item {
-            Column(Modifier.padding(top = 6.dp, bottom = 12.dp)) { LargeTitle("Radio") }
+            Column(Modifier.padding(top = 6.dp, bottom = 12.dp)) { LargeTitle(tr("radio.title")) }
         }
         if (ui.tracks.isEmpty()) {
-            item { EmptyHint("Aucun titre indexé", "Configure le dossier de musique sur ton serveur puis relance le scan.") }
+            item { EmptyHint(tr("library.emptyNoTracks"), tr("empty.setupLibraryHint")) }
             return@LazyColumn
         }
 
@@ -539,15 +650,15 @@ fun RadioScreen(vm: AppViewModel, ui: UiState) {
                         .padding(20.dp),
                 ) {
                     Column(Modifier.align(Alignment.BottomStart)) {
-                        Text("Mix du jour", color = Color.White, style = AMType.Title1)
+                        Text(tr("radio.dailyMix"), color = Color.White, style = AMType.Title1)
                         Spacer(Modifier.height(4.dp))
                         Text(
-                            "30 titres piochés dans tes goûts · change chaque jour",
+                            tr("radio.dailyMixSub"),
                             color = Color.White.copy(alpha = 0.85f), style = AMType.Subhead,
                         )
                     }
                     Icon(
-                        Icons.Filled.PlayArrow, "Lire le mix du jour",
+                        Icons.Filled.PlayArrow, tr("radio.playDailyMix"),
                         tint = Color.White, modifier = Modifier.align(Alignment.BottomEnd).size(44.dp),
                     )
                 }
@@ -572,17 +683,66 @@ fun RadioScreen(vm: AppViewModel, ui: UiState) {
                         .padding(20.dp),
                 ) {
                     Column(Modifier.align(Alignment.BottomStart)) {
-                        Text("Jamais écoutés", color = Color.White, style = AMType.Title1)
+                        Text(tr("home.unheardTitle"), color = Color.White, style = AMType.Title1)
                         Spacer(Modifier.height(4.dp))
                         Text(
-                            "Mix aléatoire de titres que tu n'as jamais joués",
+                            tr("radio.unheardSub"),
                             color = Color.White.copy(alpha = 0.85f), style = AMType.Subhead,
                         )
                     }
                     Icon(
-                        Icons.Filled.PlayArrow, "Lire le mix jamais écoutés",
+                        Icons.Filled.PlayArrow, tr("home.playUnheardMix"),
                         tint = Color.White, modifier = Modifier.align(Alignment.BottomEnd).size(44.dp),
                     )
+                }
+            }
+        }
+
+        // "Radio aléatoire" (web RadioView): a station seeded from a RANDOM library
+        // track — so the tab itself starts radios.
+        item {
+            Spacer(Modifier.height(12.dp))
+            Box(
+                Modifier
+                    .fillMaxWidth()
+                    .height(150.dp)
+                    .clip(RoundedCornerShape(14.dp))
+                    .background(
+                        Brush.linearGradient(
+                            listOf(Color(0xFF7C2D12), Color(0xFFD95F45)),
+                        ),
+                    )
+                    .clickable { vm.startRandomRadio() }
+                    .padding(20.dp),
+            ) {
+                Column(Modifier.align(Alignment.BottomStart)) {
+                    Text(tr("radio.randomRadio"), color = Color.White, style = AMType.Title1)
+                    Spacer(Modifier.height(4.dp))
+                    Text(
+                        tr("radio.randomRadioSub"),
+                        color = Color.White.copy(alpha = 0.85f), style = AMType.Subhead,
+                    )
+                }
+                Icon(
+                    Icons.Filled.Radio, tr("radio.startRandomAria"),
+                    tint = Color.White, modifier = Modifier.align(Alignment.BottomEnd).size(44.dp),
+                )
+            }
+        }
+
+        // "Voyages sonores" (web MoodMixes): mood-trajectory radios — a set that
+        // glides along a named arc through feeling-space (/api/recommend?path=).
+        item {
+            Spacer(Modifier.height(24.dp))
+            SectionHeader(tr("home.journeys"))
+            Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                Trajectories.ALL.chunked(2).forEach { row ->
+                    Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                        row.forEach { tr ->
+                            TrajectoryCard(tr, Modifier.weight(1f)) { vm.startTrajectory(tr.id, tr.label) }
+                        }
+                        if (row.size == 1) Spacer(Modifier.weight(1f))
+                    }
                 }
             }
         }
@@ -591,7 +751,7 @@ fun RadioScreen(vm: AppViewModel, ui: UiState) {
         if (ui.forYou.isNotEmpty()) {
             item {
                 Spacer(Modifier.height(24.dp))
-                SectionHeader("Fait pour vous", "Tout lire") { vm.playList(ui.forYou) }
+                SectionHeader(tr("home.forYou"), tr("common.playAll")) { vm.playList(ui.forYou) }
                 LazyRow(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                     items(ui.forYou.take(10), key = { it.trackhash }) { t ->
                         HeroTrackCard(t, t.trackhash == current) { vm.playTrack(t, ui.forYou, ui.forYou.indexOf(t)) }
@@ -604,7 +764,7 @@ fun RadioScreen(vm: AppViewModel, ui: UiState) {
         if (radio.genres.isNotEmpty()) {
             item {
                 Spacer(Modifier.height(24.dp))
-                SectionHeader("Stations par genre")
+                SectionHeader(tr("radio.stationsByGenre"))
                 Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
                     radio.genres.take(12).chunked(2).forEach { row ->
                         Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
@@ -682,7 +842,7 @@ private fun QuickTile(tile: QuickTileItem, modifier: Modifier = Modifier) {
                 .clickable { tile.onPlay() },
             contentAlignment = Alignment.Center,
         ) {
-            Icon(Icons.Filled.PlayArrow, "Lire", tint = colors.ink, modifier = Modifier.size(18.dp))
+            Icon(Icons.Filled.PlayArrow, tr("common.play"), tint = colors.ink, modifier = Modifier.size(18.dp))
         }
     }
 }
@@ -708,7 +868,7 @@ private fun MiniTrackCard(t: Track, isCurrent: Boolean, onClick: () -> Unit) {
                     .clickable { onClick() },
                 contentAlignment = Alignment.Center,
             ) {
-                Icon(Icons.Filled.PlayArrow, "Lire", tint = Color.White, modifier = Modifier.size(15.dp))
+                Icon(Icons.Filled.PlayArrow, tr("common.play"), tint = Color.White, modifier = Modifier.size(15.dp))
             }
         }
         Text(
@@ -745,7 +905,76 @@ private fun GenreCard(genre: String, count: Int, modifier: Modifier = Modifier, 
     ) {
         Column(Modifier.align(Alignment.BottomStart)) {
             Text(genre, color = Color.White, style = AMType.Headline, maxLines = 1, overflow = TextOverflow.Ellipsis)
-            Text("$count titres", color = Color.White.copy(alpha = 0.8f), style = AMType.Caption1)
+            Text(tr("common.tracksCount", params = mapOf("count" to count)), color = Color.White.copy(alpha = 0.8f), style = AMType.Caption1)
+        }
+    }
+}
+
+/** Web DailyMixes MixCard: panel card with a 4-cover mosaic (or an icon wash),
+ *  bold label + muted sublabel — one tap plays the mix. */
+@Composable
+private fun MixCard(
+    label: String,
+    sublabel: String,
+    c0: Color,
+    c1: Color,
+    covers: List<Track>,
+    icon: Boolean = false,
+    onPlay: () -> Unit,
+) {
+    val colors = LocalAuralis.current
+    Column(
+        Modifier
+            .width(160.dp)
+            .clip(RoundedCornerShape(12.dp))
+            .background(colors.panel2)
+            .clickable { onPlay() }
+            .padding(10.dp),
+    ) {
+        Box(
+            Modifier.fillMaxWidth().aspectRatio(1f)
+                .clip(RoundedCornerShape(8.dp))
+                .background(Brush.linearGradient(listOf(c0, c1))),
+        ) {
+            if (covers.size >= 4) {
+                Column(Modifier.fillMaxSize()) {
+                    Row(Modifier.weight(1f).fillMaxWidth()) {
+                        local.auralis.client.ui.components.CoverArt(covers[0].image, covers[0].albumhash ?: covers[0].title, Modifier.weight(1f).fillMaxSize(), cornerRadius = 0, sizeDp = 80)
+                        local.auralis.client.ui.components.CoverArt(covers[1].image, covers[1].albumhash ?: covers[1].title, Modifier.weight(1f).fillMaxSize(), cornerRadius = 0, sizeDp = 80)
+                    }
+                    Row(Modifier.weight(1f).fillMaxWidth()) {
+                        local.auralis.client.ui.components.CoverArt(covers[2].image, covers[2].albumhash ?: covers[2].title, Modifier.weight(1f).fillMaxSize(), cornerRadius = 0, sizeDp = 80)
+                        local.auralis.client.ui.components.CoverArt(covers[3].image, covers[3].albumhash ?: covers[3].title, Modifier.weight(1f).fillMaxSize(), cornerRadius = 0, sizeDp = 80)
+                    }
+                }
+            } else if (icon) {
+                Icon(
+                    Icons.Filled.Explore, null, tint = Color.White.copy(alpha = 0.9f),
+                    modifier = Modifier.align(Alignment.Center).size(40.dp),
+                )
+            }
+        }
+        Spacer(Modifier.height(8.dp))
+        Text(label, color = colors.foreground, fontSize = 14.sp, fontWeight = FontWeight.Bold, maxLines = 1, overflow = TextOverflow.Ellipsis)
+        Text(sublabel, color = colors.textMuted, fontSize = 12.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+    }
+}
+
+/** Web MoodMixes trajectory card: a gradient tile per named arc, bold label +
+ *  blurb — one tap starts the mood-trajectory radio. */
+@Composable
+private fun TrajectoryCard(tr: Trajectory, modifier: Modifier = Modifier, onClick: () -> Unit) {
+    Box(
+        modifier
+            .height(96.dp)
+            .clip(RoundedCornerShape(12.dp))
+            .background(Brush.linearGradient(listOf(hexColor(tr.c0), hexColor(tr.c1))))
+            .clickable { onClick() }
+            .padding(12.dp),
+    ) {
+        Column(Modifier.align(Alignment.BottomStart)) {
+            Text(tr.label, color = Color.White, style = AMType.Headline, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            Text(tr.blurb, color = Color.White.copy(alpha = 0.8f), style = AMType.Caption1, maxLines = 1, overflow = TextOverflow.Ellipsis)
         }
     }
 }
@@ -758,13 +987,13 @@ fun SearchScreen(vm: AppViewModel, ui: UiState) {
     val current = currentTrackOf(vm)
     Column(Modifier.fillMaxWidth().padding(horizontal = 16.dp)) {
         Spacer(Modifier.height(6.dp))
-        LargeTitle("Recherche")
+        LargeTitle(tr("search.title"))
         Spacer(Modifier.height(10.dp))
         // Apple Music's rounded grey search field (10pt radius, no border).
         OutlinedTextField(
             value = ui.searchQuery,
             onValueChange = { vm.setSearch(it) },
-            placeholder = { Text("Artistes, titres, albums", color = colors.textFaint) },
+            placeholder = { Text(tr("search.placeholderMobile"), color = colors.textFaint) },
             leadingIcon = { Icon(Icons.Filled.Search, null, tint = colors.textMuted) },
             singleLine = true,
             shape = RoundedCornerShape(10.dp),
@@ -790,7 +1019,7 @@ fun SearchScreen(vm: AppViewModel, ui: UiState) {
             val history = remember(ui.recents, ui.trackByHash) { ui.recents.mapNotNull { ui.trackByHash[it] }.take(12) }
             LazyColumn(contentPadding = PaddingValues(bottom = 170.dp)) {
                 if (history.isNotEmpty()) {
-                    item { SectionHeader("Écoutés récemment") }
+                    item { SectionHeader(tr("nav.recents")) }
                     items(history, key = { it.trackhash }) { t ->
                         TrackRow(
                             t, isCurrent = t.trackhash == current, isFavorite = ui.favorites.contains(t.trackhash),
@@ -802,7 +1031,7 @@ fun SearchScreen(vm: AppViewModel, ui: UiState) {
                 if (genres.isNotEmpty()) {
                     item {
                         if (history.isNotEmpty()) Spacer(Modifier.height(24.dp))
-                        SectionHeader("Parcourir tout")
+                        SectionHeader(tr("search.browseAll"))
                         // Apple Music's colourful genre grid, two columns.
                         Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
                             genres.chunked(2).forEach { row ->
@@ -818,25 +1047,25 @@ fun SearchScreen(vm: AppViewModel, ui: UiState) {
         } else {
             LazyColumn(contentPadding = PaddingValues(bottom = 170.dp)) {
                 if (res.artists.isNotEmpty()) {
-                    item { SectionHeader("Artistes") }
+                    item { SectionHeader(tr("search.artists")) }
                     item {
                         LazyRow(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                            items(res.artists) { a -> ArtistCard(a) { vm.navigate(ViewId.ARTIST, a.artisthash) } }
+                            items(res.artists) { a -> ArtistCard(a, onLongPress = { vm.openArtistMenu(a) }) { vm.navigate(ViewId.ARTIST, a.artisthash) } }
                         }
                         Spacer(Modifier.height(14.dp))
                     }
                 }
                 if (res.albums.isNotEmpty()) {
-                    item { SectionHeader("Albums") }
+                    item { SectionHeader(tr("search.albums")) }
                     item {
                         LazyRow(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                            items(res.albums) { a -> AlbumCard(a) { vm.navigate(ViewId.ALBUM, a.albumhash) } }
+                            items(res.albums) { a -> AlbumCard(a, onLongPress = { vm.openAlbumMenu(a) }) { vm.navigate(ViewId.ALBUM, a.albumhash) } }
                         }
                         Spacer(Modifier.height(14.dp))
                     }
                 }
                 if (res.tracks.isNotEmpty()) {
-                    item { SectionHeader("Titres") }
+                    item { SectionHeader(tr("search.songs")) }
                     items(res.tracks, key = { it.trackhash }) { t ->
                         TrackRow(
                             t, isCurrent = t.trackhash == current, isFavorite = ui.favorites.contains(t.trackhash),
@@ -849,11 +1078,11 @@ fun SearchScreen(vm: AppViewModel, ui: UiState) {
                 // (fewer than 5 local tracks) so anything missing can be fetched.
                 val showOnline = ui.onlineLoading || (ui.onlineEnabled && ui.onlineResults.isNotEmpty())
                 if (showOnline && res.tracks.size < 5) {
-                    item { SectionHeader("Trouver ailleurs") }
+                    item { SectionHeader(tr("search.online")) }
                     if (ui.onlineLoading) {
                         item {
                             Text(
-                                "Recherche en ligne…",
+                                tr("search.onlineSearching"),
                                 color = colors.textMuted, fontSize = 13.sp, fontWeight = FontWeight.Medium,
                                 modifier = Modifier.padding(vertical = 10.dp),
                             )
@@ -864,7 +1093,7 @@ fun SearchScreen(vm: AppViewModel, ui: UiState) {
                     }
                 }
                 if (res.tracks.isEmpty() && res.albums.isEmpty() && res.artists.isEmpty() && !showOnline) {
-                    item { EmptyHint("Aucun résultat", "Essaie d'autres mots-clés.") }
+                    item { EmptyHint(tr("empty.noResults"), tr("empty.noResultsHint")) }
                 }
             }
         }
@@ -880,12 +1109,12 @@ private fun OnlineRow(hit: OnlineTrack, job: DownloadJobDto?, onDownload: (Onlin
     val done = job?.status == "done"
     val failed = job?.status == "error"
     val label = when {
-        done -> "Ajouté"
-        failed -> "Réessayer"
-        job?.status == "downloading" -> "${job.progress.coerceIn(0, 100)} %"
-        job?.status == "scanning" -> "Ajout…"
-        busy -> "En file"
-        else -> "Télécharger"
+        done -> tr("search.downloaded")
+        failed -> tr("search.downloadRetry")
+        job?.status == "downloading" -> tr("search.downloadRunning", params = mapOf("progress" to job.progress.coerceIn(0, 100)))
+        job?.status == "scanning" -> tr("search.downloadScanning")
+        busy -> tr("search.downloadQueued")
+        else -> tr("search.download")
     }
     Row(
         Modifier
@@ -959,13 +1188,41 @@ fun LibraryScreen(vm: AppViewModel, ui: UiState) {
     var newName by remember { mutableStateOf("") }
     var sort by remember { mutableStateOf(0) }
     var grid by remember { mutableStateOf(true) }
+    // Playlist import: smart-playlist presets, a SAF file picker (.m3u/.m3u8/.json)
+    // and the streaming-service link importer (web LibraryView).
+    var showSmart by remember { mutableStateOf(false) }
+    var showLink by remember { mutableStateOf(false) }
+    var linkUrl by remember { mutableStateOf("") }
+    var linkBusy by remember { mutableStateOf(false) }
+    val context = LocalContext.current
+    val scope = rememberCoroutineScope()
+    // Providers label .m3u/.json with half a dozen MIME types (or none at all), so
+    // accept any file and let the parser validate the content — the web importer's
+    // extension check is content-sniffed there too.
+    val importFile = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
+        if (uri == null) return@rememberLauncherForActivityResult
+        scope.launch(Dispatchers.IO) {
+            val text = runCatching {
+                context.contentResolver.openInputStream(uri)?.use { String(it.readBytes(), Charsets.UTF_8) }
+            }.getOrNull()
+            val name = runCatching {
+                context.contentResolver.query(uri, arrayOf(OpenableColumns.DISPLAY_NAME), null, null, null)?.use { c ->
+                    if (c.moveToFirst()) c.getString(0) else null
+                }
+            }.getOrNull()
+            withContext(Dispatchers.Main) {
+                if (text == null) vm.notify(Messages.t("library.invalidFile"))
+                else vm.importPlaylistFromText(name ?: "playlist", text)
+            }
+        }
+    }
     // Apple Music's library order: Playlists first, then Artists, Albums, Songs.
     data class LTab(val label: String, val icon: ImageVector)
     val tabs = listOf(
-        LTab("Playlists", Icons.Filled.QueueMusic),
-        LTab("Artistes", Icons.Filled.Person),
-        LTab("Albums", Icons.Filled.Album),
-        LTab("Titres", Icons.Filled.MusicNote),
+        LTab(tr("library.tabPlaylists"), Icons.Filled.QueueMusic),
+        LTab(tr("library.tabArtists"), Icons.Filled.Person),
+        LTab(tr("library.tabAlbums"), Icons.Filled.Album),
+        LTab(tr("library.tabTracks"), Icons.Filled.MusicNote),
     )
     val current = currentTrackOf(vm)
 
@@ -973,11 +1230,11 @@ fun LibraryScreen(vm: AppViewModel, ui: UiState) {
         androidx.compose.material3.AlertDialog(
             onDismissRequest = { showCreate = false },
             containerColor = colors.panel,
-            title = { Text("Nouvelle playlist", color = colors.foreground) },
+            title = { Text(tr("ctx.newPlaylist"), color = colors.foreground) },
             text = {
                 OutlinedTextField(
                     value = newName, onValueChange = { newName = it }, singleLine = true,
-                    placeholder = { Text("Nom de la playlist", color = colors.textFaint) },
+                    placeholder = { Text(tr("library.newPlaylistName"), color = colors.textFaint) },
                     colors = OutlinedTextFieldDefaults.colors(
                         focusedBorderColor = colors.accent, unfocusedBorderColor = colors.lineStrong,
                         focusedTextColor = colors.foreground, unfocusedTextColor = colors.foreground, cursorColor = colors.accent,
@@ -991,10 +1248,79 @@ fun LibraryScreen(vm: AppViewModel, ui: UiState) {
                         if (name.isNotEmpty()) vm.createPlaylist(name) { id -> vm.navigate(ViewId.PLAYLIST, id) }
                         newName = ""; showCreate = false
                     },
-                ) { Text("Créer", color = colors.accent) }
+                ) { Text(tr("common.create"), color = colors.accent) }
             },
             dismissButton = {
-                androidx.compose.material3.TextButton(onClick = { showCreate = false }) { Text("Annuler", color = colors.textMuted) }
+                androidx.compose.material3.TextButton(onClick = { showCreate = false }) { Text(tr("common.cancel"), color = colors.textMuted) }
+            },
+        )
+    }
+
+    // Smart-playlist presets (web SMART_PRESETS): one tap creates a rules-driven
+    // playlist stored through the same `playlist.upsert` action the web uses.
+    if (showSmart) {
+        androidx.compose.material3.AlertDialog(
+            onDismissRequest = { showSmart = false },
+            containerColor = colors.panel,
+            title = { Text(tr("library.smartPlaylist"), color = colors.foreground) },
+            text = {
+                Column {
+                    Text(
+                        tr("library.smartHint"),
+                        color = colors.textMuted, fontSize = 12.sp,
+                    )
+                    Spacer(Modifier.height(8.dp))
+                    SMART_PRESETS.forEach { preset ->
+                        Row(
+                            Modifier.fillMaxWidth().clip(RoundedCornerShape(10.dp))
+                                .clickable {
+                                    showSmart = false
+                                    vm.createSmartPlaylist(preset.config) { id -> vm.navigate(ViewId.PLAYLIST, id) }
+                                }
+                                .padding(horizontal = 12.dp, vertical = 12.dp),
+                        ) {
+                            Text(tr(preset.nameKey), color = colors.foreground, fontSize = 14.sp, fontWeight = FontWeight.SemiBold)
+                        }
+                    }
+                }
+            },
+            confirmButton = {
+                androidx.compose.material3.TextButton(onClick = { showSmart = false }) { Text(tr("common.cancel"), color = colors.textMuted) }
+            },
+        )
+    }
+
+    // Streaming-service link import: the server resolves the URL to a tracklist
+    // (rate-limited 10/min per account), then it's matched against THIS library.
+    if (showLink) {
+        androidx.compose.material3.AlertDialog(
+            onDismissRequest = { if (!linkBusy) showLink = false },
+            containerColor = colors.panel,
+            title = { Text(tr("library.importLink"), color = colors.foreground) },
+            text = {
+                OutlinedTextField(
+                    value = linkUrl, onValueChange = { linkUrl = it }, singleLine = true,
+                    placeholder = { Text(tr("library.linkPlaceholder"), color = colors.textFaint) },
+                    colors = OutlinedTextFieldDefaults.colors(
+                        focusedBorderColor = colors.accent, unfocusedBorderColor = colors.lineStrong,
+                        focusedTextColor = colors.foreground, unfocusedTextColor = colors.foreground, cursorColor = colors.accent,
+                    ),
+                )
+            },
+            confirmButton = {
+                androidx.compose.material3.TextButton(
+                    enabled = linkUrl.isNotBlank() && !linkBusy,
+                    onClick = {
+                        linkBusy = true
+                        vm.importPlaylistFromUrl(linkUrl.trim()) { ok ->
+                            linkBusy = false
+                            if (ok) { showLink = false; linkUrl = "" }
+                        }
+                    },
+                ) { Text(if (linkBusy) tr("library.importing") else tr("library.import"), color = colors.accent) }
+            },
+            dismissButton = {
+                androidx.compose.material3.TextButton(onClick = { showLink = false }) { Text(tr("common.cancel"), color = colors.textMuted) }
             },
         )
     }
@@ -1035,14 +1361,14 @@ fun LibraryScreen(vm: AppViewModel, ui: UiState) {
             Modifier.fillMaxWidth().padding(start = 16.dp, end = 16.dp, top = 6.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            LargeTitle("Bibliothèque", Modifier.weight(1f))
+            LargeTitle(tr("nav.library"), Modifier.weight(1f))
             Box(
                 Modifier
                     .clip(CircleShape)
                     .background(colors.accent)
                     .clickable { showCreate = true }
                     .padding(horizontal = 14.dp, vertical = 8.dp),
-            ) { Text("+ Nouvelle", color = colors.ink, style = AMType.Footnote, fontWeight = FontWeight.Bold) }
+            ) { Text(tr("library.newPlaylistShort"), color = colors.ink, style = AMType.Footnote, fontWeight = FontWeight.Bold) }
         }
         // Secondary destinations (also reachable here, mirroring the web's "Plus" hub).
         // "Titres aimés" leads the list — the library's pinned Liked-Songs entry.
@@ -1052,10 +1378,10 @@ fun LibraryScreen(vm: AppViewModel, ui: UiState) {
                 .padding(start = 16.dp, end = 16.dp, top = 10.dp, bottom = 6.dp),
             horizontalArrangement = Arrangement.spacedBy(8.dp),
         ) {
-            PlusChip("❤ Titres aimés") { vm.navigate(ViewId.FAVORITES) }
-            PlusChip("Récents") { vm.navigate(ViewId.RECENTS) }
-            PlusChip("Dossiers") { vm.navigate(ViewId.FOLDERS) }
-            PlusChip("Analyse") { vm.navigate(ViewId.INSIGHTS) }
+            PlusChip("❤ " + tr("nav.favorites")) { vm.navigate(ViewId.FAVORITES) }
+            PlusChip(tr("recents.title")) { vm.navigate(ViewId.RECENTS) }
+            PlusChip(tr("folders.title")) { vm.navigate(ViewId.FOLDERS) }
+            PlusChip(tr("insights.eyebrow")) { vm.navigate(ViewId.INSIGHTS) }
         }
         // Apple Music's library tabs: icon + label, active one in the red accent.
         Row(
@@ -1086,6 +1412,18 @@ fun LibraryScreen(vm: AppViewModel, ui: UiState) {
                 if (i != tabs.lastIndex) Spacer(Modifier.width(4.dp))
             }
         }
+        if (tab == 0) {
+            Row(
+                Modifier
+                    .horizontalScroll(rememberScrollState())
+                    .padding(start = 16.dp, end = 16.dp, bottom = 6.dp),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
+                PlusChip("⚡ " + tr("library.smartPlaylist")) { showSmart = true }
+                PlusChip(tr("library.importFile")) { importFile.launch(arrayOf("*/*")) }
+                PlusChip(tr("library.importLink")) { showLink = true }
+            }
+        }
         if (tab != 0) {
             Row(
                 Modifier
@@ -1093,9 +1431,13 @@ fun LibraryScreen(vm: AppViewModel, ui: UiState) {
                     .padding(start = 16.dp, end = 16.dp, bottom = 6.dp),
                 horizontalArrangement = Arrangement.spacedBy(8.dp),
             ) {
-                val sortLabel = when (sort) { 1 -> "Z→A"; 2 -> if (tab == 2) "Année" else "Écoutes"; else -> "A→Z" }
-                PlusChip("Tri : $sortLabel") { sort = (sort + 1) % 3 }
-                if (tab == 1 || tab == 2) PlusChip(if (grid) "Vue liste" else "Vue grille") { grid = !grid }
+                val sortLabel = when (sort) {
+                    1 -> tr("library.sortZA")
+                    2 -> if (tab == 2) tr("library.sortYear") else tr("library.sortPlays")
+                    else -> tr("library.sortAZ")
+                }
+                PlusChip(tr("library.sortLabel", params = mapOf("sort" to sortLabel))) { sort = (sort + 1) % 3 }
+                if (tab == 1 || tab == 2) PlusChip(if (grid) tr("library.listView") else tr("library.gridView")) { grid = !grid }
             }
         }
         // Chunk grid cards into rows so they can be WINDOWED by the LazyColumn (only
@@ -1114,23 +1456,23 @@ fun LibraryScreen(vm: AppViewModel, ui: UiState) {
                             Box(Modifier.weight(1f)) {
                                 PlaylistTile(if (pl.pinned) "📌 ${pl.name}" else pl.name, pl.trackhashes.size, pl.id, pl.imageHash) { vm.navigate(ViewId.PLAYLIST, pl.id) }
                             }
-                            // Glyph-only buttons get French content descriptions so
+                            // Glyph-only buttons get localized content descriptions so
                             // TalkBack announces the action, not the emoji/arrow.
                             Text(if (pl.pinned) "📌" else "📍", fontSize = 14.sp,
                                 modifier = Modifier.clickable { vm.togglePin(pl.id) }
-                                    .semantics { contentDescription = if (pl.pinned) "Désépingler" else "Épingler" }
+                                    .semantics { contentDescription = Messages.t(if (pl.pinned) "common.unpin" else "common.pin") }
                                     .padding(6.dp))
                             Text("▲", color = colors.textMuted, fontSize = 14.sp,
                                 modifier = Modifier.clickable { vm.movePlaylist(pl.id, -1) }
-                                    .semantics { contentDescription = "Monter" }
+                                    .semantics { contentDescription = Messages.t("common.moveUp") }
                                     .padding(6.dp))
                             Text("▼", color = colors.textMuted, fontSize = 14.sp,
                                 modifier = Modifier.clickable { vm.movePlaylist(pl.id, 1) }
-                                    .semantics { contentDescription = "Descendre" }
+                                    .semantics { contentDescription = Messages.t("common.moveDown") }
                                     .padding(6.dp))
                         }
                     }
-                    if (ui.playlists.isEmpty()) item { EmptyHint("Aucune playlist", "Touche « + Nouvelle », ou ⋮ sur un titre pour l'ajouter à une playlist.") }
+                    if (ui.playlists.isEmpty()) item { EmptyHint(tr("library.emptyNoPlaylists"), tr("library.emptyNoPlaylistsHint")) }
                 }
             }
             1 -> LazyColumn(contentPadding = bottomPad) {
@@ -1139,11 +1481,11 @@ fun LibraryScreen(vm: AppViewModel, ui: UiState) {
                         Modifier.fillMaxWidth().padding(top = if (i == 0) 0.dp else 16.dp),
                         horizontalArrangement = Arrangement.spacedBy(12.dp),
                     ) {
-                        rowItems.forEach { a -> Box(Modifier.weight(1f)) { ArtistCard(a, Modifier.fillMaxWidth()) { vm.navigate(ViewId.ARTIST, a.artisthash) } } }
+                        rowItems.forEach { a -> Box(Modifier.weight(1f)) { ArtistCard(a, Modifier.fillMaxWidth(), onLongPress = { vm.openArtistMenu(a) }) { vm.navigate(ViewId.ARTIST, a.artisthash) } } }
                         repeat(3 - rowItems.size) { Spacer(Modifier.weight(1f)) }
                     }
                 }
-                else items(lib.artists, key = { it.artisthash }) { a -> ArtistRow(a) { vm.navigate(ViewId.ARTIST, a.artisthash) } }
+                else items(lib.artists, key = { it.artisthash }) { a -> ArtistRow(a, onLongPress = { vm.openArtistMenu(a) }) { vm.navigate(ViewId.ARTIST, a.artisthash) } }
             }
             2 -> LazyColumn(contentPadding = bottomPad) {
                 if (grid) itemsIndexed(albumRows, key = { _, row -> row.first().albumhash }) { i, rowItems ->
@@ -1151,11 +1493,11 @@ fun LibraryScreen(vm: AppViewModel, ui: UiState) {
                         Modifier.fillMaxWidth().padding(top = if (i == 0) 0.dp else 16.dp),
                         horizontalArrangement = Arrangement.spacedBy(16.dp),
                     ) {
-                        rowItems.forEach { a -> Box(Modifier.weight(1f)) { AlbumCard(a, Modifier.fillMaxWidth()) { vm.navigate(ViewId.ALBUM, a.albumhash) } } }
+                        rowItems.forEach { a -> Box(Modifier.weight(1f)) { AlbumCard(a, Modifier.fillMaxWidth(), onLongPress = { vm.openAlbumMenu(a) }) { vm.navigate(ViewId.ALBUM, a.albumhash) } } }
                         if (rowItems.size == 1) Spacer(Modifier.weight(1f))
                     }
                 }
-                else items(lib.albums, key = { it.albumhash }) { a -> AlbumRow(a) { vm.navigate(ViewId.ALBUM, a.albumhash) } }
+                else items(lib.albums, key = { it.albumhash }) { a -> AlbumRow(a, onLongPress = { vm.openAlbumMenu(a) }) { vm.navigate(ViewId.ALBUM, a.albumhash) } }
             }
             3 -> LazyColumn(contentPadding = bottomPad) {
                 itemsIndexed(lib.tracks, key = { _, t -> t.trackhash }) { idx, t ->
@@ -1209,10 +1551,15 @@ private class LibraryDerived(
     }
 }
 
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
-private fun AlbumRow(album: local.auralis.client.model.Album, onClick: () -> Unit) {
+private fun AlbumRow(album: local.auralis.client.model.Album, onLongPress: (() -> Unit)? = null, onClick: () -> Unit) {
     val colors = LocalAuralis.current
-    Row(Modifier.fillMaxWidth().clickable { onClick() }.padding(vertical = 7.dp, horizontal = 8.dp), verticalAlignment = Alignment.CenterVertically) {
+    Row(
+        Modifier.fillMaxWidth().combinedClickable(onClick = onClick, onLongClick = onLongPress)
+            .padding(vertical = 7.dp, horizontal = 8.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
         local.auralis.client.ui.components.CoverArt(album.image, album.albumhash, Modifier.size(46.dp), cornerRadius = 8, sizeDp = 46)
         Spacer(Modifier.width(12.dp))
         Column(Modifier.weight(1f)) {
@@ -1223,16 +1570,21 @@ private fun AlbumRow(album: local.auralis.client.model.Album, onClick: () -> Uni
     }
 }
 
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
-private fun ArtistRow(artist: local.auralis.client.model.Artist, onClick: () -> Unit) {
+private fun ArtistRow(artist: local.auralis.client.model.Artist, onLongPress: (() -> Unit)? = null, onClick: () -> Unit) {
     val colors = LocalAuralis.current
-    Row(Modifier.fillMaxWidth().clickable { onClick() }.padding(vertical = 7.dp, horizontal = 8.dp), verticalAlignment = Alignment.CenterVertically) {
+    Row(
+        Modifier.fillMaxWidth().combinedClickable(onClick = onClick, onLongClick = onLongPress)
+            .padding(vertical = 7.dp, horizontal = 8.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
         Box(Modifier.size(46.dp).clip(CircleShape)) {
             local.auralis.client.ui.components.CoverArt(artist.image, artist.artisthash, Modifier.size(46.dp).clip(CircleShape), sizeDp = 46)
         }
         Spacer(Modifier.width(12.dp))
         Text(artist.name, color = colors.foreground, fontSize = 14.sp, fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
-        artist.trackcount?.let { Text("$it titres", color = colors.textFaint, fontSize = 12.sp) }
+        artist.trackcount?.let { Text(tr("common.tracksCount", params = mapOf("count" to it)), color = colors.textFaint, fontSize = 12.sp) }
     }
 }
 
@@ -1253,21 +1605,27 @@ fun FavoritesScreen(vm: AppViewModel, ui: UiState) {
             else -> base.sortedBy { orderIndex[it.trackhash] ?: Int.MAX_VALUE }
         }
     }
-    val sortLabel = when (sort) { 1 -> "A→Z"; 2 -> "Z→A"; 3 -> "Artiste"; 4 -> "Écoutes"; else -> "Récents" }
+    val sortLabel = when (sort) {
+        1 -> tr("library.sortAZ")
+        2 -> tr("library.sortZA")
+        3 -> tr("library.sortArtist")
+        4 -> tr("library.sortPlays")
+        else -> tr("library.sortRecent")
+    }
     val current = currentTrackOf(vm)
     val totalDur = favTracks.sumOf { it.duration ?: 0.0 }
     LazyColumn(contentPadding = bottomPad) {
         item {
             Column(Modifier.padding(vertical = 10.dp)) {
-                Eyebrow("Favoris")
-                Text("Tes titres aimés", style = AMType.Title1, color = colors.foreground)
+                Eyebrow(tr("favorites.title"))
+                Text(tr("favorites.headline"), style = AMType.Title1, color = colors.foreground)
                 Spacer(Modifier.height(4.dp))
-                Text("${favTracks.size} titres · ${formatLongDuration(totalDur)}", color = colors.textMuted, fontSize = 13.sp)
+                Text(tr("detail.tracksAndDuration", params = mapOf("count" to favTracks.size, "duration" to formatLongDuration(totalDur))), color = colors.textMuted, fontSize = 13.sp)
                 Spacer(Modifier.height(14.dp))
                 Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                    PlayPill("Lire") { vm.playList(favTracks) }
-                    GhostPill("Aléatoire") { vm.playShuffled(favTracks) }
-                    PlusChip("Tri : $sortLabel") { sort = (sort + 1) % 5 }
+                    PlayPill(tr("common.play")) { vm.playList(favTracks) }
+                    GhostPill(tr("common.shuffle")) { vm.playShuffled(favTracks) }
+                    PlusChip(tr("library.sortLabel", params = mapOf("sort" to sortLabel))) { sort = (sort + 1) % 5 }
                 }
             }
         }
@@ -1278,7 +1636,7 @@ fun FavoritesScreen(vm: AppViewModel, ui: UiState) {
                 onToggleFavorite = { vm.toggleFavorite(t.trackhash) }, onMore = { vm.openTrackMenu(t) },
             )
         }
-        if (favTracks.isEmpty()) item { EmptyHint("Aucun favori", "Touche le ♥ sur un titre pour l'ajouter.") }
+        if (favTracks.isEmpty()) item { EmptyHint(tr("favorites.emptyTitle"), tr("favorites.emptyHint")) }
     }
 }
 
@@ -1292,9 +1650,9 @@ fun RecentsScreen(vm: AppViewModel, ui: UiState) {
     LazyColumn(contentPadding = bottomPad) {
         item {
             Column(Modifier.padding(vertical = 10.dp)) {
-                Eyebrow("Historique")
-                Text("Récents", style = AMType.Title1, color = colors.foreground)
-                Text("${recents.size} lus", color = colors.textMuted, fontSize = 13.sp)
+                Eyebrow(tr("recents.eyebrow"))
+                Text(tr("recents.title"), style = AMType.Title1, color = colors.foreground)
+                Text(tr("recents.countRead", params = mapOf("count" to recents.size)), color = colors.textMuted, fontSize = 13.sp)
             }
         }
         itemsIndexed(recents, key = { _, t -> t.trackhash }) { idx, t ->
@@ -1304,7 +1662,7 @@ fun RecentsScreen(vm: AppViewModel, ui: UiState) {
                 onToggleFavorite = { vm.toggleFavorite(t.trackhash) }, onMore = { vm.openTrackMenu(t) },
             )
         }
-        if (recents.isEmpty()) item { EmptyHint("Rien encore", "Tes lectures récentes apparaîtront ici.") }
+        if (recents.isEmpty()) item { EmptyHint(tr("recents.emptyTitle"), tr("recents.emptyHint")) }
     }
 }
 
@@ -1337,11 +1695,11 @@ fun FoldersScreen(vm: AppViewModel, ui: UiState) {
     LazyColumn(contentPadding = bottomPad) {
         item {
             Column(Modifier.padding(vertical = 10.dp)) {
-                Eyebrow("Dossiers")
-                Text(activeNode?.name ?: "Bibliothèque", fontSize = 24.sp, fontWeight = FontWeight.Black, color = colors.foreground)
+                Eyebrow(tr("folders.title"))
+                Text(activeNode?.name ?: tr("nav.library"), fontSize = 24.sp, fontWeight = FontWeight.Black, color = colors.foreground)
                 if (activePath != rootPath && activePath != null) {
                     Spacer(Modifier.height(6.dp))
-                    Text("← Remonter", color = colors.textMuted, fontSize = 13.sp, fontWeight = FontWeight.SemiBold,
+                    Text(tr("folders.goBack"), color = colors.textMuted, fontSize = 13.sp, fontWeight = FontWeight.SemiBold,
                         modifier = Modifier.clickable {
                             path = nodes.find { n -> n.children.any { it.path == activePath } }?.path ?: rootPath
                         })
@@ -1349,8 +1707,8 @@ fun FoldersScreen(vm: AppViewModel, ui: UiState) {
                 if (tracksHere.isNotEmpty()) {
                     Spacer(Modifier.height(12.dp))
                     Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                        PlayPill("Lire le dossier") { vm.playList(tracksHere) }
-                        GhostPill("Aléatoire") { vm.playShuffled(tracksHere) }
+                        PlayPill(tr("folders.playFolder")) { vm.playList(tracksHere) }
+                        GhostPill(tr("common.shuffle")) { vm.playShuffled(tracksHere) }
                     }
                 }
             }
@@ -1367,7 +1725,7 @@ fun FoldersScreen(vm: AppViewModel, ui: UiState) {
                 Spacer(Modifier.width(12.dp))
                 Column(Modifier.weight(1f)) {
                     Text(f.name, color = colors.foreground, fontSize = 14.sp, fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                    Text("${f.trackcount} titres", color = colors.textMuted, fontSize = 12.sp)
+                    Text(tr("common.tracksCount", params = mapOf("count" to f.trackcount)), color = colors.textMuted, fontSize = 12.sp)
                 }
             }
         }
@@ -1396,24 +1754,61 @@ fun InsightsScreen(vm: AppViewModel, ui: UiState) {
             .sortedByDescending { artistPlays[it.artisthash] ?: 0 }
             .take(8)
     }
+    // Web InsightsView panels: tracks-per-artist, genre histogram, biggest albums.
+    val artistTrackData = remember(ui.artists) {
+        ui.artists.map { it.name to (it.trackcount ?: 0) }
+            .filter { it.second > 0 }
+            .sortedByDescending { it.second }
+            .take(8)
+    }
+    val genreData = remember(ui.tracks) {
+        ui.tracks.groupingBy { it.genre?.trim().orEmpty() }.eachCount()
+            .map { (genre, count) -> (genre.ifEmpty { Messages.t("insights.untagged") }) to count }
+            .sortedByDescending { it.second }
+            .take(8)
+    }
+    val albumData = remember(ui.albums) {
+        ui.albums.map {
+            "${it.title}${it.albumartists.firstOrNull()?.name?.let { n -> " · $n" } ?: ""}" to (it.trackcount ?: 0)
+        }
+            .filter { it.second > 0 }
+            .sortedByDescending { it.second }
+            .take(8)
+    }
     LazyColumn(contentPadding = bottomPad) {
         item {
             Column(Modifier.padding(vertical = 10.dp)) {
-                Eyebrow("Analyse")
-                Text("Tes statistiques", fontSize = 26.sp, fontWeight = FontWeight.Black, color = colors.foreground)
+                Eyebrow(tr("insights.eyebrow"))
+                Text(tr("insights.screenTitle"), fontSize = 26.sp, fontWeight = FontWeight.Black, color = colors.foreground)
             }
         }
         item { MoodRecapSection(vm, ui) }
         item {
             Row(Modifier.fillMaxWidth().padding(vertical = 8.dp), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                Kpi("Série", "${stats.streak} j", Modifier.weight(1f))
-                Kpi("Cette semaine", "${stats.weekPlays}", Modifier.weight(1f))
-                Kpi("Total", "${stats.totalPlays}", Modifier.weight(1f))
+                Kpi(tr("insights.kpiStreak"), tr("insights.daysShort", params = mapOf("count" to stats.streak)), Modifier.weight(1f))
+                Kpi(tr("insights.kpiWeek"), "${stats.weekPlays}", Modifier.weight(1f))
+                Kpi(tr("insights.kpiTotal"), "${stats.totalPlays}", Modifier.weight(1f))
+            }
+        }
+        // Week / total listening time (web WeeklyRecap, fields from /api/stats).
+        if (stats.weekListeningSeconds > 0 || stats.totalListeningSeconds > 0) {
+            item {
+                Text(
+                    listOfNotNull(
+                        if (stats.weekListeningSeconds > 0) {
+                            "${formatLongDuration(stats.weekListeningSeconds.toDouble())} ${tr("insights.listeningWeek")}"
+                        } else null,
+                        if (stats.totalListeningSeconds > 0) {
+                            "${formatLongDuration(stats.totalListeningSeconds.toDouble())} ${tr("insights.listeningTotal")}"
+                        } else null,
+                    ).joinToString(" · "),
+                    color = colors.textMuted, fontSize = 12.sp, modifier = Modifier.padding(bottom = 4.dp),
+                )
             }
         }
         item {
             Spacer(Modifier.height(12.dp))
-            SectionHeader("7 derniers jours")
+            SectionHeader(tr("insights.last7days"))
             val maxC = (stats.playsByDay.maxOfOrNull { it.count } ?: 1).coerceAtLeast(1)
             Row(Modifier.fillMaxWidth().height(120.dp), verticalAlignment = Alignment.Bottom, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 stats.playsByDay.forEach { d ->
@@ -1432,12 +1827,58 @@ fun InsightsScreen(vm: AppViewModel, ui: UiState) {
         }
         item {
             Spacer(Modifier.height(20.dp))
-            SectionHeader("Artistes les plus écoutés")
+            SectionHeader(tr("insights.topArtistsTitle"))
         }
         items(topArtists) { a ->
             Row(Modifier.fillMaxWidth().clickable { vm.navigate(ViewId.ARTIST, a.artisthash) }.padding(vertical = 8.dp), verticalAlignment = Alignment.CenterVertically) {
                 Text(a.name, color = colors.foreground, fontSize = 14.sp, modifier = Modifier.weight(1f), maxLines = 1, overflow = TextOverflow.Ellipsis)
-                Text("${artistPlays[a.artisthash] ?: 0} écoutes", color = colors.textMuted, fontSize = 12.sp)
+                Text(tr("insights.playsAttribute", params = mapOf("count" to (artistPlays[a.artisthash] ?: 0))), color = colors.textMuted, fontSize = 12.sp)
+            }
+        }
+        item {
+            Spacer(Modifier.height(16.dp))
+            BarPanel(tr("insights.tracksByArtistTitle"), tr("insights.tracksByArtistEyebrow"), artistTrackData)
+        }
+        item {
+            Spacer(Modifier.height(16.dp))
+            BarPanel(tr("insights.genresTitle"), tr("insights.genresEyebrow"), genreData)
+        }
+        item {
+            Spacer(Modifier.height(16.dp))
+            BarPanel(tr("insights.albumsBySizeTitle"), tr("insights.albumsBySizeEyebrow"), albumData)
+        }
+    }
+}
+
+/** Web InsightsView BarList: ranked rows with a value bar (genres, artists, albums). */
+@Composable
+private fun BarPanel(title: String, eyebrow: String, rows: List<Pair<String, Int>>) {
+    val colors = LocalAuralis.current
+    Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(14.dp)).background(colors.panel).padding(14.dp)) {
+        Eyebrow(eyebrow)
+        Text(title, style = AMType.Title3, color = colors.foreground, modifier = Modifier.padding(top = 2.dp, bottom = 10.dp))
+        if (rows.isEmpty()) {
+            Text(tr("insights.noData"), color = colors.textMuted, fontSize = 12.sp)
+        } else {
+            val max = (rows.maxOfOrNull { it.second } ?: 1).coerceAtLeast(1)
+            rows.forEachIndexed { i, (label, value) ->
+                Column(Modifier.padding(vertical = 4.dp)) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Text("${i + 1}", color = colors.textFaint, fontSize = 11.sp, modifier = Modifier.width(18.dp))
+                        Text(
+                            label, color = colors.foreground, fontSize = 13.sp,
+                            modifier = Modifier.weight(1f), maxLines = 1, overflow = TextOverflow.Ellipsis,
+                        )
+                        Text("$value", color = colors.textMuted, fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
+                    }
+                    Spacer(Modifier.height(3.dp))
+                    Box(Modifier.fillMaxWidth().height(5.dp).clip(RoundedCornerShape(3.dp)).background(colors.panel2)) {
+                        Box(
+                            Modifier.fillMaxWidth((value.toFloat() / max).coerceIn(0.04f, 1f))
+                                .height(5.dp).clip(RoundedCornerShape(3.dp)).background(colors.accent),
+                        )
+                    }
+                }
             }
         }
     }
@@ -1460,7 +1901,7 @@ private fun MoodRecapSection(vm: AppViewModel, ui: UiState) {
     if (ui.recapMonths.isEmpty()) return
     val recap = ui.recap
     Column(Modifier.fillMaxWidth().padding(top = 6.dp)) {
-        SectionHeader("Ton mois en émotions")
+        SectionHeader(tr("recap.title"))
 
         // Period selector.
         LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.padding(vertical = 8.dp)) {
@@ -1497,7 +1938,7 @@ private fun MoodRecapSection(vm: AppViewModel, ui: UiState) {
                     Spacer(Modifier.width(12.dp))
                     Column {
                         Text(
-                            "${recap.label}${if (recap.inProgress) " · en cours" else ""}".uppercase(),
+                            ("${recap.label}" + if (recap.inProgress) tr("recap.inProgress") else "").uppercase(),
                             color = Color.White.copy(alpha = 0.8f), fontSize = 11.sp, fontWeight = FontWeight.Bold,
                         )
                         Text(
@@ -1510,9 +1951,9 @@ private fun MoodRecapSection(vm: AppViewModel, ui: UiState) {
                 Text(recap.narrative, color = Color.White.copy(alpha = 0.92f), fontSize = 13.sp)
                 Spacer(Modifier.height(12.dp))
                 Row(horizontalArrangement = Arrangement.spacedBy(18.dp)) {
-                    RecapStat("${recap.totalPlays}", "écoutes")
-                    RecapStat(formatRecapTime(recap.listeningSeconds), "d'écoute")
-                    RecapStat("${recap.distinctTracks}", "titres")
+                    RecapStat("${recap.totalPlays}", tr("recap.playsLabel"))
+                    RecapStat(Messages.formatCompactDuration(recap.listeningSeconds), tr("recap.listeningLabel"))
+                    RecapStat("${recap.distinctTracks}", tr("recap.uniqueTracksLabel"))
                 }
             }
 
@@ -1544,7 +1985,7 @@ private fun MoodRecapSection(vm: AppViewModel, ui: UiState) {
             val topTracks = recap.topTracks.mapNotNull { ref -> ui.trackByHash[ref.trackhash]?.let { it to ref.plays } }
             if (topTracks.isNotEmpty()) {
                 Spacer(Modifier.height(14.dp))
-                Text("Titres du mois", color = colors.textMuted, fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
+                Text(tr("recap.monthlyTracks"), color = colors.textMuted, fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
                 Spacer(Modifier.height(6.dp))
                 topTracks.forEachIndexed { i, pair ->
                     val t = pair.first
@@ -1564,7 +2005,7 @@ private fun MoodRecapSection(vm: AppViewModel, ui: UiState) {
             }
         } else {
             Text(
-                recap?.narrative ?: "Lance quelques titres ce mois-ci pour révéler ton humeur.",
+                recap?.narrative ?: tr("recap.startListeningHint"),
                 color = colors.textMuted, fontSize = 13.sp, modifier = Modifier.padding(vertical = 8.dp),
             )
         }
@@ -1583,15 +2024,4 @@ private fun RecapStat(value: String, label: String) {
 private fun hexColor(hex: String): Color =
     runCatching { Color(android.graphics.Color.parseColor(hex)) }.getOrDefault(Color(0xFF888888))
 
-private fun formatRecapTime(seconds: Long): String {
-    val h = seconds / 3600
-    val m = (seconds % 3600) / 60
-    return if (h > 0) "${h}h${if (m > 0) " ${m}m" else ""}" else "$m min"
-}
-
-private fun recapMonthChip(key: String): String {
-    val months = listOf("Janv.", "Févr.", "Mars", "Avril", "Mai", "Juin", "Juil.", "Août", "Sept.", "Oct.", "Nov.", "Déc.")
-    val parts = key.split("-")
-    val m = parts.getOrNull(1)?.toIntOrNull() ?: 1
-    return "${months.getOrElse(m - 1) { key }} ${parts.getOrNull(0)?.takeLast(2) ?: ""}"
-}
+private fun recapMonthChip(key: String): String = Messages.monthShortLabel(key)

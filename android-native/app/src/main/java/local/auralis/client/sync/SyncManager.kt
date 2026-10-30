@@ -12,6 +12,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import local.auralis.client.i18n.Messages
 import local.auralis.client.net.AuralisApi
 import local.auralis.client.util.DeviceIdUtil
 import okhttp3.MediaType.Companion.toMediaType
@@ -48,7 +49,6 @@ class SyncManager private constructor(
         private const val PREFS = "auralis_sync"
         private const val KEY_ID = "device_id"
         private const val KEY_NAME = "device_name"
-        private const val DEFAULT_NAME = "Téléphone"
         /** Minimum gap between two state POSTs (the listener fires on every event). */
         private const val PUBLISH_MIN_INTERVAL_MS = 1500L
 
@@ -117,7 +117,7 @@ class SyncManager private constructor(
         return id
     }
 
-    fun deviceName(): String = prefs.getString(KEY_NAME, null) ?: DEFAULT_NAME
+    fun deviceName(): String = prefs.getString(KEY_NAME, null) ?: Messages.t("sync.phone")
 
     fun setDeviceName(name: String) {
         prefs.edit().putString(KEY_NAME, name).apply()

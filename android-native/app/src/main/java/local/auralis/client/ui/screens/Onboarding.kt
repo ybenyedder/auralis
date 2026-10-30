@@ -41,6 +41,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.ui.graphics.Brush
+import local.auralis.client.i18n.tr
 import local.auralis.client.ui.components.AuralisGlyph
 import local.auralis.client.ui.components.paletteFor
 import local.auralis.client.ui.theme.LocalAuralis
@@ -111,27 +112,27 @@ fun ConnectScreen(connecting: Boolean, message: String?, initial: String, onConn
         ) {
             SplashMark()
             Spacer(Modifier.height(20.dp))
-            Text("Connexion à Auralis", fontSize = 22.sp, fontWeight = FontWeight.Black, color = colors.foreground)
+            Text(tr("connect.title"), fontSize = 22.sp, fontWeight = FontWeight.Black, color = colors.foreground)
             Spacer(Modifier.height(8.dp))
             Text(
-                "Saisis l'adresse de ton serveur Auralis auto-hébergé.",
+                tr("connect.subtitle"),
                 fontSize = 13.sp, color = colors.textMuted, textAlign = TextAlign.Center,
             )
             Spacer(Modifier.height(28.dp))
             field(
-                value = url, onChange = { url = it }, label = "Adresse du serveur",
+                value = url, onChange = { url = it }, label = tr("connect.serverField"),
                 keyboard = KeyboardOptions(keyboardType = KeyboardType.Uri, imeAction = ImeAction.Go),
                 onImeDone = { onConnect(url) },
             )
             Spacer(Modifier.height(16.dp))
-            PrimaryButton("Se connecter", connecting) { onConnect(url) }
+            PrimaryButton(tr("auth.signIn"), connecting) { onConnect(url) }
             if (message != null) {
                 Spacer(Modifier.height(14.dp))
                 Text(message, color = colors.destructive, fontSize = 12.5.sp, textAlign = TextAlign.Center)
             }
             Spacer(Modifier.height(18.dp))
             Text(
-                "Lance Auralis sur ton ordinateur, puis entre son adresse LAN ici.",
+                tr("connect.hint"),
                 fontSize = 12.sp, color = colors.textFaint, textAlign = TextAlign.Center,
             )
         }
@@ -167,7 +168,7 @@ fun LoginScreen(
             horizontalAlignment = Alignment.CenterHorizontally,
         ) {
             if (selected == null) {
-                Text("Qui écoute ?", fontSize = 26.sp, fontWeight = FontWeight.Medium, color = colors.foreground, textAlign = TextAlign.Center)
+                Text(tr("auth.whoIsListening"), fontSize = 26.sp, fontWeight = FontWeight.Medium, color = colors.foreground, textAlign = TextAlign.Center)
                 Spacer(Modifier.height(28.dp))
                 val profiles = accounts
                 if (profiles == null) {
@@ -186,22 +187,22 @@ fun LoginScreen(
                 Spacer(Modifier.height(14.dp))
                 Text(selected!!, fontSize = 20.sp, fontWeight = FontWeight.Bold, color = colors.foreground)
                 Spacer(Modifier.height(4.dp))
-                Text("Saisis ton mot de passe", fontSize = 13.sp, color = colors.textMuted)
+                Text(tr("auth.enterPassword"), fontSize = 13.sp, color = colors.textMuted)
                 Spacer(Modifier.height(22.dp))
                 field(
-                    value = password, onChange = { password = it }, label = "Mot de passe", password = true,
+                    value = password, onChange = { password = it }, label = tr("settings.password"), password = true,
                     keyboard = KeyboardOptions(keyboardType = KeyboardType.Password, imeAction = ImeAction.Go),
                     onImeDone = { onLogin(selected!!, password) },
                 )
                 Spacer(Modifier.height(16.dp))
-                PrimaryButton("Se connecter", connecting) { onLogin(selected!!, password) }
+                PrimaryButton(tr("auth.signIn"), connecting) { onLogin(selected!!, password) }
                 if (message != null) {
                     Spacer(Modifier.height(14.dp))
                     Text(message, color = colors.destructive, fontSize = 12.5.sp, textAlign = TextAlign.Center)
                 }
                 Spacer(Modifier.height(18.dp))
                 Text(
-                    "← Changer de profil",
+                    "← " + tr("auth.switchProfile"),
                     fontSize = 12.sp, color = colors.textMuted, fontWeight = FontWeight.SemiBold,
                     letterSpacing = 0.6.sp,
                     modifier = Modifier.clickable { selected = null; password = "" },
@@ -209,7 +210,7 @@ fun LoginScreen(
             }
             Spacer(Modifier.height(24.dp))
             Text(
-                "Changer de serveur",
+                tr("connect.changeServer"),
                 fontSize = 12.sp, color = colors.textFaint, fontWeight = FontWeight.SemiBold,
                 modifier = Modifier.clickable { onChangeServer() },
             )

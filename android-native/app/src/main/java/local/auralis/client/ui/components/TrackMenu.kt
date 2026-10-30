@@ -29,6 +29,8 @@ import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.PlaylistAdd
 import androidx.compose.material.icons.filled.PlaylistRemove
 import androidx.compose.material.icons.filled.QueueMusic
+import androidx.compose.material.icons.filled.Radio
+import androidx.compose.material.icons.filled.Share
 import androidx.compose.material.icons.filled.ThumbDown
 import androidx.compose.material3.Icon
 import androidx.compose.material3.OutlinedTextField
@@ -50,6 +52,8 @@ import local.auralis.client.model.Track
 import local.auralis.client.ui.AppViewModel
 import local.auralis.client.ui.UiState
 import local.auralis.client.ui.ViewId
+import local.auralis.client.i18n.Messages
+import local.auralis.client.i18n.tr
 import local.auralis.client.ui.theme.LocalAuralis
 
 // Bottom-sheet track context menu: the entry point for "play next", "add to queue",
@@ -89,38 +93,40 @@ fun TrackMenu(track: Track, ui: UiState, vm: AppViewModel, onDismiss: () -> Unit
             MenuDivider()
 
             if (!pickingPlaylist) {
-                MenuRow(Icons.Filled.PlayArrow, "Lire ensuite") { vm.addNext(track); onDismiss() }
-                MenuRow(Icons.Filled.QueueMusic, "Ajouter à la file") { vm.addToEnd(track); onDismiss() }
-                MenuRow(Icons.Filled.PlaylistAdd, "Ajouter à une playlist") { pickingPlaylist = true }
+                MenuRow(Icons.Filled.Radio, tr("ctx.startRadio")) { vm.startRadio(track); onDismiss() }
+                MenuRow(Icons.Filled.PlayArrow, tr("ctx.playNext")) { vm.addNext(track); onDismiss() }
+                MenuRow(Icons.Filled.QueueMusic, tr("ctx.addToQueue")) { vm.addToEnd(track); onDismiss() }
+                MenuRow(Icons.Filled.PlaylistAdd, tr("ctx.addToPlaylist")) { pickingPlaylist = true }
                 // Context-aware removal: when this sheet opens from inside a
                 // playlist that contains the track, offer to pull it out — the
                 // row-level trash is the other path, but users look here first.
                 val openPlaylistId = ui.nav.takeIf { it.view == ViewId.PLAYLIST }?.id
                 val openPlaylist = openPlaylistId?.let { pid -> ui.playlists.find { it.id == pid } }
                 if (openPlaylist != null && openPlaylist.trackhashes.contains(track.trackhash)) {
-                    MenuRow(Icons.Filled.PlaylistRemove, "Retirer de « ${openPlaylist.name} »") {
+                    MenuRow(Icons.Filled.PlaylistRemove, tr("ctx.removeFrom", params = mapOf("name" to openPlaylist.name))) {
                         vm.removeFromPlaylist(openPlaylist.id, track.trackhash); onDismiss()
                     }
                 }
                 MenuDivider()
-                MenuRow(Icons.Filled.AutoAwesome, "Sélectionner (Mix IA)") { vm.enterSelection(track.trackhash); onDismiss() }
+                MenuRow(Icons.Filled.AutoAwesome, tr("ctx.selectForMix")) { vm.enterSelection(track.trackhash); onDismiss() }
                 val fav = ui.favorites.contains(track.trackhash)
-                MenuRow(if (fav) Icons.Filled.Favorite else Icons.Filled.FavoriteBorder, if (fav) "Retirer des favoris" else "Ajouter aux favoris") {
+                MenuRow(if (fav) Icons.Filled.Favorite else Icons.Filled.FavoriteBorder, if (fav) tr("common.removeFavorite") else tr("common.addFavorite")) {
                     vm.toggleFavorite(track.trackhash); onDismiss()
                 }
                 val disliked = ui.dislikes.contains(track.trackhash)
-                MenuRow(Icons.Filled.ThumbDown, if (disliked) "Ne plus masquer" else "Je n'aime pas") {
+                MenuRow(Icons.Filled.ThumbDown, if (disliked) tr("ctx.stopDisliking") else tr("ctx.dislike")) {
                     vm.toggleDislike(track.trackhash); onDismiss()
                 }
+                MenuRow(Icons.Filled.Share, tr("ctx.share")) { vm.shareTrack(track); onDismiss() }
                 MenuDivider()
                 if (track.albumhash != null) {
-                    MenuRow(Icons.Filled.Album, "Aller à l'album") { vm.navigate(ViewId.ALBUM, track.albumhash); onDismiss() }
+                    MenuRow(Icons.Filled.Album, tr("ctx.goToAlbum")) { vm.navigate(ViewId.ALBUM, track.albumhash); onDismiss() }
                 }
                 track.primaryArtistHash?.let { ah ->
-                    MenuRow(Icons.Filled.Person, "Aller à l'artiste") { vm.navigate(ViewId.ARTIST, ah); onDismiss() }
+                    MenuRow(Icons.Filled.Person, tr("ctx.goToArtist")) { vm.navigate(ViewId.ARTIST, ah); onDismiss() }
                 }
             } else {
-                Text("Ajouter à une playlist", color = colors.textMuted, fontSize = 12.sp, modifier = Modifier.padding(horizontal = 12.dp, vertical = 4.dp))
+                Text(tr("ctx.addToPlaylist"), color = colors.textMuted, fontSize = 12.sp, modifier = Modifier.padding(horizontal = 12.dp, vertical = 4.dp))
                 LazyColumn(Modifier.heightIn(max = 240.dp)) {
                     items(ui.playlists) { pl ->
                         MenuRow(Icons.Filled.PlaylistAdd, pl.name) { vm.addToPlaylist(pl.id, track.trackhash); onDismiss() }
@@ -129,7 +135,7 @@ fun TrackMenu(track: Track, ui: UiState, vm: AppViewModel, onDismiss: () -> Unit
                 Row(Modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 8.dp), verticalAlignment = Alignment.CenterVertically) {
                     OutlinedTextField(
                         value = newName, onValueChange = { newName = it }, singleLine = true,
-                        placeholder = { Text("Nouvelle playlist…", color = colors.textFaint) },
+                        placeholder = { Text(tr("ctx.newPlaylist"), color = colors.textFaint) },
                         modifier = Modifier.weight(1f),
                     )
                     Spacer(Modifier.width(8.dp))
@@ -139,7 +145,7 @@ fun TrackMenu(track: Track, ui: UiState, vm: AppViewModel, onDismiss: () -> Unit
                                 vm.createPlaylistWithTrack(newName.trim(), track.trackhash); onDismiss()
                             }
                             .padding(horizontal = 14.dp, vertical = 12.dp),
-                    ) { Icon(Icons.Filled.Add, "Créer", tint = colors.ink, modifier = Modifier.size(20.dp)) }
+                    ) { Icon(Icons.Filled.Add, tr("common.create"), tint = colors.ink, modifier = Modifier.size(20.dp)) }
                 }
             }
         }
@@ -147,13 +153,13 @@ fun TrackMenu(track: Track, ui: UiState, vm: AppViewModel, onDismiss: () -> Unit
 }
 
 @Composable
-private fun MenuDivider() {
+internal fun MenuDivider() {
     val colors = LocalAuralis.current
     Box(Modifier.fillMaxWidth().padding(vertical = 6.dp).height(1.dp).background(colors.line))
 }
 
 @Composable
-private fun MenuRow(icon: ImageVector, label: String, onClick: () -> Unit) {
+internal fun MenuRow(icon: ImageVector, label: String, onClick: () -> Unit) {
     val colors = LocalAuralis.current
     Row(
         Modifier.fillMaxWidth().clip(RoundedCornerShape(10.dp)).clickable { onClick() }

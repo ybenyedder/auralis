@@ -3,16 +3,22 @@ package local.auralis.client.net
 import android.net.Uri
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
+import local.auralis.client.i18n.Messages
 import local.auralis.client.model.AuthResult
+import local.auralis.client.model.BlendResult
 import local.auralis.client.model.DownloadJobDto
 import local.auralis.client.model.LibrarySnapshot
 import local.auralis.client.model.ListeningStats
 import local.auralis.client.model.LyricsResult
 import local.auralis.client.model.OnlineTrack
 import local.auralis.client.model.RecapResult
+import local.auralis.client.model.RecoTrack
 import local.auralis.client.model.RecommendResult
+import local.auralis.client.model.ScanProgress
 import local.auralis.client.model.SearchResult
 import local.auralis.client.model.UserState
+import local.auralis.client.model.objects
+import local.auralis.client.model.stringArray
 import okhttp3.HttpUrl.Companion.toHttpUrlOrNull
 import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.OkHttpClient
@@ -110,10 +116,10 @@ class AuralisApi {
                         )
                     } else {
                         AuthResult(false, null, null, false, false,
-                            json.optString("error", "Identifiant ou mot de passe incorrect"))
+                            json.optString("error", Messages.t("auth.wrongCredentials")))
                     }
                 }
-            }.getOrElse { AuthResult(false, null, null, false, false, "Serveur injoignable") }
+            }.getOrElse { AuthResult(false, null, null, false, false, Messages.t("toast.serverUnreachable")) }
         }
 
     /** Account list for the Netflix-style profile picker. Falls back to ["admin"]
@@ -141,6 +147,44 @@ class AuralisApi {
     /** Personalised "Made for you" mix from the server taste engine. */
     suspend fun recommend(): RecommendResult =
         runCatching { RecommendResult.from(getJson("/api/recommend?limit=120")) }.getOrDefault(RecommendResult.EMPTY)
+
+    // ---- recommendation flavours (web store/reco.ts fetch*) -----------------
+    // All mirror the web fetchers: hashes only on the wire (the caller resolves
+    // them against its library snapshot) and empty results on failure.
+
+    /** Personalised radio around a seed track (web fetchRadio). */
+    suspend fun recommendRadio(
+        seed: String,
+        exclude: List<String> = emptyList(),
+        limit: Int = 25,
+    ): List<RecoTrack> {
+        val qs = StringBuilder("/api/recommend?seed=").append(Uri.encode(seed)).append("&limit=").append(limit)
+        if (exclude.isNotEmpty()) qs.append("&exclude=").append(Uri.encode(exclude.take(200).joinToString(",")))
+        return recoTracks(qs.toString())
+    }
+
+    /** Mood-trajectory radio (web fetchTrajectory) — e.g. winddown / warmup. */
+    suspend fun recommendTrajectory(path: String, limit: Int = 40): List<RecoTrack> =
+        recoTracks("/api/recommend?path=${Uri.encode(path)}&limit=$limit")
+
+    /** "Discover" mix — taste-ranked tracks the user has never played (web fetchDiscovery). */
+    suspend fun recommendDiscovery(limit: Int = 60): List<RecoTrack> =
+        recoTracks("/api/recommend?mode=discovery&limit=$limit")
+
+    /** Household Blend mix with another account (web fetchBlend): the shared mix
+     *  plus its 0..100 compatibility score. */
+    suspend fun recommendBlend(username: String, limit: Int = 80): BlendResult =
+        runCatching { BlendResult.from(getObj("/api/recommend?blend=${Uri.encode(username)}&limit=$limit")) }
+            .getOrDefault(BlendResult.EMPTY)
+
+    /** One `{ tracks: RecoTrack[] }` recommend flavour; empty on failure. */
+    private suspend fun recoTracks(path: String): List<RecoTrack> =
+        runCatching { getObj(path).optJSONArray("tracks")?.objects()?.map { RecoTrack.from(it) } ?: emptyList() }
+            .getOrDefault(emptyList())
+
+    /** Account usernames (Blend shelf) minus nothing — the caller drops itself. */
+    suspend fun accountNames(): List<String> =
+        runCatching { getJson("/api/auth/accounts").stringArray("usernames") }.getOrDefault(emptyList())
 
     /** Monthly mood recap (most recent month with data, or a specific YYYY-MM). */
     suspend fun recap(month: String?): RecapResult = withContext(Dispatchers.IO) {
@@ -213,6 +257,55 @@ class AuralisApi {
             }
         }.getOrDefault(LyricsResult.NONE)
     }
+
+    // ---- lyrics forced alignment (web playbackSlice.alignLyrics) -------------
+
+    /** POST /api/lyrics/<hash>/align — start (or join) the word-by-word karaoke
+     *  alignment job. Returns `{state, message}`; state "ready" = already
+     *  word-by-word, "no-source" = no synced lyrics to align, anything else means
+     *  the detached job is running (poll [lyricsAlignStatus]). */
+    suspend fun lyricsAlignStart(trackhash: String): JSONObject =
+        post("/api/lyrics/${Uri.encode(trackhash)}/align", JSONObject())
+
+    /** GET the same URL — poll the running alignment job's state. */
+    suspend fun lyricsAlignStatus(trackhash: String): JSONObject =
+        getObj("/api/lyrics/${Uri.encode(trackhash)}/align")
+
+    // ---- admin backup + library scan/analysis ------------------------------
+
+    /** POST /api/backup — the streamed SQLite snapshot (admin-only, rate-limited
+     *  3 per 10 min). On failure `error` carries the server's message (or a
+     *  network-error message). */
+    data class BackupResult(val bytes: ByteArray?, val filename: String, val error: String?)
+
+    suspend fun downloadBackup(): BackupResult = withContext(Dispatchers.IO) {
+        val req = authed(Request.Builder().url("$base/api/backup").post("".toRequestBody(JSON)))
+        runCatching {
+            client.newCall(req).execute().use { resp ->
+                val body = resp.body
+                if (!resp.isSuccessful) {
+                    // The rate limit (429) and admin gate answer with {"error": …}.
+                    val err = body?.string()?.let { s ->
+                        runCatching { JSONObject(s) }.getOrNull()?.optString("error")?.takeIf { it.isNotBlank() }
+                    }
+                    return@use BackupResult(null, "", err ?: Messages.t("toast.backupFailed"))
+                }
+                val cd = resp.header("content-disposition") ?: ""
+                val name = Regex("filename=\"([^\"]+)\"").find(cd)?.groupValues?.get(1)
+                    ?: "auralis-backup.db"
+                BackupResult(body?.bytes() ?: ByteArray(0), name, null)
+            }
+        }.getOrElse { BackupResult(null, "", Messages.t("toast.serverUnreachable")) }
+    }
+
+    /** POST /api/library/analyze — start the background mood analysis (admin). */
+    suspend fun analyzeLibrary(): Boolean = post("/api/library/analyze", JSONObject()).let { apiLastOk }
+
+    /** The live `scan` progress object from /api/library (the full snapshot also
+     *  carries it; parsing just the object keeps the poll light). Null on failure. */
+    suspend fun scanProgress(): ScanProgress? = runCatching {
+        getJson("/api/library").optJSONObject("scan")?.let { ScanProgress.from(it) }
+    }.getOrNull()
 
     /** PUT /api/state with an action payload. Returns the response JSON (or empty). */
     suspend fun putState(payload: JSONObject): JSONObject = put("/api/state", payload)

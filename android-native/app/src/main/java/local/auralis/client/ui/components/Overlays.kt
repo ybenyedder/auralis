@@ -42,6 +42,8 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import local.auralis.client.i18n.Messages
+import local.auralis.client.i18n.tr
 import local.auralis.client.ui.AppViewModel
 import local.auralis.client.ui.UiState
 import local.auralis.client.ui.ViewId
@@ -57,9 +59,9 @@ fun CommandPalette(vm: AppViewModel, ui: UiState, onDismiss: () -> Unit) {
     val ql = q.trim().lowercase()
 
     val navItems = listOf(
-        "Accueil" to ViewId.HOME, "Recherche" to ViewId.EXPLORE, "Bibliothèque" to ViewId.LIBRARY,
-        "Favoris" to ViewId.FAVORITES, "Récents" to ViewId.RECENTS, "Dossiers" to ViewId.FOLDERS,
-        "Analyse" to ViewId.INSIGHTS, "Réglages" to ViewId.SETTINGS,
+        tr("nav.home") to ViewId.HOME, tr("search.title") to ViewId.EXPLORE, tr("nav.library") to ViewId.LIBRARY,
+        tr("favorites.title") to ViewId.FAVORITES, tr("recents.title") to ViewId.RECENTS, tr("folders.title") to ViewId.FOLDERS,
+        tr("insights.eyebrow") to ViewId.INSIGHTS, tr("nav.settings") to ViewId.SETTINGS,
     ).filter { ql.isEmpty() || it.first.lowercase().contains(ql) }
 
     val tracks = if (ql.isEmpty()) emptyList() else ui.tracks.filter {
@@ -74,7 +76,7 @@ fun CommandPalette(vm: AppViewModel, ui: UiState, onDismiss: () -> Unit) {
         Column(Modifier.fillMaxSize().statusBarsPadding().padding(12.dp)) {
             OutlinedTextField(
                 value = q, onValueChange = { q = it }, singleLine = true,
-                placeholder = { Text("Aller à…", color = colors.textFaint) },
+                placeholder = { Text(tr("cmd.goTo"), color = colors.textFaint) },
                 modifier = Modifier.fillMaxWidth(),
                 colors = OutlinedTextFieldDefaults.colors(
                     focusedContainerColor = colors.panel, unfocusedContainerColor = colors.panel,
@@ -87,12 +89,12 @@ fun CommandPalette(vm: AppViewModel, ui: UiState, onDismiss: () -> Unit) {
                 Modifier.fillMaxWidth().weight(1f).clip(RoundedCornerShape(14.dp)).background(colors.panel),
             ) {
                 items(navItems) { (label, view) ->
-                    Cmd(label, "Navigation") { vm.navigate(view); onDismiss() }
+                    Cmd(label, tr("cmd.groupNavigation")) { vm.navigate(view); onDismiss() }
                 }
-                items(tracks) { t -> Cmd(t.title, "Titre · ${t.displayArtist}") { vm.playTrack(t); onDismiss() } }
-                items(albums) { a -> Cmd(a.title, "Album · ${a.artistName}") { vm.navigate(ViewId.ALBUM, a.albumhash); onDismiss() } }
-                items(artists) { a -> Cmd(a.name, "Artiste") { vm.navigate(ViewId.ARTIST, a.artisthash); onDismiss() } }
-                items(playlists) { p -> Cmd(p.name, "Playlist") { vm.navigate(ViewId.PLAYLIST, p.id); onDismiss() } }
+                items(tracks) { t -> Cmd(t.title, tr("cmd.trackBy", params = mapOf("artist" to t.displayArtist))) { vm.playTrack(t); onDismiss() } }
+                items(albums) { a -> Cmd(a.title, tr("cmd.albumBy", params = mapOf("artist" to a.artistName))) { vm.navigate(ViewId.ALBUM, a.albumhash); onDismiss() } }
+                items(artists) { a -> Cmd(a.name, tr("common.artistLabel")) { vm.navigate(ViewId.ARTIST, a.artisthash); onDismiss() } }
+                items(playlists) { p -> Cmd(p.name, tr("mobile.playlist")) { vm.navigate(ViewId.PLAYLIST, p.id); onDismiss() } }
             }
         }
     }
@@ -107,12 +109,15 @@ private fun Cmd(title: String, subtitle: String, onClick: () -> Unit) {
     }
 }
 
-// Fullscreen "visualizer" — purely DECORATIVE: the bar heights come from a looping
-// sine animation, not from the audio signal (no audio tap is wired). It is labelled
-// as such in the UI and for accessibility so it isn't mistaken for a real spectrum.
+// Fullscreen "visualizer". When the audio tap is live ([amplitudes], captured from
+// our own ExoPlayer audio session by playback/AudioFx) the bars are driven by the
+// real waveform amplitude; when it is null (device refused the tap) the same look
+// is kept as a purely DECORATIVE looping sine animation — labelled as such in the
+// UI and for accessibility so it isn't mistaken for a real spectrum.
 @Composable
-fun VisualizerOverlay(title: String?, isPlaying: Boolean, onClose: () -> Unit) {
+fun VisualizerOverlay(title: String?, isPlaying: Boolean, amplitudes: FloatArray?, onClose: () -> Unit) {
     val colors = LocalAuralis.current
+    val real = amplitudes != null
     val transition = rememberInfiniteTransition(label = "viz")
     val t by transition.animateFloat(
         0f, 1f, infiniteRepeatable(tween(1400, easing = LinearEasing)), label = "vt",
@@ -120,7 +125,10 @@ fun VisualizerOverlay(title: String?, isPlaying: Boolean, onClose: () -> Unit) {
     val bars = 44
     Box(
         Modifier.fillMaxSize().background(colors.background).systemBarsPadding().clickable { onClose() }
-            .semantics { contentDescription = "Visualiseur décoratif, non synchronisé à l'audio" },
+            .semantics {
+                contentDescription = if (real) Messages.t("visualizer.real")
+                else Messages.t("visualizer.fake")
+            },
     ) {
         Row(
             Modifier.fillMaxWidth().fillMaxHeight(0.6f).align(Alignment.Center).padding(horizontal = 16.dp),
@@ -129,7 +137,11 @@ fun VisualizerOverlay(title: String?, isPlaying: Boolean, onClose: () -> Unit) {
         ) {
             for (i in 0 until bars) {
                 val phase = i * 0.4f
-                val amp = if (isPlaying) (0.5f + 0.5f * sin((t * 6.283f * 2f) + phase) * sin(phase * 1.7f + t * 3f)) else 0.08f
+                val amp = when {
+                    !isPlaying -> 0.08f
+                    amplitudes != null -> amplitudes.getOrElse(i) { 0f }
+                    else -> (0.5f + 0.5f * sin((t * 6.283f * 2f) + phase) * sin(phase * 1.7f + t * 3f))
+                }
                 val frac = (0.06f + 0.94f * amp.coerceIn(0f, 1f))
                 Box(
                     Modifier.weight(1f).fillMaxHeight(frac)
@@ -141,9 +153,9 @@ fun VisualizerOverlay(title: String?, isPlaying: Boolean, onClose: () -> Unit) {
         Column(Modifier.align(Alignment.BottomCenter).padding(bottom = 40.dp), horizontalAlignment = Alignment.CenterHorizontally) {
             Text(title ?: "", color = colors.foreground, fontSize = 15.sp, fontWeight = FontWeight.Bold)
             Spacer(Modifier.height(4.dp))
-            Text("Animation décorative", color = colors.textFaint, fontSize = 11.sp)
+            Text(if (real) tr("visualizer.liveSpectrum") else tr("visualizer.decorative"), color = colors.textFaint, fontSize = 11.sp)
             Spacer(Modifier.height(2.dp))
-            Text("Touchez pour fermer", color = colors.textFaint, fontSize = 11.sp)
+            Text(tr("visualizer.tapToClose"), color = colors.textFaint, fontSize = 11.sp)
         }
     }
 }

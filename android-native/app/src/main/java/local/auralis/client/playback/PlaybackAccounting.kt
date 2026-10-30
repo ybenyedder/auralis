@@ -23,8 +23,10 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import local.auralis.client.i18n.Messages
 import local.auralis.client.data.Prefs
 import local.auralis.client.model.ListeningStats
+import local.auralis.client.model.MoodAffinity
 import local.auralis.client.model.Track
 import local.auralis.client.net.AuralisApi
 import local.auralis.client.sync.SyncManager
@@ -39,9 +41,12 @@ data class AccountingState(
     val stats: ListeningStats = ListeningStats.EMPTY,
     val forYou: List<Track> = emptyList(),
     val recoScores: Map<String, Double> = emptyMap(),
+    /** The profile's learned mood affinities (drives the "Pour votre humeur" shelf). */
+    val moodAffinities: List<MoodAffinity> = emptyList(),
     val sleepActive: Boolean = false,
     /** SystemClock.elapsedRealtime() based (monotonic — wall-clock NTP jumps during
-     *  playback used to fire the timer early/late). Not display-formatted anywhere. */
+     *  playback used to fire the timer early/late). The UI renders it as a live
+     *  "m:ss" countdown (rememberSleepCountdown), not as a wall-clock time. */
     val sleepEndsAt: Long? = null,
     val sleepEndOfTrack: Boolean = false,
 )
@@ -248,9 +253,9 @@ class PlaybackAccounting private constructor(private val context: Context) {
             // can't spin the queue forever.
             val c = controller ?: return
             errorStreak += 1
-            if (errorStreak == 1) _messages.tryEmit("Piste illisible — passage à la suivante")
+            if (errorStreak == 1) _messages.tryEmit(Messages.t("toast.trackUnreadable"))
             if (errorStreak >= 6) {
-                _messages.tryEmit("Lecture interrompue : trop d'erreurs d'affilée")
+                _messages.tryEmit(Messages.t("toast.playbackInterrupted"))
                 return
             }
             if (c.hasNextMediaItem()) {
@@ -291,7 +296,7 @@ class PlaybackAccounting private constructor(private val context: Context) {
         if (_state.value.sleepEndOfTrack) {
             c?.pause()
             _state.update { it.copy(sleepActive = false, sleepEndOfTrack = false, sleepEndsAt = null) }
-            _messages.tryEmit("Lecture arrêtée (fin de titre)")
+            _messages.tryEmit(Messages.t("toast.stoppedEndOfTrack"))
         }
 
         armedFor = id
@@ -333,7 +338,7 @@ class PlaybackAccounting private constructor(private val context: Context) {
             if (s.sleepActive && endsAt != null && SystemClock.elapsedRealtime() >= endsAt) {
                 c.pause()
                 _state.update { it.copy(sleepActive = false, sleepEndsAt = null, sleepEndOfTrack = false) }
-                _messages.tryEmit("Lecture arrêtée (minuteur)")
+                _messages.tryEmit(Messages.t("toast.stoppedTimer"))
             }
 
             if (++tick % 5 == 0) persistSession(c)
@@ -398,7 +403,7 @@ class PlaybackAccounting private constructor(private val context: Context) {
             val milestones = listOf(3, 7, 14, 30, 60, 100, 200, 365)
             val last = prefs.lastMilestone()
             val top = milestones.filter { it <= streak }.maxOrNull() ?: 0
-            if (top > last) { prefs.setMilestone(top); _messages.tryEmit("🔥 $top jours d'affilée !") }
+            if (top > last) { prefs.setMilestone(top); _messages.tryEmit("🔥 " + Messages.t("toast.streakCongrats", params = mapOf("count" to top))) }
             else if (top < last) prefs.setMilestone(top)
         }
     }
@@ -416,7 +421,7 @@ class PlaybackAccounting private constructor(private val context: Context) {
         val tracks = res.forYou.mapNotNull { library[it.trackhash] }
             .filter { it.trackhash !in disliked }
             .take(12)
-        _state.update { it.copy(forYou = tracks, recoScores = scores) }
+        _state.update { it.copy(forYou = tracks, recoScores = scores, moodAffinities = res.moods) }
     }
 
     // ---- endless autoplay (queue continuation) ------------------------------

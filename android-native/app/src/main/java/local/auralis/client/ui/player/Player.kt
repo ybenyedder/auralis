@@ -34,6 +34,7 @@ import androidx.compose.material.icons.filled.Favorite
 import androidx.compose.material.icons.filled.FavoriteBorder
 import androidx.compose.material.icons.filled.GraphicEq
 import androidx.compose.material.icons.filled.KeyboardArrowDown
+import androidx.compose.material.icons.filled.KeyboardArrowUp
 import androidx.compose.material.icons.filled.MoreHoriz
 import androidx.compose.material.icons.filled.Pause
 import androidx.compose.material.icons.filled.PlayArrow
@@ -43,6 +44,7 @@ import androidx.compose.material.icons.filled.RepeatOne
 import androidx.compose.material.icons.filled.SkipNext
 import androidx.compose.material.icons.filled.SkipPrevious
 import androidx.compose.material.icons.filled.Lyrics
+import androidx.compose.material.icons.filled.Share
 import androidx.compose.material.icons.filled.Shuffle
 import androidx.compose.material.icons.filled.VolumeDown
 import androidx.compose.material.icons.filled.VolumeUp
@@ -67,6 +69,8 @@ import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.buildAnnotatedString
@@ -78,6 +82,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import local.auralis.client.i18n.tr
 import local.auralis.client.model.LyricsResult
 import local.auralis.client.model.Track
 import local.auralis.client.playback.PlaybackSnapshot
@@ -88,6 +93,7 @@ import local.auralis.client.ui.components.EllipsisCircleIcon
 import local.auralis.client.ui.components.NetworkImage
 import local.auralis.client.ui.components.amFrosted
 import local.auralis.client.ui.components.formatDuration
+import local.auralis.client.ui.components.rememberSleepCountdown
 import local.auralis.client.ui.theme.AMType
 import local.auralis.client.ui.theme.LocalApiUrl
 import local.auralis.client.ui.theme.LocalAuralis
@@ -137,12 +143,12 @@ fun MiniPlayer(track: Track, playback: PlaybackSnapshot, positionMs: Long, vm: A
             }
             Icon(
                 if (playback.isPlaying) Icons.Filled.Pause else Icons.Filled.PlayArrow,
-                "Lecture", tint = colors.foreground,
+                tr("mobile.play"), tint = colors.foreground,
                 modifier = Modifier.size(30.dp).clickable { vm.togglePlay() },
             )
             Spacer(Modifier.width(14.dp))
             Icon(
-                Icons.Filled.SkipNext, "Suivant", tint = colors.foreground,
+                Icons.Filled.SkipNext, tr("player.next"), tint = colors.foreground,
                 modifier = Modifier.size(26.dp).clickable { vm.next() },
             )
         }
@@ -232,16 +238,16 @@ fun FullscreenPlayer(
         ) {
             // Top bar: dismiss chevron · view label · track menu.
             Row(Modifier.fillMaxWidth().padding(vertical = 10.dp), verticalAlignment = Alignment.CenterVertically) {
-                Icon(Icons.Filled.KeyboardArrowDown, "Réduire", tint = colors.foreground,
+                Icon(Icons.Filled.KeyboardArrowDown, tr("player.minimize"), tint = colors.foreground,
                     modifier = Modifier.size(30.dp).clickable { onClose() })
                 Spacer(Modifier.weight(1f))
                 Text(
-                    if (showLyrics) "Paroles" else "Lecture",
+                    if (showLyrics) tr("player.lyrics") else tr("mobile.play"),
                     color = colors.textMuted, style = AMType.Caption1,
                     fontWeight = FontWeight.SemiBold, letterSpacing = 1.sp,
                 )
                 Spacer(Modifier.weight(1f))
-                Icon(EllipsisCircleIcon, "Options du titre", tint = colors.foreground,
+                Icon(EllipsisCircleIcon, tr("player.trackOptions"), tint = colors.foreground,
                     modifier = Modifier.size(26.dp).clickable { vm.openTrackMenu(track) })
             }
 
@@ -287,8 +293,13 @@ fun FullscreenPlayer(
                     Text(track.displayArtist, color = colors.accent, style = AMType.Title3, fontWeight = FontWeight.Normal, maxLines = 1, overflow = TextOverflow.Ellipsis)
                 }
                 Icon(
+                    Icons.Filled.Share, tr("player.share"), tint = colors.textMuted,
+                    modifier = Modifier.size(24.dp).clickable { vm.shareTrack(track) },
+                )
+                Spacer(Modifier.width(14.dp))
+                Icon(
                     if (vm.isFavorite(track.trackhash)) Icons.Filled.Favorite else Icons.Filled.FavoriteBorder,
-                    "Favori", tint = if (vm.isFavorite(track.trackhash)) colors.accent else colors.textMuted,
+                    tr("common.favoriteAria"), tint = if (vm.isFavorite(track.trackhash)) colors.accent else colors.textMuted,
                     modifier = Modifier.size(26.dp).clickable { vm.toggleFavorite(track.trackhash) },
                 )
             }
@@ -318,50 +329,59 @@ fun FullscreenPlayer(
                 horizontalArrangement = Arrangement.SpaceEvenly,
                 verticalAlignment = Alignment.CenterVertically,
             ) {
-                Icon(Icons.Filled.Shuffle, "Aléatoire", tint = if (playback.shuffle) colors.accent else colors.textMuted,
+                Icon(Icons.Filled.Shuffle, tr("common.shuffle"), tint = if (playback.shuffle) colors.accent else colors.textMuted,
                     modifier = Modifier.size(26.dp).clickable { vm.toggleShuffle() })
-                Icon(Icons.Filled.SkipPrevious, "Précédent", tint = colors.foreground,
+                Icon(Icons.Filled.SkipPrevious, tr("player.previous"), tint = colors.foreground,
                     modifier = Modifier.size(46.dp).clickable { vm.prev() })
                 Icon(
                     if (playback.isPlaying) Icons.Filled.Pause else Icons.Filled.PlayArrow,
-                    "Lecture", tint = colors.foreground,
+                    tr("mobile.play"), tint = colors.foreground,
                     modifier = Modifier.size(72.dp).clickable { vm.togglePlay() },
                 )
-                Icon(Icons.Filled.SkipNext, "Suivant", tint = colors.foreground,
+                Icon(Icons.Filled.SkipNext, tr("player.next"), tint = colors.foreground,
                     modifier = Modifier.size(46.dp).clickable { vm.next() })
                 Icon(
                     if (playback.repeat == "one") Icons.Filled.RepeatOne else Icons.Filled.Repeat,
-                    "Répéter", tint = if (playback.repeat != "off") colors.accent else colors.textMuted,
+                    tr("player.repeat"), tint = if (playback.repeat != "off") colors.accent else colors.textMuted,
                     modifier = Modifier.size(26.dp).clickable { vm.cycleRepeat() },
                 )
             }
 
             // Volume — Apple Music's speaker-flanked slider.
             Row(Modifier.fillMaxWidth().padding(top = 4.dp), verticalAlignment = Alignment.CenterVertically) {
-                Icon(Icons.Filled.VolumeDown, "Volume minimum", tint = colors.textMuted, modifier = Modifier.size(16.dp))
+                Icon(Icons.Filled.VolumeDown, tr("player.volumeMin"), tint = colors.textMuted, modifier = Modifier.size(16.dp))
                 AMSlider(
                     value = ui.volume,
                     onScrub = { vm.setVolume(it) },
                     onCommit = { vm.setVolume(it) },
                     modifier = Modifier.weight(1f).padding(horizontal = 8.dp),
                 )
-                Icon(Icons.Filled.VolumeUp, "Volume maximum", tint = colors.textMuted, modifier = Modifier.size(16.dp))
+                Icon(Icons.Filled.VolumeUp, tr("player.volumeMax"), tint = colors.textMuted, modifier = Modifier.size(16.dp))
             }
 
             // Bottom actions — lyrics · queue · sleep timer · visualizer.
             Row(
                 Modifier.fillMaxWidth().padding(top = 4.dp, bottom = 4.dp),
                 horizontalArrangement = Arrangement.SpaceEvenly,
+                verticalAlignment = Alignment.CenterVertically,
             ) {
-                Icon(Icons.Filled.Lyrics, "Paroles", tint = if (showLyrics) colors.accent else colors.textMuted,
+                Icon(Icons.Filled.Lyrics, tr("player.lyrics"), tint = if (showLyrics) colors.accent else colors.textMuted,
                     modifier = Modifier.size(24.dp).clickable { showLyrics = !showLyrics; showQueue = false })
-                Icon(Icons.Filled.QueueMusic, "File", tint = if (showQueue) colors.accent else colors.textMuted,
+                Icon(Icons.Filled.QueueMusic, tr("player.queue"), tint = if (showQueue) colors.accent else colors.textMuted,
                     modifier = Modifier.size(24.dp).clickable { showQueue = !showQueue; showLyrics = false })
-                Icon(Icons.Filled.Bedtime, "Minuteur de veille", tint = if (ui.sleepActive) colors.accent else colors.textMuted,
-                    modifier = Modifier.size(22.dp).clickable {
-                        if (ui.sleepActive) vm.cancelSleepTimer() else showSleep = !showSleep
-                    })
-                Icon(Icons.Filled.GraphicEq, "Visualiseur", tint = colors.textMuted,
+                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                    Icon(Icons.Filled.Bedtime, tr("player.sleep"), tint = if (ui.sleepActive) colors.accent else colors.textMuted,
+                        modifier = Modifier.size(22.dp).clickable {
+                            if (ui.sleepActive) vm.cancelSleepTimer() else showSleep = !showSleep
+                        })
+                    // Live "m:ss" countdown while a timed sleep is armed; tapping the
+                    // icon cancels (the "Fin du titre" mode has no countdown).
+                    val remaining = rememberSleepCountdown(ui.sleepEndsAt)
+                    if (ui.sleepActive && remaining.isNotEmpty()) {
+                        Text(remaining, color = colors.accent, style = AMType.Caption2)
+                    }
+                }
+                Icon(Icons.Filled.GraphicEq, tr("player.visualizer"), tint = colors.textMuted,
                     modifier = Modifier.size(24.dp).clickable { vm.toggleVisualizer() })
             }
 
@@ -369,17 +389,20 @@ fun FullscreenPlayer(
             if (showSleep && !ui.sleepActive) {
                 Column(Modifier.fillMaxWidth().padding(bottom = 6.dp)) {
                     if (ui.sleepEndOfTrack) {
-                        Text("Veille : fin du titre", color = colors.textMuted, style = AMType.Caption1)
+                        Text(tr("player.sleepEndOfTrack"), color = colors.textMuted, style = AMType.Caption1)
                     }
-                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                        listOf(15, 30, 45, 60).forEach { m ->
+                    androidx.compose.foundation.layout.FlowRow(
+                        Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(6.dp),
+                    ) {
+                        listOf(5, 10, 15, 30, 45, 60).forEach { m ->
                             Box(
                                 Modifier
                                     .clip(CircleShape)
                                     .background(colors.panel2.copy(alpha = 0.7f))
                                     .clickable { vm.startSleepTimer(m); showSleep = false }
                                     .padding(horizontal = 14.dp, vertical = 7.dp),
-                            ) { Text("${m} min", color = colors.foreground, style = AMType.Caption1) }
+                            ) { Text(tr("common.minutesShort", params = mapOf("n" to m)), color = colors.foreground, style = AMType.Caption1) }
                         }
                         Box(
                             Modifier
@@ -387,7 +410,7 @@ fun FullscreenPlayer(
                                 .background(colors.panel2.copy(alpha = 0.7f))
                                 .clickable { vm.sleepAfterTrack(); showSleep = false }
                                 .padding(horizontal = 14.dp, vertical = 7.dp),
-                        ) { Text("Fin du titre", color = colors.foreground, style = AMType.Caption1) }
+                        ) { Text(tr("player.endOfTrack"), color = colors.foreground, style = AMType.Caption1) }
                     }
                 }
             }
@@ -490,16 +513,16 @@ private fun LyricsPane(ui: UiState, vm: AppViewModel, positionMs: Long, track: T
     }
     if (ui.lyricsLoading) {
         Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-            Text("Chargement des paroles…", color = colors.textMuted, style = AMType.Subhead)
+            Text(tr("lyrics.loading"), color = colors.textMuted, style = AMType.Subhead)
         }
         return
     }
     if (lyrics.lines.isEmpty()) {
         Column(Modifier.fillMaxSize(), verticalArrangement = Arrangement.Center, horizontalAlignment = Alignment.CenterHorizontally) {
-            Text(if (lyrics.status == "instrumental") "Instrumental" else "Aucune parole", color = colors.textMuted, style = AMType.Title3)
+            Text(if (lyrics.status == "instrumental") tr("lyrics.instrumental") else tr("lyrics.noLyrics"), color = colors.textMuted, style = AMType.Title3)
             Spacer(Modifier.height(10.dp))
             Box(Modifier.clip(CircleShape).background(colors.panel2.copy(alpha = 0.7f)).clickable { vm.fetchLyrics(true) }.padding(horizontal = 16.dp, vertical = 8.dp)) {
-                Text("Chercher en ligne", color = colors.foreground, style = AMType.Subhead)
+                Text(tr("lyrics.searchOnline"), color = colors.foreground, style = AMType.Subhead)
             }
         }
         return
@@ -518,16 +541,39 @@ private fun LyricsPane(ui: UiState, vm: AppViewModel, positionMs: Long, track: T
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 val kOn = ui.karaoke
+                val alignLabel = if (ui.lyricsAligning) tr("lyrics.aligning") else tr("lyrics.wordByWord")
+                val alignDesc = tr("lyrics.alignTitle")
+                val delayDesc = tr("lyrics.delay")
+                val resetDesc = tr("lyrics.resetOffset")
+                val advanceDesc = tr("lyrics.advance")
                 Box(
                     Modifier.clip(CircleShape).background(if (kOn) colors.accent else colors.panel2.copy(alpha = 0.7f))
                         .clickable { vm.toggleKaraoke() }.padding(horizontal = 12.dp, vertical = 6.dp),
-                ) { Text("Karaoké", color = if (kOn) colors.ink else colors.textMuted, style = AMType.Caption1, fontWeight = FontWeight.SemiBold) }
+                ) { Text(tr("lyrics.karaoke"), color = if (kOn) colors.ink else colors.textMuted, style = AMType.Caption1, fontWeight = FontWeight.SemiBold) }
+                Spacer(Modifier.width(10.dp))
+                // Forced word-by-word alignment (web GenerateWordByWord): the heavy
+                // job runs server-side and the view model polls it.
+                Box(
+                    Modifier.clip(CircleShape).background(colors.panel2.copy(alpha = 0.7f))
+                        .clickable(enabled = !ui.lyricsAligning) { vm.alignLyrics() }
+                        .padding(horizontal = 12.dp, vertical = 6.dp),
+                ) {
+                    Text(
+                        alignLabel, color = colors.textMuted, style = AMType.Caption1, fontWeight = FontWeight.SemiBold,
+                        modifier = Modifier.semantics { contentDescription = alignDesc },
+                    )
+                }
                 Spacer(Modifier.width(14.dp))
                 Text("−", color = colors.foreground, fontSize = 20.sp,
-                    modifier = Modifier.clickable { vm.adjustLyricsOffset(-0.1f) }.padding(horizontal = 8.dp))
-                Text("%+.1fs".format(ui.lyricsOffset), color = colors.textMuted, style = AMType.Caption1)
+                    modifier = Modifier.clickable { vm.adjustLyricsOffset(-0.1f) }
+                        .semantics { contentDescription = delayDesc }.padding(horizontal = 8.dp))
+                // The offset chip resets to the default on tap (web SyncOffset).
+                Text("%+.1fs".format(ui.lyricsOffset), color = colors.textMuted, style = AMType.Caption1,
+                    modifier = Modifier.clickable { vm.resetLyricsOffset() }
+                        .semantics { contentDescription = resetDesc })
                 Text("+", color = colors.foreground, fontSize = 20.sp,
-                    modifier = Modifier.clickable { vm.adjustLyricsOffset(0.1f) }.padding(horizontal = 8.dp))
+                    modifier = Modifier.clickable { vm.adjustLyricsOffset(0.1f) }
+                        .semantics { contentDescription = advanceDesc }.padding(horizontal = 8.dp))
             }
         }
         LazyColumn(state = listState, modifier = Modifier.weight(1f).fillMaxWidth()) {
@@ -584,9 +630,14 @@ private fun QueuePane(playback: PlaybackSnapshot, ui: UiState, vm: AppViewModel)
         ui.trackByHash[hash]?.let { realIndex to it }
     }
     Column(Modifier.fillMaxSize()) {
-        Row(Modifier.fillMaxWidth().padding(vertical = 8.dp)) {
-            Text("File d'attente", color = colors.foreground, style = AMType.Title3, modifier = Modifier.weight(1f))
-            Text("Vider", color = colors.accent, style = AMType.Footnote, modifier = Modifier.clickable { vm.clearQueue() })
+        Row(Modifier.fillMaxWidth().padding(vertical = 8.dp), verticalAlignment = Alignment.CenterVertically) {
+            Text(tr("mobile.queue"), color = colors.foreground, style = AMType.Title3, modifier = Modifier.weight(1f))
+            // Web QueueList shortcut: shuffle the WHOLE library into the queue.
+            Text(
+                tr("player.shuffle"), color = colors.textMuted, style = AMType.Footnote,
+                modifier = Modifier.clickable { vm.playLibraryShuffled() }.padding(horizontal = 10.dp),
+            )
+            Text(tr("queue.clear"), color = colors.accent, style = AMType.Footnote, modifier = Modifier.clickable { vm.clearQueue() })
         }
         LazyColumn(Modifier.fillMaxSize()) {
             itemsIndexed(tracks) { _, (realIndex, t) ->
@@ -601,8 +652,22 @@ private fun QueuePane(playback: PlaybackSnapshot, ui: UiState, vm: AppViewModel)
                         Text(t.title, color = if (isCurrent) colors.accent else colors.foreground, style = AMType.Subhead, fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis)
                         Text(t.displayArtist, color = colors.textMuted, style = AMType.Caption1, maxLines = 1, overflow = TextOverflow.Ellipsis)
                     }
+                    // Per-row reorder (web QueueList move up/down).
+                    Icon(
+                        Icons.Filled.KeyboardArrowUp, tr("queue.moveUp"), tint = colors.textFaint,
+                        modifier = Modifier.size(24.dp)
+                            .clickable(enabled = realIndex > 0) { vm.moveQueueItem(realIndex, realIndex - 1) },
+                    )
+                    Icon(
+                        Icons.Filled.KeyboardArrowDown, tr("queue.moveDown"), tint = colors.textFaint,
+                        modifier = Modifier.size(24.dp).clickable(enabled = realIndex < tracks.size - 1) {
+                            vm.moveQueueItem(realIndex, realIndex + 1)
+                        },
+                    )
                     if (!isCurrent) {
                         Text("✕", color = colors.textFaint, fontSize = 16.sp, modifier = Modifier.clickable { vm.removeFromQueue(realIndex) }.padding(8.dp))
+                    } else {
+                        Spacer(Modifier.width(8.dp))
                     }
                 }
             }

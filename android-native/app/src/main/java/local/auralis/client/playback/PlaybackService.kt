@@ -8,6 +8,7 @@ import androidx.media3.common.AudioAttributes
 import androidx.media3.common.C
 import androidx.media3.common.MediaItem
 import androidx.media3.common.MediaMetadata
+import androidx.media3.common.Player
 import androidx.media3.database.StandaloneDatabaseProvider
 import androidx.media3.datasource.DataSource
 import androidx.media3.datasource.DataSpec
@@ -18,6 +19,7 @@ import androidx.media3.datasource.cache.CacheKeyFactory
 import androidx.media3.datasource.cache.LeastRecentlyUsedCacheEvictor
 import androidx.media3.datasource.cache.SimpleCache
 import androidx.media3.exoplayer.ExoPlayer
+import local.auralis.client.i18n.Messages
 import androidx.media3.exoplayer.source.DefaultMediaSourceFactory
 import androidx.media3.session.LibraryResult
 import androidx.media3.session.MediaLibraryService
@@ -74,6 +76,15 @@ class PlaybackService : MediaLibraryService() {
             // scrobbles it) keeps running through Doze on flaky Wi-Fi.
             .setWakeMode(C.WAKE_MODE_NETWORK)
             .build()
+        // Publish the audio session id to the process-wide effects chain (equalizer
+        // / LoudnessEnhancer / visualizer tap). The id is only valid once the player
+        // has prepared, so it is re-read on every event; AudioFx re-attaches its
+        // effects when it actually changes.
+        player.addListener(object : Player.Listener {
+            override fun onEvents(p: Player, events: Player.Events) {
+                AudioFx.onAudioSession(player.audioSessionId)
+            }
+        })
         // Tapping the media notification / lock-screen card brings the native app to
         // the front (singleTask + SINGLE_TOP reuses the existing task).
         val openApp = PendingIntent.getActivity(
@@ -98,6 +109,7 @@ class PlaybackService : MediaLibraryService() {
 
     override fun onDestroy() {
         scope.cancel()
+        AudioFx.releaseAll()
         session?.run {
             player.release()
             release()
@@ -151,9 +163,9 @@ class PlaybackService : MediaLibraryService() {
                 try {
                     val items: List<MediaItem> = if (parentId == ROOT) {
                         listOf(
-                            browsable(CAT_FORYOU, "Fait pour vous"),
-                            browsable(CAT_FAVORITES, "Favoris"),
-                            browsable(CAT_RECENTS, "Récents"),
+                            browsable(CAT_FORYOU, Messages.t("home.forYou")),
+                            browsable(CAT_FAVORITES, Messages.t("favorites.title")),
+                            browsable(CAT_RECENTS, Messages.t("recents.title")),
                         )
                     } else {
                         catalog.ensureLoaded()

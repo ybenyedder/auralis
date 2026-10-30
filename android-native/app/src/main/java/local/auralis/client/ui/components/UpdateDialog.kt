@@ -15,6 +15,8 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import local.auralis.client.i18n.Messages
+import local.auralis.client.i18n.tr
 import local.auralis.client.ui.theme.LocalAuralis
 import local.auralis.client.update.UpdateInfo
 
@@ -40,10 +42,10 @@ fun UpdateDialog(
         titleContentColor = colors.foreground,
         textContentColor = colors.textMuted,
         icon = { Icon(Icons.Filled.Download, contentDescription = null, tint = colors.accent) },
-        title = { Text("Mise à jour disponible") },
+        title = { Text(tr("update.title")) },
         text = {
             Column {
-                Text("Auralis ${info.version} est disponible.")
+                Text(tr("update.available", params = mapOf("version" to info.version)))
                 if (notes.isNotEmpty()) {
                     Spacer(Modifier.height(10.dp))
                     Text(notes, color = colors.textMuted, fontSize = 13.sp)
@@ -57,18 +59,18 @@ fun UpdateDialog(
                         trackColor = colors.background,
                     )
                     Spacer(Modifier.height(6.dp))
-                    Text("Téléchargement… ${(progress * 100).toInt()} %", color = colors.textMuted, fontSize = 12.sp)
+                    Text(tr("update.downloadProgress", params = mapOf("progress" to (progress * 100).toInt())), color = colors.textMuted, fontSize = 12.sp)
                 }
             }
         },
         confirmButton = {
             TextButton(onClick = onInstall, enabled = !downloading) {
-                Text(if (downloading) "Téléchargement…" else "Installer", color = colors.accent)
+                Text(if (downloading) tr("update.downloading") else tr("update.install"), color = colors.accent)
             }
         },
         dismissButton = {
             TextButton(onClick = onDismiss, enabled = !downloading) {
-                Text("Plus tard", color = colors.textMuted)
+                Text(tr("donate.later"), color = colors.textMuted)
             }
         },
     )

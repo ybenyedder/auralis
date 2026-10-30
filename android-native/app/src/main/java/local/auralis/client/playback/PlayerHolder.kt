@@ -3,6 +3,7 @@ package local.auralis.client.playback
 import android.content.ComponentName
 import android.content.Context
 import android.net.Uri
+import android.os.SystemClock
 import androidx.core.content.ContextCompat
 import androidx.media3.common.MediaItem
 import androidx.media3.common.MediaMetadata
@@ -11,6 +12,7 @@ import androidx.media3.session.MediaController
 import androidx.media3.session.SessionToken
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.delay
@@ -55,7 +57,20 @@ class PlayerHolder(
     // while the UI showed the saved values. connect() replays these once bound.
     private var desiredShuffle: Boolean? = null
     private var desiredRepeat: String? = null
-    private var desiredVolume: Float? = null
+
+    // The volume chain (PlaybackGains.combinedVolume): user volume × the ≤1 half
+    // of volume normalization × the crossfade fade-in envelope. Every piece is
+    // remembered so a change to one re-applies the whole product, and the fade
+    // ramp multiplies over whatever the user volume currently is.
+    private var userVolume = 1f
+    private var normFactor = 1f
+    private var fadeEnvelope = 1f
+    private var fadeJob: Job? = null
+    private var lastFadeId: String? = null
+
+    /** Fade-in duration (seconds) applied at each track transition; 0 = instant.
+     *  Pushed from the "Fondu enchaîné" setting (web crossfade, 0/3/6/12 s). */
+    var crossfadeSeconds: Float = 0f
 
     private val _snapshot = MutableStateFlow(PlaybackSnapshot())
     val snapshot: StateFlow<PlaybackSnapshot> = _snapshot
@@ -75,7 +90,13 @@ class PlayerHolder(
         }
 
         override fun onMediaItemTransition(mediaItem: MediaItem?, reason: Int) {
-            onTrackChanged?.invoke(mediaItem?.mediaId, reason)
+            val id = mediaItem?.mediaId
+            // Crossfade: fade IN on a genuine track change (not a repeat-one
+            // re-select) — the web's fadeInGain at each track start. Pause/seek
+            // never retrigger it: only transitions do.
+            if (id != null && id != lastFadeId) startFadeIn(crossfadeSeconds)
+            lastFadeId = id
+            onTrackChanged?.invoke(id, reason)
         }
     }
 
@@ -110,7 +131,7 @@ class PlayerHolder(
     private fun applyDesired(c: MediaController) {
         desiredRepeat?.let { c.repeatMode = repeatModeOf(it) }
         desiredShuffle?.let { c.shuffleModeEnabled = it }
-        desiredVolume?.let { c.volume = it.coerceIn(0f, 1f) }
+        applyVolume()
     }
 
     fun release() {
@@ -216,6 +237,35 @@ class PlayerHolder(
         val c = controller ?: return
         if (index in 0 until c.mediaItemCount && index != c.currentMediaItemIndex) c.removeMediaItem(index)
     }
+
+    /** Move one queue item (web queueSlice.reorderQueue). The controller keeps the
+     *  current media item playing — its index follows the move. */
+    fun moveMediaItem(from: Int, to: Int) {
+        val c = controller ?: return
+        if (from == to || from !in 0 until c.mediaItemCount || to !in 0 until c.mediaItemCount) return
+        c.moveMediaItem(from, to)
+        pushSnapshot()
+    }
+
+    /** Append many tracks in ONE controller write (web addTracksToQueueEnd). */
+    fun addTracksToEnd(tracks: List<Track>) {
+        val c = controller ?: return
+        if (tracks.isEmpty()) return
+        if (c.mediaItemCount == 0) { playTracks(tracks, 0); return }
+        c.addMediaItems(tracks.map { it.toMediaItem(api) })
+    }
+
+    /** Replace the queue wholesale, keeping position + play state — the undo path
+     *  of "Vider" (web clearQueue's snapshot restore). */
+    fun restoreQueue(tracks: List<Track>, startIndex: Int, positionMs: Long, playing: Boolean) {
+        val c = controller ?: return
+        if (tracks.isEmpty()) return
+        c.setMediaItems(tracks.map { it.toMediaItem(api) }, startIndex.coerceIn(0, tracks.lastIndex), positionMs.coerceAtLeast(0L))
+        c.prepare()
+        c.playWhenReady = playing
+        pushSnapshot()
+    }
+
     fun clearQueueExceptCurrent() {
         val c = controller ?: return
         val keep = c.currentMediaItemIndex
@@ -234,7 +284,46 @@ class PlayerHolder(
             },
         )
     }
-    fun setVolume(v: Float) { val vol = v.coerceIn(0f, 1f); desiredVolume = vol; controller?.volume = vol }
+    // ---- volume / gain chain -------------------------------------------------
+
+    /** The user's volume slider value (0..1) — one factor of the gain chain. */
+    fun setVolume(v: Float) {
+        userVolume = v.coerceIn(0f, 1f)
+        applyVolume()
+    }
+
+    /** The ≤1 half of volume normalization (PlaybackGains.volumeFactor), or the
+     *  full factor when the caller couldn't use the LoudnessEnhancer boost stage. */
+    fun setNormalizationFactor(factor: Float) {
+        normFactor = factor.coerceAtLeast(0f)
+        applyVolume()
+    }
+
+    /** Fade the gain in from ~0 to the target over [seconds] at each track start —
+     *  the web's fadeInGain (scaled by the crossfade setting, no hard starts).
+     *  The envelope multiplies over the user volume, so slider moves mid-fade just
+     *  rescale it — robust across pause/seek, which never retrigger the ramp. */
+    private fun startFadeIn(seconds: Float) {
+        if (seconds <= 0f) return // crossfade off — plain instant transition
+        fadeJob?.cancel()
+        fadeJob = scope.launch {
+            val start = SystemClock.elapsedRealtime()
+            val durMs = (seconds * 1000f).toLong().coerceAtLeast(1L)
+            fadeEnvelope = 0f
+            applyVolume()
+            while (fadeEnvelope < 1f) {
+                delay(50)
+                fadeEnvelope = ((SystemClock.elapsedRealtime() - start).toFloat() / durMs).coerceIn(0f, 1f)
+                applyVolume()
+            }
+        }
+    }
+
+    private fun applyVolume() {
+        val v = PlaybackGains.combinedVolume(userVolume, normFactor, fadeEnvelope)
+        controller?.volume = v
+    }
+
     fun stop() { controller?.stop() }
 }
 

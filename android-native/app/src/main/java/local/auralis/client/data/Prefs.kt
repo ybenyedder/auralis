@@ -10,7 +10,6 @@ import androidx.datastore.preferences.core.intPreferencesKey
 import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
 import kotlinx.coroutines.flow.first
-import kotlinx.coroutines.flow.map
 
 private val Context.dataStore: DataStore<Preferences> by preferencesDataStore(name = "auralis")
 
@@ -30,6 +29,15 @@ class Prefs(context: Context) {
         val autoplay: Boolean,
         val karaoke: Boolean,
         val lyricsOffset: Float,
+        val normalization: String,
+        val crossfade: Int,
+        val eqEnabled: Boolean,
+        val eqPreset: String,
+        val eqBands: List<Float>,
+        /** UI language: "fr" (default) | "en". */
+        val locale: String = "fr",
+        /** Appearance mode: "dark" | "light" | "auto" (system). */
+        val theme: String = "auto",
     )
 
     suspend fun load(): Snapshot {
@@ -44,6 +52,13 @@ class Prefs(context: Context) {
             autoplay = p[AUTOPLAY] ?: true,
             karaoke = p[KARAOKE] ?: true,
             lyricsOffset = p[LYRICS_OFFSET] ?: 0.15f,
+            normalization = p[NORMALIZATION] ?: "track",
+            crossfade = p[CROSSFADE] ?: 0,
+            eqEnabled = p[EQ_ENABLED] ?: true,
+            eqPreset = p[EQ_PRESET] ?: "flat",
+            eqBands = parseEqBands(p[EQ_BANDS]),
+            locale = p[LOCALE] ?: "fr",
+            theme = p[THEME] ?: "auto",
         )
     }
 
@@ -69,6 +84,11 @@ class Prefs(context: Context) {
         autoplay: Boolean? = null,
         karaoke: Boolean? = null,
         lyricsOffset: Float? = null,
+        normalization: String? = null,
+        crossfade: Int? = null,
+        eqEnabled: Boolean? = null,
+        eqPreset: String? = null,
+        eqBands: List<Float>? = null,
     ) {
         store.edit {
             volume?.let { v -> it[VOLUME] = v }
@@ -77,6 +97,11 @@ class Prefs(context: Context) {
             autoplay?.let { v -> it[AUTOPLAY] = v }
             karaoke?.let { v -> it[KARAOKE] = v }
             lyricsOffset?.let { v -> it[LYRICS_OFFSET] = v }
+            normalization?.let { v -> it[NORMALIZATION] = v }
+            crossfade?.let { v -> it[CROSSFADE] = v }
+            eqEnabled?.let { v -> it[EQ_ENABLED] = v }
+            eqPreset?.let { v -> it[EQ_PRESET] = v }
+            eqBands?.let { v -> it[EQ_BANDS] = v.joinToString(",") }
         }
     }
 
@@ -102,7 +127,25 @@ class Prefs(context: Context) {
     suspend fun lastRecapSeen(): String = store.data.first()[RECAP_SEEN] ?: ""
     suspend fun setRecapSeen(month: String) { store.edit { it[RECAP_SEEN] = month } }
 
-    val themeFlow = store.data.map { it[THEME] ?: "spotify" }
+    /** The weekly "À découvrir" freeze (web DailyMixes localStorage): the ISO week
+     *  key the mix belongs to + its trackhashes. Null when never stored. */
+    suspend fun discoverMix(): Pair<String, List<String>>? {
+        val p = store.data.first()
+        val week = p[DISCOVER_WEEK] ?: return null
+        val hashes = p[DISCOVER_HASHES].orEmpty().split(",").filter { it.isNotBlank() }
+        return week to hashes
+    }
+
+    suspend fun setDiscoverMix(week: String, hashes: List<String>) {
+        store.edit {
+            it[DISCOVER_WEEK] = week
+            it[DISCOVER_HASHES] = hashes.joinToString(",")
+        }
+    }
+
+    /** Persist the UI language ("fr" | "en") and appearance mode ("dark" | "light" | "auto"). */
+    suspend fun setLocale(locale: String) { store.edit { it[LOCALE] = locale } }
+    suspend fun setTheme(mode: String) { store.edit { it[THEME] = mode } }
 
     companion object {
         private val SERVER_BASE = stringPreferencesKey("server_base")
@@ -114,10 +157,25 @@ class Prefs(context: Context) {
         private val AUTOPLAY = booleanPreferencesKey("autoplay")
         private val KARAOKE = booleanPreferencesKey("karaoke")
         private val LYRICS_OFFSET = floatPreferencesKey("lyrics_offset")
+        private val NORMALIZATION = stringPreferencesKey("normalization")
+        private val CROSSFADE = intPreferencesKey("crossfade")
+        private val EQ_ENABLED = booleanPreferencesKey("eq_enabled")
+        private val EQ_PRESET = stringPreferencesKey("eq_preset")
+        private val EQ_BANDS = stringPreferencesKey("eq_bands")
         private val THEME = stringPreferencesKey("theme")
+        private val LOCALE = stringPreferencesKey("locale")
         private val LAUNCH_COUNT = intPreferencesKey("launch_count")
         private val LAST_SESSION = stringPreferencesKey("last_session")
         private val MILESTONE = intPreferencesKey("streak_milestone")
         private val RECAP_SEEN = stringPreferencesKey("recap_seen")
+        private val DISCOVER_WEEK = stringPreferencesKey("discover_week")
+        private val DISCOVER_HASHES = stringPreferencesKey("discover_hashes")
+
+        /** The 6 EQ band gains stored as a comma-separated list; anything that
+         *  isn't exactly six parseable values falls back to a flat curve. */
+        private fun parseEqBands(raw: String?): List<Float> {
+            val parsed = raw?.split(",")?.mapNotNull { it.trim().toFloatOrNull() } ?: emptyList()
+            return if (parsed.size == 6) parsed else listOf(0f, 0f, 0f, 0f, 0f, 0f)
+        }
     }
 }

@@ -1,5 +1,6 @@
 package local.auralis.client.ui.components
 
+import android.os.SystemClock
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
@@ -34,6 +35,11 @@ import androidx.compose.material.icons.filled.Shuffle
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -48,10 +54,13 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import local.auralis.client.i18n.Messages
+import local.auralis.client.i18n.tr
 import local.auralis.client.model.Track
 import local.auralis.client.ui.theme.EyebrowStyle
 import local.auralis.client.ui.theme.LocalAuralis
 import dev.chrisbanes.haze.hazeEffect
+import kotlinx.coroutines.delay
 import kotlin.math.abs
 
 // ---- multi-select ----------------------------------------------------------
@@ -94,11 +103,29 @@ fun formatDuration(seconds: Double?): String {
     return "%d:%02d".format(m, r)
 }
 
-fun formatLongDuration(totalSeconds: Double): String {
-    val total = totalSeconds.toLong()
-    val h = total / 3600
-    val m = (total % 3600) / 60
-    return if (h > 0) "${h} h ${m} min" else "${m} min"
+fun formatLongDuration(totalSeconds: Double): String = Messages.formatLongDuration(totalSeconds)
+
+// ---- sleep-timer countdown --------------------------------------------------
+
+/** "m:ss" like the web's sleep badge ("4:59"); empty once expired. */
+fun formatCountdown(remainingMs: Long): String {
+    val total = (remainingMs / 1000).coerceAtLeast(0)
+    return "%d:%02d".format(total / 60, total % 60)
+}
+
+/** Live [formatCountdown] for the armed sleep timer — ticks once a second while
+ *  `sleepEndsAt` (SystemClock.elapsedRealtime-based, like the accounting's timer)
+ *  is set. Returns "" when no timed sleep is running ("Fin du titre" has none). */
+@Composable
+fun rememberSleepCountdown(sleepEndsAt: Long?): String {
+    var nowMs by remember { mutableStateOf(SystemClock.elapsedRealtime()) }
+    LaunchedEffect(sleepEndsAt) {
+        while (sleepEndsAt != null) {
+            nowMs = SystemClock.elapsedRealtime()
+            delay(1000)
+        }
+    }
+    return if (sleepEndsAt == null) "" else formatCountdown(sleepEndsAt - nowMs)
 }
 
 // Deterministic cover palette for tracks/albums without real art (hashed name).
@@ -312,7 +339,7 @@ fun TrackRow(
                     .then(if (checked) Modifier.background(colors.accent) else Modifier.border(1.5.dp, colors.textFaint, CircleShape)),
                 contentAlignment = Alignment.Center,
             ) {
-                if (checked) Icon(Icons.Filled.Check, "Sélectionné", tint = colors.ink, modifier = Modifier.size(14.dp))
+                if (checked) Icon(Icons.Filled.Check, tr("common.selected"), tint = colors.ink, modifier = Modifier.size(14.dp))
             }
             Spacer(Modifier.width(12.dp))
         } else if (index != null) {
@@ -348,7 +375,7 @@ fun TrackRow(
         if (!selecting && onToggleFavorite != null) {
             Icon(
                 if (isFavorite) Icons.Filled.Favorite else Icons.Filled.FavoriteBorder,
-                contentDescription = "Favori",
+                contentDescription = tr("common.favoriteAria"),
                 tint = if (isFavorite) colors.accent else colors.textFaint,
                 modifier = Modifier.size(20.dp).clickable { onToggleFavorite() },
             )
@@ -363,7 +390,7 @@ fun TrackRow(
             Spacer(Modifier.width(6.dp))
             Icon(
                 Icons.Filled.MoreVert,
-                contentDescription = "Plus d'options",
+                contentDescription = tr("common.moreOptions"),
                 tint = colors.textFaint,
                 modifier = Modifier.size(20.dp).clickable { onMore() },
             )
@@ -409,7 +436,7 @@ fun HeroPlayButton(enabled: Boolean = true, playing: Boolean = false, modifier: 
     ) {
         Icon(
             if (playing) Icons.Filled.Pause else Icons.Filled.PlayArrow,
-            if (playing) "Pause" else "Lire",
+            if (playing) tr("player.pause") else tr("common.play"),
             tint = colors.ink, modifier = Modifier.size(26.dp),
         )
     }
@@ -426,7 +453,7 @@ fun HeroShuffleButton(enabled: Boolean = true, modifier: Modifier = Modifier, on
         contentAlignment = Alignment.Center,
     ) {
         Icon(
-            Icons.Filled.Shuffle, "Aléatoire",
+            Icons.Filled.Shuffle, tr("common.shuffle"),
             tint = colors.textMuted.copy(alpha = if (enabled) 1f else 0.4f),
             modifier = Modifier.size(24.dp),
         )

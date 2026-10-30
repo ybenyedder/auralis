@@ -23,6 +23,9 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import local.auralis.client.i18n.LocalStrings
+import local.auralis.client.i18n.Strings
+import local.auralis.client.i18n.tr
 import local.auralis.client.ui.screens.ConnectScreen
 import local.auralis.client.ui.screens.LoginScreen
 import local.auralis.client.ui.theme.AuralisTheme
@@ -31,9 +34,11 @@ import local.auralis.client.ui.theme.LocalAuralis
 @Composable
 fun AppRoot(vm: AppViewModel) {
     val ui by vm.ui.collectAsState()
-    AuralisTheme {
+    AuralisTheme(mode = ui.themeMode) {
         androidx.compose.runtime.CompositionLocalProvider(
-            local.auralis.client.ui.theme.LocalApiUrl provides { url -> vm.api.assetUrl(url) }
+            local.auralis.client.ui.theme.LocalApiUrl provides { url -> vm.api.assetUrl(url) },
+            // The active locale: every tr(...) read below recomposes live on switch.
+            LocalStrings provides Strings(ui.locale),
         ) {
             Box(Modifier.fillMaxSize().background(LocalAuralis.current.background)) {
                 when (ui.phase) {
@@ -69,15 +74,15 @@ private fun ErrorScreen(message: String?, onRetry: () -> Unit, onChangeServer: (
         verticalArrangement = Arrangement.Center,
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
-        Text("Connexion impossible", color = colors.foreground, fontSize = 18.sp, fontWeight = FontWeight.Bold)
+        Text(tr("connect.failed"), color = colors.foreground, fontSize = 18.sp, fontWeight = FontWeight.Bold)
         Spacer(Modifier.height(8.dp))
-        Text(message ?: "Le serveur est injoignable.", color = colors.textMuted, fontSize = 13.sp, textAlign = TextAlign.Center)
+        Text(message ?: tr("connect.failedBody"), color = colors.textMuted, fontSize = 13.sp, textAlign = TextAlign.Center)
         Spacer(Modifier.height(20.dp))
         Box(Modifier.clip(CircleShape).background(colors.accent).clickable { onRetry() }.padding(horizontal = 22.dp, vertical = 12.dp)) {
-            Text("Réessayer", color = colors.ink, fontWeight = FontWeight.Bold)
+            Text(tr("error.retry"), color = colors.ink, fontWeight = FontWeight.Bold)
         }
         Spacer(Modifier.height(14.dp))
-        Text("Changer de serveur", color = colors.textMuted, fontSize = 13.sp, fontWeight = FontWeight.SemiBold,
+        Text(tr("connect.changeServer"), color = colors.textMuted, fontSize = 13.sp, fontWeight = FontWeight.SemiBold,
             modifier = Modifier.clickable { onChangeServer() })
     }
 }

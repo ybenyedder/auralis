@@ -10,6 +10,8 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.platform.LocalContext
+import local.auralis.client.i18n.Messages
+import local.auralis.client.i18n.tr
 import local.auralis.client.ui.theme.LocalAuralis
 
 private const val DONATE_URL = "https://paypal.me/AdamMezerai"
@@ -26,21 +28,20 @@ fun DonateDialog(onDismiss: () -> Unit) {
         titleContentColor = colors.foreground,
         textContentColor = colors.textMuted,
         icon = { Icon(Icons.Filled.Favorite, contentDescription = null, tint = colors.accent) },
-        title = { Text("Soutenir Auralis") },
+        title = { Text(tr("donate.title")) },
         text = {
             Text(
-                "Auralis est gratuit, sans publicité et sans pistage. Si l'app te plaît, " +
-                    "un petit don aide à couvrir les coûts et à faire avancer le projet.",
+                tr("donate.body"),
             )
         },
         confirmButton = {
             TextButton(onClick = {
                 runCatching { ctx.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(DONATE_URL))) }
                 onDismiss()
-            }) { Text("Faire un don", color = colors.accent) }
+            }) { Text(tr("donate.donate"), color = colors.accent) }
         },
         dismissButton = {
-            TextButton(onClick = onDismiss) { Text("Plus tard", color = colors.textMuted) }
+            TextButton(onClick = onDismiss) { Text(tr("donate.later"), color = colors.textMuted) }
         },
     )
 }
