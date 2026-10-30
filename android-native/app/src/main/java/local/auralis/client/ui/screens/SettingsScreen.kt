@@ -60,7 +60,12 @@ import local.auralis.client.ui.UiState
 import local.auralis.client.ui.components.Eyebrow
 import local.auralis.client.ui.components.formatLongDuration
 import local.auralis.client.ui.components.rememberSleepCountdown
+import local.auralis.client.ui.theme.AMShapes
+import local.auralis.client.ui.theme.AMType
 import local.auralis.client.ui.theme.LocalAuralis
+import local.auralis.client.ui.theme.Spacing
+import local.auralis.client.ui.theme.Type
+import local.auralis.client.ui.theme.tonalCard
 import org.json.JSONArray
 
 @Composable
@@ -113,8 +118,8 @@ fun SettingsScreen(vm: AppViewModel, ui: UiState) {
     LazyColumn(contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 10.dp, bottom = 170.dp)) {
         item {
             Eyebrow(tr("settings.title"))
-            Text(tr("settings.screenTitle"), fontSize = 26.sp, fontWeight = FontWeight.Black, color = colors.foreground)
-            Spacer(Modifier.height(16.dp))
+            Text(tr("settings.screenTitle"), style = AMType.Title1, color = colors.foreground)
+            Spacer(Modifier.height(Spacing.xl))
         }
 
         item {
@@ -127,8 +132,8 @@ fun SettingsScreen(vm: AppViewModel, ui: UiState) {
                 ActionRow(tr("settings.signOut"), tone = colors.destructive) { vm.logout() }
                 if (ui.isAdmin) {
                     Spacer(Modifier.height(6.dp))
-                    Text(tr("settings.backup"), color = colors.foreground, fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
-                    Text(tr("settings.backupHelp"), color = colors.textMuted, fontSize = 11.sp, modifier = Modifier.padding(top = 2.dp, bottom = 4.dp))
+                    Text(tr("settings.backup"), color = colors.foreground, style = Type.Label, fontWeight = FontWeight.SemiBold)
+                    Text(tr("settings.backupHelp"), color = colors.textMuted, style = AMType.Caption2, modifier = Modifier.padding(top = 2.dp, bottom = 4.dp))
                     ActionRow(if (backupBusy) tr("settings.preparing") else tr("settings.downloadBackup")) {
                         if (!backupBusy) {
                             // auralis-backup-YYYY-MM-DD.db — the server's snapshot name.
@@ -145,8 +150,8 @@ fun SettingsScreen(vm: AppViewModel, ui: UiState) {
             Card(tr("settings.playback")) {
                 Row(Modifier.fillMaxWidth().padding(bottom = 10.dp), verticalAlignment = Alignment.CenterVertically) {
                     Column(Modifier.weight(1f)) {
-                        Text(tr("settings.autoplay"), color = colors.foreground, fontSize = 14.sp, fontWeight = FontWeight.SemiBold)
-                        Text(tr("settings.autoplayHint"), color = colors.textMuted, fontSize = 11.sp)
+                        Text(tr("settings.autoplay"), color = colors.foreground, style = Type.Body, fontWeight = FontWeight.SemiBold)
+                        Text(tr("settings.autoplayHint"), color = colors.textMuted, style = AMType.Caption2)
                     }
                     androidx.compose.material3.Switch(
                         checked = ui.autoplay,
@@ -157,12 +162,12 @@ fun SettingsScreen(vm: AppViewModel, ui: UiState) {
                         ),
                     )
                 }
-                Text(tr("settings.volume"), color = colors.textMuted, fontSize = 12.sp)
+                Text(tr("settings.volume"), color = colors.textMuted, style = Type.Caption)
                 Slider(
                     value = ui.volume, onValueChange = { vm.setVolume(it) },
                     colors = SliderDefaults.colors(thumbColor = colors.accent, activeTrackColor = colors.accent, inactiveTrackColor = colors.line),
                 )
-                Text(tr("settings.normalization"), color = colors.textMuted, fontSize = 12.sp, modifier = Modifier.padding(top = 6.dp))
+                Text(tr("settings.normalization"), color = colors.textMuted, style = Type.Caption, modifier = Modifier.padding(top = 6.dp))
                 ChipRow(
                     options = listOf(
                         tr("settings.normalization.off") to "off",
@@ -171,18 +176,18 @@ fun SettingsScreen(vm: AppViewModel, ui: UiState) {
                     ),
                     selected = ui.normalization,
                 ) { vm.setNormalization(it) }
-                Text(tr("settings.crossfade"), color = colors.textMuted, fontSize = 12.sp, modifier = Modifier.padding(top = 6.dp))
+                Text(tr("settings.crossfade"), color = colors.textMuted, style = Type.Caption, modifier = Modifier.padding(top = 6.dp))
                 ChipRow(
                     options = listOf("0", "3", "6", "12").map { tr("settings.secondsShort", params = mapOf("n" to it)) to it },
                     selected = ui.crossfade.toString(),
                 ) { vm.setCrossfade(it.toInt()) }
                 Row(Modifier.fillMaxWidth().padding(top = 6.dp), verticalAlignment = Alignment.CenterVertically) {
-                    Text(tr("player.sleep"), color = colors.textMuted, fontSize = 12.sp)
+                    Text(tr("player.sleep"), color = colors.textMuted, style = Type.Caption)
                     Spacer(Modifier.weight(1f))
                     // Live "m:ss" countdown while a timed sleep is armed (web badge).
                     val remaining = rememberSleepCountdown(ui.sleepEndsAt)
                     if (ui.sleepActive && remaining.isNotEmpty()) {
-                        Text(remaining, color = colors.accent, fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
+                        Text(remaining, color = colors.accent, style = Type.Caption, fontWeight = FontWeight.SemiBold)
                     }
                 }
                 androidx.compose.foundation.layout.FlowRow(
@@ -192,11 +197,11 @@ fun SettingsScreen(vm: AppViewModel, ui: UiState) {
                     listOf(5, 10, 15, 30, 45, 60).forEach { m ->
                         Box(
                             Modifier.clip(CircleShape).background(colors.panel2).clickable { vm.startSleepTimer(m) }.padding(horizontal = 12.dp, vertical = 7.dp),
-                        ) { Text("${m}m", color = colors.foreground, fontSize = 12.sp) }
+                        ) { Text("${m}m", color = colors.foreground, style = Type.Caption) }
                     }
                     if (ui.sleepActive) Box(
                         Modifier.clip(CircleShape).background(colors.accent).clickable { vm.cancelSleepTimer() }.padding(horizontal = 12.dp, vertical = 7.dp),
-                    ) { Text(tr("common.cancel"), color = colors.ink, fontSize = 12.sp, fontWeight = FontWeight.SemiBold) }
+                    ) { Text(tr("common.cancel"), color = colors.ink, style = Type.Caption, fontWeight = FontWeight.SemiBold) }
                 }
             }
         }
@@ -205,12 +210,12 @@ fun SettingsScreen(vm: AppViewModel, ui: UiState) {
             val eqAvailable by vm.eqAvailable.collectAsState()
             Card(tr("eq.title")) {
                 if (!eqAvailable) {
-                    Text(tr("eq.notSupported"), color = colors.textMuted, fontSize = 12.sp)
+                    Text(tr("eq.notSupported"), color = colors.textMuted, style = Type.Caption)
                 } else {
                     Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
                         Column(Modifier.weight(1f)) {
-                            Text(tr("eq.enabled"), color = colors.foreground, fontSize = 14.sp, fontWeight = FontWeight.SemiBold)
-                            Text(tr("eq.subtitle"), color = colors.textMuted, fontSize = 11.sp)
+                            Text(tr("eq.enabled"), color = colors.foreground, style = Type.Body, fontWeight = FontWeight.SemiBold)
+                            Text(tr("eq.subtitle"), color = colors.textMuted, style = AMType.Caption2)
                         }
                         androidx.compose.material3.Switch(
                             checked = ui.eqEnabled,
@@ -238,13 +243,13 @@ fun SettingsScreen(vm: AppViewModel, ui: UiState) {
                                 Text(
                                     EqCurve.presetLabel(id),
                                     color = if (active) colors.ink else colors.foreground,
-                                    fontSize = 12.sp,
+                                    style = Type.Caption,
                                 )
                             }
                         }
                         if (ui.eqPreset == "custom") Box(
                             Modifier.clip(CircleShape).background(colors.panel2).padding(horizontal = 12.dp, vertical = 7.dp),
-                        ) { Text(tr("eq.custom"), color = colors.textMuted, fontSize = 12.sp) }
+                        ) { Text(tr("eq.custom"), color = colors.textMuted, style = Type.Caption) }
                     }
                     // Band sliders — ±12 dB around 0 (web slider range), greyed out
                     // while the EQ is off but still showing the stored curve.
@@ -253,7 +258,7 @@ fun SettingsScreen(vm: AppViewModel, ui: UiState) {
                             Text(
                                 label,
                                 color = colors.textMuted,
-                                fontSize = 11.sp,
+                                style = AMType.Caption2,
                                 modifier = Modifier.width(38.dp),
                             )
                             Slider(
@@ -271,7 +276,7 @@ fun SettingsScreen(vm: AppViewModel, ui: UiState) {
                             Text(
                                 formatDb(ui.eqGains.getOrElse(i) { 0f }),
                                 color = colors.textMuted,
-                                fontSize = 11.sp,
+                                style = AMType.Caption2,
                                 modifier = Modifier.width(52.dp),
                                 textAlign = androidx.compose.ui.text.style.TextAlign.End,
                             )
@@ -319,7 +324,7 @@ fun SettingsScreen(vm: AppViewModel, ui: UiState) {
                 Field(tr("settings.supportedSource"), tr("settings.lrcSidecar"))
                 Field(tr("settings.display"), if (withLyrics > 0) tr("settings.lyricsPerTrack") else tr("settings.lyricsHiddenIfEmpty"))
                 Field(tr("settings.convention"), "song.mp3 + song.lrc")
-                Text(tr("settings.lrcHint"), color = colors.textMuted, fontSize = 11.sp)
+                Text(tr("settings.lrcHint"), color = colors.textMuted, style = AMType.Caption2)
             }
         }
 
@@ -332,7 +337,7 @@ fun SettingsScreen(vm: AppViewModel, ui: UiState) {
                     Spacer(Modifier.height(6.dp))
                     Text(
                         tr("settings.melodyIndexing", params = mapOf("done" to melody.indexed, "total" to melody.total)),
-                        color = colors.accent, fontSize = 12.sp, fontWeight = FontWeight.SemiBold,
+                        color = colors.accent, style = Type.Caption, fontWeight = FontWeight.SemiBold,
                     )
                     Spacer(Modifier.height(8.dp))
                     androidx.compose.material3.LinearProgressIndicator(
@@ -345,20 +350,20 @@ fun SettingsScreen(vm: AppViewModel, ui: UiState) {
                     // The melody engine needs ffmpeg server-side — explain instead
                     // of offering a button that would 503.
                     Spacer(Modifier.height(6.dp))
-                    Text(tr("settings.melodyNoFfmpeg"), color = colors.textMuted, fontSize = 11.sp)
+                    Text(tr("settings.melodyNoFfmpeg"), color = colors.textMuted, style = AMType.Caption2)
                 } else if (ui.isAdmin) {
                     ActionRow(tr("settings.melodyIndexBtn")) { vm.startIndexingMelody() }
                 }
                 Text(
                     tr("settings.melodyHelp"),
-                    color = colors.textMuted, fontSize = 11.sp, modifier = Modifier.padding(top = 6.dp),
+                    color = colors.textMuted, style = AMType.Caption2, modifier = Modifier.padding(top = 6.dp),
                 )
             }
         }
 
         item {
             Card(tr("settings.appearance")) {
-                Text(tr("settings.appearanceText"), color = colors.textMuted, fontSize = 11.sp, modifier = Modifier.padding(bottom = 6.dp))
+                Text(tr("settings.appearanceText"), color = colors.textMuted, style = AMType.Caption2, modifier = Modifier.padding(bottom = 6.dp))
                 ChipRow(
                     options = listOf(
                         tr("settings.mode.dark") to "dark",
@@ -373,14 +378,14 @@ fun SettingsScreen(vm: AppViewModel, ui: UiState) {
                         "light" -> tr("settings.mode.light.hint")
                         else -> tr("settings.mode.auto.hint")
                     },
-                    color = colors.textMuted, fontSize = 11.sp, modifier = Modifier.padding(top = 6.dp),
+                    color = colors.textMuted, style = AMType.Caption2, modifier = Modifier.padding(top = 6.dp),
                 )
             }
         }
 
         item {
             Card(tr("settings.language")) {
-                Text(tr("settings.languageHint"), color = colors.textMuted, fontSize = 11.sp, modifier = Modifier.padding(bottom = 6.dp))
+                Text(tr("settings.languageHint"), color = colors.textMuted, style = AMType.Caption2, modifier = Modifier.padding(bottom = 6.dp))
                 ChipRow(
                     // Language autonyms shown literally, like the web's LOCALES.
                     options = Locale.entries.map { it.autonym to it.id },
@@ -388,7 +393,7 @@ fun SettingsScreen(vm: AppViewModel, ui: UiState) {
                 ) { vm.setLocale(Locale.from(it)) }
                 Text(
                     if (ui.locale == Locale.EN) tr("settings.language.en.hint") else tr("settings.language.fr.hint"),
-                    color = colors.textMuted, fontSize = 11.sp, modifier = Modifier.padding(top = 6.dp),
+                    color = colors.textMuted, style = AMType.Caption2, modifier = Modifier.padding(top = 6.dp),
                 )
             }
         }
@@ -435,7 +440,7 @@ private fun PasswordDialog(vm: AppViewModel, onDismiss: () -> Unit) {
                 Pwd(current, { current = it }, tr("settings.currentPassword"))
                 Spacer(Modifier.height(8.dp))
                 Pwd(next, { next = it }, tr("settings.newPassword"))
-                error?.let { Text(it, color = colors.destructive, fontSize = 12.sp, modifier = Modifier.padding(top = 6.dp)) }
+                error?.let { Text(it, color = colors.destructive, style = Type.Caption, modifier = Modifier.padding(top = 6.dp)) }
             }
         },
         confirmButton = {
@@ -471,7 +476,7 @@ private fun ImportDialog(vm: AppViewModel, onDismiss: () -> Unit) {
         title = { Text(tr("settings.import"), color = colors.foreground) },
         text = {
             Column {
-                Text(tr("settings.importHint"), color = colors.textMuted, fontSize = 12.sp)
+                Text(tr("settings.importHint"), color = colors.textMuted, style = Type.Caption)
                 Spacer(Modifier.height(8.dp))
                 OutlinedTextField(
                     value = text, onValueChange = { text = it },
@@ -514,19 +519,19 @@ private fun UsersDialog(vm: AppViewModel, onDismiss: () -> Unit) {
                                 u.optString("username") +
                                     (if (u.optBoolean("isAdmin")) " · admin" else "") +
                                     (if (id == me) " " + tr("settings.you") else ""),
-                                color = colors.foreground, fontSize = 14.sp,
+                                color = colors.foreground, style = Type.Body,
                             )
                         }
-                        Text(tr("settings.password"), color = colors.textMuted, fontSize = 12.sp, modifier = Modifier.clickable {
+                        Text(tr("settings.password"), color = colors.textMuted, style = Type.Caption, modifier = Modifier.clickable {
                             vm.resetUserPassword(id, "changeme123") { reload++ }
                         }.padding(6.dp))
-                        if (id != me) Text(tr("detail.delete"), color = colors.destructive, fontSize = 12.sp, modifier = Modifier.clickable {
+                        if (id != me) Text(tr("detail.delete"), color = colors.destructive, style = Type.Caption, modifier = Modifier.clickable {
                             vm.deleteUser(id) { reload++ }
                         }.padding(6.dp))
                     }
                 }
                 Spacer(Modifier.height(10.dp))
-                Text(tr("settings.newAccount"), color = colors.textMuted, fontSize = 12.sp)
+                Text(tr("settings.newAccount"), color = colors.textMuted, style = Type.Caption)
                 Field2(newUser, { newUser = it }, tr("settings.username"))
                 Spacer(Modifier.height(6.dp))
                 Pwd(newPass, { newPass = it }, tr("settings.password"))
@@ -534,9 +539,9 @@ private fun UsersDialog(vm: AppViewModel, onDismiss: () -> Unit) {
                     Box(
                         Modifier.size(20.dp).clip(RoundedCornerShape(5.dp)).background(if (newAdmin) colors.accent else colors.panel2).clickable { newAdmin = !newAdmin },
                         contentAlignment = Alignment.Center,
-                    ) { if (newAdmin) Text("✓", color = colors.ink, fontSize = 13.sp) }
+                    ) { if (newAdmin) Text("✓", color = colors.ink, style = Type.Label) }
                     Spacer(Modifier.width(8.dp))
-                    Text(tr("settings.admin"), color = colors.foreground, fontSize = 13.sp)
+                    Text(tr("settings.admin"), color = colors.foreground, style = Type.Label)
                     Spacer(Modifier.weight(1f))
                     TextButton(onClick = {
                         if (newUser.isNotBlank() && newPass.length >= 6) vm.createUser(newUser.trim(), newPass, newAdmin) { ok, _ -> if (ok) { newUser = ""; newPass = ""; newAdmin = false; reload++ } }
@@ -578,14 +583,16 @@ private fun Field2(value: String, onChange: (String) -> Unit, label: String) {
     )
 }
 
+/** A grouped settings section: tonal card + hairline border + section title. */
 @Composable
 private fun Card(title: String, content: @Composable () -> Unit) {
     val colors = LocalAuralis.current
     Column(
-        Modifier.fillMaxWidth().padding(bottom = 16.dp)
-            .clip(RoundedCornerShape(16.dp)).background(colors.panel).padding(16.dp),
+        Modifier.fillMaxWidth().padding(bottom = Spacing.lg)
+            .tonalCard(AMShapes.card, colors.panel)
+            .padding(Spacing.lg),
     ) {
-        Text(title, color = colors.foreground, fontSize = 15.sp, fontWeight = FontWeight.Bold, modifier = Modifier.padding(bottom = 10.dp))
+        Text(title, color = colors.foreground, style = AMType.Headline, modifier = Modifier.padding(bottom = Spacing.md))
         content()
     }
 }
@@ -593,17 +600,17 @@ private fun Card(title: String, content: @Composable () -> Unit) {
 @Composable
 private fun Field(label: String, value: String) {
     val colors = LocalAuralis.current
-    Row(Modifier.fillMaxWidth().padding(vertical = 7.dp), horizontalArrangement = Arrangement.SpaceBetween) {
-        Text(label, color = colors.textMuted, fontSize = 13.sp)
-        Text(value, color = colors.foreground, fontSize = 13.sp, fontWeight = FontWeight.SemiBold, maxLines = 1, modifier = Modifier.padding(start = 16.dp))
+    Row(Modifier.fillMaxWidth().padding(vertical = Spacing.sm), horizontalArrangement = Arrangement.SpaceBetween) {
+        Text(label, color = colors.textMuted, style = Type.Body)
+        Text(value, color = colors.foreground, style = Type.Body, fontWeight = FontWeight.SemiBold, maxLines = 1, modifier = Modifier.padding(start = Spacing.lg))
     }
 }
 
 @Composable
 private fun ActionRow(label: String, tone: Color? = null, onClick: () -> Unit) {
     val colors = LocalAuralis.current
-    Box(Modifier.fillMaxWidth().clickable { onClick() }.padding(vertical = 10.dp)) {
-        Text(label, color = tone ?: colors.accent, fontSize = 14.sp, fontWeight = FontWeight.SemiBold)
+    Box(Modifier.fillMaxWidth().clickable { onClick() }.padding(vertical = Spacing.md)) {
+        Text(label, color = tone ?: colors.accent, style = Type.Body, fontWeight = FontWeight.SemiBold)
     }
 }
 
@@ -611,15 +618,15 @@ private fun ActionRow(label: String, tone: Color? = null, onClick: () -> Unit) {
 @Composable
 private fun ChipRow(options: List<Pair<String, String>>, selected: String?, onSelect: (String) -> Unit) {
     val colors = LocalAuralis.current
-    Row(Modifier.fillMaxWidth().padding(top = 6.dp), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+    Row(Modifier.fillMaxWidth().padding(top = Spacing.sm), horizontalArrangement = Arrangement.spacedBy(Spacing.sm)) {
         options.forEach { (label, value) ->
             val active = value == selected
             Box(
-                Modifier.clip(CircleShape)
+                Modifier.clip(AMShapes.pill)
                     .background(if (active) colors.accent else colors.panel2)
                     .clickable { onSelect(value) }
-                    .padding(horizontal = 12.dp, vertical = 7.dp),
-            ) { Text(label, color = if (active) colors.ink else colors.foreground, fontSize = 12.sp) }
+                    .padding(horizontal = Spacing.md, vertical = Spacing.sm),
+            ) { Text(label, color = if (active) colors.ink else colors.foreground, style = Type.Caption) }
         }
     }
 }

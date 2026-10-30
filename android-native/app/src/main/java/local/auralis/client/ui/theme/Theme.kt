@@ -1,7 +1,9 @@
 package local.auralis.client.ui.theme
 
 import androidx.compose.foundation.isSystemInDarkTheme
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Shapes
 import androidx.compose.material3.Typography
 import androidx.compose.material3.darkColorScheme
 import androidx.compose.material3.lightColorScheme
@@ -225,6 +227,16 @@ fun AuralisTheme(
         )
     }
     CompositionLocalProvider(LocalAuralis provides colors) {
-        MaterialTheme(colorScheme = scheme, typography = AuralisType, content = content)
+        MaterialTheme(colorScheme = scheme, typography = AuralisType, shapes = AuralisShapes, content = content)
     }
 }
+
+// Every Material3 component (dialogs, buttons, text fields) rounds on the same
+// token scale as the hand-built surfaces (see Tokens.kt AMShapes).
+private val AuralisShapes = Shapes(
+    extraSmall = RoundedCornerShape(Radius.xs),
+    small = RoundedCornerShape(Radius.sm),
+    medium = RoundedCornerShape(Radius.md),
+    large = RoundedCornerShape(Radius.lg),
+    extraLarge = RoundedCornerShape(Radius.xl),
+)

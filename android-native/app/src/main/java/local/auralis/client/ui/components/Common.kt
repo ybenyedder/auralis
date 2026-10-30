@@ -21,6 +21,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.lazy.LazyItemScope
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -57,8 +58,15 @@ import androidx.compose.ui.unit.sp
 import local.auralis.client.i18n.Messages
 import local.auralis.client.i18n.tr
 import local.auralis.client.model.Track
+import local.auralis.client.ui.theme.AMShapes
+import local.auralis.client.ui.theme.AMType
 import local.auralis.client.ui.theme.EyebrowStyle
 import local.auralis.client.ui.theme.LocalAuralis
+import local.auralis.client.ui.theme.Motion
+import local.auralis.client.ui.theme.Radius
+import local.auralis.client.ui.theme.Spacing
+import local.auralis.client.ui.theme.Type
+import local.auralis.client.ui.theme.shimmer
 import dev.chrisbanes.haze.hazeEffect
 import kotlinx.coroutines.delay
 import kotlin.math.abs
@@ -205,7 +213,7 @@ fun Eyebrow(text: String, modifier: Modifier = Modifier) {
 fun LargeTitle(text: String, modifier: Modifier = Modifier) {
     Text(
         text,
-        style = local.auralis.client.ui.theme.AMType.LargeTitle,
+        style = AMType.LargeTitle,
         color = LocalAuralis.current.foreground,
         modifier = modifier,
     )
@@ -215,23 +223,58 @@ fun LargeTitle(text: String, modifier: Modifier = Modifier) {
 @Composable
 fun SectionHeader(title: String, action: String? = null, onAction: (() -> Unit)? = null) {
     Row(
-        Modifier.fillMaxWidth().padding(bottom = 10.dp),
+        Modifier.fillMaxWidth().padding(bottom = Spacing.md),
         horizontalArrangement = Arrangement.SpaceBetween,
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Text(
             title,
-            style = local.auralis.client.ui.theme.AMType.Title3,
+            style = Type.Section,
             color = LocalAuralis.current.foreground,
         )
         if (action != null && onAction != null) {
+            // "Tout afficher" — a text action, not a button: one per shelf max.
             Text(
                 action,
-                style = local.auralis.client.ui.theme.AMType.Subhead,
+                style = Type.Label,
+                fontWeight = FontWeight.SemiBold,
                 color = LocalAuralis.current.accent,
-                modifier = Modifier.clickable { onAction() },
+                modifier = Modifier
+                    .clip(AMShapes.pill)
+                    .clickable { onAction() }
+                    .padding(horizontal = Spacing.sm, vertical = Spacing.xs),
             )
         }
+    }
+}
+
+/**
+ * The standard icon-only action: 22dp glyph centered in a 48dp touch target
+ * (Material's minimum), used for every header/transport/hero icon button so
+ * scattered under-sized icon buttons disappear from the app.
+ */
+@Composable
+fun IconAction(
+    icon: androidx.compose.ui.graphics.vector.ImageVector,
+    label: String,
+    modifier: Modifier = Modifier,
+    tint: Color = LocalAuralis.current.foreground,
+    iconSize: Int = 22,
+    enabled: Boolean = true,
+    onClick: () -> Unit,
+) {
+    Box(
+        modifier
+            .size(48.dp)
+            .clip(AMShapes.pill)
+            .clickable(enabled = enabled, onClick = onClick),
+        contentAlignment = Alignment.Center,
+    ) {
+        Icon(
+            icon, label,
+            tint = tint.copy(alpha = if (enabled) 1f else 0.4f),
+            modifier = Modifier.size(iconSize.dp),
+        )
     }
 }
 
@@ -250,6 +293,23 @@ fun EqualizerBars(active: Boolean = true, modifier: Modifier = Modifier) {
                     .clip(RoundedCornerShape(1.dp))
                     .background(colors.accent.copy(alpha = if (active) 0.85f else 0.34f)),
             )
+        }
+    }
+}
+
+/** Skeleton rows — shimmering blocks in the row rhythm while content loads,
+ *  so lists never flash blank (the web skeleton pattern, mobile edition). */
+@Composable
+fun SkeletonRows(count: Int = 3) {
+    repeat(count) {
+        Row(Modifier.fillMaxWidth().padding(horizontal = Spacing.sm, vertical = Spacing.sm), verticalAlignment = Alignment.CenterVertically) {
+            Box(Modifier.size(46.dp).clip(AMShapes.thumb).shimmer())
+            Spacer(Modifier.width(Spacing.md))
+            Column(Modifier.weight(1f)) {
+                Box(Modifier.fillMaxWidth(0.7f).height(12.dp).clip(AMShapes.pill).shimmer())
+                Spacer(Modifier.height(Spacing.sm))
+                Box(Modifier.fillMaxWidth(0.4f).height(10.dp).clip(AMShapes.pill).shimmer())
+            }
         }
     }
 }
@@ -302,9 +362,14 @@ fun CoverArt(
     }
 }
 
+/**
+ * The canonical track row: rounded thumbnail + title/artist stack + duration +
+ * overflow. A `LazyItemScope` extension so every list animates item appearance,
+ * movement and dismissal ([animateItem]) for free.
+ */
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
-fun TrackRow(
+fun LazyItemScope.TrackRow(
     track: Track,
     index: Int? = null,
     isCurrent: Boolean = false,
@@ -320,7 +385,8 @@ fun TrackRow(
     Row(
         Modifier
             .fillMaxWidth()
-            .clip(RoundedCornerShape(10.dp))
+            .animateItem(placementSpec = Motion.placement)
+            .clip(AMShapes.tile)
             // Tap toggles selection while selecting; otherwise plays. Long-press always
             // enters selection mode (Spotify-style).
             .combinedClickable(
@@ -328,7 +394,7 @@ fun TrackRow(
                 onLongClick = { sel.begin(track.trackhash) },
             )
             .background(if (checked) colors.accent.copy(alpha = 0.18f) else Color.Transparent)
-            .padding(horizontal = 8.dp, vertical = 7.dp),
+            .padding(horizontal = Spacing.sm, vertical = Spacing.sm),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         if (selecting) {
@@ -341,24 +407,24 @@ fun TrackRow(
             ) {
                 if (checked) Icon(Icons.Filled.Check, tr("common.selected"), tint = colors.ink, modifier = Modifier.size(14.dp))
             }
-            Spacer(Modifier.width(12.dp))
+            Spacer(Modifier.width(Spacing.md))
         } else if (index != null) {
             Box(Modifier.width(22.dp), contentAlignment = Alignment.Center) {
                 if (isCurrent) {
                     EqualizerBars(active = true)
                 } else {
-                    Text("${index + 1}", color = colors.textFaint, fontSize = 12.sp)
+                    Text("${index + 1}", color = colors.textFaint, style = Type.Caption)
                 }
             }
-            Spacer(Modifier.width(10.dp))
+            Spacer(Modifier.width(Spacing.md))
         }
-        CoverArt(track.image, track.albumhash ?: track.title, Modifier.size(46.dp), cornerRadius = 8, sizeDp = 46)
-        Spacer(Modifier.width(12.dp))
+        CoverArt(track.image, track.albumhash ?: track.title, Modifier.size(46.dp), cornerRadius = Radius.sm.value.toInt(), sizeDp = 46)
+        Spacer(Modifier.width(Spacing.md))
         Column(Modifier.weight(1f)) {
             Text(
                 track.title,
                 color = if (isCurrent) colors.accent else colors.foreground,
-                fontSize = 14.sp,
+                style = Type.Body,
                 fontWeight = FontWeight.SemiBold,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
@@ -366,7 +432,7 @@ fun TrackRow(
             Text(
                 track.displayArtist,
                 color = colors.textMuted,
-                fontSize = 12.sp,
+                style = Type.Caption,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
             )
@@ -379,15 +445,15 @@ fun TrackRow(
                 tint = if (isFavorite) colors.accent else colors.textFaint,
                 modifier = Modifier.size(20.dp).clickable { onToggleFavorite() },
             )
-            Spacer(Modifier.width(10.dp))
+            Spacer(Modifier.width(Spacing.sm))
         }
         Text(
             formatDuration(track.duration),
             color = colors.textFaint,
-            fontSize = 12.sp,
+            style = Type.Caption,
         )
         if (!selecting && onMore != null) {
-            Spacer(Modifier.width(6.dp))
+            Spacer(Modifier.width(Spacing.xs))
             Icon(
                 Icons.Filled.MoreVert,
                 contentDescription = tr("common.moreOptions"),
@@ -398,8 +464,11 @@ fun TrackRow(
     }
 }
 
-/** Album/artist/playlist hero: a soft palette-tinted gradient wash behind the cover +
- * title block, mirroring the web's `hero-cover` + `coverVars()`. */
+/**
+ * Album/artist/playlist hero: a soft palette-tinted gradient scrim behind the
+ * cover + title block (Apple Music/Spotify hero wash), fading to the page
+ * background so titles and actions anchor cleanly.
+ */
 @Composable
 fun DetailHero(seed: String?, centered: Boolean = false, content: @Composable ColumnScope.() -> Unit) {
     val colors = LocalAuralis.current
@@ -409,10 +478,14 @@ fun DetailHero(seed: String?, centered: Boolean = false, content: @Composable Co
             .fillMaxWidth()
             .background(
                 Brush.verticalGradient(
-                    listOf(c1.copy(alpha = 0.32f), c1.copy(alpha = 0.08f), Color.Transparent),
+                    listOf(
+                        c1.copy(alpha = 0.38f),
+                        c1.copy(alpha = 0.14f),
+                        colors.background.copy(alpha = 0f),
+                    ),
                 ),
             )
-            .padding(top = 16.dp, bottom = 4.dp),
+            .padding(top = Spacing.lg, bottom = Spacing.xs),
     ) {
         Column(
             Modifier.fillMaxWidth(),
@@ -422,7 +495,8 @@ fun DetailHero(seed: String?, centered: Boolean = false, content: @Composable Co
     }
 }
 
-/** Spotify's signature 56dp solid-accent circular hero play button — icon only, no label. */
+/** Spotify's signature 56dp solid-accent circular hero play button — the ONE
+ *  primary action of every detail screen (icon only, no label). */
 @Composable
 fun HeroPlayButton(enabled: Boolean = true, playing: Boolean = false, modifier: Modifier = Modifier, onClick: () -> Unit) {
     val colors = LocalAuralis.current
@@ -442,30 +516,36 @@ fun HeroPlayButton(enabled: Boolean = true, playing: Boolean = false, modifier: 
     }
 }
 
-/** Icon-only ghost shuffle button next to the hero play button (no pill background). */
+/**
+ * The hero's secondary action: icon-only ghost shuffle on a tonal pill —
+ * paired with [HeroPlayButton]; everything else belongs in the ⋯ menu.
+ */
 @Composable
 fun HeroShuffleButton(enabled: Boolean = true, modifier: Modifier = Modifier, onClick: () -> Unit) {
     val colors = LocalAuralis.current
     Box(
         modifier
-            .size(36.dp)
+            .size(48.dp)
+            .clip(CircleShape)
+            .background(colors.panel2.copy(alpha = if (enabled) 1f else 0.4f))
             .clickable(enabled = enabled) { onClick() },
         contentAlignment = Alignment.Center,
     ) {
         Icon(
             Icons.Filled.Shuffle, tr("common.shuffle"),
-            tint = colors.textMuted.copy(alpha = if (enabled) 1f else 0.4f),
-            modifier = Modifier.size(24.dp),
+            tint = colors.foreground.copy(alpha = if (enabled) 0.85f else 0.4f),
+            modifier = Modifier.size(22.dp),
         )
     }
 }
 
+/** Filled primary pill — the single loudest action of a block ("Lire", "Enregistrer"). */
 @Composable
 fun PlayPill(label: String, modifier: Modifier = Modifier, onClick: () -> Unit) {
     val colors = LocalAuralis.current
     Row(
         modifier
-            .clip(CircleShape)
+            .clip(AMShapes.pill)
             .background(colors.accent)
             .clickable { onClick() }
             .padding(horizontal = 20.dp, vertical = 11.dp),
@@ -473,22 +553,23 @@ fun PlayPill(label: String, modifier: Modifier = Modifier, onClick: () -> Unit) 
         horizontalArrangement = Arrangement.Center,
     ) {
         Icon(Icons.Filled.PlayArrow, null, tint = colors.ink, modifier = Modifier.size(18.dp))
-        Spacer(Modifier.width(6.dp))
-        Text(label, color = colors.ink, fontWeight = FontWeight.Bold, fontSize = 14.sp)
+        Spacer(Modifier.width(Spacing.sm))
+        Text(label, color = colors.ink, style = Type.Body, fontWeight = FontWeight.Bold)
     }
 }
 
+/** Tonal secondary pill — at most one per block, beside the primary action. */
 @Composable
 fun GhostPill(label: String, modifier: Modifier = Modifier, onClick: () -> Unit) {
     val colors = LocalAuralis.current
     Box(
         modifier
-            .clip(CircleShape)
+            .clip(AMShapes.pill)
             .background(colors.panel2)
             .clickable { onClick() }
             .padding(horizontal = 18.dp, vertical = 11.dp),
     ) {
-        Text(label, color = colors.foreground, fontWeight = FontWeight.SemiBold, fontSize = 14.sp)
+        Text(label, color = colors.foreground, style = Type.Body, fontWeight = FontWeight.SemiBold)
     }
 }
 

@@ -1,5 +1,6 @@
 package local.auralis.client.ui.components
 
+import androidx.compose.animation.core.Animatable
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
@@ -30,6 +31,7 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -38,6 +40,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -49,7 +52,13 @@ import local.auralis.client.ui.UiState
 import local.auralis.client.ui.ViewId
 import local.auralis.client.i18n.Messages
 import local.auralis.client.i18n.tr
+import local.auralis.client.ui.theme.AMShapes
+import local.auralis.client.ui.theme.AMType
 import local.auralis.client.ui.theme.LocalAuralis
+import local.auralis.client.ui.theme.Motion
+import local.auralis.client.ui.theme.Radius
+import local.auralis.client.ui.theme.Spacing
+import local.auralis.client.ui.theme.Type
 
 // Bottom-sheet album / artist context menus — the native mirrors of the web's
 // ContextMenu.tsx AlbumMenu / ArtistMenu. Same sheet scaffold as TrackMenu.kt.
@@ -122,7 +131,7 @@ fun ArtistMenu(artist: Artist, ui: UiState, vm: AppViewModel, onDismiss: () -> U
         if (albumCount > 0) {
             Text(
                 tr("ctx.albumsAndTracks", params = mapOf("albums" to albumCount, "tracks" to (artist.trackcount ?: 0))),
-                color = colors.textMuted, fontSize = 11.sp,
+                color = colors.textMuted, style = AMType.Caption2,
                 modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp),
             )
         }
@@ -131,24 +140,42 @@ fun ArtistMenu(artist: Artist, ui: UiState, vm: AppViewModel, onDismiss: () -> U
 
 // ---- shared sheet scaffold -------------------------------------------------
 
+/**
+ * The one bottom-sheet scaffold every menu shares: fading scrim + sheet that
+ * slides up gently on open, rounded top corners on the token scale, drag
+ * handle, and safe-area padding. Dismiss by tapping the scrim.
+ */
 @Composable
 internal fun MenuSheetScaffold(onDismiss: () -> Unit, content: @Composable ColumnScope.() -> Unit) {
     val colors = LocalAuralis.current
+    // Entrance: scrim fades in, sheet slides up (0 → 1 on first composition).
+    val enter = remember { Animatable(0f) }
+    LaunchedEffect(Unit) { enter.animateTo(1f, Motion.gentle) }
+    val e = enter.value
     Box(Modifier.fillMaxSize()) {
-        Box(Modifier.fillMaxSize().background(Color(0xAA000000)).clickable { onDismiss() })
+        Box(
+            Modifier.fillMaxSize()
+                .graphicsLayer { alpha = e }
+                .background(Color(0xAA000000))
+                .clickable { onDismiss() },
+        )
         Column(
             Modifier.align(Alignment.BottomCenter).fillMaxWidth()
-                .clip(RoundedCornerShape(topStart = 8.dp, topEnd = 8.dp))
+                .graphicsLayer {
+                    alpha = e
+                    translationY = (1f - e) * 160f
+                }
+                .clip(AMShapes.sheet)
                 .background(colors.panel)
                 .navigationBarsPadding()
-                .padding(horizontal = 8.dp, vertical = 10.dp),
+                .padding(horizontal = Spacing.sm, vertical = Spacing.md),
         ) {
             // Drag handle (web's bottom-sheet affordance)
             Box(
-                Modifier.padding(top = 2.dp, bottom = 8.dp).align(Alignment.CenterHorizontally)
+                Modifier.padding(top = Spacing.xs, bottom = Spacing.sm).align(Alignment.CenterHorizontally)
                     .size(width = 36.dp, height = 4.dp)
                     .clip(RoundedCornerShape(2.dp))
-                    .background(colors.line),
+                    .background(colors.lineStrong),
             )
             content()
         }
@@ -156,14 +183,14 @@ internal fun MenuSheetScaffold(onDismiss: () -> Unit, content: @Composable Colum
 }
 
 @Composable
-private fun MenuHeaderRow(image: String?, seed: String?, round: Boolean, title: String, subtitle: String) {
+internal fun MenuHeaderRow(image: String?, seed: String?, round: Boolean, title: String, subtitle: String) {
     val colors = LocalAuralis.current
-    Row(Modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 6.dp), verticalAlignment = Alignment.CenterVertically) {
-        CoverArt(image, seed, Modifier.size(44.dp), cornerRadius = if (round) 22 else 8, sizeDp = 44)
-        Spacer(Modifier.width(12.dp))
+    Row(Modifier.fillMaxWidth().padding(horizontal = Spacing.sm, vertical = Spacing.sm), verticalAlignment = Alignment.CenterVertically) {
+        CoverArt(image, seed, Modifier.size(44.dp), cornerRadius = if (round) 22 else Radius.sm.value.toInt(), sizeDp = 44)
+        Spacer(Modifier.width(Spacing.md))
         Column(Modifier.weight(1f)) {
-            Text(title, color = colors.foreground, fontSize = 14.sp, fontWeight = FontWeight.Bold, maxLines = 1, overflow = TextOverflow.Ellipsis)
-            Text(subtitle, color = colors.textMuted, fontSize = 12.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            Text(title, color = colors.foreground, style = Type.Body, fontWeight = FontWeight.Bold, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            Text(subtitle, color = colors.textMuted, style = Type.Caption, maxLines = 1, overflow = TextOverflow.Ellipsis)
         }
     }
 }
@@ -179,7 +206,7 @@ private fun PlaylistPicker(
     onCreate: (String) -> Unit,
 ) {
     val colors = LocalAuralis.current
-    Text(label, color = colors.textMuted, fontSize = 12.sp, modifier = Modifier.padding(horizontal = 12.dp, vertical = 4.dp))
+    Text(label, color = colors.textMuted, style = Type.Caption, modifier = Modifier.padding(horizontal = 12.dp, vertical = 4.dp))
     LazyColumn(Modifier.heightIn(max = 240.dp)) {
         items(ui.playlists) { pl ->
             MenuRow(Icons.Filled.PlaylistAdd, pl.name) { onPick(pl.id) }
@@ -193,7 +220,7 @@ private fun PlaylistPicker(
         )
         Spacer(Modifier.width(8.dp))
         Box(
-            Modifier.clip(RoundedCornerShape(10.dp)).background(colors.accent)
+            Modifier.clip(AMShapes.tile).background(colors.accent)
                 .clickable(enabled = newName.isNotBlank()) { onCreate(newName.trim()) }
                 .padding(horizontal = 14.dp, vertical = 12.dp),
         ) { Icon(Icons.Filled.Add, tr("common.create"), tint = colors.ink, modifier = Modifier.size(20.dp)) }

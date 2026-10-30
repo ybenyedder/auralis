@@ -22,6 +22,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyItemScope
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.itemsIndexed
@@ -33,6 +34,8 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Album
+import androidx.compose.material.icons.filled.ArrowDownward
+import androidx.compose.material.icons.filled.ArrowUpward
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Download
@@ -40,9 +43,11 @@ import androidx.compose.material.icons.filled.Explore
 import androidx.compose.material.icons.filled.Favorite
 import androidx.compose.material.icons.filled.Link
 import androidx.compose.material.icons.filled.Mic
+import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.MusicNote
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.PlayArrow
+import androidx.compose.material.icons.filled.PushPin
 import androidx.compose.material.icons.filled.QueueMusic
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.CircularProgressIndicator
@@ -69,6 +74,7 @@ import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -84,6 +90,7 @@ import local.auralis.client.model.MoodMix
 import local.auralis.client.model.MoodRecs
 import local.auralis.client.model.Moods
 import local.auralis.client.model.OnlineTrack
+import local.auralis.client.model.PlaylistDto
 import local.auralis.client.model.Track
 import local.auralis.client.model.dailyMoodMixes
 import local.auralis.client.model.moodRecs
@@ -93,14 +100,23 @@ import local.auralis.client.ui.UiState
 import local.auralis.client.ui.ViewId
 import local.auralis.client.ui.components.Eyebrow
 import local.auralis.client.ui.components.GhostPill
+import local.auralis.client.ui.components.IconAction
 import local.auralis.client.ui.components.LargeTitle
+import local.auralis.client.ui.components.MenuDivider
+import local.auralis.client.ui.components.MenuRow
+import local.auralis.client.ui.components.MenuSheetScaffold
 import local.auralis.client.ui.components.NetworkImage
 import local.auralis.client.ui.components.PlayPill
 import local.auralis.client.ui.components.SectionHeader
 import local.auralis.client.ui.components.TrackRow
 import local.auralis.client.ui.components.formatLongDuration
+import local.auralis.client.ui.theme.AMShapes
 import local.auralis.client.ui.theme.AMType
 import local.auralis.client.ui.theme.LocalAuralis
+import local.auralis.client.ui.theme.Motion
+import local.auralis.client.ui.theme.Radius
+import local.auralis.client.ui.theme.Spacing
+import local.auralis.client.ui.theme.Type
 
 private val bottomPad = PaddingValues(start = 16.dp, end = 16.dp, top = 12.dp, bottom = 170.dp)
 
@@ -244,7 +260,7 @@ fun HomeScreen(vm: AppViewModel, ui: UiState) {
                     Modifier
                         .fillMaxWidth()
                         .height(150.dp)
-                        .clip(RoundedCornerShape(14.dp))
+                        .clip(AMShapes.card)
                         .background(
                             Brush.linearGradient(
                                 listOf(Color(0xFF1E3A8A), Color(0xFF4F46E5)),
@@ -311,7 +327,7 @@ fun HomeScreen(vm: AppViewModel, ui: UiState) {
                         val (c0, c1, _) = local.auralis.client.ui.components.paletteFor(m.username)
                         Box(
                             Modifier.width(160.dp).height(120.dp)
-                                .clip(RoundedCornerShape(12.dp))
+                                .clip(AMShapes.card)
                                 .background(Brush.linearGradient(listOf(c0, c1)))
                                 .clickable { vm.startBlend(m.username, m.username) }
                                 .padding(14.dp),
@@ -343,7 +359,7 @@ fun HomeScreen(vm: AppViewModel, ui: UiState) {
                 Spacer(Modifier.height(24.dp))
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Box(
-                        Modifier.size(44.dp).clip(RoundedCornerShape(10.dp))
+                        Modifier.size(44.dp).clip(AMShapes.tile)
                             .background(hexColor(mood?.c0 ?: "#888888")),
                         contentAlignment = Alignment.Center,
                     ) { Icon(Icons.Filled.MusicNote, null, tint = Color.White, modifier = Modifier.size(22.dp)) }
@@ -440,13 +456,13 @@ private class HomeDerived(
 /** Apple Music "top picks" hero card: near-full-width editorial art with the
  *  red play control overlaid, title + artist beneath. */
 @Composable
-private fun HeroTrackCard(t: Track, isCurrent: Boolean, onClick: () -> Unit) {
+private fun LazyItemScope.HeroTrackCard(t: Track, isCurrent: Boolean, onClick: () -> Unit) {
     val colors = LocalAuralis.current
-    Column(Modifier.width(290.dp).clickable { onClick() }) {
+    Column(Modifier.animateItem(placementSpec = Motion.placement).width(290.dp).clickable { onClick() }) {
         Box {
             local.auralis.client.ui.components.CoverArt(
                 t.image, t.albumhash ?: t.title,
-                Modifier.fillMaxWidth().aspectRatio(1.6f), cornerRadius = 12,
+                Modifier.fillMaxWidth().aspectRatio(1.6f), cornerRadius = Radius.md.value.toInt(),
             )
             Box(
                 Modifier
@@ -573,12 +589,13 @@ private class QuickTileItem(
 /** Apple Music–style "quick access" tile: a squat horizontal card (art flush-left,
  * bold title) with a red circular play button — the home screen's quick-jump row. */
 @Composable
-private fun QuickTile(tile: QuickTileItem, modifier: Modifier = Modifier) {
+private fun LazyItemScope.QuickTile(tile: QuickTileItem, modifier: Modifier = Modifier) {
     val colors = LocalAuralis.current
     Row(
         modifier
+            .animateItem(placementSpec = Motion.placement)
             .height(56.dp)
-            .clip(RoundedCornerShape(8.dp))
+            .clip(AMShapes.tile)
             .background(colors.panel2)
             .clickable { tile.onOpen() },
         verticalAlignment = Alignment.CenterVertically,
@@ -593,11 +610,11 @@ private fun QuickTile(tile: QuickTileItem, modifier: Modifier = Modifier) {
         } else {
             local.auralis.client.ui.components.CoverArt(tile.image, tile.seed, Modifier.size(56.dp), cornerRadius = 0, sizeDp = 56)
         }
-        Spacer(Modifier.width(10.dp))
+        Spacer(Modifier.width(Spacing.md))
         Column(Modifier.weight(1f)) {
-            Text(tile.title, color = colors.foreground, fontSize = 14.sp, fontWeight = FontWeight.Bold, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            Text(tile.title, color = colors.foreground, style = Type.Body, fontWeight = FontWeight.Bold, maxLines = 1, overflow = TextOverflow.Ellipsis)
             if (tile.subtitle != null) {
-                Text(tile.subtitle, color = colors.textMuted, fontSize = 12.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                Text(tile.subtitle, color = colors.textMuted, style = Type.Caption, maxLines = 1, overflow = TextOverflow.Ellipsis)
             }
         }
         Box(
@@ -615,13 +632,13 @@ private fun QuickTile(tile: QuickTileItem, modifier: Modifier = Modifier) {
 }
 
 @Composable
-private fun MiniTrackCard(t: Track, isCurrent: Boolean, onClick: () -> Unit) {
+private fun LazyItemScope.MiniTrackCard(t: Track, isCurrent: Boolean, onClick: () -> Unit) {
     val colors = LocalAuralis.current
-    Column(Modifier.width(160.dp).clickable { onClick() }) {
+    Column(Modifier.animateItem(placementSpec = Motion.placement).width(160.dp).clickable { onClick() }) {
         Box {
             local.auralis.client.ui.components.CoverArt(
                 t.image, t.albumhash ?: t.title,
-                Modifier.size(160.dp), cornerRadius = 12,
+                Modifier.size(160.dp), cornerRadius = Radius.md.value.toInt(),
             )
             // Frosted play affordance, like the AM shelves.
             Box(
@@ -652,23 +669,24 @@ private fun MiniTrackCard(t: Track, isCurrent: Boolean, onClick: () -> Unit) {
 fun EmptyHint(title: String, body: String) {
     val colors = LocalAuralis.current
     Column(Modifier.fillMaxWidth().padding(top = 40.dp), horizontalAlignment = Alignment.CenterHorizontally) {
-        Text(title, color = colors.foreground, fontSize = 16.sp, fontWeight = FontWeight.Bold)
-        Spacer(Modifier.height(6.dp))
-        Text(body, color = colors.textMuted, fontSize = 13.sp)
+        Text(title, color = colors.foreground, style = AMType.Headline)
+        Spacer(Modifier.height(Spacing.sm))
+        Text(body, color = colors.textMuted, style = Type.Caption, textAlign = TextAlign.Center)
     }
 }
 
 /** Apple Music genre tile: a squat colourful gradient card, bold white label. */
 @Composable
-private fun GenreCard(genre: String, count: Int, modifier: Modifier = Modifier, onClick: () -> Unit) {
+private fun LazyItemScope.GenreCard(genre: String, count: Int, modifier: Modifier = Modifier, onClick: () -> Unit) {
     val (bg, c1, _) = local.auralis.client.ui.components.paletteFor(genre)
     Box(
         modifier
+            .animateItem(placementSpec = Motion.placement)
             .height(88.dp)
-            .clip(RoundedCornerShape(12.dp))
+            .clip(AMShapes.card)
             .background(androidx.compose.ui.graphics.Brush.linearGradient(listOf(bg, c1)))
             .clickable { onClick() }
-            .padding(12.dp),
+            .padding(Spacing.md),
     ) {
         Column(Modifier.align(Alignment.BottomStart)) {
             Text(genre, color = Color.White, style = AMType.Headline, maxLines = 1, overflow = TextOverflow.Ellipsis)
@@ -680,7 +698,7 @@ private fun GenreCard(genre: String, count: Int, modifier: Modifier = Modifier, 
 /** Web DailyMixes MixCard: panel card with a 4-cover mosaic (or an icon wash),
  *  bold label + muted sublabel — one tap plays the mix. */
 @Composable
-private fun MixCard(
+private fun LazyItemScope.MixCard(
     label: String,
     sublabel: String,
     c0: Color,
@@ -692,15 +710,16 @@ private fun MixCard(
     val colors = LocalAuralis.current
     Column(
         Modifier
+            .animateItem(placementSpec = Motion.placement)
             .width(160.dp)
-            .clip(RoundedCornerShape(12.dp))
+            .clip(AMShapes.card)
             .background(colors.panel2)
             .clickable { onPlay() }
-            .padding(10.dp),
+            .padding(Spacing.md),
     ) {
         Box(
             Modifier.fillMaxWidth().aspectRatio(1f)
-                .clip(RoundedCornerShape(8.dp))
+                .clip(AMShapes.tile)
                 .background(Brush.linearGradient(listOf(c0, c1))),
         ) {
             if (covers.size >= 4) {
@@ -722,8 +741,8 @@ private fun MixCard(
             }
         }
         Spacer(Modifier.height(8.dp))
-        Text(label, color = colors.foreground, fontSize = 14.sp, fontWeight = FontWeight.Bold, maxLines = 1, overflow = TextOverflow.Ellipsis)
-        Text(sublabel, color = colors.textMuted, fontSize = 12.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+        Text(label, color = colors.foreground, style = Type.Body, fontWeight = FontWeight.Bold, maxLines = 1, overflow = TextOverflow.Ellipsis)
+        Text(sublabel, color = colors.textMuted, style = Type.Caption, maxLines = 1, overflow = TextOverflow.Ellipsis)
     }
 }
 
@@ -744,7 +763,7 @@ fun SearchScreen(vm: AppViewModel, ui: UiState) {
             placeholder = { Text(tr("search.placeholderMobile"), color = colors.textFaint) },
             leadingIcon = { Icon(Icons.Filled.Search, null, tint = colors.textMuted) },
             singleLine = true,
-            shape = RoundedCornerShape(10.dp),
+            shape = AMShapes.tile,
             modifier = Modifier.fillMaxWidth(),
             colors = OutlinedTextFieldDefaults.colors(
                 focusedBorderColor = Color.Transparent,
@@ -765,7 +784,7 @@ fun SearchScreen(vm: AppViewModel, ui: UiState) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Icon(Icons.Filled.Mic, null, tint = colors.textMuted, modifier = Modifier.size(16.dp))
                 Spacer(Modifier.width(6.dp))
-                Text(tr("search.hum"), color = colors.textMuted, fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
+                Text(tr("search.hum"), color = colors.textMuted, style = Type.Caption, fontWeight = FontWeight.SemiBold)
             }
         }
         Spacer(Modifier.height(8.dp))
@@ -843,10 +862,12 @@ fun SearchScreen(vm: AppViewModel, ui: UiState) {
                         item {
                             Text(
                                 tr("search.onlineSearching"),
-                                color = colors.textMuted, fontSize = 13.sp, fontWeight = FontWeight.Medium,
-                                modifier = Modifier.padding(vertical = 10.dp),
+                                color = colors.textMuted, style = Type.Label, fontWeight = FontWeight.Medium,
+                                modifier = Modifier.padding(vertical = Spacing.md),
                             )
                         }
+                        // Skeleton rows instead of a blank gap while the web search runs.
+                        item { local.auralis.client.ui.components.SkeletonRows(3) }
                     }
                     items(ui.onlineResults, key = { "online-${it.videoId}" }) { hit ->
                         OnlineRow(hit = hit, job = ui.downloadJobs[hit.videoId]) { vm.downloadOnline(it) }
@@ -879,22 +900,22 @@ private fun OnlineRow(hit: OnlineTrack, job: DownloadJobDto?, onDownload: (Onlin
     Row(
         Modifier
             .fillMaxWidth()
-            .clip(RoundedCornerShape(12.dp))
+            .clip(AMShapes.card)
             .background(colors.panel2)
             .padding(horizontal = 10.dp, vertical = 8.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         NetworkImage(
             url = hit.thumbnail,
-            modifier = Modifier.size(52.dp).clip(RoundedCornerShape(8.dp)),
-            fallback = { Box(Modifier.size(52.dp).clip(RoundedCornerShape(8.dp)).background(colors.panel3)) },
+            modifier = Modifier.size(52.dp).clip(AMShapes.thumb),
+            fallback = { Box(Modifier.size(52.dp).clip(AMShapes.thumb).background(colors.panel3)) },
         )
         Spacer(Modifier.width(10.dp))
         Column(Modifier.weight(1f)) {
-            Text(hit.title, color = colors.foreground, fontSize = 14.sp, fontWeight = FontWeight.Bold, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            Text(hit.title, color = colors.foreground, style = Type.Body, fontWeight = FontWeight.Bold, maxLines = 1, overflow = TextOverflow.Ellipsis)
             Text(
                 "${hit.uploader} · ${formatLongDuration(hit.duration)}",
-                color = colors.textMuted, fontSize = 12.sp, fontWeight = FontWeight.Medium,
+                color = colors.textMuted, style = Type.Caption, fontWeight = FontWeight.Medium,
                 maxLines = 1, overflow = TextOverflow.Ellipsis,
             )
         }
@@ -932,7 +953,7 @@ private fun OnlineRow(hit: OnlineTrack, job: DownloadJobDto?, onDownload: (Onlin
                 )
                 Spacer(Modifier.width(6.dp))
             }
-            Text(label, color = if (failed) Color(0xFFFF6B6B) else colors.foreground, fontSize = 12.sp, fontWeight = FontWeight.Bold)
+            Text(label, color = if (failed) Color(0xFFFF6B6B) else colors.foreground, style = Type.Caption, fontWeight = FontWeight.Bold)
         }
     }
     Spacer(Modifier.height(8.dp))
@@ -953,6 +974,7 @@ fun LibraryScreen(vm: AppViewModel, ui: UiState) {
     // (web LibraryView) — the screen itself stays focused on the content.
     var showAddMenu by remember { mutableStateOf(false) }
     var showLink by remember { mutableStateOf(false) }
+    var menuPlaylist by remember { mutableStateOf<PlaylistDto?>(null) }
     var linkUrl by remember { mutableStateOf("") }
     var linkBusy by remember { mutableStateOf(false) }
     val context = LocalContext.current
@@ -1052,24 +1074,8 @@ fun LibraryScreen(vm: AppViewModel, ui: UiState) {
         )
     }
 
-    // The single "+" menu: every creation affordance behind one clean button.
-    if (showAddMenu) {
-        local.auralis.client.ui.components.MenuSheetScaffold(onDismiss = { showAddMenu = false }) {
-            Text(
-                tr("library.addMenu"), color = colors.textMuted, fontSize = 12.sp,
-                modifier = Modifier.padding(horizontal = 12.dp, vertical = 4.dp),
-            )
-            local.auralis.client.ui.components.MenuRow(Icons.Filled.QueueMusic, tr("ctx.newPlaylist")) {
-                showAddMenu = false; showCreate = true
-            }
-            local.auralis.client.ui.components.MenuRow(Icons.Filled.Download, tr("library.importFile")) {
-                showAddMenu = false; importFile.launch(arrayOf("*/*"))
-            }
-            local.auralis.client.ui.components.MenuRow(Icons.Filled.Link, tr("library.importLink")) {
-                showAddMenu = false; showLink = true
-            }
-        }
-    }
+    // The single "+" menu: every creation affordance behind one clean button
+    // (rendered in the overlay layer below, above the content).
 
     // Sorting the whole catalogue (and totalling artist plays — a pass over every
     // track's artist list) on each sort toggle / library update — off the main thread.
@@ -1101,6 +1107,7 @@ fun LibraryScreen(vm: AppViewModel, ui: UiState) {
         )
     }
 
+    Box(Modifier.fillMaxSize()) {
     Column(Modifier.fillMaxWidth()) {
         // Large title + the single "+" action beside it (Apple Music header).
         Row(
@@ -1110,13 +1117,19 @@ fun LibraryScreen(vm: AppViewModel, ui: UiState) {
             LargeTitle(tr("nav.library"), Modifier.weight(1f))
             Box(
                 Modifier
-                    .size(36.dp)
-                    .clip(CircleShape)
-                    .background(colors.accent)
+                    .size(48.dp)
                     .clickable { showAddMenu = true },
                 contentAlignment = Alignment.Center,
             ) {
-                Icon(Icons.Filled.Add, contentDescription = tr("library.addMenu"), tint = colors.ink, modifier = Modifier.size(22.dp))
+                Box(
+                    Modifier
+                        .size(36.dp)
+                        .clip(CircleShape)
+                        .background(colors.accent),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Icon(Icons.Filled.Add, contentDescription = tr("library.addMenu"), tint = colors.ink, modifier = Modifier.size(22.dp))
+                }
             }
         }
         // The pinned Liked-Songs entry — the library's one content shortcut. (The
@@ -1191,20 +1204,11 @@ fun LibraryScreen(vm: AppViewModel, ui: UiState) {
                             Box(Modifier.weight(1f)) {
                                 PlaylistTile(if (pl.pinned) "📌 ${pl.name}" else pl.name, pl.trackhashes.size, pl.id, pl.imageHash) { vm.navigate(ViewId.PLAYLIST, pl.id) }
                             }
-                            // Glyph-only buttons get localized content descriptions so
-                            // TalkBack announces the action, not the emoji/arrow.
-                            Text(if (pl.pinned) "📌" else "📍", fontSize = 14.sp,
-                                modifier = Modifier.clickable { vm.togglePin(pl.id) }
-                                    .semantics { contentDescription = Messages.t(if (pl.pinned) "common.unpin" else "common.pin") }
-                                    .padding(6.dp))
-                            Text("▲", color = colors.textMuted, fontSize = 14.sp,
-                                modifier = Modifier.clickable { vm.movePlaylist(pl.id, -1) }
-                                    .semantics { contentDescription = Messages.t("common.moveUp") }
-                                    .padding(6.dp))
-                            Text("▼", color = colors.textMuted, fontSize = 14.sp,
-                                modifier = Modifier.clickable { vm.movePlaylist(pl.id, 1) }
-                                    .semantics { contentDescription = Messages.t("common.moveDown") }
-                                    .padding(6.dp))
+                            // Pin / reorder live behind ONE ⋯ button (labelled for
+                            // TalkBack) — no more emoji piles scattered in the row.
+                            IconAction(Icons.Filled.MoreVert, tr("common.moreOptions"), tint = colors.textFaint, iconSize = 20) {
+                                menuPlaylist = pl
+                            }
                         }
                     }
                     if (ui.playlists.isEmpty()) item { EmptyHint(tr("library.emptyNoPlaylists"), tr("library.emptyNoPlaylistsHint")) }
@@ -1245,6 +1249,41 @@ fun LibraryScreen(vm: AppViewModel, ui: UiState) {
             }
         }
     }
+
+    // The single "+" menu: every creation affordance behind one clean button.
+    if (showAddMenu) {
+        MenuSheetScaffold(onDismiss = { showAddMenu = false }) {
+            Text(
+                tr("library.addMenu"), color = colors.textMuted, style = Type.Caption,
+                modifier = Modifier.padding(horizontal = Spacing.md, vertical = Spacing.xs),
+            )
+            MenuRow(Icons.Filled.QueueMusic, tr("ctx.newPlaylist")) {
+                showAddMenu = false; showCreate = true
+            }
+            MenuRow(Icons.Filled.Download, tr("library.importFile")) {
+                showAddMenu = false; importFile.launch(arrayOf("*/*"))
+            }
+            MenuRow(Icons.Filled.Link, tr("library.importLink")) {
+                showAddMenu = false; showLink = true
+            }
+        }
+    }
+
+    // The playlist row ⋯ menu — pin / reorder live behind one calm button.
+    menuPlaylist?.let { pl ->
+        MenuSheetScaffold(onDismiss = { menuPlaylist = null }) {
+            MenuRow(Icons.Filled.PushPin, tr(if (pl.pinned) "common.unpin" else "common.pin")) {
+                vm.togglePin(pl.id); menuPlaylist = null
+            }
+            MenuRow(Icons.Filled.ArrowUpward, tr("common.moveUp")) {
+                vm.movePlaylist(pl.id, -1); menuPlaylist = null
+            }
+            MenuRow(Icons.Filled.ArrowDownward, tr("common.moveDown")) {
+                vm.movePlaylist(pl.id, 1); menuPlaylist = null
+            }
+        }
+    }
+    }
 }
 
 @Composable
@@ -1254,7 +1293,7 @@ private fun PlusChip(label: String, onClick: () -> Unit) {
         Modifier.clip(CircleShape).background(colors.panel2).clickable { onClick() }
             .padding(horizontal = 14.dp, vertical = 7.dp),
     ) {
-        Text(label, color = colors.textMuted, fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
+        Text(label, color = colors.textMuted, style = Type.Caption, fontWeight = FontWeight.SemiBold)
     }
 }
 
@@ -1298,10 +1337,10 @@ private fun AlbumRow(album: local.auralis.client.model.Album, onLongPress: (() -
         local.auralis.client.ui.components.CoverArt(album.image, album.albumhash, Modifier.size(46.dp), cornerRadius = 8, sizeDp = 46)
         Spacer(Modifier.width(12.dp))
         Column(Modifier.weight(1f)) {
-            Text(album.title, color = colors.foreground, fontSize = 14.sp, fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis)
-            Text(album.artistName, color = colors.textMuted, fontSize = 12.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            Text(album.title, color = colors.foreground, style = Type.Body, fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            Text(album.artistName, color = colors.textMuted, style = Type.Caption, maxLines = 1, overflow = TextOverflow.Ellipsis)
         }
-        album.year?.let { Text("$it", color = colors.textFaint, fontSize = 12.sp) }
+        album.year?.let { Text("$it", color = colors.textFaint, style = Type.Caption) }
     }
 }
 
@@ -1318,8 +1357,8 @@ private fun ArtistRow(artist: local.auralis.client.model.Artist, onLongPress: ((
             local.auralis.client.ui.components.CoverArt(artist.image, artist.artisthash, Modifier.size(46.dp).clip(CircleShape), sizeDp = 46)
         }
         Spacer(Modifier.width(12.dp))
-        Text(artist.name, color = colors.foreground, fontSize = 14.sp, fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
-        artist.trackcount?.let { Text(tr("common.tracksCount", params = mapOf("count" to it)), color = colors.textFaint, fontSize = 12.sp) }
+        Text(artist.name, color = colors.foreground, style = Type.Body, fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
+        artist.trackcount?.let { Text(tr("common.tracksCount", params = mapOf("count" to it)), color = colors.textFaint, style = Type.Caption) }
     }
 }
 
@@ -1355,7 +1394,7 @@ fun FavoritesScreen(vm: AppViewModel, ui: UiState) {
                 Eyebrow(tr("favorites.title"))
                 Text(tr("favorites.headline"), style = AMType.Title1, color = colors.foreground)
                 Spacer(Modifier.height(4.dp))
-                Text(tr("detail.tracksAndDuration", params = mapOf("count" to favTracks.size, "duration" to formatLongDuration(totalDur))), color = colors.textMuted, fontSize = 13.sp)
+                Text(tr("detail.tracksAndDuration", params = mapOf("count" to favTracks.size, "duration" to formatLongDuration(totalDur))), color = colors.textMuted, style = Type.Label)
                 Spacer(Modifier.height(14.dp))
                 Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                     // "Lire" starts a SHUFFLED queue of the liked tracks only —
@@ -1391,7 +1430,7 @@ fun RecentsScreen(vm: AppViewModel, ui: UiState) {
             Column(Modifier.padding(vertical = 10.dp)) {
                 Eyebrow(tr("recents.eyebrow"))
                 Text(tr("recents.title"), style = AMType.Title1, color = colors.foreground)
-                Text(tr("recents.countRead", params = mapOf("count" to recents.size)), color = colors.textMuted, fontSize = 13.sp)
+                Text(tr("recents.countRead", params = mapOf("count" to recents.size)), color = colors.textMuted, style = Type.Label)
             }
         }
         itemsIndexed(recents, key = { _, t -> t.trackhash }) { idx, t ->
@@ -1435,10 +1474,10 @@ fun FoldersScreen(vm: AppViewModel, ui: UiState) {
         item {
             Column(Modifier.padding(vertical = 10.dp)) {
                 Eyebrow(tr("folders.title"))
-                Text(activeNode?.name ?: tr("nav.library"), fontSize = 24.sp, fontWeight = FontWeight.Black, color = colors.foreground)
+                Text(activeNode?.name ?: tr("nav.library"), style = AMType.Title1, color = colors.foreground)
                 if (activePath != rootPath && activePath != null) {
                     Spacer(Modifier.height(6.dp))
-                    Text(tr("folders.goBack"), color = colors.textMuted, fontSize = 13.sp, fontWeight = FontWeight.SemiBold,
+                    Text(tr("folders.goBack"), color = colors.textMuted, style = Type.Label, fontWeight = FontWeight.SemiBold,
                         modifier = Modifier.clickable {
                             path = nodes.find { n -> n.children.any { it.path == activePath } }?.path ?: rootPath
                         })
@@ -1454,17 +1493,17 @@ fun FoldersScreen(vm: AppViewModel, ui: UiState) {
         }
         items(subfolders) { f ->
             Row(
-                Modifier.fillMaxWidth().clip(RoundedCornerShape(10.dp)).clickable { path = f.path }
+                Modifier.fillMaxWidth().clip(AMShapes.tile).clickable { path = f.path }
                     .padding(vertical = 10.dp, horizontal = 8.dp),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
-                Box(Modifier.size(40.dp).clip(RoundedCornerShape(8.dp)).background(colors.panel2), contentAlignment = Alignment.Center) {
+                Box(Modifier.size(40.dp).clip(AMShapes.thumb).background(colors.panel2), contentAlignment = Alignment.Center) {
                     Text("📁", fontSize = 18.sp)
                 }
                 Spacer(Modifier.width(12.dp))
                 Column(Modifier.weight(1f)) {
-                    Text(f.name, color = colors.foreground, fontSize = 14.sp, fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                    Text(tr("common.tracksCount", params = mapOf("count" to f.trackcount)), color = colors.textMuted, fontSize = 12.sp)
+                    Text(f.name, color = colors.foreground, style = Type.Body, fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                    Text(tr("common.tracksCount", params = mapOf("count" to f.trackcount)), color = colors.textMuted, style = Type.Caption)
                 }
             }
         }
@@ -1518,7 +1557,7 @@ fun InsightsScreen(vm: AppViewModel, ui: UiState) {
         item {
             Column(Modifier.padding(vertical = 10.dp)) {
                 Eyebrow(tr("insights.eyebrow"))
-                Text(tr("insights.screenTitle"), fontSize = 26.sp, fontWeight = FontWeight.Black, color = colors.foreground)
+                Text(tr("insights.screenTitle"), style = AMType.Title1, color = colors.foreground)
             }
         }
         item { MoodRecapSection(vm, ui) }
@@ -1541,7 +1580,7 @@ fun InsightsScreen(vm: AppViewModel, ui: UiState) {
                             "${formatLongDuration(stats.totalListeningSeconds.toDouble())} ${tr("insights.listeningTotal")}"
                         } else null,
                     ).joinToString(" · "),
-                    color = colors.textMuted, fontSize = 12.sp, modifier = Modifier.padding(bottom = 4.dp),
+                    color = colors.textMuted, style = Type.Caption, modifier = Modifier.padding(bottom = 4.dp),
                 )
             }
         }
@@ -1570,8 +1609,8 @@ fun InsightsScreen(vm: AppViewModel, ui: UiState) {
         }
         items(topArtists) { a ->
             Row(Modifier.fillMaxWidth().clickable { vm.navigate(ViewId.ARTIST, a.artisthash) }.padding(vertical = 8.dp), verticalAlignment = Alignment.CenterVertically) {
-                Text(a.name, color = colors.foreground, fontSize = 14.sp, modifier = Modifier.weight(1f), maxLines = 1, overflow = TextOverflow.Ellipsis)
-                Text(tr("insights.playsAttribute", params = mapOf("count" to (artistPlays[a.artisthash] ?: 0))), color = colors.textMuted, fontSize = 12.sp)
+                Text(a.name, color = colors.foreground, style = Type.Body, modifier = Modifier.weight(1f), maxLines = 1, overflow = TextOverflow.Ellipsis)
+                Text(tr("insights.playsAttribute", params = mapOf("count" to (artistPlays[a.artisthash] ?: 0))), color = colors.textMuted, style = Type.Caption)
             }
         }
         item {
@@ -1593,22 +1632,22 @@ fun InsightsScreen(vm: AppViewModel, ui: UiState) {
 @Composable
 private fun BarPanel(title: String, eyebrow: String, rows: List<Pair<String, Int>>) {
     val colors = LocalAuralis.current
-    Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(14.dp)).background(colors.panel).padding(14.dp)) {
+    Column(Modifier.fillMaxWidth().clip(AMShapes.card).background(colors.panel).padding(Spacing.lg)) {
         Eyebrow(eyebrow)
         Text(title, style = AMType.Title3, color = colors.foreground, modifier = Modifier.padding(top = 2.dp, bottom = 10.dp))
         if (rows.isEmpty()) {
-            Text(tr("insights.noData"), color = colors.textMuted, fontSize = 12.sp)
+            Text(tr("insights.noData"), color = colors.textMuted, style = Type.Caption)
         } else {
             val max = (rows.maxOfOrNull { it.second } ?: 1).coerceAtLeast(1)
             rows.forEachIndexed { i, (label, value) ->
                 Column(Modifier.padding(vertical = 4.dp)) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
-                        Text("${i + 1}", color = colors.textFaint, fontSize = 11.sp, modifier = Modifier.width(18.dp))
+                        Text("${i + 1}", color = colors.textFaint, style = AMType.Caption2, modifier = Modifier.width(18.dp))
                         Text(
-                            label, color = colors.foreground, fontSize = 13.sp,
+                            label, color = colors.foreground, style = Type.Label,
                             modifier = Modifier.weight(1f), maxLines = 1, overflow = TextOverflow.Ellipsis,
                         )
-                        Text("$value", color = colors.textMuted, fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
+                        Text("$value", color = colors.textMuted, style = Type.Caption, fontWeight = FontWeight.SemiBold)
                     }
                     Spacer(Modifier.height(3.dp))
                     Box(Modifier.fillMaxWidth().height(5.dp).clip(RoundedCornerShape(3.dp)).background(colors.panel2)) {
@@ -1626,9 +1665,9 @@ private fun BarPanel(title: String, eyebrow: String, rows: List<Pair<String, Int
 @Composable
 private fun Kpi(label: String, value: String, modifier: Modifier = Modifier) {
     val colors = LocalAuralis.current
-    Column(modifier.clip(RoundedCornerShape(14.dp)).background(colors.panel).padding(14.dp)) {
-        Text(value, color = colors.foreground, fontSize = 22.sp, fontWeight = FontWeight.Black)
-        Text(label, color = colors.textMuted, fontSize = 12.sp)
+    Column(modifier.clip(AMShapes.card).background(colors.panel).padding(Spacing.lg)) {
+        Text(value, color = colors.foreground, style = AMType.Title2)
+        Text(label, color = colors.textMuted, style = Type.Caption)
     }
 }
 
@@ -1655,7 +1694,7 @@ private fun MoodRecapSection(vm: AppViewModel, ui: UiState) {
                     Text(
                         recapMonthChip(m),
                         color = if (selected) colors.ink else colors.textMuted,
-                        fontSize = 12.sp, fontWeight = FontWeight.SemiBold,
+                        style = Type.Caption, fontWeight = FontWeight.SemiBold,
                     )
                 }
             }
@@ -1668,7 +1707,7 @@ private fun MoodRecapSection(vm: AppViewModel, ui: UiState) {
 
             // Dominant-mood hero.
             Column(
-                Modifier.fillMaxWidth().clip(RoundedCornerShape(18.dp))
+                Modifier.fillMaxWidth().clip(AMShapes.hero)
                     .background(Brush.linearGradient(listOf(c0, c1)))
                     .padding(18.dp),
             ) {
@@ -1678,16 +1717,16 @@ private fun MoodRecapSection(vm: AppViewModel, ui: UiState) {
                     Column {
                         Text(
                             ("${recap.label}" + if (recap.inProgress) tr("recap.inProgress") else "").uppercase(),
-                            color = Color.White.copy(alpha = 0.8f), fontSize = 11.sp, fontWeight = FontWeight.Bold,
+                            color = Color.White.copy(alpha = 0.8f), style = AMType.Caption2, fontWeight = FontWeight.Bold,
                         )
                         Text(
                             (recap.moodWord ?: mood?.label ?: "—").replaceFirstChar { it.uppercase() },
-                            color = Color.White, fontSize = 24.sp, fontWeight = FontWeight.Black,
+                            color = Color.White, style = AMType.Title2,
                         )
                     }
                 }
                 Spacer(Modifier.height(12.dp))
-                Text(recap.narrative, color = Color.White.copy(alpha = 0.92f), fontSize = 13.sp)
+                Text(recap.narrative, color = Color.White.copy(alpha = 0.92f), style = Type.Label)
                 Spacer(Modifier.height(12.dp))
                 Row(horizontalArrangement = Arrangement.spacedBy(18.dp)) {
                     RecapStat("${recap.totalPlays}", tr("recap.playsLabel"))
@@ -1704,10 +1743,10 @@ private fun MoodRecapSection(vm: AppViewModel, ui: UiState) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Text(
                             "${mi?.emoji ?: "•"}  ${mi?.label ?: ms.mood}",
-                            color = colors.foreground, fontSize = 13.sp,
+                            color = colors.foreground, style = Type.Label,
                             modifier = Modifier.weight(1f), maxLines = 1, overflow = TextOverflow.Ellipsis,
                         )
-                        Text("${(ms.share * 100).toInt()}%", color = colors.textMuted, fontSize = 12.sp)
+                        Text("${(ms.share * 100).toInt()}%", color = colors.textMuted, style = Type.Caption)
                     }
                     Spacer(Modifier.height(4.dp))
                     Box(Modifier.fillMaxWidth().height(8.dp).clip(RoundedCornerShape(4.dp)).background(colors.panel2)) {
@@ -1724,7 +1763,7 @@ private fun MoodRecapSection(vm: AppViewModel, ui: UiState) {
             val topTracks = recap.topTracks.mapNotNull { ref -> ui.trackByHash[ref.trackhash]?.let { it to ref.plays } }
             if (topTracks.isNotEmpty()) {
                 Spacer(Modifier.height(14.dp))
-                Text(tr("recap.monthlyTracks"), color = colors.textMuted, fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
+                Text(tr("recap.monthlyTracks"), color = colors.textMuted, style = Type.Caption, fontWeight = FontWeight.SemiBold)
                 Spacer(Modifier.height(6.dp))
                 topTracks.forEachIndexed { i, pair ->
                     val t = pair.first
@@ -1735,17 +1774,17 @@ private fun MoodRecapSection(vm: AppViewModel, ui: UiState) {
                         local.auralis.client.ui.components.CoverArt(t.image, t.albumhash ?: t.title, Modifier.size(36.dp), cornerRadius = 8, sizeDp = 36)
                         Spacer(Modifier.width(10.dp))
                         Column(Modifier.weight(1f)) {
-                            Text(t.title, color = colors.foreground, fontSize = 13.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                            Text(t.displayArtist, color = colors.textMuted, fontSize = 11.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                            Text(t.title, color = colors.foreground, style = Type.Label, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                            Text(t.displayArtist, color = colors.textMuted, style = AMType.Caption2, maxLines = 1, overflow = TextOverflow.Ellipsis)
                         }
-                        Text("${pair.second}×", color = colors.textMuted, fontSize = 12.sp)
+                        Text("${pair.second}×", color = colors.textMuted, style = Type.Caption)
                     }
                 }
             }
         } else {
             Text(
                 recap?.narrative ?: tr("recap.startListeningHint"),
-                color = colors.textMuted, fontSize = 13.sp, modifier = Modifier.padding(vertical = 8.dp),
+                color = colors.textMuted, style = Type.Label, modifier = Modifier.padding(vertical = 8.dp),
             )
         }
         Spacer(Modifier.height(8.dp))
@@ -1755,7 +1794,7 @@ private fun MoodRecapSection(vm: AppViewModel, ui: UiState) {
 @Composable
 private fun RecapStat(value: String, label: String) {
     Column {
-        Text(value, color = Color.White, fontSize = 17.sp, fontWeight = FontWeight.Black)
+        Text(value, color = Color.White, style = AMType.Headline)
         Text(label, color = Color.White.copy(alpha = 0.75f), fontSize = 10.sp)
     }
 }

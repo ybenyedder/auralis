@@ -4,6 +4,64 @@ All notable changes to Auralis are documented here. The format is based on
 [Keep a Changelog](https://keepachangelog.com/) and this project adheres to
 [Semantic Versioning](https://semver.org/).
 
+## [1.25.0] - 2026-10-30
+
+Refonte de l'expérience mobile, guidée par les retours utilisateurs : « c'est
+trop moche, rends-la smooth », « enlève Radio », « la bibliothèque c'est trop
+chargé », « ton chercheur en chantant ne marche pas, je préfère le vrai
+Shazam », « mes titres likés doivent jouer aléatoirement, pas des titres que
+je n'ai pas likés », « il y a plein de boutons mis bizarrement ».
+
+### Changé — Android, comportement
+- **Catégorie Radio supprimée** : dock à 4 onglets (Accueil / Nouveau /
+  Recherche / Bibliothèque), code mort retiré. Les radios par graine depuis les
+  menus titre/album/artiste restent disponibles.
+- **Bibliothèque déchargée** : un seul menu « + » (nouvelle playlist, import
+  fichier, import lien), plus de création de playlist « intelligente » (les
+  existantes restent évaluées et lisibles), chips et actions redondantes
+  retirées ; l'Accueil perd ses doublons (étagères qui répétaient Nouveau et
+  Bibliothèque, chips de série).
+- **Titres likés : « Lire » lit MES titres, aléatoirement.** File aléatoire
+  composée uniquement de titres likés, et la continuation de lecture porte
+  désormais une source (Bibliothèque / Favoris / Playlist) : elle ne peut plus
+  injecter un titre hors de l'ensemble lancé (elle s'arrête quand il est
+  épuisé) — pareil pour les playlists. Testé (13 tests JVM).
+- **« Identifier la musique » = vrai Shazam.** L'app enregistre l'ambiance (ou
+  ton fredonnement), le serveur identifie via **Shazam réel** (reconnaissance
+  mondiale sans clé API) et affiche « Identifié » avant « Dans ta bibliothèque »
+  ; un résultat identifié se télécharge en un appui dans ta bibliothèque. Les
+  erreurs s'affichent toujours (plus de feuille vide silencieuse).
+
+### Changé — Serveur
+- **Vrai moteur Shazam** (`src/server/melody/shazam.ts`) : signature spectrale
+  (shazamio-core WASM, PCM décodé par ffmpeg puis signatures par fenêtres de
+  12 s — le décodeur WASM gère mal les conteneurs compressés) + endpoint
+  officiel Shazam, sans clé ni compte. Validé en réel : clip de 12 s de
+  « Get Lucky » identifié en 547 ms.
+- `POST /api/recognize` : Shazam en premier, ACRCloud reste un extra
+  optionnel ; `remoteEnabled` toujours vrai.
+
+### Ajouté — Android, design & fluidité (refonte visuelle)
+- **Design tokens** uniques (espacements 4→32, rayons, échelle typographique,
+  surfaces tonales + bordures fines, vocabulaire d'animations ressort) appliqués
+  à toute l'app — fini les valeurs magiques et les styles par écran.
+- **Boutons maîtrisés** : une action primaire + une secondaire maximum par
+  carte/écran ; le reste dans un menu « ⋯ » partagé (feuille animée) ; cibles
+  tactiles à 48dp partout ; fini les boutons « placés bizarrement » (dont le
+  menu « + » qui s'affichait sous le contenu).
+- **Mouvement** : transitions d'écran animées (ressort), éléments de liste qui
+  s'animent, crossfade des pochettes, player plein écran qui monte depuis le
+  mini-player, pilule animée sur l'onglet actif, scrubber agrandi et fluide,
+  squelettes de chargement shimmer.
+- **Visuel** : héros album/artiste/playlist avec voile dégradé teinté, cartes
+  arrondies cohérentes, ombres douces, réglages regroupés en cartes claires,
+  onboarding/login/erreurs refaits dans le même langage, thème sombre ET clair
+  travaillés.
+
+### Tests
+- 158 tests Android (continuation de file contrainte, logique existante) +
+  186 tests web verts.
+
 ## [1.24.0] - 2026-10-30
 
 Deux demandes : « une sorte de Shazam où tu marmonnes/chantonnes et ça te donne

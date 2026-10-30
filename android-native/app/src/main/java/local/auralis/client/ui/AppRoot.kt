@@ -7,10 +7,10 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -22,14 +22,17 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import local.auralis.client.i18n.LocalStrings
 import local.auralis.client.i18n.Strings
 import local.auralis.client.i18n.tr
 import local.auralis.client.ui.screens.ConnectScreen
 import local.auralis.client.ui.screens.LoginScreen
+import local.auralis.client.ui.theme.AMShapes
+import local.auralis.client.ui.theme.AMType
 import local.auralis.client.ui.theme.AuralisTheme
 import local.auralis.client.ui.theme.LocalAuralis
+import local.auralis.client.ui.theme.Spacing
+import local.auralis.client.ui.theme.Type
 
 @Composable
 fun AppRoot(vm: AppViewModel) {
@@ -60,9 +63,11 @@ fun AppRoot(vm: AppViewModel) {
 private fun LoadingScreen() {
     val colors = LocalAuralis.current
     Column(Modifier.fillMaxSize(), verticalArrangement = Arrangement.Center, horizontalAlignment = Alignment.CenterHorizontally) {
-        CircularProgressIndicator(color = colors.accent, strokeWidth = 3.dp, modifier = Modifier.size(36.dp))
-        Spacer(Modifier.height(16.dp))
-        Text("Auralis", color = colors.foreground, fontSize = 18.sp, fontWeight = FontWeight.Black)
+        local.auralis.client.ui.components.BrandMark(64)
+        Spacer(Modifier.height(Spacing.lg))
+        CircularProgressIndicator(color = colors.accent, strokeWidth = 3.dp, modifier = Modifier.size(32.dp))
+        Spacer(Modifier.height(Spacing.lg))
+        Text("Auralis", style = AMType.Headline, color = colors.foreground)
     }
 }
 
@@ -70,19 +75,33 @@ private fun LoadingScreen() {
 private fun ErrorScreen(message: String?, onRetry: () -> Unit, onChangeServer: () -> Unit) {
     val colors = LocalAuralis.current
     Column(
-        Modifier.fillMaxSize().padding(28.dp),
+        Modifier.fillMaxSize().padding(Spacing.xl),
         verticalArrangement = Arrangement.Center,
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
-        Text(tr("connect.failed"), color = colors.foreground, fontSize = 18.sp, fontWeight = FontWeight.Bold)
-        Spacer(Modifier.height(8.dp))
-        Text(message ?: tr("connect.failedBody"), color = colors.textMuted, fontSize = 13.sp, textAlign = TextAlign.Center)
-        Spacer(Modifier.height(20.dp))
-        Box(Modifier.clip(CircleShape).background(colors.accent).clickable { onRetry() }.padding(horizontal = 22.dp, vertical = 12.dp)) {
-            Text(tr("error.retry"), color = colors.ink, fontWeight = FontWeight.Bold)
+        Column(
+            Modifier.fillMaxWidth()
+                .clip(AMShapes.hero)
+                .background(colors.panel)
+                .padding(Spacing.xl),
+            horizontalAlignment = Alignment.CenterHorizontally,
+        ) {
+            Text(tr("connect.failed"), style = AMType.Title2, color = colors.foreground)
+            Spacer(Modifier.height(Spacing.sm))
+            Text(message ?: tr("connect.failedBody"), style = Type.Label, color = colors.textMuted, textAlign = TextAlign.Center)
+            Spacer(Modifier.height(Spacing.xl))
+            Box(
+                Modifier.clip(AMShapes.pill).background(colors.accent).clickable { onRetry() }
+                    .padding(horizontal = Spacing.xl, vertical = Spacing.md),
+            ) {
+                Text(tr("error.retry"), color = colors.ink, style = Type.Body, fontWeight = FontWeight.Bold)
+            }
         }
-        Spacer(Modifier.height(14.dp))
-        Text(tr("connect.changeServer"), color = colors.textMuted, fontSize = 13.sp, fontWeight = FontWeight.SemiBold,
-            modifier = Modifier.clickable { onChangeServer() })
+        Spacer(Modifier.height(Spacing.lg))
+        Text(
+            tr("connect.changeServer"), style = Type.Label, color = colors.textMuted, fontWeight = FontWeight.SemiBold,
+            modifier = Modifier.clip(AMShapes.pill).clickable { onChangeServer() }
+                .padding(horizontal = Spacing.sm, vertical = Spacing.xs),
+        )
     }
 }

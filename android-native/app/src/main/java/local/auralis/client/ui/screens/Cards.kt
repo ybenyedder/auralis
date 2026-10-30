@@ -12,11 +12,11 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.lazy.LazyItemScope
 import androidx.compose.foundation.shape.CircleShape
 import local.auralis.client.i18n.Messages
 import local.auralis.client.i18n.tr
 import local.auralis.client.ui.components.NetworkImage
-import local.auralis.client.ui.theme.LocalApiUrl
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.PlayArrow
@@ -39,6 +39,10 @@ import local.auralis.client.ui.components.paletteFor
 import local.auralis.client.ui.theme.AMType
 import local.auralis.client.ui.theme.LocalAuralis
 import local.auralis.client.ui.theme.LocalApiUrl
+import local.auralis.client.ui.theme.Motion
+import local.auralis.client.ui.theme.Radius
+import local.auralis.client.ui.theme.Spacing
+import local.auralis.client.ui.theme.Type
 
 /** Apple Music's card play affordance: a translucent frosted-dark circle pinned
  *  bottom-right of the cover (never a solid accent — the art stays the hero).
@@ -60,7 +64,7 @@ private fun CardPlayFab(onPlay: () -> Unit, modifier: Modifier = Modifier) {
 
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
-fun AlbumCard(
+fun LazyItemScope.AlbumCard(
     album: Album,
     modifier: Modifier = Modifier.width(150.dp),
     onPlay: (() -> Unit)? = null,
@@ -68,29 +72,29 @@ fun AlbumCard(
     onClick: () -> Unit,
 ) {
     val colors = LocalAuralis.current
-    Column(modifier.combinedClickable(onClick = onClick, onLongClick = onLongPress)) {
+    Column(modifier.animateItem(placementSpec = Motion.placement).combinedClickable(onClick = onClick, onLongClick = onLongPress)) {
         Box {
-            CoverArt(album.image, album.albumhash, Modifier.fillMaxWidth().aspectRatio(1f), cornerRadius = 8)
+            CoverArt(album.image, album.albumhash, Modifier.fillMaxWidth().aspectRatio(1f), cornerRadius = Radius.sm.value.toInt())
             if (onPlay != null) {
-                CardPlayFab(onPlay, Modifier.align(Alignment.BottomEnd).padding(8.dp))
+                CardPlayFab(onPlay, Modifier.align(Alignment.BottomEnd).padding(Spacing.sm))
             }
         }
         Text(
             album.title,
-            color = colors.foreground, style = AMType.Subhead, fontWeight = FontWeight.SemiBold,
+            color = colors.foreground, style = Type.Body, fontWeight = FontWeight.SemiBold,
             maxLines = 1, overflow = TextOverflow.Ellipsis,
-            modifier = Modifier.padding(top = 8.dp),
+            modifier = Modifier.padding(top = Spacing.sm),
         )
         Text(
             album.artistName,
-            color = colors.textMuted, style = AMType.Footnote, maxLines = 1, overflow = TextOverflow.Ellipsis,
+            color = colors.textMuted, style = Type.Caption, maxLines = 1, overflow = TextOverflow.Ellipsis,
         )
     }
 }
 
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
-fun ArtistCard(
+fun LazyItemScope.ArtistCard(
     artist: Artist,
     modifier: Modifier = Modifier.width(130.dp),
     onPlay: (() -> Unit)? = null,
@@ -100,7 +104,7 @@ fun ArtistCard(
     val colors = LocalAuralis.current
     val (bg, _, _) = paletteFor(artist.artisthash)
     Column(
-        modifier.combinedClickable(onClick = onClick, onLongClick = onLongPress),
+        modifier.animateItem(placementSpec = Motion.placement).combinedClickable(onClick = onClick, onLongClick = onLongPress),
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
         Box(Modifier.fillMaxWidth().aspectRatio(1f)) {
@@ -108,39 +112,43 @@ fun ArtistCard(
                 CoverArt(artist.image, artist.artisthash, Modifier.fillMaxWidth().aspectRatio(1f).clip(CircleShape))
             }
             if (onPlay != null) {
-                CardPlayFab(onPlay, Modifier.align(Alignment.BottomEnd).padding(4.dp))
+                CardPlayFab(onPlay, Modifier.align(Alignment.BottomEnd).padding(Spacing.xs))
             }
         }
         Text(
             artist.name,
-            color = colors.foreground, style = AMType.Subhead, fontWeight = FontWeight.SemiBold,
+            color = colors.foreground, style = Type.Body, fontWeight = FontWeight.SemiBold,
             maxLines = 1, overflow = TextOverflow.Ellipsis, textAlign = TextAlign.Center,
-            modifier = Modifier.padding(top = 8.dp).fillMaxWidth(),
+            modifier = Modifier.padding(top = Spacing.sm).fillMaxWidth(),
         )
     }
 }
 
 @Composable
-fun PlaylistTile(name: String, count: Int, seed: String, imageHash: String? = null, onClick: () -> Unit) {
+fun LazyItemScope.PlaylistTile(name: String, count: Int, seed: String, imageHash: String? = null, onClick: () -> Unit) {
     val colors = LocalAuralis.current
     androidx.compose.foundation.layout.Row(
         Modifier
             .fillMaxWidth()
-            .clip(RoundedCornerShape(12.dp))
+            .animateItem(placementSpec = Motion.placement)
+            .clip(RoundedCornerShape(Radius.sm))
             .clickable { onClick() }
-            .padding(vertical = 6.dp),
+            .padding(vertical = Spacing.sm),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         if (imageHash != null) {
-            val resolveUrl = local.auralis.client.ui.theme.LocalApiUrl.current
-            NetworkImage(resolveUrl("/api/art/$imageHash"), Modifier.size(52.dp), fallback = { CoverArt(null, seed, Modifier.size(52.dp), cornerRadius = 10, sizeDp = 52) })
+            val resolveUrl = LocalApiUrl.current
+            NetworkImage(
+                resolveUrl("/api/art/$imageHash"), Modifier.size(52.dp),
+                fallback = { CoverArt(null, seed, Modifier.size(52.dp), cornerRadius = Radius.sm.value.toInt(), sizeDp = 52) },
+            )
         } else {
-            CoverArt(null, seed, Modifier.size(52.dp), cornerRadius = 10, sizeDp = 52)
+            CoverArt(null, seed, Modifier.size(52.dp), cornerRadius = Radius.sm.value.toInt(), sizeDp = 52)
         }
-        androidx.compose.foundation.layout.Spacer(Modifier.width(12.dp))
+        androidx.compose.foundation.layout.Spacer(Modifier.width(Spacing.md))
         Column(Modifier.weight(1f)) {
-            Text(name, color = colors.foreground, fontSize = 14.sp, fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis)
-            Text(tr("common.tracksCount", params = mapOf("count" to count)), color = colors.textMuted, fontSize = 12.sp)
+            Text(name, color = colors.foreground, style = Type.Body, fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            Text(tr("common.tracksCount", params = mapOf("count" to count)), color = colors.textMuted, style = Type.Caption)
         }
     }
 }

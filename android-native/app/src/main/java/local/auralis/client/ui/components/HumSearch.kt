@@ -66,7 +66,10 @@ import local.auralis.client.model.RecognizeResult
 import local.auralis.client.model.scorePercent
 import local.auralis.client.ui.AppViewModel
 import local.auralis.client.ui.UiState
+import local.auralis.client.ui.theme.AMShapes
+import local.auralis.client.ui.theme.AMType
 import local.auralis.client.ui.theme.LocalAuralis
+import local.auralis.client.ui.theme.Type
 import java.io.File
 
 // "Identifier la musique" (Shazam-style music recognition): a bottom sheet that
@@ -210,13 +213,13 @@ fun HumSheet(vm: AppViewModel, ui: UiState, onDismiss: () -> Unit) {
                 errorKey != null || permissionDenied -> {
                     Text(
                         tr(errorKey ?: "hum.permissionDenied"),
-                        color = colors.textMuted, fontSize = 13.sp,
+                        color = colors.textMuted, style = Type.Label,
                     )
                     // Surface the server's own failure text (413/415/400…) so a
                     // failure never looks like a silent empty sheet.
                     if (errorKey != null && ui.humErrorDetail != null) {
                         Spacer(Modifier.height(4.dp))
-                        Text(ui.humErrorDetail!!, color = colors.textFaint, fontSize = 12.sp)
+                        Text(ui.humErrorDetail!!, color = colors.textFaint, style = Type.Caption)
                     }
                     Spacer(Modifier.height(10.dp))
                     Row {
@@ -238,7 +241,7 @@ fun HumSheet(vm: AppViewModel, ui: UiState, onDismiss: () -> Unit) {
                             modifier = Modifier.size(18.dp),
                         )
                         Spacer(Modifier.width(10.dp))
-                        Text(tr("hum.analyzing"), color = colors.textMuted, fontSize = 13.sp)
+                        Text(tr("hum.analyzing"), color = colors.textMuted, style = Type.Label)
                     }
                 }
                 result != null -> HumResults(result, ui, vm, onRetry = {
@@ -246,7 +249,7 @@ fun HumSheet(vm: AppViewModel, ui: UiState, onDismiss: () -> Unit) {
                     requestOrStart()
                 })
                 recording -> {
-                    Text(tr("hum.hint"), color = colors.textMuted, fontSize = 12.sp)
+                    Text(tr("hum.hint"), color = colors.textMuted, style = Type.Caption)
                     Spacer(Modifier.height(18.dp))
                     Text(
                         tr("hum.recording", params = mapOf("sec" to elapsed)),
@@ -265,12 +268,12 @@ fun HumSheet(vm: AppViewModel, ui: UiState, onDismiss: () -> Unit) {
                     Spacer(Modifier.height(8.dp))
                     Text(
                         tr("hum.stop"),
-                        color = colors.textMuted, fontSize = 12.sp,
+                        color = colors.textMuted, style = Type.Caption,
                         modifier = Modifier.align(Alignment.CenterHorizontally),
                     )
                 }
                 else -> {
-                    Text(tr("hum.hint"), color = colors.textMuted, fontSize = 12.sp)
+                    Text(tr("hum.hint"), color = colors.textMuted, style = Type.Caption)
                     Spacer(Modifier.height(18.dp))
                     Box(
                         Modifier.align(Alignment.CenterHorizontally)
@@ -318,7 +321,7 @@ private fun HumResults(
     // matches second ("Dans ta bibliothèque") — the world-catalog hit is the
     // star of this sheet.
     if (remote.isNotEmpty()) {
-        Text(tr("hum.remoteTitle"), color = colors.foreground, fontSize = 13.sp, fontWeight = FontWeight.Bold)
+        Text(tr("hum.remoteTitle"), color = colors.foreground, style = Type.Label, fontWeight = FontWeight.Bold)
         Spacer(Modifier.height(6.dp))
         remote.forEach { m ->
             HumRemoteRow(m, ui.humRemoteJobs[m.query]) { vm.downloadHumMatch(m) }
@@ -326,7 +329,7 @@ private fun HumResults(
         Spacer(Modifier.height(12.dp))
     }
     if (result.local.isNotEmpty()) {
-        Text(tr("hum.localTitle"), color = colors.foreground, fontSize = 13.sp, fontWeight = FontWeight.Bold)
+        Text(tr("hum.localTitle"), color = colors.foreground, style = Type.Label, fontWeight = FontWeight.Bold)
         Spacer(Modifier.height(6.dp))
         result.local.forEach { m ->
             HumLocalRow(m) { vm.playHumMatch(m) }
@@ -335,10 +338,10 @@ private fun HumResults(
     }
     if (remote.isEmpty() && result.local.isEmpty()) {
         // Informative empty state — never a silent empty sheet.
-        Text(tr("hum.noMatch"), color = colors.textMuted, fontSize = 13.sp)
+        Text(tr("hum.noMatch"), color = colors.textMuted, style = Type.Label)
         if (result.indexSize == 0) {
             Spacer(Modifier.height(4.dp))
-            Text(tr("hum.indexEmpty"), color = colors.textFaint, fontSize = 12.sp)
+            Text(tr("hum.indexEmpty"), color = colors.textFaint, style = Type.Caption)
         }
         Spacer(Modifier.height(12.dp))
     }
@@ -353,20 +356,20 @@ private fun HumResults(
 private fun HumLocalRow(match: RecognizeLocalMatch, onClick: () -> Unit) {
     val colors = LocalAuralis.current
     Row(
-        Modifier.fillMaxWidth().clip(RoundedCornerShape(10.dp)).clickable { onClick() }
+        Modifier.fillMaxWidth().clip(AMShapes.tile).clickable { onClick() }
             .padding(horizontal = 6.dp, vertical = 6.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         CoverArt(match.image, match.trackhash, Modifier.size(46.dp), cornerRadius = 8, sizeDp = 46)
         Spacer(Modifier.width(12.dp))
         Column(Modifier.weight(1f)) {
-            Text(match.title, color = colors.foreground, fontSize = 14.sp, fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis)
-            Text(match.artist, color = colors.textMuted, fontSize = 12.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            Text(match.title, color = colors.foreground, style = Type.Body, fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            Text(match.artist, color = colors.textMuted, style = Type.Caption, maxLines = 1, overflow = TextOverflow.Ellipsis)
         }
         Spacer(Modifier.width(8.dp))
         Text(
             tr("hum.score", params = mapOf("pct" to scorePercent(match.score))),
-            color = colors.textMuted, fontSize = 11.sp,
+            color = colors.textMuted, style = AMType.Caption2,
         )
     }
 }
@@ -388,20 +391,20 @@ private fun HumRemoteRow(match: RecognizeRemoteMatch, job: DownloadJobDto?, onDo
         else -> tr("hum.addToLibrary")
     }
     Row(
-        Modifier.fillMaxWidth().clip(RoundedCornerShape(10.dp)).padding(horizontal = 6.dp, vertical = 6.dp),
+        Modifier.fillMaxWidth().clip(AMShapes.tile).padding(horizontal = 6.dp, vertical = 6.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Column(Modifier.weight(1f)) {
-            Text(match.title, color = colors.foreground, fontSize = 14.sp, fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            Text(match.title, color = colors.foreground, style = Type.Body, fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis)
             Text(
                 match.artists.joinToString(", ").ifBlank { match.source },
-                color = colors.textMuted, fontSize = 12.sp, maxLines = 1, overflow = TextOverflow.Ellipsis,
+                color = colors.textMuted, style = Type.Caption, maxLines = 1, overflow = TextOverflow.Ellipsis,
             )
         }
         Spacer(Modifier.width(8.dp))
         Text(
             tr("hum.score", params = mapOf("pct" to scorePercent(match.score))),
-            color = colors.textMuted, fontSize = 11.sp,
+            color = colors.textMuted, style = AMType.Caption2,
         )
         Spacer(Modifier.width(8.dp))
         Row(
@@ -436,7 +439,7 @@ private fun HumRemoteRow(match: RecognizeRemoteMatch, job: DownloadJobDto?, onDo
                 )
             }
             Spacer(Modifier.width(6.dp))
-            Text(label, color = if (failed) Color(0xFFFF6B6B) else colors.foreground, fontSize = 11.sp, fontWeight = FontWeight.Bold)
+            Text(label, color = if (failed) Color(0xFFFF6B6B) else colors.foreground, style = AMType.Caption2, fontWeight = FontWeight.Bold)
         }
     }
 }

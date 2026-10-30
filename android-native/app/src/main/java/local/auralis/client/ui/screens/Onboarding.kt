@@ -44,13 +44,19 @@ import androidx.compose.ui.graphics.Brush
 import local.auralis.client.i18n.tr
 import local.auralis.client.ui.components.AuralisGlyph
 import local.auralis.client.ui.components.paletteFor
+import local.auralis.client.ui.theme.AMShapes
+import local.auralis.client.ui.theme.AMType
 import local.auralis.client.ui.theme.LocalAuralis
+import local.auralis.client.ui.theme.Radius
+import local.auralis.client.ui.theme.Spacing
+import local.auralis.client.ui.theme.Type
+import local.auralis.client.ui.theme.tonalCard
 
 @Composable
 private fun SplashMark() {
     val colors = LocalAuralis.current
     Box(
-        Modifier.size(60.dp).clip(RoundedCornerShape(16.dp)).background(colors.paper),
+        Modifier.size(60.dp).clip(AMShapes.card).background(colors.accent),
         contentAlignment = Alignment.Center,
     ) {
         AuralisGlyph(Modifier.size(32.dp), tint = colors.ink)
@@ -64,8 +70,9 @@ private fun field(value: String, onChange: (String) -> Unit, label: String, keyb
     OutlinedTextField(
         value = value,
         onValueChange = onChange,
-        label = { Text(label, color = colors.textMuted) },
+        label = { Text(label, color = colors.textMuted, style = Type.Caption) },
         singleLine = true,
+        shape = RoundedCornerShape(Radius.sm),
         visualTransformation = if (password) PasswordVisualTransformation() else androidx.compose.ui.text.input.VisualTransformation.None,
         keyboardOptions = keyboard,
         keyboardActions = KeyboardActions(onDone = { onImeDone() }, onGo = { onImeDone() }),
@@ -86,8 +93,8 @@ private fun PrimaryButton(label: String, loading: Boolean, onClick: () -> Unit) 
     Box(
         Modifier
             .fillMaxWidth()
-            .clip(CircleShape)
-            .background(colors.accent)
+            .clip(AMShapes.pill)
+            .background(colors.accent.copy(alpha = if (loading) 0.7f else 1f))
             .clickable(enabled = !loading) { onClick() }
             .padding(vertical = 15.dp),
         contentAlignment = Alignment.Center,
@@ -95,7 +102,7 @@ private fun PrimaryButton(label: String, loading: Boolean, onClick: () -> Unit) 
         if (loading) {
             CircularProgressIndicator(color = colors.ink, strokeWidth = 2.dp, modifier = Modifier.size(20.dp))
         } else {
-            Text(label, color = colors.ink, fontWeight = FontWeight.Bold, fontSize = 15.sp)
+            Text(label, color = colors.ink, style = Type.Body, fontWeight = FontWeight.Bold)
         }
     }
 }
@@ -106,34 +113,40 @@ fun ConnectScreen(connecting: Boolean, message: String?, initial: String, onConn
     var url by remember { mutableStateOf(initial) }
     Box(Modifier.fillMaxSize().background(colors.background).systemBarsPadding().imePadding()) {
         Column(
-            Modifier.fillMaxSize().padding(28.dp),
+            Modifier.fillMaxSize().padding(Spacing.xl),
             verticalArrangement = Arrangement.Center,
             horizontalAlignment = Alignment.CenterHorizontally,
         ) {
-            SplashMark()
-            Spacer(Modifier.height(20.dp))
-            Text(tr("connect.title"), fontSize = 22.sp, fontWeight = FontWeight.Black, color = colors.foreground)
-            Spacer(Modifier.height(8.dp))
-            Text(
-                tr("connect.subtitle"),
-                fontSize = 13.sp, color = colors.textMuted, textAlign = TextAlign.Center,
-            )
-            Spacer(Modifier.height(28.dp))
-            field(
-                value = url, onChange = { url = it }, label = tr("connect.serverField"),
-                keyboard = KeyboardOptions(keyboardType = KeyboardType.Uri, imeAction = ImeAction.Go),
-                onImeDone = { onConnect(url) },
-            )
-            Spacer(Modifier.height(16.dp))
-            PrimaryButton(tr("auth.signIn"), connecting) { onConnect(url) }
-            if (message != null) {
-                Spacer(Modifier.height(14.dp))
-                Text(message, color = colors.destructive, fontSize = 12.5.sp, textAlign = TextAlign.Center)
+            // Centered form card — the same tonal surface as the rest of the app.
+            Column(
+                Modifier.fillMaxWidth().tonalCard(AMShapes.hero, colors.panel).padding(Spacing.xl),
+                horizontalAlignment = Alignment.CenterHorizontally,
+            ) {
+                SplashMark()
+                Spacer(Modifier.height(Spacing.lg))
+                Text(tr("connect.title"), style = AMType.Title2, color = colors.foreground)
+                Spacer(Modifier.height(Spacing.sm))
+                Text(
+                    tr("connect.subtitle"),
+                    style = Type.Label, color = colors.textMuted, textAlign = TextAlign.Center,
+                )
+                Spacer(Modifier.height(Spacing.xl))
+                field(
+                    value = url, onChange = { url = it }, label = tr("connect.serverField"),
+                    keyboard = KeyboardOptions(keyboardType = KeyboardType.Uri, imeAction = ImeAction.Go),
+                    onImeDone = { onConnect(url) },
+                )
+                Spacer(Modifier.height(Spacing.lg))
+                PrimaryButton(tr("auth.signIn"), connecting) { onConnect(url) }
+                if (message != null) {
+                    Spacer(Modifier.height(Spacing.md))
+                    Text(message, color = colors.destructive, style = Type.Caption, textAlign = TextAlign.Center)
+                }
             }
-            Spacer(Modifier.height(18.dp))
+            Spacer(Modifier.height(Spacing.lg))
             Text(
                 tr("connect.hint"),
-                fontSize = 12.sp, color = colors.textFaint, textAlign = TextAlign.Center,
+                style = Type.Caption, color = colors.textFaint, textAlign = TextAlign.Center,
             )
         }
     }
@@ -157,26 +170,26 @@ fun LoginScreen(
     LaunchedEffect(server) { accounts = runCatching { loadAccounts() }.getOrDefault(listOf("admin")) }
 
     Box(Modifier.fillMaxSize().background(colors.background).systemBarsPadding().imePadding()) {
-        Row(Modifier.fillMaxWidth().padding(20.dp), verticalAlignment = Alignment.CenterVertically) {
+        Row(Modifier.fillMaxWidth().padding(Spacing.lg), verticalAlignment = Alignment.CenterVertically) {
             local.auralis.client.ui.components.BrandMark(28)
-            Spacer(Modifier.width(8.dp))
-            Text("Auralis", fontSize = 16.sp, fontWeight = FontWeight.Bold, color = colors.foreground)
+            Spacer(Modifier.width(Spacing.sm))
+            Text("Auralis", style = AMType.Headline, color = colors.foreground)
         }
         Column(
-            Modifier.fillMaxSize().padding(horizontal = 28.dp),
+            Modifier.fillMaxSize().padding(horizontal = Spacing.xl),
             verticalArrangement = Arrangement.Center,
             horizontalAlignment = Alignment.CenterHorizontally,
         ) {
             if (selected == null) {
-                Text(tr("auth.whoIsListening"), fontSize = 26.sp, fontWeight = FontWeight.Medium, color = colors.foreground, textAlign = TextAlign.Center)
-                Spacer(Modifier.height(28.dp))
+                Text(tr("auth.whoIsListening"), style = AMType.Title1, color = colors.foreground, textAlign = TextAlign.Center)
+                Spacer(Modifier.height(Spacing.xl))
                 val profiles = accounts
                 if (profiles == null) {
-                    Box(Modifier.size(96.dp).clip(RoundedCornerShape(10.dp)).background(colors.panel2))
+                    Box(Modifier.size(96.dp).clip(AMShapes.card).background(colors.panel2))
                 } else {
-                    Column(verticalArrangement = Arrangement.spacedBy(20.dp)) {
+                    Column(verticalArrangement = Arrangement.spacedBy(Spacing.xl)) {
                         profiles.chunked(3).forEach { row ->
-                            Row(horizontalArrangement = Arrangement.spacedBy(20.dp)) {
+                            Row(horizontalArrangement = Arrangement.spacedBy(Spacing.xl)) {
                                 row.forEach { name -> ProfileTile(name) { selected = name; password = "" } }
                             }
                         }
@@ -184,35 +197,37 @@ fun LoginScreen(
                 }
             } else {
                 ProfileAvatar(selected!!, 88)
-                Spacer(Modifier.height(14.dp))
-                Text(selected!!, fontSize = 20.sp, fontWeight = FontWeight.Bold, color = colors.foreground)
-                Spacer(Modifier.height(4.dp))
-                Text(tr("auth.enterPassword"), fontSize = 13.sp, color = colors.textMuted)
-                Spacer(Modifier.height(22.dp))
+                Spacer(Modifier.height(Spacing.md))
+                Text(selected!!, style = AMType.Title2, color = colors.foreground)
+                Spacer(Modifier.height(Spacing.xs))
+                Text(tr("auth.enterPassword"), style = Type.Label, color = colors.textMuted)
+                Spacer(Modifier.height(Spacing.xl))
                 field(
                     value = password, onChange = { password = it }, label = tr("settings.password"), password = true,
                     keyboard = KeyboardOptions(keyboardType = KeyboardType.Password, imeAction = ImeAction.Go),
                     onImeDone = { onLogin(selected!!, password) },
                 )
-                Spacer(Modifier.height(16.dp))
+                Spacer(Modifier.height(Spacing.lg))
                 PrimaryButton(tr("auth.signIn"), connecting) { onLogin(selected!!, password) }
                 if (message != null) {
-                    Spacer(Modifier.height(14.dp))
-                    Text(message, color = colors.destructive, fontSize = 12.5.sp, textAlign = TextAlign.Center)
+                    Spacer(Modifier.height(Spacing.md))
+                    Text(message, color = colors.destructive, style = Type.Caption, textAlign = TextAlign.Center)
                 }
-                Spacer(Modifier.height(18.dp))
+                Spacer(Modifier.height(Spacing.lg))
                 Text(
                     "← " + tr("auth.switchProfile"),
-                    fontSize = 12.sp, color = colors.textMuted, fontWeight = FontWeight.SemiBold,
+                    style = Type.Label, color = colors.textMuted, fontWeight = FontWeight.SemiBold,
                     letterSpacing = 0.6.sp,
-                    modifier = Modifier.clickable { selected = null; password = "" },
+                    modifier = Modifier.clip(AMShapes.pill).clickable { selected = null; password = "" }
+                        .padding(horizontal = Spacing.sm, vertical = Spacing.xs),
                 )
             }
-            Spacer(Modifier.height(24.dp))
+            Spacer(Modifier.height(Spacing.xl))
             Text(
                 tr("connect.changeServer"),
-                fontSize = 12.sp, color = colors.textFaint, fontWeight = FontWeight.SemiBold,
-                modifier = Modifier.clickable { onChangeServer() },
+                style = Type.Label, color = colors.textFaint, fontWeight = FontWeight.SemiBold,
+                modifier = Modifier.clip(AMShapes.pill).clickable { onChangeServer() }
+                    .padding(horizontal = Spacing.sm, vertical = Spacing.xs),
             )
         }
     }
@@ -223,8 +238,8 @@ private fun ProfileTile(name: String, onClick: () -> Unit) {
     val colors = LocalAuralis.current
     Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.clickable { onClick() }) {
         ProfileAvatar(name, 96)
-        Spacer(Modifier.height(10.dp))
-        Text(name, fontSize = 14.sp, fontWeight = FontWeight.Medium, color = colors.textMuted)
+        Spacer(Modifier.height(Spacing.sm))
+        Text(name, style = Type.Body, color = colors.textMuted)
     }
 }
 
@@ -232,13 +247,13 @@ private fun ProfileTile(name: String, onClick: () -> Unit) {
 private fun ProfileAvatar(name: String, size: Int) {
     val (c0, c1, _) = paletteFor(name)
     Box(
-        Modifier.size(size.dp).clip(RoundedCornerShape(10.dp)).background(Brush.linearGradient(listOf(c0, c1))),
+        Modifier.size(size.dp).clip(AMShapes.card).background(Brush.linearGradient(listOf(c0, c1))),
         contentAlignment = Alignment.Center,
     ) {
         Text(
             (name.ifBlank { "?" }).take(1).uppercase(),
             color = androidx.compose.ui.graphics.Color.White.copy(alpha = 0.95f),
-            fontSize = (size * 0.42f).sp, fontWeight = FontWeight.Black,
+            fontSize = (size * 0.42f).sp, fontWeight = FontWeight.Bold,
         )
     }
 }

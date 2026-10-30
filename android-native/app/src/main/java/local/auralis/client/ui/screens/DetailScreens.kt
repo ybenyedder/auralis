@@ -17,6 +17,7 @@ import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.aspectRatio
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
@@ -37,7 +38,10 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Download
 import androidx.compose.material.icons.filled.Edit
+import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.PhotoCamera
+import androidx.compose.material.icons.filled.PushPin
+import androidx.compose.material.icons.filled.Share
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -76,14 +80,23 @@ import local.auralis.client.ui.UiState
 import local.auralis.client.ui.ViewId
 import local.auralis.client.ui.components.CoverArt
 import local.auralis.client.ui.components.DetailHero
+import local.auralis.client.ui.components.EllipsisCircleIcon
 import local.auralis.client.ui.components.Eyebrow
 import local.auralis.client.ui.components.GhostPill
 import local.auralis.client.ui.components.HeroPlayButton
 import local.auralis.client.ui.components.HeroShuffleButton
+import local.auralis.client.ui.components.IconAction
+import local.auralis.client.ui.components.MenuDivider
+import local.auralis.client.ui.components.MenuRow
+import local.auralis.client.ui.components.MenuSheetScaffold
 import local.auralis.client.ui.components.PlayPill
 import local.auralis.client.ui.components.TrackRow
 import local.auralis.client.ui.components.formatLongDuration
+import local.auralis.client.ui.theme.AMShapes
+import local.auralis.client.ui.theme.AMType
 import local.auralis.client.ui.theme.LocalAuralis
+import local.auralis.client.ui.theme.Type
+import local.auralis.client.ui.theme.Spacing
 
 @Composable
 fun AlbumDetail(vm: AppViewModel, ui: UiState, albumhash: String) {
@@ -104,14 +117,14 @@ fun AlbumDetail(vm: AppViewModel, ui: UiState, albumhash: String) {
                 Spacer(Modifier.height(14.dp))
                 Eyebrow(tr("mobile.album"))
                 Spacer(Modifier.height(2.dp))
-                Text(album?.title ?: tr("mobile.album"), fontSize = 26.sp, fontWeight = FontWeight.Black, color = colors.foreground)
-                Text(album?.artistName ?: "", color = colors.textMuted, fontSize = 14.sp,
+                Text(album?.title ?: tr("mobile.album"), style = AMType.Title1, color = colors.foreground)
+                Text(album?.artistName ?: "", color = colors.textMuted, style = Type.Body,
                     modifier = Modifier.clickable {
                         album?.albumartists?.firstOrNull()?.let { vm.navigate(ViewId.ARTIST, it.artisthash) }
                     })
                 Spacer(Modifier.height(4.dp))
                 val dur = tracks.sumOf { it.duration ?: 0.0 }
-                Text(tr("detail.tracksAndDuration", params = mapOf("count" to tracks.size, "duration" to formatLongDuration(dur))), color = colors.textFaint, fontSize = 12.sp)
+                Text(tr("detail.tracksAndDuration", params = mapOf("count" to tracks.size, "duration" to formatLongDuration(dur))), color = colors.textFaint, style = Type.Caption)
                 Spacer(Modifier.height(16.dp))
                 Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(18.dp)) {
                     HeroPlayButton(enabled = tracks.isNotEmpty(), playing = isPlayingThis) {
@@ -161,8 +174,8 @@ fun ArtistDetail(vm: AppViewModel, ui: UiState, artisthash: String) {
             DetailHero(seed = artisthash, centered = true) {
                 CoverArt(artist?.image, artisthash, Modifier.size(150.dp).clip(CircleShape))
                 Spacer(Modifier.height(14.dp))
-                Text(artist?.name ?: tr("mobile.artist"), fontSize = 26.sp, fontWeight = FontWeight.Black, color = colors.foreground)
-                Text(tr("ctx.albumsAndTracks", params = mapOf("albums" to albums.size, "tracks" to tracks.size)), color = colors.textMuted, fontSize = 13.sp)
+                Text(artist?.name ?: tr("mobile.artist"), style = AMType.Title1, color = colors.foreground)
+                Text(tr("ctx.albumsAndTracks", params = mapOf("albums" to albums.size, "tracks" to tracks.size)), color = colors.textMuted, style = Type.Label)
                 Spacer(Modifier.height(16.dp))
                 Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(18.dp)) {
                     HeroPlayButton(enabled = tracks.isNotEmpty(), playing = isPlayingThis) {
@@ -226,6 +239,7 @@ fun PlaylistDetail(vm: AppViewModel, ui: UiState, playlistId: String) {
     var newName by remember { mutableStateOf(pl?.name ?: "") }
     var showExport by remember { mutableStateOf(false) }
     var showInvite by remember { mutableStateOf(false) }
+    var showMenu by remember { mutableStateOf(false) }
     var inviteName by remember { mutableStateOf("") }
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
@@ -338,6 +352,7 @@ fun PlaylistDetail(vm: AppViewModel, ui: UiState, playlistId: String) {
         )
     }
 
+    Box(Modifier.fillMaxSize()) {
     LazyColumn(contentPadding = PaddingValues(start = 16.dp, end = 16.dp, bottom = 170.dp)) {
         item {
             DetailHero(seed = playlistId) {
@@ -370,39 +385,19 @@ fun PlaylistDetail(vm: AppViewModel, ui: UiState, playlistId: String) {
                 } else {
                     Eyebrow(badge)
                     Spacer(Modifier.height(2.dp))
-                    Text(pl?.name ?: tr("mobile.playlist"), fontSize = 26.sp, fontWeight = FontWeight.Black, color = colors.foreground)
+                    Text(pl?.name ?: tr("mobile.playlist"), style = AMType.Title1, color = colors.foreground)
                     val dur = tracks.sumOf { it.duration ?: 0.0 }
-                    Text(tr("detail.tracksAndDuration", params = mapOf("count" to tracks.size, "duration" to formatLongDuration(dur))), color = colors.textMuted, fontSize = 13.sp)
+                    Text(tr("detail.tracksAndDuration", params = mapOf("count" to tracks.size, "duration" to formatLongDuration(dur))), color = colors.textMuted, style = Type.Label)
                     Spacer(Modifier.height(16.dp))
-                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(16.dp)) {
+                    // ONE primary action (play), ONE secondary (shuffle); pin, rename,
+                    // export, share, invite and delete all live behind the ⋯ menu.
+                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(Spacing.lg)) {
                         HeroPlayButton(enabled = tracks.isNotEmpty(), playing = isPlayingThis) {
                             if (isPlayingThis) vm.togglePlay() else vm.playList(tracks, source = queueSource)
                         }
                         HeroShuffleButton(enabled = tracks.isNotEmpty()) { vm.playShuffled(tracks, queueSource) }
                         Spacer(Modifier.weight(1f))
-                        if (!isCollaborator) {
-                            // Glyph-only pin button: TalkBack announces the action, not the emoji.
-                            Text(if (pl?.pinned == true) "📌" else "📍", fontSize = 18.sp,
-                                modifier = Modifier.clickable { vm.togglePin(playlistId) }
-                                    .semantics { contentDescription = Messages.t(if (pl?.pinned == true) "common.unpin" else "common.pin") })
-                            Icon(Icons.Filled.Edit, tr("detail.rename"), tint = colors.textMuted,
-                                modifier = Modifier.size(22.dp).clickable { newName = pl?.name ?: ""; renaming = true })
-                            Icon(Icons.Filled.Delete, tr("detail.delete"), tint = colors.destructive,
-                                modifier = Modifier.size(22.dp).clickable { vm.deletePlaylist(playlistId); vm.navigate(ViewId.LIBRARY) })
-                        }
-                    }
-                    // Export works for every playlist (incl. smart + collaborator);
-                    // share/invite are owner-only and hidden for smart (rules, not
-                    // tracks, are what's shared) — mirroring the web buttons.
-                    Spacer(Modifier.height(12.dp))
-                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                        GhostPill(tr("detail.export")) { showExport = true }
-                        if (!isCollaborator && !isSmart) {
-                            GhostPill(if (pl?.shared == true) tr("detail.shared") else tr("ctx.share")) {
-                                vm.sharePlaylist(playlistId, pl?.shared != true)
-                            }
-                            if (pl?.shared == true) GhostPill(tr("detail.invite")) { showInvite = true }
-                        }
+                        IconAction(EllipsisCircleIcon, tr("common.moreOptions"), tint = colors.textMuted, iconSize = 24) { showMenu = true }
                     }
                 }
             }
@@ -426,7 +421,7 @@ fun PlaylistDetail(vm: AppViewModel, ui: UiState, playlistId: String) {
                         Modifier
                             .padding(start = 4.dp)
                             .size(40.dp)
-                            .clip(RoundedCornerShape(20.dp))
+                            .clip(AMShapes.pill)
                             .clickable { vm.removeFromPlaylist(playlistId, t.trackhash) }
                             .semantics { contentDescription = Messages.t("detail.removeTrackAria") },
                         contentAlignment = Alignment.Center,
@@ -443,21 +438,55 @@ fun PlaylistDetail(vm: AppViewModel, ui: UiState, playlistId: String) {
             )
         }
     }
+
+    // The playlist's ⋯ menu — every secondary action in one calm sheet.
+    if (showMenu) {
+        MenuSheetScaffold(onDismiss = { showMenu = false }) {
+            if (!isCollaborator) {
+                MenuRow(Icons.Filled.PushPin, tr(if (pl?.pinned == true) "common.unpin" else "common.pin")) {
+                    vm.togglePin(playlistId); showMenu = false
+                }
+                MenuRow(Icons.Filled.Edit, tr("detail.rename")) {
+                    newName = pl?.name ?: ""; renaming = true; showMenu = false
+                }
+            }
+            MenuDivider()
+            // Export works for every playlist (incl. smart + collaborator);
+            // share/invite are owner-only and hidden for smart (rules, not
+            // tracks, are what's shared) — mirroring the web buttons.
+            MenuRow(Icons.Filled.Download, tr("detail.export")) { showExport = true; showMenu = false }
+            if (!isCollaborator && !isSmart) {
+                MenuRow(Icons.Filled.Share, if (pl?.shared == true) tr("detail.shared") else tr("ctx.share")) {
+                    vm.sharePlaylist(playlistId, pl?.shared != true); showMenu = false
+                }
+                if (pl?.shared == true) {
+                    MenuRow(Icons.Filled.Person, tr("detail.invite")) { showInvite = true; showMenu = false }
+                }
+            }
+            if (!isCollaborator) {
+                MenuDivider()
+                MenuRow(Icons.Filled.Delete, tr("detail.delete"), tone = colors.destructive) {
+                    vm.deletePlaylist(playlistId); vm.navigate(ViewId.LIBRARY); showMenu = false
+                }
+            }
+        }
+    }
+    }
 }
 
 @Composable
 private fun ExportOption(label: String, hint: String, onClick: () -> Unit) {
     val colors = LocalAuralis.current
     Row(
-        Modifier.fillMaxWidth().clip(RoundedCornerShape(10.dp)).clickable { onClick() }
+        Modifier.fillMaxWidth().clip(AMShapes.tile).clickable { onClick() }
             .padding(horizontal = 12.dp, vertical = 12.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Icon(Icons.Filled.Download, contentDescription = null, tint = colors.foreground, modifier = Modifier.size(22.dp))
         Spacer(Modifier.width(14.dp))
         Column {
-            Text(label, color = colors.foreground, fontSize = 14.sp, fontWeight = FontWeight.SemiBold)
-            Text(hint, color = colors.textMuted, fontSize = 12.sp)
+            Text(label, color = colors.foreground, style = Type.Body, fontWeight = FontWeight.SemiBold)
+            Text(hint, color = colors.textMuted, style = Type.Caption)
         }
     }
 }

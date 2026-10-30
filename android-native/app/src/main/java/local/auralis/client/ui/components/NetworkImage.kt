@@ -1,6 +1,7 @@
 package local.auralis.client.ui.components
 
 import android.util.LruCache
+import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
@@ -13,12 +14,15 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import android.graphics.BitmapFactory
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlinx.coroutines.withContext
+import local.auralis.client.ui.theme.Motion
+import local.auralis.client.ui.theme.shimmer
 import okhttp3.OkHttpClient
 import okhttp3.Request
 import java.io.File
@@ -115,6 +119,11 @@ private object ArtCache {
     }
 }
 
+/**
+ * Async artwork view. While the bitmap loads, the [fallback] shows through a
+ * soft shimmer veil; the artwork then crossfades in (placeholder → image) so
+ * covers never pop into place — the calm Apple Music/Spotify loading rhythm.
+ */
 @Composable
 fun NetworkImage(
     url: String?,
@@ -132,9 +141,24 @@ fun NetworkImage(
         if (image == null) image = ArtCache.load(url, context.cacheDir)
     }
     val bmp = image
-    if (bmp != null) {
-        Image(bitmap = bmp, contentDescription = null, modifier = modifier.fillMaxSize(), contentScale = contentScale)
-    } else {
-        Box(modifier) { fallback() }
+    // Crossfade the artwork in over its placeholder once decoded.
+    val artAlpha by animateFloatAsState(
+        targetValue = if (bmp != null) 1f else 0f,
+        animationSpec = Motion.fade,
+        label = "artFade",
+    )
+    Box(modifier) {
+        if (artAlpha < 1f) {
+            fallback()
+            Box(Modifier.fillMaxSize().shimmer(active = bmp == null))
+        }
+        if (bmp != null) {
+            Image(
+                bitmap = bmp,
+                contentDescription = null,
+                modifier = Modifier.fillMaxSize().graphicsLayer { alpha = artAlpha },
+                contentScale = contentScale,
+            )
+        }
     }
 }

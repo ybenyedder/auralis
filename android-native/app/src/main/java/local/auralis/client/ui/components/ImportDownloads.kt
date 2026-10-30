@@ -17,6 +17,7 @@ import local.auralis.client.i18n.tr
 import local.auralis.client.ui.AppViewModel
 import local.auralis.client.ui.UiState
 import local.auralis.client.ui.theme.LocalAuralis
+import local.auralis.client.ui.theme.Type
 
 // Playlist import → "Télécharger les N titres manquants": the offer dialog (once
 // an import left entries without a library counterpart) and the live progress
@@ -36,7 +37,7 @@ fun ImportDownloadDialogs(ui: UiState, vm: AppViewModel) {
             text = {
                 Text(
                     tr("import.downloadMissingHint", params = mapOf("count" to count)),
-                    color = colors.textMuted, fontSize = 13.sp,
+                    color = colors.textMuted, style = Type.Label,
                 )
             },
             confirmButton = {
@@ -62,7 +63,7 @@ fun ImportDownloadDialogs(ui: UiState, vm: AppViewModel) {
                 Column {
                     Text(
                         tr("import.downloading", params = mapOf("done" to dl.done, "total" to dl.total)),
-                        color = colors.foreground, fontSize = 14.sp, fontWeight = FontWeight.SemiBold,
+                        color = colors.foreground, style = Type.Body, fontWeight = FontWeight.SemiBold,
                     )
                     Spacer(Modifier.height(10.dp))
                     LinearProgressIndicator(

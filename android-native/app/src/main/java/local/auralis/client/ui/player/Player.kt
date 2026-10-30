@@ -2,6 +2,7 @@ package local.auralis.client.ui.player
 
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.Spring
+import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.spring
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -90,13 +91,19 @@ import local.auralis.client.ui.AppViewModel
 import local.auralis.client.ui.UiState
 import local.auralis.client.ui.components.CoverArt
 import local.auralis.client.ui.components.EllipsisCircleIcon
+import local.auralis.client.ui.components.IconAction
 import local.auralis.client.ui.components.NetworkImage
 import local.auralis.client.ui.components.amFrosted
 import local.auralis.client.ui.components.formatDuration
 import local.auralis.client.ui.components.rememberSleepCountdown
+import local.auralis.client.ui.theme.AMShapes
 import local.auralis.client.ui.theme.AMType
 import local.auralis.client.ui.theme.LocalApiUrl
 import local.auralis.client.ui.theme.LocalAuralis
+import local.auralis.client.ui.theme.Motion
+import local.auralis.client.ui.theme.Radius
+import local.auralis.client.ui.theme.Spacing
+import local.auralis.client.ui.theme.Type
 import kotlin.math.abs
 
 // ---------------------------------------------------------------------------
@@ -111,12 +118,14 @@ fun MiniPlayer(track: Track, playback: PlaybackSnapshot, positionMs: Long, vm: A
     // this hairline stuck at zero even though playback knows the length.
     val dur = if (playback.durationMs > 0) playback.durationMs.toDouble() else (track.duration ?: 0.0) * 1000.0
     val progress = if (dur > 0) (positionMs / dur).toFloat().coerceIn(0f, 1f) else 0f
+    // The hairline progress glides to its new value instead of jumping on each tick.
+    val shownProgress by animateFloatAsState(progress, animationSpec = Motion.snappy, label = "miniProgress")
     var miniDx by remember { mutableStateOf(0f) }
     Column(
         Modifier
             .fillMaxWidth()
-            .amFrosted(RoundedCornerShape(12.dp), colors.panel2)
-            .shadow(6.dp, RoundedCornerShape(12.dp), clip = false),
+            .amFrosted(AMShapes.card, colors.panel2)
+            .shadow(6.dp, AMShapes.card, clip = false),
     ) {
         Row(
             Modifier
@@ -129,11 +138,11 @@ fun MiniPlayer(track: Track, playback: PlaybackSnapshot, positionMs: Long, vm: A
                         onDragEnd = { if (miniDx > 100f) vm.prev() else if (miniDx < -100f) vm.next() },
                     ) { _, dx -> miniDx += dx }
                 }
-                .padding(horizontal = 8.dp, vertical = 7.dp),
+                .padding(horizontal = Spacing.sm, vertical = Spacing.sm),
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            CoverArt(track.image, track.albumhash ?: track.title, Modifier.size(44.dp), cornerRadius = 8, sizeDp = 44)
-            Spacer(Modifier.width(10.dp))
+            CoverArt(track.image, track.albumhash ?: track.title, Modifier.size(44.dp), cornerRadius = Radius.sm.value.toInt(), sizeDp = 44)
+            Spacer(Modifier.width(Spacing.md))
             Column(Modifier.weight(1f)) {
                 Text(
                     track.title, color = colors.foreground, style = AMType.Subhead,
@@ -141,19 +150,14 @@ fun MiniPlayer(track: Track, playback: PlaybackSnapshot, positionMs: Long, vm: A
                 )
                 Text(track.displayArtist, color = colors.textMuted, style = AMType.Caption1, maxLines = 1, overflow = TextOverflow.Ellipsis)
             }
-            Icon(
+            IconAction(
                 if (playback.isPlaying) Icons.Filled.Pause else Icons.Filled.PlayArrow,
-                tr("mobile.play"), tint = colors.foreground,
-                modifier = Modifier.size(30.dp).clickable { vm.togglePlay() },
-            )
-            Spacer(Modifier.width(14.dp))
-            Icon(
-                Icons.Filled.SkipNext, tr("player.next"), tint = colors.foreground,
-                modifier = Modifier.size(26.dp).clickable { vm.next() },
-            )
+                tr("mobile.play"), tint = colors.foreground, iconSize = 28,
+            ) { vm.togglePlay() }
+            IconAction(Icons.Filled.SkipNext, tr("player.next"), tint = colors.foreground, iconSize = 24) { vm.next() }
         }
         Box(Modifier.fillMaxWidth().height(2.dp).background(colors.foreground.copy(alpha = 0.15f))) {
-            Box(Modifier.fillMaxWidth(progress).height(2.dp).background(colors.accent))
+            Box(Modifier.fillMaxWidth(shownProgress).height(2.dp).background(colors.accent))
         }
     }
 }
@@ -237,9 +241,8 @@ fun FullscreenPlayer(
                 .graphicsLayer { translationY = dismissY.value },
         ) {
             // Top bar: dismiss chevron · view label · track menu.
-            Row(Modifier.fillMaxWidth().padding(vertical = 10.dp), verticalAlignment = Alignment.CenterVertically) {
-                Icon(Icons.Filled.KeyboardArrowDown, tr("player.minimize"), tint = colors.foreground,
-                    modifier = Modifier.size(30.dp).clickable { onClose() })
+            Row(Modifier.fillMaxWidth().padding(vertical = Spacing.xs), verticalAlignment = Alignment.CenterVertically) {
+                IconAction(Icons.Filled.KeyboardArrowDown, tr("player.minimize"), tint = colors.foreground, iconSize = 28) { onClose() }
                 Spacer(Modifier.weight(1f))
                 Text(
                     if (showLyrics) tr("player.lyrics") else tr("mobile.play"),
@@ -247,8 +250,7 @@ fun FullscreenPlayer(
                     fontWeight = FontWeight.SemiBold, letterSpacing = 1.sp,
                 )
                 Spacer(Modifier.weight(1f))
-                Icon(EllipsisCircleIcon, tr("player.trackOptions"), tint = colors.foreground,
-                    modifier = Modifier.size(26.dp).clickable { vm.openTrackMenu(track) })
+                IconAction(EllipsisCircleIcon, tr("player.trackOptions"), tint = colors.foreground, iconSize = 24) { vm.openTrackMenu(track) }
             }
 
             Box(Modifier.weight(1f).fillMaxWidth()) {
@@ -269,7 +271,7 @@ fun FullscreenPlayer(
                                     scaleX = artScale
                                     scaleY = artScale
                                 }
-                                .shadow(24.dp, RoundedCornerShape(12.dp), clip = false)
+                                .shadow(24.dp, AMShapes.card, clip = false)
                                 .pointerInput(track.trackhash) {
                                     detectHorizontalDragGestures(
                                         onDragStart = { coverDx = 0f },
@@ -286,22 +288,19 @@ fun FullscreenPlayer(
             }
 
             // Title + artist (artist in the accent, like Apple Music) + heart.
-            Row(Modifier.fillMaxWidth().padding(top = 14.dp), verticalAlignment = Alignment.CenterVertically) {
+            Row(Modifier.fillMaxWidth().padding(top = Spacing.md), verticalAlignment = Alignment.CenterVertically) {
                 Column(Modifier.weight(1f)) {
                     Text(track.title, color = colors.foreground, style = AMType.Title2, maxLines = 1, overflow = TextOverflow.Ellipsis)
                     Spacer(Modifier.height(2.dp))
                     Text(track.displayArtist, color = colors.accent, style = AMType.Title3, fontWeight = FontWeight.Normal, maxLines = 1, overflow = TextOverflow.Ellipsis)
                 }
-                Icon(
-                    Icons.Filled.Share, tr("player.share"), tint = colors.textMuted,
-                    modifier = Modifier.size(24.dp).clickable { vm.shareTrack(track) },
-                )
-                Spacer(Modifier.width(14.dp))
-                Icon(
+                IconAction(Icons.Filled.Share, tr("player.share"), tint = colors.textMuted, iconSize = 22) { vm.shareTrack(track) }
+                IconAction(
                     if (vm.isFavorite(track.trackhash)) Icons.Filled.Favorite else Icons.Filled.FavoriteBorder,
-                    tr("common.favoriteAria"), tint = if (vm.isFavorite(track.trackhash)) colors.accent else colors.textMuted,
-                    modifier = Modifier.size(26.dp).clickable { vm.toggleFavorite(track.trackhash) },
-                )
+                    tr("common.favoriteAria"),
+                    tint = if (vm.isFavorite(track.trackhash)) colors.accent else colors.textMuted,
+                    iconSize = 24,
+                ) { vm.toggleFavorite(track.trackhash) }
             }
 
             // Scrubber (custom thin Apple Music slider) + time labels.
@@ -325,55 +324,66 @@ fun FullscreenPlayer(
 
             // Transport — naked glyphs (no filled circle): shuffle · prev · play · next · repeat.
             Row(
-                Modifier.fillMaxWidth().padding(top = 6.dp),
+                Modifier.fillMaxWidth().padding(top = Spacing.sm),
                 horizontalArrangement = Arrangement.SpaceEvenly,
                 verticalAlignment = Alignment.CenterVertically,
             ) {
-                Icon(Icons.Filled.Shuffle, tr("common.shuffle"), tint = if (playback.shuffle) colors.accent else colors.textMuted,
-                    modifier = Modifier.size(26.dp).clickable { vm.toggleShuffle() })
-                Icon(Icons.Filled.SkipPrevious, tr("player.previous"), tint = colors.foreground,
-                    modifier = Modifier.size(46.dp).clickable { vm.prev() })
-                Icon(
+                IconAction(
+                    Icons.Filled.Shuffle, tr("common.shuffle"),
+                    tint = if (playback.shuffle) colors.accent else colors.textMuted, iconSize = 24,
+                ) { vm.toggleShuffle() }
+                IconAction(Icons.Filled.SkipPrevious, tr("player.previous"), tint = colors.foreground, iconSize = 42) { vm.prev() }
+                IconAction(
                     if (playback.isPlaying) Icons.Filled.Pause else Icons.Filled.PlayArrow,
-                    tr("mobile.play"), tint = colors.foreground,
-                    modifier = Modifier.size(72.dp).clickable { vm.togglePlay() },
-                )
-                Icon(Icons.Filled.SkipNext, tr("player.next"), tint = colors.foreground,
-                    modifier = Modifier.size(46.dp).clickable { vm.next() })
-                Icon(
+                    tr("mobile.play"), tint = colors.foreground, iconSize = 64,
+                ) { vm.togglePlay() }
+                IconAction(Icons.Filled.SkipNext, tr("player.next"), tint = colors.foreground, iconSize = 42) { vm.next() }
+                IconAction(
                     if (playback.repeat == "one") Icons.Filled.RepeatOne else Icons.Filled.Repeat,
-                    tr("player.repeat"), tint = if (playback.repeat != "off") colors.accent else colors.textMuted,
-                    modifier = Modifier.size(26.dp).clickable { vm.cycleRepeat() },
-                )
+                    tr("player.repeat"),
+                    tint = if (playback.repeat != "off") colors.accent else colors.textMuted, iconSize = 24,
+                ) { vm.cycleRepeat() }
             }
 
             // Volume — Apple Music's speaker-flanked slider.
-            Row(Modifier.fillMaxWidth().padding(top = 4.dp), verticalAlignment = Alignment.CenterVertically) {
+            Row(Modifier.fillMaxWidth().padding(top = Spacing.xs), verticalAlignment = Alignment.CenterVertically) {
                 Icon(Icons.Filled.VolumeDown, tr("player.volumeMin"), tint = colors.textMuted, modifier = Modifier.size(16.dp))
                 AMSlider(
                     value = ui.volume,
                     onScrub = { vm.setVolume(it) },
                     onCommit = { vm.setVolume(it) },
-                    modifier = Modifier.weight(1f).padding(horizontal = 8.dp),
+                    modifier = Modifier.weight(1f).padding(horizontal = Spacing.sm),
                 )
                 Icon(Icons.Filled.VolumeUp, tr("player.volumeMax"), tint = colors.textMuted, modifier = Modifier.size(16.dp))
             }
 
             // Bottom actions — lyrics · queue · sleep timer · visualizer.
             Row(
-                Modifier.fillMaxWidth().padding(top = 4.dp, bottom = 4.dp),
+                Modifier.fillMaxWidth().padding(top = Spacing.xs, bottom = Spacing.xs),
                 horizontalArrangement = Arrangement.SpaceEvenly,
                 verticalAlignment = Alignment.CenterVertically,
             ) {
-                Icon(Icons.Filled.Lyrics, tr("player.lyrics"), tint = if (showLyrics) colors.accent else colors.textMuted,
-                    modifier = Modifier.size(24.dp).clickable { showLyrics = !showLyrics; showQueue = false })
-                Icon(Icons.Filled.QueueMusic, tr("player.queue"), tint = if (showQueue) colors.accent else colors.textMuted,
-                    modifier = Modifier.size(24.dp).clickable { showQueue = !showQueue; showLyrics = false })
+                IconAction(
+                    Icons.Filled.Lyrics, tr("player.lyrics"),
+                    tint = if (showLyrics) colors.accent else colors.textMuted, iconSize = 22,
+                ) { showLyrics = !showLyrics; showQueue = false }
+                IconAction(
+                    Icons.Filled.QueueMusic, tr("player.queue"),
+                    tint = if (showQueue) colors.accent else colors.textMuted, iconSize = 22,
+                ) { showQueue = !showQueue; showLyrics = false }
                 Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                    Icon(Icons.Filled.Bedtime, tr("player.sleep"), tint = if (ui.sleepActive) colors.accent else colors.textMuted,
-                        modifier = Modifier.size(22.dp).clickable {
+                    Box(
+                        Modifier.size(width = 48.dp, height = 34.dp).clip(AMShapes.pill).clickable {
                             if (ui.sleepActive) vm.cancelSleepTimer() else showSleep = !showSleep
-                        })
+                        },
+                        contentAlignment = Alignment.Center,
+                    ) {
+                        Icon(
+                            Icons.Filled.Bedtime, tr("player.sleep"),
+                            tint = if (ui.sleepActive) colors.accent else colors.textMuted,
+                            modifier = Modifier.size(22.dp),
+                        )
+                    }
                     // Live "m:ss" countdown while a timed sleep is armed; tapping the
                     // icon cancels (the "Fin du titre" mode has no countdown).
                     val remaining = rememberSleepCountdown(ui.sleepEndsAt)
@@ -381,8 +391,10 @@ fun FullscreenPlayer(
                         Text(remaining, color = colors.accent, style = AMType.Caption2)
                     }
                 }
-                Icon(Icons.Filled.GraphicEq, tr("player.visualizer"), tint = colors.textMuted,
-                    modifier = Modifier.size(24.dp).clickable { vm.toggleVisualizer() })
+                IconAction(
+                    Icons.Filled.GraphicEq, tr("player.visualizer"),
+                    tint = colors.textMuted, iconSize = 22,
+                ) { vm.toggleVisualizer() }
             }
 
             // Sleep-timer options sheet (revealed by the bedtime action).
@@ -463,6 +475,11 @@ private fun AMSlider(
             },
     ) {
         val trackW = maxWidth
+        // The fill glides between position ticks while idle; while touched it
+        // follows the finger 1:1 (never fight the drag).
+        val idle by animateFloatAsState(fraction, animationSpec = Motion.snappy, label = "sliderFill")
+        val thumbAlpha by animateFloatAsState(if (active) 1f else 0f, animationSpec = Motion.quick, label = "sliderThumb")
+        val shown = if (active) fraction else idle
         Box(
             Modifier
                 .align(Alignment.Center)
@@ -474,18 +491,18 @@ private fun AMSlider(
         Box(
             Modifier
                 .align(Alignment.CenterStart)
-                .fillMaxWidth(fraction)
+                .fillMaxWidth(shown)
                 .height(7.dp)
                 .clip(CircleShape)
                 .background(if (active) colors.accent else colors.foreground),
         )
-        // Thumb — only visible while touched, Apple Music-style.
+        // Thumb — larger, and it fades in while touched (Apple Music-style).
         Box(
             Modifier
                 .align(Alignment.CenterStart)
-                .offset(x = (trackW - 14.dp) * fraction)
-                .size(14.dp)
-                .graphicsLayer { alpha = if (active) 1f else 0f }
+                .offset(x = (trackW - 18.dp) * shown)
+                .size(18.dp)
+                .graphicsLayer { alpha = thumbAlpha }
                 .clip(CircleShape)
                 .background(colors.foreground),
         )

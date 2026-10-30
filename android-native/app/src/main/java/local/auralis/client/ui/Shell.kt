@@ -6,6 +6,8 @@ import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
+import androidx.compose.animation.scaleIn
+import androidx.compose.animation.scaleOut
 import androidx.compose.animation.slideInHorizontally
 import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.slideOutHorizontally
@@ -66,6 +68,7 @@ import dev.chrisbanes.haze.HazeStyle
 import dev.chrisbanes.haze.HazeTint
 import dev.chrisbanes.haze.hazeSource
 import local.auralis.client.i18n.tr
+import local.auralis.client.ui.components.IconAction
 import local.auralis.client.ui.components.LocalHazeState
 import local.auralis.client.ui.components.LocalHazeStyle
 import local.auralis.client.ui.components.LocalSelection
@@ -84,8 +87,11 @@ import local.auralis.client.ui.screens.PlaylistDetail
 import local.auralis.client.ui.screens.RecentsScreen
 import local.auralis.client.ui.screens.SearchScreen
 import local.auralis.client.ui.screens.SettingsScreen
+import local.auralis.client.ui.theme.AMShapes
 import local.auralis.client.ui.theme.AMType
 import local.auralis.client.ui.theme.LocalAuralis
+import local.auralis.client.ui.theme.Motion
+import local.auralis.client.ui.theme.Spacing
 
 // Apple Music's mobile navigation is four tabs: Home (Accueil), New (Nouveau),
 // Search (Recherche) and Library (Bibliothèque). Secondary destinations
@@ -188,7 +194,7 @@ fun Shell(vm: AppViewModel, ui: UiState) {
                 exit = slideOutVertically(targetOffsetY = { it / 2 }) + fadeOut(),
             ) {
                 if (current != null) {
-                    Box(Modifier.fillMaxWidth().padding(horizontal = 10.dp, vertical = 4.dp)) {
+                    Box(Modifier.fillMaxWidth().padding(horizontal = Spacing.md, vertical = Spacing.xs)) {
                         MiniPlayer(current, playback, position, vm) { fullscreen.value = true }
                     }
                 }
@@ -198,13 +204,15 @@ fun Shell(vm: AppViewModel, ui: UiState) {
             Dock(ui.nav.view) { target -> vm.navigate(target) }
         }
 
-        // Fullscreen now-playing overlay — slides up from the bottom edge like
-        // Apple Music, rendered in a forced-dark palette (the AM now-playing stage
-        // is always dark because it is dominated by the cover art).
+        // Fullscreen now-playing overlay — slides + scales up from the mini player
+        // like Apple Music, rendered in a forced-dark palette (the AM now-playing
+        // stage is always dark because it is dominated by the cover art).
         AnimatedVisibility(
             visible = fullscreen.value && current != null,
-            enter = slideInVertically(initialOffsetY = { it }) + fadeIn(tween(220)),
-            exit = slideOutVertically(targetOffsetY = { it }) + fadeOut(tween(200)),
+            enter = slideInVertically(Motion.slide, initialOffsetY = { it / 2 }) + fadeIn(Motion.fade) +
+                scaleIn(initialScale = 0.92f, animationSpec = Motion.snappy),
+            exit = slideOutVertically(Motion.slide, targetOffsetY = { it / 2 }) + fadeOut(tween(200)) +
+                scaleOut(targetScale = 0.94f, animationSpec = Motion.quick),
         ) {
             if (current != null) {
                 CompositionLocalProvider(
@@ -260,17 +268,17 @@ fun Shell(vm: AppViewModel, ui: UiState) {
         ui.toast?.let { msg ->
             Box(Modifier.fillMaxSize().padding(bottom = 150.dp), contentAlignment = Alignment.BottomCenter) {
                 Row(
-                    Modifier.padding(horizontal = 24.dp)
-                        .clip(androidx.compose.foundation.shape.RoundedCornerShape(999.dp))
+                    Modifier.padding(horizontal = Spacing.xl)
+                        .clip(AMShapes.pill)
                         .background(colors.panel3)
                         .padding(horizontal = 18.dp, vertical = 11.dp),
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
-                    Text(msg, color = colors.foreground, fontSize = 13.sp, style = AMType.Footnote)
+                    Text(msg, color = colors.foreground, style = AMType.Footnote)
                     ui.toastActionLabel?.let { label ->
-                        Spacer(Modifier.width(12.dp))
+                        Spacer(Modifier.width(Spacing.md))
                         Text(
-                            label, color = colors.accent, fontSize = 13.sp, style = AMType.Footnote,
+                            label, color = colors.accent, style = AMType.Footnote,
                             fontWeight = FontWeight.Bold,
                             modifier = Modifier.clickable { vm.runToastAction() },
                         )
@@ -300,17 +308,17 @@ private fun SelectionBar(ui: UiState, vm: AppViewModel) {
     Row(
         Modifier
             .fillMaxWidth()
-            .padding(horizontal = 12.dp, vertical = 8.dp)
-            .clip(RoundedCornerShape(999.dp))
+            .padding(horizontal = Spacing.md, vertical = Spacing.sm)
+            .clip(AMShapes.pill)
             .background(colors.panel3)
-            .padding(start = 10.dp, end = 8.dp, top = 8.dp, bottom = 8.dp),
+            .padding(start = Spacing.sm, end = Spacing.sm, top = Spacing.sm, bottom = Spacing.sm),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Icon(
             Icons.Filled.Close, tr("sel.exit"), tint = colors.textMuted,
             modifier = Modifier.size(22.dp).clickable { vm.exitSelection() },
         )
-        Spacer(Modifier.width(12.dp))
+        Spacer(Modifier.width(Spacing.md))
         Text(
             if (count > 0) tr(if (count > 1) "sel.selectedMany" else "sel.selectedOne", params = mapOf("count" to count)) else tr("sel.pickTracks"),
             color = colors.foreground, style = AMType.Footnote,
@@ -321,19 +329,19 @@ private fun SelectionBar(ui: UiState, vm: AppViewModel) {
                 Icons.Filled.PlayArrow, tr("sel.playSelection"), tint = colors.foreground,
                 modifier = Modifier.size(24.dp).clickable { vm.playSelection() },
             )
-            Spacer(Modifier.width(12.dp))
+            Spacer(Modifier.width(Spacing.md))
         }
         Row(
             Modifier
-                .clip(RoundedCornerShape(999.dp))
+                .clip(AMShapes.pill)
                 .background(if (count > 0) colors.accent else colors.panel2)
                 .clickable(enabled = count > 0 && !ui.generating) { vm.generateAiPlaylist() }
-                .padding(horizontal = 16.dp, vertical = 9.dp),
+                .padding(horizontal = Spacing.lg, vertical = Spacing.sm),
             verticalAlignment = Alignment.CenterVertically,
         ) {
             Icon(Icons.Filled.AutoAwesome, null, tint = colors.ink, modifier = Modifier.size(16.dp))
-            Spacer(Modifier.width(6.dp))
-            Text(tr("sel.createMix"), color = colors.ink, style = AMType.Footnote)
+            Spacer(Modifier.width(Spacing.sm))
+            Text(tr("sel.createMix"), color = colors.ink, style = AMType.Footnote, fontWeight = FontWeight.SemiBold)
         }
     }
 }
@@ -355,13 +363,11 @@ private fun Header(vm: AppViewModel, ui: UiState, titleAlpha: Float) {
         Modifier
             .fillMaxWidth()
             .statusBarsPadding()
-            .padding(horizontal = 16.dp, vertical = 10.dp),
+            .padding(horizontal = Spacing.lg, vertical = Spacing.xs),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         if (!isRoot) {
-            Icon(Icons.Filled.ArrowBack, tr("common.back"), tint = colors.accent,
-                modifier = Modifier.size(26.dp).clickable { vm.back() })
-            Spacer(Modifier.width(8.dp))
+            IconAction(Icons.Filled.ArrowBack, tr("common.back"), tint = colors.accent, iconSize = 24) { vm.back() }
             Text(
                 tr(titleKeyOf(ui.nav.view)),
                 color = colors.foreground,
@@ -380,23 +386,29 @@ private fun Header(vm: AppViewModel, ui: UiState, titleAlpha: Float) {
             }
         }
         // Profile avatar (Apple Music's tab-root affordance) → Réglages.
-        // Long-press opens the quick-jump command palette.
+        // Long-press opens the quick-jump command palette. 48dp touch target.
         Box(
             Modifier
-                .size(34.dp)
-                .clip(CircleShape)
-                .background(colors.panel2)
+                .size(48.dp)
                 .combinedClickable(
                     onClick = { vm.navigate(ViewId.SETTINGS) },
                     onLongClick = { vm.openCommand() },
                 ),
             contentAlignment = Alignment.Center,
         ) {
-            Text(
-                (ui.username ?: "A").trim().take(1).uppercase(),
-                color = colors.foreground,
-                style = AMType.Headline,
-            )
+            Box(
+                Modifier
+                    .size(34.dp)
+                    .clip(CircleShape)
+                    .background(colors.panel2),
+                contentAlignment = Alignment.Center,
+            ) {
+                Text(
+                    (ui.username ?: "A").trim().take(1).uppercase(),
+                    color = colors.foreground,
+                    style = AMType.Headline,
+                )
+            }
         }
     }
 }
@@ -405,14 +417,15 @@ private fun Header(vm: AppViewModel, ui: UiState, titleAlpha: Float) {
 private fun MainContent(vm: AppViewModel, ui: UiState) {
     // Apple Music motion: pushing a detail screen slides it in from the right
     // (the previous one parallax-slides out); switching tabs crossfades in place.
+    // Both share the app's motion vocabulary: a soft spring slide + fade.
     AnimatedContent(
         targetState = ui.nav,
         transitionSpec = {
             if (targetState.view !in rootViewIds && initialState.view != targetState.view) {
-                (slideInHorizontally(tween(260)) { it / 3 } + fadeIn(tween(260))) togetherWith
-                    (slideOutHorizontally(tween(260)) { -it / 4 } + fadeOut(tween(260)))
+                (slideInHorizontally(Motion.slide) { it / 3 } + fadeIn(Motion.fade)) togetherWith
+                    (slideOutHorizontally(Motion.slide) { -it / 4 } + fadeOut(Motion.fade))
             } else {
-                fadeIn(tween(140)) togetherWith fadeOut(tween(140))
+                fadeIn(Motion.fade) togetherWith fadeOut(Motion.fade)
             }
         },
         label = "nav",
@@ -434,8 +447,9 @@ private fun MainContent(vm: AppViewModel, ui: UiState) {
     }
 }
 
-/** Apple Music tab bar: four roots, active tinted with the red accent, floating
- *  over the scrolling content with a hairline top edge. */
+/** Apple Music tab bar: four roots, active tinted with the red accent and an
+ *  animated pill indicator, floating over the scrolling content with a hairline
+ *  top edge. Every tab is a 48dp touch target. */
 @Composable
 private fun Dock(activeView: ViewId, onTab: (ViewId) -> Unit) {
     val colors = LocalAuralis.current
@@ -451,22 +465,42 @@ private fun Dock(activeView: ViewId, onTab: (ViewId) -> Unit) {
     Column(Modifier.fillMaxWidth().amFrosted(null, colors.panel)) {
         Box(Modifier.fillMaxWidth().height(1.dp).background(colors.line))
         Row(
-            Modifier.fillMaxWidth().navigationBarsPadding().padding(vertical = 6.dp),
+            Modifier.fillMaxWidth().navigationBarsPadding().padding(vertical = Spacing.sm),
             horizontalArrangement = Arrangement.SpaceEvenly,
         ) {
             tabs.forEachIndexed { i, t ->
                 val on = i == active
-                Column(
-                    Modifier.clickable { onTab(t.view) }.padding(horizontal = 10.dp, vertical = 4.dp),
-                    horizontalAlignment = Alignment.CenterHorizontally,
+                // The active tab wears a soft accent pill that fades in/out.
+                val pillAlpha by animateFloatAsState(
+                    targetValue = if (on) 1f else 0f,
+                    animationSpec = Motion.quick,
+                    label = "dockPill",
+                )
+                Box(
+                    Modifier
+                        .clip(AMShapes.pill)
+                        .clickable { onTab(t.view) },
+                    contentAlignment = Alignment.Center,
                 ) {
-                    Icon(t.icon, t.label, tint = if (on) colors.accent else colors.textMuted, modifier = Modifier.size(24.dp))
-                    Spacer(Modifier.size(3.dp))
-                    Text(
-                        t.label,
-                        color = if (on) colors.accent else colors.textMuted,
-                        style = AMType.Caption2,
+                    Box(
+                        Modifier
+                            .matchParentSize()
+                            .graphicsLayer { alpha = pillAlpha }
+                            .background(colors.accent.copy(alpha = 0.14f)),
                     )
+                    Column(
+                        Modifier.padding(horizontal = Spacing.lg, vertical = Spacing.xs),
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                    ) {
+                        Icon(t.icon, t.label, tint = if (on) colors.accent else colors.textMuted, modifier = Modifier.size(24.dp))
+                        Spacer(Modifier.size(3.dp))
+                        Text(
+                            t.label,
+                            color = if (on) colors.accent else colors.textMuted,
+                            style = AMType.Caption2,
+                            fontWeight = if (on) FontWeight.SemiBold else FontWeight.Normal,
+                        )
+                    }
                 }
             }
         }

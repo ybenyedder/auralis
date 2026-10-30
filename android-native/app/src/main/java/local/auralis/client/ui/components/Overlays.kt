@@ -47,7 +47,10 @@ import local.auralis.client.i18n.tr
 import local.auralis.client.ui.AppViewModel
 import local.auralis.client.ui.UiState
 import local.auralis.client.ui.ViewId
+import local.auralis.client.ui.theme.AMShapes
+import local.auralis.client.ui.theme.AMType
 import local.auralis.client.ui.theme.LocalAuralis
+import local.auralis.client.ui.theme.Type
 import kotlin.math.sin
 
 // Quick-jump command palette (the mobile equivalent of the web's Cmd+K): fuzzy
@@ -86,7 +89,7 @@ fun CommandPalette(vm: AppViewModel, ui: UiState, onDismiss: () -> Unit) {
             )
             Spacer(Modifier.height(8.dp))
             LazyColumn(
-                Modifier.fillMaxWidth().weight(1f).clip(RoundedCornerShape(14.dp)).background(colors.panel),
+                Modifier.fillMaxWidth().weight(1f).clip(AMShapes.card).background(colors.panel),
             ) {
                 items(navItems) { (label, view) ->
                     Cmd(label, tr("cmd.groupNavigation")) { vm.navigate(view); onDismiss() }
@@ -104,8 +107,8 @@ fun CommandPalette(vm: AppViewModel, ui: UiState, onDismiss: () -> Unit) {
 private fun Cmd(title: String, subtitle: String, onClick: () -> Unit) {
     val colors = LocalAuralis.current
     Column(Modifier.fillMaxWidth().clickable { onClick() }.padding(horizontal = 14.dp, vertical = 11.dp)) {
-        Text(title, color = colors.foreground, fontSize = 14.sp, fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis)
-        Text(subtitle, color = colors.textMuted, fontSize = 11.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+        Text(title, color = colors.foreground, style = Type.Body, fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis)
+        Text(subtitle, color = colors.textMuted, style = AMType.Caption2, maxLines = 1, overflow = TextOverflow.Ellipsis)
     }
 }
 
@@ -153,9 +156,9 @@ fun VisualizerOverlay(title: String?, isPlaying: Boolean, amplitudes: FloatArray
         Column(Modifier.align(Alignment.BottomCenter).padding(bottom = 40.dp), horizontalAlignment = Alignment.CenterHorizontally) {
             Text(title ?: "", color = colors.foreground, fontSize = 15.sp, fontWeight = FontWeight.Bold)
             Spacer(Modifier.height(4.dp))
-            Text(if (real) tr("visualizer.liveSpectrum") else tr("visualizer.decorative"), color = colors.textFaint, fontSize = 11.sp)
+            Text(if (real) tr("visualizer.liveSpectrum") else tr("visualizer.decorative"), color = colors.textFaint, style = AMType.Caption2)
             Spacer(Modifier.height(2.dp))
-            Text(tr("visualizer.tapToClose"), color = colors.textFaint, fontSize = 11.sp)
+            Text(tr("visualizer.tapToClose"), color = colors.textFaint, style = AMType.Caption2)
         }
     }
 }

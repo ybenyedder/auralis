@@ -18,6 +18,7 @@ import androidx.compose.ui.unit.sp
 import local.auralis.client.i18n.Messages
 import local.auralis.client.i18n.tr
 import local.auralis.client.ui.theme.LocalAuralis
+import local.auralis.client.ui.theme.Type
 import local.auralis.client.update.UpdateInfo
 
 /**
@@ -48,7 +49,7 @@ fun UpdateDialog(
                 Text(tr("update.available", params = mapOf("version" to info.version)))
                 if (notes.isNotEmpty()) {
                     Spacer(Modifier.height(10.dp))
-                    Text(notes, color = colors.textMuted, fontSize = 13.sp)
+                    Text(notes, color = colors.textMuted, style = Type.Label)
                 }
                 if (downloading) {
                     Spacer(Modifier.height(16.dp))
@@ -59,7 +60,7 @@ fun UpdateDialog(
                         trackColor = colors.background,
                     )
                     Spacer(Modifier.height(6.dp))
-                    Text(tr("update.downloadProgress", params = mapOf("progress" to (progress * 100).toInt())), color = colors.textMuted, fontSize = 12.sp)
+                    Text(tr("update.downloadProgress", params = mapOf("progress" to (progress * 100).toInt())), color = colors.textMuted, style = Type.Caption)
                 }
             }
         },

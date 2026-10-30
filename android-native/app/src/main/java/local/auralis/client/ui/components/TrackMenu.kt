@@ -43,6 +43,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
@@ -54,7 +55,10 @@ import local.auralis.client.ui.UiState
 import local.auralis.client.ui.ViewId
 import local.auralis.client.i18n.Messages
 import local.auralis.client.i18n.tr
+import local.auralis.client.ui.theme.AMShapes
 import local.auralis.client.ui.theme.LocalAuralis
+import local.auralis.client.ui.theme.Spacing
+import local.auralis.client.ui.theme.Type
 
 // Bottom-sheet track context menu: the entry point for "play next", "add to queue",
 // "add to a playlist" (incl. create), favourite, and jump-to-album/artist — wiring
@@ -65,31 +69,12 @@ fun TrackMenu(track: Track, ui: UiState, vm: AppViewModel, onDismiss: () -> Unit
     var pickingPlaylist by remember { mutableStateOf(false) }
     var newName by remember { mutableStateOf("") }
 
-    Box(Modifier.fillMaxSize()) {
-        Box(Modifier.fillMaxSize().background(androidx.compose.ui.graphics.Color(0xAA000000)).clickable { onDismiss() })
-        Column(
-            Modifier.align(Alignment.BottomCenter).fillMaxWidth()
-                .clip(RoundedCornerShape(topStart = 8.dp, topEnd = 8.dp))
-                .background(colors.panel)
-                .navigationBarsPadding()
-                .padding(horizontal = 8.dp, vertical = 10.dp),
-        ) {
-            // Drag handle (web's bottom-sheet affordance)
-            Box(
-                Modifier.padding(top = 2.dp, bottom = 8.dp).align(Alignment.CenterHorizontally)
-                    .size(width = 36.dp, height = 4.dp)
-                    .clip(RoundedCornerShape(2.dp))
-                    .background(colors.line),
-            )
+    MenuSheetScaffold(onDismiss) {
             // header
-            Row(Modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 6.dp), verticalAlignment = Alignment.CenterVertically) {
-                CoverArt(track.image, track.albumhash ?: track.title, Modifier.size(44.dp), cornerRadius = 8, sizeDp = 44)
-                Spacer(Modifier.width(12.dp))
-                Column(Modifier.weight(1f)) {
-                    Text(track.title, color = colors.foreground, fontSize = 14.sp, fontWeight = FontWeight.Bold, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                    Text(track.displayArtist, color = colors.textMuted, fontSize = 12.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                }
-            }
+            MenuHeaderRow(
+                image = track.image, seed = track.albumhash ?: track.title, round = false,
+                title = track.title, subtitle = track.displayArtist,
+            )
             MenuDivider()
 
             if (!pickingPlaylist) {
@@ -126,7 +111,7 @@ fun TrackMenu(track: Track, ui: UiState, vm: AppViewModel, onDismiss: () -> Unit
                     MenuRow(Icons.Filled.Person, tr("ctx.goToArtist")) { vm.navigate(ViewId.ARTIST, ah); onDismiss() }
                 }
             } else {
-                Text(tr("ctx.addToPlaylist"), color = colors.textMuted, fontSize = 12.sp, modifier = Modifier.padding(horizontal = 12.dp, vertical = 4.dp))
+                Text(tr("ctx.addToPlaylist"), color = colors.textMuted, style = Type.Caption, modifier = Modifier.padding(horizontal = 12.dp, vertical = 4.dp))
                 LazyColumn(Modifier.heightIn(max = 240.dp)) {
                     items(ui.playlists) { pl ->
                         MenuRow(Icons.Filled.PlaylistAdd, pl.name) { vm.addToPlaylist(pl.id, track.trackhash); onDismiss() }
@@ -140,7 +125,7 @@ fun TrackMenu(track: Track, ui: UiState, vm: AppViewModel, onDismiss: () -> Unit
                     )
                     Spacer(Modifier.width(8.dp))
                     Box(
-                        Modifier.clip(RoundedCornerShape(10.dp)).background(colors.accent)
+                        Modifier.clip(AMShapes.tile).background(colors.accent)
                             .clickable(enabled = newName.isNotBlank()) {
                                 vm.createPlaylistWithTrack(newName.trim(), track.trackhash); onDismiss()
                             }
@@ -148,26 +133,26 @@ fun TrackMenu(track: Track, ui: UiState, vm: AppViewModel, onDismiss: () -> Unit
                     ) { Icon(Icons.Filled.Add, tr("common.create"), tint = colors.ink, modifier = Modifier.size(20.dp)) }
                 }
             }
-        }
     }
 }
 
 @Composable
 internal fun MenuDivider() {
     val colors = LocalAuralis.current
-    Box(Modifier.fillMaxWidth().padding(vertical = 6.dp).height(1.dp).background(colors.line))
+    Box(Modifier.fillMaxWidth().padding(vertical = Spacing.sm).height(1.dp).background(colors.line))
 }
 
+/** One menu action row: 22dp glyph + label, 48dp-tall touch target, rounded press area. */
 @Composable
-internal fun MenuRow(icon: ImageVector, label: String, onClick: () -> Unit) {
+internal fun MenuRow(icon: ImageVector, label: String, tone: Color? = null, onClick: () -> Unit) {
     val colors = LocalAuralis.current
     Row(
-        Modifier.fillMaxWidth().clip(RoundedCornerShape(10.dp)).clickable { onClick() }
-            .padding(horizontal = 12.dp, vertical = 13.dp),
+        Modifier.fillMaxWidth().clip(AMShapes.tile).clickable { onClick() }
+            .padding(horizontal = Spacing.md, vertical = 13.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        Icon(icon, contentDescription = null, tint = colors.foreground, modifier = Modifier.size(22.dp))
-        Spacer(Modifier.width(14.dp))
-        Text(label, color = colors.foreground, fontSize = 14.sp)
+        Icon(icon, contentDescription = null, tint = tone ?: colors.foreground, modifier = Modifier.size(22.dp))
+        Spacer(Modifier.width(Spacing.lg))
+        Text(label, color = tone ?: colors.foreground, style = Type.Body)
     }
 }
