@@ -256,6 +256,12 @@ fun Shell(vm: AppViewModel, ui: UiState) {
             local.auralis.client.ui.components.ArtistMenu(a, ui, vm, onDismiss = { vm.closeMenus() })
         }
 
+        // Screen-level sheets hoisted above the floating chrome (the "+" add
+        // menu, the playlist-row ⋯ menu, the playlist hero ⋯ menu and the
+        // create-playlist / import-link dialogs). Rendered here — after the
+        // mini player + dock — so nothing interactive hides behind the music.
+        local.auralis.client.ui.components.ScreenOverlays(ui, vm)
+
         // "Chercher en chantant" recording + results sheet (hum-to-search).
         if (ui.humSheetOpen) {
             local.auralis.client.ui.components.HumSheet(vm, ui, onDismiss = { vm.closeHumSheet() })

@@ -4,6 +4,29 @@ All notable changes to Auralis are documented here. The format is based on
 [Keep a Changelog](https://keepachangelog.com/) and this project adheres to
 [Semantic Versioning](https://semver.org/).
 
+## [1.25.1] - 2026-10-30
+
+Correctif bloquant remonté par les utilisateurs : « les boutons des menus gris
+en bas (créer une playlist, importer…) sont cachés par le mini-player ».
+
+### Corrigé
+- **Les menus du bas passent au-dessus du mini-player et du dock.** Les menus
+  contextuels rendus par les écrans (menu « + » de la bibliothèque, menu ⋯ des
+  playlists, menu ⋯ de la page playlist) étaient dessinés SOUS la barre de
+  lecture flottante — leurs dernières lignes (« Nouvelle playlist », « Importer
+  un lien », « Descendre », « Supprimer »…) étaient invisibles et
+  inclicables. Ils sont maintenant hébergés dans la couche d'overlays de
+  l'app, avec un voile plein écran au-dessus du mini-player et du dock —
+  même comportement, mêmes actions.
+- Navigation : l'état des menus éphémères est réinitialisé en quittant l'écran
+  (comportement d'origine préservé).
+
+### Ajouté
+- **Import de playlist plus visible** : libellés explicites (« Importer depuis
+  Spotify, Deezer, Apple Music, YouTube », « Importer un fichier (.m3u/.json) »)
+  et un bouton d'appel direct « Importer une playlist… » sur l'état vide des
+  playlists — l'import n'est plus jamais perdu.
+
 ## [1.25.0] - 2026-10-30
 
 Refonte de l'expérience mobile, guidée par les retours utilisateurs : « c'est

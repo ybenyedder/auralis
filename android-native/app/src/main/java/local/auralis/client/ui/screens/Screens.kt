@@ -1,8 +1,4 @@
 package local.auralis.client.ui.screens
-
-import android.provider.OpenableColumns
-import androidx.activity.compose.rememberLauncherForActivityResult
-import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -61,7 +57,6 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -69,7 +64,6 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
@@ -79,7 +73,6 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import local.auralis.client.i18n.Messages
 import local.auralis.client.i18n.tr
@@ -90,7 +83,6 @@ import local.auralis.client.model.MoodMix
 import local.auralis.client.model.MoodRecs
 import local.auralis.client.model.Moods
 import local.auralis.client.model.OnlineTrack
-import local.auralis.client.model.PlaylistDto
 import local.auralis.client.model.Track
 import local.auralis.client.model.dailyMoodMixes
 import local.auralis.client.model.moodRecs
@@ -102,9 +94,6 @@ import local.auralis.client.ui.components.Eyebrow
 import local.auralis.client.ui.components.GhostPill
 import local.auralis.client.ui.components.IconAction
 import local.auralis.client.ui.components.LargeTitle
-import local.auralis.client.ui.components.MenuDivider
-import local.auralis.client.ui.components.MenuRow
-import local.auralis.client.ui.components.MenuSheetScaffold
 import local.auralis.client.ui.components.NetworkImage
 import local.auralis.client.ui.components.PlayPill
 import local.auralis.client.ui.components.SectionHeader
@@ -965,40 +954,14 @@ private fun OnlineRow(hit: OnlineTrack, job: DownloadJobDto?, onDownload: (Onlin
 fun LibraryScreen(vm: AppViewModel, ui: UiState) {
     val colors = LocalAuralis.current
     var tab by remember { mutableStateOf(0) }
-    var showCreate by remember { mutableStateOf(false) }
-    var newName by remember { mutableStateOf("") }
     var sort by remember { mutableStateOf(0) }
     var grid by remember { mutableStateOf(true) }
     // The single "+" menu holds every creation affordance: new playlist, the
     // SAF file picker (.m3u/.m3u8/.json) and the streaming-service link importer
-    // (web LibraryView) — the screen itself stays focused on the content.
-    var showAddMenu by remember { mutableStateOf(false) }
-    var showLink by remember { mutableStateOf(false) }
-    var menuPlaylist by remember { mutableStateOf<PlaylistDto?>(null) }
-    var linkUrl by remember { mutableStateOf("") }
-    var linkBusy by remember { mutableStateOf(false) }
-    val context = LocalContext.current
-    val scope = rememberCoroutineScope()
-    // Providers label .m3u/.json with half a dozen MIME types (or none at all), so
-    // accept any file and let the parser validate the content — the web importer's
-    // extension check is content-sniffed there too.
-    val importFile = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
-        if (uri == null) return@rememberLauncherForActivityResult
-        scope.launch(Dispatchers.IO) {
-            val text = runCatching {
-                context.contentResolver.openInputStream(uri)?.use { String(it.readBytes(), Charsets.UTF_8) }
-            }.getOrNull()
-            val name = runCatching {
-                context.contentResolver.query(uri, arrayOf(OpenableColumns.DISPLAY_NAME), null, null, null)?.use { c ->
-                    if (c.moveToFirst()) c.getString(0) else null
-                }
-            }.getOrNull()
-            withContext(Dispatchers.Main) {
-                if (text == null) vm.notify(Messages.t("library.invalidFile"))
-                else vm.importPlaylistFromText(name ?: "playlist", text)
-            }
-        }
-    }
+    // (web LibraryView) — the screen itself stays focused on the content. The
+    // menu, its dialogs and the playlist-row ⋯ menu are UiState-driven and
+    // rendered by Shell's overlay layer (ScreenOverlays), above the floating
+    // mini player + dock — see AppViewModel's "screen sheets" block.
     // Apple Music's library order: Playlists first, then Artists, Albums, Songs.
     data class LTab(val label: String, val icon: ImageVector)
     val tabs = listOf(
@@ -1008,74 +971,6 @@ fun LibraryScreen(vm: AppViewModel, ui: UiState) {
         LTab(tr("library.tabTracks"), Icons.Filled.MusicNote),
     )
     val current = currentTrackOf(vm)
-
-    if (showCreate) {
-        androidx.compose.material3.AlertDialog(
-            onDismissRequest = { showCreate = false },
-            containerColor = colors.panel,
-            title = { Text(tr("ctx.newPlaylist"), color = colors.foreground) },
-            text = {
-                OutlinedTextField(
-                    value = newName, onValueChange = { newName = it }, singleLine = true,
-                    placeholder = { Text(tr("library.newPlaylistName"), color = colors.textFaint) },
-                    colors = OutlinedTextFieldDefaults.colors(
-                        focusedBorderColor = colors.accent, unfocusedBorderColor = colors.lineStrong,
-                        focusedTextColor = colors.foreground, unfocusedTextColor = colors.foreground, cursorColor = colors.accent,
-                    ),
-                )
-            },
-            confirmButton = {
-                androidx.compose.material3.TextButton(
-                    onClick = {
-                        val name = newName.trim()
-                        if (name.isNotEmpty()) vm.createPlaylist(name) { id -> vm.navigate(ViewId.PLAYLIST, id) }
-                        newName = ""; showCreate = false
-                    },
-                ) { Text(tr("common.create"), color = colors.accent) }
-            },
-            dismissButton = {
-                androidx.compose.material3.TextButton(onClick = { showCreate = false }) { Text(tr("common.cancel"), color = colors.textMuted) }
-            },
-        )
-    }
-
-    // Streaming-service link import: the server resolves the URL to a tracklist
-    // (rate-limited 10/min per account), then it's matched against THIS library.
-    if (showLink) {
-        androidx.compose.material3.AlertDialog(
-            onDismissRequest = { if (!linkBusy) showLink = false },
-            containerColor = colors.panel,
-            title = { Text(tr("library.importLink"), color = colors.foreground) },
-            text = {
-                OutlinedTextField(
-                    value = linkUrl, onValueChange = { linkUrl = it }, singleLine = true,
-                    placeholder = { Text(tr("library.linkPlaceholder"), color = colors.textFaint) },
-                    colors = OutlinedTextFieldDefaults.colors(
-                        focusedBorderColor = colors.accent, unfocusedBorderColor = colors.lineStrong,
-                        focusedTextColor = colors.foreground, unfocusedTextColor = colors.foreground, cursorColor = colors.accent,
-                    ),
-                )
-            },
-            confirmButton = {
-                androidx.compose.material3.TextButton(
-                    enabled = linkUrl.isNotBlank() && !linkBusy,
-                    onClick = {
-                        linkBusy = true
-                        vm.importPlaylistFromUrl(linkUrl.trim()) { ok ->
-                            linkBusy = false
-                            if (ok) { showLink = false; linkUrl = "" }
-                        }
-                    },
-                ) { Text(if (linkBusy) tr("library.importing") else tr("library.import"), color = colors.accent) }
-            },
-            dismissButton = {
-                androidx.compose.material3.TextButton(onClick = { showLink = false }) { Text(tr("common.cancel"), color = colors.textMuted) }
-            },
-        )
-    }
-
-    // The single "+" menu: every creation affordance behind one clean button
-    // (rendered in the overlay layer below, above the content).
 
     // Sorting the whole catalogue (and totalling artist plays — a pass over every
     // track's artist list) on each sort toggle / library update — off the main thread.
@@ -1118,7 +1013,7 @@ fun LibraryScreen(vm: AppViewModel, ui: UiState) {
             Box(
                 Modifier
                     .size(48.dp)
-                    .clickable { showAddMenu = true },
+                    .clickable { vm.openAddMenu() },
                 contentAlignment = Alignment.Center,
             ) {
                 Box(
@@ -1207,11 +1102,31 @@ fun LibraryScreen(vm: AppViewModel, ui: UiState) {
                             // Pin / reorder live behind ONE ⋯ button (labelled for
                             // TalkBack) — no more emoji piles scattered in the row.
                             IconAction(Icons.Filled.MoreVert, tr("common.moreOptions"), tint = colors.textFaint, iconSize = 20) {
-                                menuPlaylist = pl
+                                vm.openLibraryPlaylistMenu(pl)
                             }
                         }
                     }
-                    if (ui.playlists.isEmpty()) item { EmptyHint(tr("library.emptyNoPlaylists"), tr("library.emptyNoPlaylistsHint")) }
+                    if (ui.playlists.isEmpty()) item {
+                        EmptyHint(tr("library.emptyNoPlaylists"), tr("library.emptyNoPlaylistsHint"))
+                        // Import CTA — "comment j'importe des playlists Spotify ?"
+                        // answered right where the question arises.
+                        Spacer(Modifier.height(Spacing.md))
+                        Box(Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
+                            Row(
+                                Modifier.clip(CircleShape).background(colors.accent)
+                                    .clickable { vm.openImportLink() }
+                                    .padding(horizontal = 16.dp, vertical = 9.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                            ) {
+                                Icon(Icons.Filled.Link, contentDescription = null, tint = colors.ink, modifier = Modifier.size(16.dp))
+                                Spacer(Modifier.width(6.dp))
+                                Text(
+                                    tr("library.emptyImportCta"),
+                                    color = colors.ink, style = Type.Caption, fontWeight = FontWeight.Bold,
+                                )
+                            }
+                        }
+                    }
                 }
             }
             1 -> LazyColumn(contentPadding = bottomPad) {
@@ -1246,40 +1161,6 @@ fun LibraryScreen(vm: AppViewModel, ui: UiState) {
                         onToggleFavorite = { vm.toggleFavorite(t.trackhash) }, onMore = { vm.openTrackMenu(t) },
                     )
                 }
-            }
-        }
-    }
-
-    // The single "+" menu: every creation affordance behind one clean button.
-    if (showAddMenu) {
-        MenuSheetScaffold(onDismiss = { showAddMenu = false }) {
-            Text(
-                tr("library.addMenu"), color = colors.textMuted, style = Type.Caption,
-                modifier = Modifier.padding(horizontal = Spacing.md, vertical = Spacing.xs),
-            )
-            MenuRow(Icons.Filled.QueueMusic, tr("ctx.newPlaylist")) {
-                showAddMenu = false; showCreate = true
-            }
-            MenuRow(Icons.Filled.Download, tr("library.importFile")) {
-                showAddMenu = false; importFile.launch(arrayOf("*/*"))
-            }
-            MenuRow(Icons.Filled.Link, tr("library.importLink")) {
-                showAddMenu = false; showLink = true
-            }
-        }
-    }
-
-    // The playlist row ⋯ menu — pin / reorder live behind one calm button.
-    menuPlaylist?.let { pl ->
-        MenuSheetScaffold(onDismiss = { menuPlaylist = null }) {
-            MenuRow(Icons.Filled.PushPin, tr(if (pl.pinned) "common.unpin" else "common.pin")) {
-                vm.togglePin(pl.id); menuPlaylist = null
-            }
-            MenuRow(Icons.Filled.ArrowUpward, tr("common.moveUp")) {
-                vm.movePlaylist(pl.id, -1); menuPlaylist = null
-            }
-            MenuRow(Icons.Filled.ArrowDownward, tr("common.moveDown")) {
-                vm.movePlaylist(pl.id, 1); menuPlaylist = null
             }
         }
     }

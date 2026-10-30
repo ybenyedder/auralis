@@ -5,6 +5,8 @@ import android.content.ClipData
 import android.content.ClipboardManager
 import android.content.Context
 import android.content.Intent
+import android.net.Uri
+import android.provider.OpenableColumns
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import kotlinx.coroutines.Dispatchers
@@ -172,6 +174,21 @@ data class UiState(
     val contextTrack: Track? = null,
     val contextAlbum: Album? = null,
     val contextArtist: Artist? = null,
+
+    // Screen-level sheets + dialogs (library "+" menu, playlist-row ⋯ menu,
+    // playlist hero ⋯ menu, create-playlist / import-link dialogs). They are
+    // driven from here so the Shell overlay layer can render them ABOVE the
+    // floating mini player + dock — drawn inside the screens, their bottom
+    // rows used to hide behind the music chrome. They behave like screen-local
+    // `remember` state and reset on navigation (see clearTransientOverlays).
+    val addMenuOpen: Boolean = false,
+    val libraryMenuPlaylist: PlaylistDto? = null,
+    val createPlaylistOpen: Boolean = false,
+    val importLinkOpen: Boolean = false,
+    val playlistMenuOpen: Boolean = false,
+    val playlistRenaming: Boolean = false,
+    val playlistExportOpen: Boolean = false,
+    val playlistInviteOpen: Boolean = false,
 
     // Spotify-style multi-select → "AI playlist from my picks".
     val selectionMode: Boolean = false,
@@ -475,7 +492,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
             // Switching tabs (Apple Music's five roots) resets the stack — each tab
             // is a fresh navigation context; pushing a tab would otherwise bury it.
             val switchTab = view in rootViewIds
-            it.copy(
+            clearTransientOverlays(it).copy(
                 backStack = if (switchTab) emptyList() else (it.backStack + it.nav).takeLast(24),
                 nav = NavTarget(view, id),
             )
@@ -484,8 +501,9 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
 
     fun back() {
         _ui.update {
-            val prev = it.backStack.lastOrNull() ?: return@update it.copy(nav = NavTarget(ViewId.HOME))
-            it.copy(nav = prev, backStack = it.backStack.dropLast(1))
+            val prev = it.backStack.lastOrNull()
+                ?: return@update clearTransientOverlays(it).copy(nav = NavTarget(ViewId.HOME))
+            clearTransientOverlays(it).copy(nav = prev, backStack = it.backStack.dropLast(1))
         }
     }
 
@@ -671,6 +689,48 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
     fun openArtistMenu(artist: Artist) { _ui.update { it.copy(contextArtist = artist) } }
     fun closeTrackMenu() = closeMenus()
     fun closeMenus() { _ui.update { it.copy(contextTrack = null, contextAlbum = null, contextArtist = null) } }
+
+    // ---- screen sheets hoisted into the Shell overlay layer ----------------
+    // (the "+" add menu, playlist-row ⋯ menu, playlist hero ⋯ menu and the
+    // create-playlist / import-link dialogs they open — see UiState's block
+    // comment for why these are not screen-local state)
+
+    fun openAddMenu() { _ui.update { it.copy(addMenuOpen = true) } }
+    fun closeAddMenu() { _ui.update { it.copy(addMenuOpen = false) } }
+
+    fun openLibraryPlaylistMenu(pl: PlaylistDto) { _ui.update { it.copy(libraryMenuPlaylist = pl) } }
+    fun closeLibraryPlaylistMenu() { _ui.update { it.copy(libraryMenuPlaylist = null) } }
+
+    fun openCreatePlaylist() { _ui.update { it.copy(createPlaylistOpen = true) } }
+    fun closeCreatePlaylist() { _ui.update { it.copy(createPlaylistOpen = false) } }
+
+    fun openImportLink() { _ui.update { it.copy(importLinkOpen = true) } }
+    fun closeImportLink() { _ui.update { it.copy(importLinkOpen = false) } }
+
+    fun openPlaylistMenu() { _ui.update { it.copy(playlistMenuOpen = true) } }
+    fun closePlaylistMenu() { _ui.update { it.copy(playlistMenuOpen = false) } }
+
+    /** Inline rename mode of the playlist hero (opened from its ⋯ menu). */
+    fun setPlaylistRenaming(on: Boolean) { _ui.update { it.copy(playlistRenaming = on) } }
+
+    fun openPlaylistExport() { _ui.update { it.copy(playlistExportOpen = true) } }
+    fun closePlaylistExport() { _ui.update { it.copy(playlistExportOpen = false) } }
+
+    fun openPlaylistInvite() { _ui.update { it.copy(playlistInviteOpen = true) } }
+    fun closePlaylistInvite() { _ui.update { it.copy(playlistInviteOpen = false) } }
+
+    /** Navigation leaves the screen that owned the sheet, so the hoisted state
+     *  resets exactly like the screen-local `remember` it replaced. */
+    private fun clearTransientOverlays(s: UiState) = s.copy(
+        addMenuOpen = false,
+        libraryMenuPlaylist = null,
+        createPlaylistOpen = false,
+        importLinkOpen = false,
+        playlistMenuOpen = false,
+        playlistRenaming = false,
+        playlistExportOpen = false,
+        playlistInviteOpen = false,
+    )
 
     /** Create a playlist and immediately drop a track into it (used from the menu). */
     fun createPlaylistWithTrack(name: String, trackhash: String) {
@@ -1180,6 +1240,26 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
             importPlaylist(res.optString("name", ""), m.hashes, m.unmatched) { id -> navigate(ViewId.PLAYLIST, id) }
             if (m.matched < m.total) notify(tr("toast.matchedCount", mapOf("matched" to m.matched, "total" to m.total)))
             onDone(true)
+        }
+    }
+
+    /** SAF document pick ("Importer un fichier"): read the picked file's text +
+     *  display name off the main thread and hand it to the playlist importer. */
+    fun importPlaylistFromUri(uri: Uri) {
+        viewModelScope.launch {
+            val resolver = getApplication<Application>().contentResolver
+            val text = runCatching {
+                withContext(Dispatchers.IO) {
+                    resolver.openInputStream(uri)?.use { String(it.readBytes(), Charsets.UTF_8) }
+                }
+            }.getOrNull()
+            val name = runCatching {
+                resolver.query(uri, arrayOf(OpenableColumns.DISPLAY_NAME), null, null, null)?.use { c ->
+                    if (c.moveToFirst()) c.getString(0) else null
+                }
+            }.getOrNull()
+            if (text == null) notify(tr("library.invalidFile"))
+            else importPlaylistFromText(name ?: "playlist", text)
         }
     }
 

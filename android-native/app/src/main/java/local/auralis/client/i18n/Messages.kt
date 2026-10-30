@@ -170,8 +170,9 @@ object Messages {
         "library.tabTracks" to "Titres",
         "library.newPlaylistName" to "Nom de la playlist",
         "library.addMenu" to "Ajouter",
-        "library.importFile" to "Importer un fichier",
+        "library.importFile" to "Importer un fichier (.m3u/.json)",
         "library.importLink" to "Importer un lien",
+        "library.importFromServices" to "Importer depuis Spotify, Deezer, Apple Music, YouTube",
         "library.linkPlaceholder" to "Lien Spotify, Deezer, Apple Music ou YouTube…",
         "library.import" to "Importer",
         "library.importing" to "Import…",
@@ -190,7 +191,8 @@ object Messages {
         "library.listView" to "Vue liste",
         "library.emptyNoTracks" to "Aucun titre indexé",
         "library.emptyNoPlaylists" to "Aucune playlist",
-        "library.emptyNoPlaylistsHint" to "Touche le bouton +, ou ⋮ sur un titre pour l'ajouter à une playlist.",
+        "library.emptyNoPlaylistsHint" to "Touche le bouton + pour créer ou importer une playlist, ou ⋮ sur un titre pour l'ajouter.",
+        "library.emptyImportCta" to "Importer une playlist (Spotify, Deezer, Apple Music, YouTube)",
 
         // ---- playlist import → download missing tracks ----------------------
         "import.downloadMissingTitle" to "Titres manquants",
@@ -745,8 +747,9 @@ object Messages {
         "library.tabTracks" to "Tracks",
         "library.newPlaylistName" to "Playlist name",
         "library.addMenu" to "Add",
-        "library.importFile" to "Import a file",
+        "library.importFile" to "Import a file (.m3u/.json)",
         "library.importLink" to "Import a link",
+        "library.importFromServices" to "Import from Spotify, Deezer, Apple Music, YouTube",
         "library.linkPlaceholder" to "Spotify, Deezer, Apple Music or YouTube link…",
         "library.import" to "Import",
         "library.importing" to "Importing…",
@@ -765,7 +768,8 @@ object Messages {
         "library.listView" to "List view",
         "library.emptyNoTracks" to "No tracks indexed",
         "library.emptyNoPlaylists" to "No playlists",
-        "library.emptyNoPlaylistsHint" to "Tap the + button, or ⋮ on a track to add it to a playlist.",
+        "library.emptyNoPlaylistsHint" to "Tap the + button to create or import a playlist, or ⋮ on a track to add one.",
+        "library.emptyImportCta" to "Import a playlist (Spotify, Deezer, Apple Music, YouTube)",
 
         // ---- playlist import → download missing tracks ----------------------
         "import.downloadMissingTitle" to "Missing tracks",

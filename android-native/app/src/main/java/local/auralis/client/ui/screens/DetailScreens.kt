@@ -37,11 +37,7 @@ import androidx.compose.material3.TextButton
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Download
-import androidx.compose.material.icons.filled.Edit
-import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.PhotoCamera
-import androidx.compose.material.icons.filled.PushPin
-import androidx.compose.material.icons.filled.Share
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -86,9 +82,6 @@ import local.auralis.client.ui.components.GhostPill
 import local.auralis.client.ui.components.HeroPlayButton
 import local.auralis.client.ui.components.HeroShuffleButton
 import local.auralis.client.ui.components.IconAction
-import local.auralis.client.ui.components.MenuDivider
-import local.auralis.client.ui.components.MenuRow
-import local.auralis.client.ui.components.MenuSheetScaffold
 import local.auralis.client.ui.components.PlayPill
 import local.auralis.client.ui.components.TrackRow
 import local.auralis.client.ui.components.formatLongDuration
@@ -235,11 +228,15 @@ fun PlaylistDetail(vm: AppViewModel, ui: UiState, playlistId: String) {
     // "quand je mets lire sur ma playlist, ça lit ma playlist" (the endless
     // continuation draws from the playlist only, or stops when it is exhausted).
     val queueSource = remember(tracks) { QueueSource.Playlist(playlistId, tracks.map { it.trackhash }.toSet()) }
-    var renaming by remember { mutableStateOf(false) }
-    var newName by remember { mutableStateOf(pl?.name ?: "") }
-    var showExport by remember { mutableStateOf(false) }
-    var showInvite by remember { mutableStateOf(false) }
-    var showMenu by remember { mutableStateOf(false) }
+    // The hero ⋯ menu is rendered by Shell's overlay layer (ScreenOverlays) so
+    // it draws ABOVE the floating mini player + dock; its open/close and the
+    // rename/export/invite flows it opens are UiState-driven (see AppViewModel's
+    // "screen sheets" block). The export/invite dialogs keep living here —
+    // windowed dialogs layer above the chrome by construction — and simply open
+    // from the hoisted menu. `newName` re-seeds from the playlist name whenever
+    // rename mode opens, like the old menu row did.
+    val renaming = ui.playlistRenaming
+    var newName by remember(ui.playlistRenaming) { mutableStateOf(pl?.name ?: "") }
     var inviteName by remember { mutableStateOf("") }
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
@@ -304,12 +301,12 @@ fun PlaylistDetail(vm: AppViewModel, ui: UiState, playlistId: String) {
             putExtra(Intent.EXTRA_TEXT, content)
         }
         runCatching { context.startActivity(Intent.createChooser(send, Messages.t("detail.exportPlaylist"))) }
-        showExport = false
+        vm.closePlaylistExport()
     }
 
-    if (showExport) {
+    if (ui.playlistExportOpen) {
         AlertDialog(
-            onDismissRequest = { showExport = false },
+            onDismissRequest = { vm.closePlaylistExport() },
             containerColor = colors.panel,
             title = { Text(tr("detail.exportPlaylist"), color = colors.foreground) },
             text = {
@@ -319,14 +316,14 @@ fun PlaylistDetail(vm: AppViewModel, ui: UiState, playlistId: String) {
                 }
             },
             confirmButton = {
-                TextButton(onClick = { showExport = false }) { Text(tr("common.cancel"), color = colors.textMuted) }
+                TextButton(onClick = { vm.closePlaylistExport() }) { Text(tr("common.cancel"), color = colors.textMuted) }
             },
         )
     }
 
-    if (showInvite) {
+    if (ui.playlistInviteOpen) {
         AlertDialog(
-            onDismissRequest = { showInvite = false },
+            onDismissRequest = { vm.closePlaylistInvite() },
             containerColor = colors.panel,
             title = { Text(tr("detail.inviteTitle"), color = colors.foreground) },
             text = {
@@ -342,12 +339,12 @@ fun PlaylistDetail(vm: AppViewModel, ui: UiState, playlistId: String) {
                     onClick = {
                         vm.addPlaylistCollaborator(playlistId, inviteName.trim())
                         inviteName = ""
-                        showInvite = false
+                        vm.closePlaylistInvite()
                     },
                 ) { Text(tr("detail.invite"), color = colors.accent) }
             },
             dismissButton = {
-                TextButton(onClick = { showInvite = false }) { Text(tr("common.cancel"), color = colors.textMuted) }
+                TextButton(onClick = { vm.closePlaylistInvite() }) { Text(tr("common.cancel"), color = colors.textMuted) }
             },
         )
     }
@@ -379,8 +376,8 @@ fun PlaylistDetail(vm: AppViewModel, ui: UiState, playlistId: String) {
                         modifier = Modifier.fillMaxWidth())
                     Spacer(Modifier.height(8.dp))
                     Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                        PlayPill(tr("common.save")) { vm.renamePlaylist(playlistId, newName); renaming = false }
-                        GhostPill(tr("common.cancel")) { renaming = false }
+                        PlayPill(tr("common.save")) { vm.renamePlaylist(playlistId, newName); vm.setPlaylistRenaming(false) }
+                        GhostPill(tr("common.cancel")) { vm.setPlaylistRenaming(false) }
                     }
                 } else {
                     Eyebrow(badge)
@@ -397,7 +394,7 @@ fun PlaylistDetail(vm: AppViewModel, ui: UiState, playlistId: String) {
                         }
                         HeroShuffleButton(enabled = tracks.isNotEmpty()) { vm.playShuffled(tracks, queueSource) }
                         Spacer(Modifier.weight(1f))
-                        IconAction(EllipsisCircleIcon, tr("common.moreOptions"), tint = colors.textMuted, iconSize = 24) { showMenu = true }
+                        IconAction(EllipsisCircleIcon, tr("common.moreOptions"), tint = colors.textMuted, iconSize = 24) { vm.openPlaylistMenu() }
                     }
                 }
             }
@@ -436,39 +433,6 @@ fun PlaylistDetail(vm: AppViewModel, ui: UiState, playlistId: String) {
                 tr("detail.emptyPlaylist"),
                 if (isSmart) tr("detail.smartEmpty") else tr("detail.addFromMenu"),
             )
-        }
-    }
-
-    // The playlist's ⋯ menu — every secondary action in one calm sheet.
-    if (showMenu) {
-        MenuSheetScaffold(onDismiss = { showMenu = false }) {
-            if (!isCollaborator) {
-                MenuRow(Icons.Filled.PushPin, tr(if (pl?.pinned == true) "common.unpin" else "common.pin")) {
-                    vm.togglePin(playlistId); showMenu = false
-                }
-                MenuRow(Icons.Filled.Edit, tr("detail.rename")) {
-                    newName = pl?.name ?: ""; renaming = true; showMenu = false
-                }
-            }
-            MenuDivider()
-            // Export works for every playlist (incl. smart + collaborator);
-            // share/invite are owner-only and hidden for smart (rules, not
-            // tracks, are what's shared) — mirroring the web buttons.
-            MenuRow(Icons.Filled.Download, tr("detail.export")) { showExport = true; showMenu = false }
-            if (!isCollaborator && !isSmart) {
-                MenuRow(Icons.Filled.Share, if (pl?.shared == true) tr("detail.shared") else tr("ctx.share")) {
-                    vm.sharePlaylist(playlistId, pl?.shared != true); showMenu = false
-                }
-                if (pl?.shared == true) {
-                    MenuRow(Icons.Filled.Person, tr("detail.invite")) { showInvite = true; showMenu = false }
-                }
-            }
-            if (!isCollaborator) {
-                MenuDivider()
-                MenuRow(Icons.Filled.Delete, tr("detail.delete"), tone = colors.destructive) {
-                    vm.deletePlaylist(playlistId); vm.navigate(ViewId.LIBRARY); showMenu = false
-                }
-            }
         }
     }
     }
