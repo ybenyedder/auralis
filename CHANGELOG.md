@@ -4,6 +4,32 @@ All notable changes to Auralis are documented here. The format is based on
 [Keep a Changelog](https://keepachangelog.com/) and this project adheres to
 [Semantic Versioning](https://semver.org/).
 
+## [1.26.0] - 2026-10-30
+
+L'expérience Shazam complète sur Android : une bulle flottante au-dessus de
+tes apps — tu regardes un TikTok, une vidéo, un jeu… tu appuies sur la bulle,
+et la chanson est identifiée puis ajoutée à ta bibliothèque.
+
+### Ajouté — Android : « Bulle Shazam »
+- **Bulle flottante système** (superposition au-dessus de toutes les apps,
+  déplaçable) : états animés (repos / capture avec compte à rebours /
+  identification / trouvé ou non), pilotable depuis les réglages et la
+  reconnaissance.
+- **Capture de l'AUDIO INTERNE** (comme le vrai Shazam) : MediaProjection +
+  AudioPlaybackCapture (Android 10+) — le fameux dialogue « enregistrer mon
+  écran » — pour capter la musique de ta vidéo/TikTok/jeu en direct ; repli
+  micro sur les vieux Android, avec mention du mode utilisé.
+- **Identification + ajout automatique** : 10 s d'audio → Shazam → la chanson
+  est téléchargée dans ta bibliothèque automatiquement (notification « Ajouté
+  à ta bibliothèque : titre — artiste ») ; si elle y est déjà → « Dans ta
+  bibliothèque » + actions Lire / Ajouter à la file depuis la notification ;
+  sinon « Rien d'identifié ».
+- **Service avant-plan** dédié (notification persistante « Bulle Shazam
+  active »), permission de superposition + consentement d'écran gérés
+  proprement (réinitialisable depuis les réglages), dernière identification
+  visible dans la feuille de reconnaissance.
+- Tests : encodeur WAV (en-tête RIFF), mapping résultat → notification.
+
 ## [1.25.1] - 2026-10-30
 
 Correctif bloquant remonté par les utilisateurs : « les boutons des menus gris

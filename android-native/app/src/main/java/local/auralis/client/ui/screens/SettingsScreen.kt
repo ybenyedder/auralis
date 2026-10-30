@@ -362,6 +362,15 @@ fun SettingsScreen(vm: AppViewModel, ui: UiState) {
         }
 
         item {
+            // "Bulle Shazam": the system-wide recognition bubble (overlay +
+            // internal-audio capture). The toggle owns the setup flow
+            // (overlay permission → screen-capture consent → ready).
+            Card(tr("settings.bubble")) {
+                local.auralis.client.ui.components.BubbleToggleRow(vm, ui)
+            }
+        }
+
+        item {
             Card(tr("settings.appearance")) {
                 Text(tr("settings.appearanceText"), color = colors.textMuted, style = AMType.Caption2, modifier = Modifier.padding(bottom = 6.dp))
                 ChipRow(

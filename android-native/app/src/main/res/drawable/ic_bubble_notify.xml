@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Small notification icon for the Shazam-bubble channel: a waveform-in-a-ring,
+     rendered as a silhouette by the system. -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="24dp"
+    android:height="24dp"
+    android:viewportWidth="24"
+    android:viewportHeight="24">
+    <path
+        android:fillColor="#FFFFFFFF"
+        android:pathData="M12,2a10,10 0 1,0 0.001,0zM12,4a8,8 0 1,1 -0.001,0z" />
+    <path
+        android:fillColor="#FFFFFFFF"
+        android:pathData="M8.2,9.5h1.6v5H8.2zM11.2,7h1.6v10h-1.6zM14.2,9.5h1.6v5h-1.6z" />
+</vector>

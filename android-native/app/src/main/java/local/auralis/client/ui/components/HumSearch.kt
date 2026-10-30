@@ -64,6 +64,7 @@ import local.auralis.client.model.RecognizeLocalMatch
 import local.auralis.client.model.RecognizeRemoteMatch
 import local.auralis.client.model.RecognizeResult
 import local.auralis.client.model.scorePercent
+import local.auralis.client.playback.BubbleOutcome
 import local.auralis.client.ui.AppViewModel
 import local.auralis.client.ui.UiState
 import local.auralis.client.ui.theme.AMShapes
@@ -209,6 +210,17 @@ fun HumSheet(vm: AppViewModel, ui: UiState, onDismiss: () -> Unit) {
 
             val result = ui.humResult
             val errorKey = ui.humError
+
+            // "Dernière identification" — the last system-bubble verdict (if
+            // any): tap to expand the full results in this sheet.
+            val lastOutcome = ui.bubbleLastOutcome
+            if (lastOutcome != null && result == null && !ui.humUploading && errorKey == null && !recording) {
+                Text(tr("hum.lastBubble"), color = colors.foreground, style = Type.Label, fontWeight = FontWeight.Bold)
+                Spacer(Modifier.height(6.dp))
+                BubbleLastRow(lastOutcome) { vm.showBubbleResult() }
+                Spacer(Modifier.height(12.dp))
+            }
+
             when {
                 errorKey != null || permissionDenied -> {
                     Text(
@@ -285,7 +297,59 @@ fun HumSheet(vm: AppViewModel, ui: UiState, onDismiss: () -> Unit) {
                     }
                 }
             }
+
+            // "Bulle Shazam" — launch/stop the system-wide bubble from the
+            // recognition sheet too (same setup flow as the Settings card).
+            Spacer(Modifier.height(6.dp))
+            BubbleToggleRow(vm, ui)
+
             Spacer(Modifier.height(10.dp))
+        }
+    }
+}
+
+/** The recognition sheet's "Dernière identification" row: the last system
+ *  bubble verdict — tap to expand the full results in this sheet. */
+@Composable
+private fun BubbleLastRow(outcome: BubbleOutcome, onClick: () -> Unit) {
+    val colors = LocalAuralis.current
+    val title = when (outcome) {
+        is BubbleOutcome.RemoteFound -> outcome.title
+        is BubbleOutcome.LocalFound -> outcome.title
+        is BubbleOutcome.NotFound -> tr("bubble.notif.notFound")
+        is BubbleOutcome.Failed -> tr("bubble.failed")
+    }
+    val sub = when (outcome) {
+        is BubbleOutcome.RemoteFound -> outcome.artists.joinToString(", ")
+        is BubbleOutcome.LocalFound -> outcome.artist
+        else -> ""
+    }
+    Row(
+        Modifier.fillMaxWidth().clip(AMShapes.tile).clickable { onClick() }
+            .padding(horizontal = 6.dp, vertical = 6.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Box(
+            Modifier.size(46.dp).clip(RoundedCornerShape(8.dp)).background(colors.panel2),
+            contentAlignment = Alignment.Center,
+        ) {
+            Icon(
+                if (outcome is BubbleOutcome.RemoteFound || outcome is BubbleOutcome.LocalFound) {
+                    Icons.Filled.Check
+                } else {
+                    Icons.Filled.Close
+                },
+                contentDescription = tr("hum.lastBubble"),
+                tint = colors.accent,
+                modifier = Modifier.size(20.dp),
+            )
+        }
+        Spacer(Modifier.width(12.dp))
+        Column(Modifier.weight(1f)) {
+            Text(title, color = colors.foreground, style = Type.Body, fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            if (sub.isNotBlank()) {
+                Text(sub, color = colors.textMuted, style = Type.Caption, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            }
         }
     }
 }

@@ -2,11 +2,16 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
 
     <uses-permission android:name="android.permission.INTERNET" />
-    <!-- "Chercher en chantant": short mic capture for hum-to-search recognition. -->
+    <!-- "Chercher en chantant": short mic capture for hum-to-search recognition.
+         Also the Shazam bubble's mic fallback on API 24-28 (no playback capture). -->
     <uses-permission android:name="android.permission.RECORD_AUDIO" />
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MEDIA_PLAYBACK" />
+    <!-- "Bulle Shazam": the system-wide floating bubble (drawn over other apps). -->
+    <uses-permission android:name="android.permission.SYSTEM_ALERT_WINDOW" />
+    <!-- "Bulle Shazam": internal-audio capture via MediaProjection (Android 10+). -->
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MEDIA_PROJECTION" />
     <uses-permission android:name="android.permission.WAKE_LOCK" />
     <!-- In-app self-update: download the newer APK from the GitHub release and hand
          it to the system package installer. -->
@@ -62,6 +67,22 @@
                 <action android:name="androidx.media3.session.MediaLibraryService" />
             </intent-filter>
         </service>
+
+        <!-- "Bulle Shazam": system-wide recognition bubble (overlay + internal
+             audio capture). mediaProjection on Android 10+, mediaPlayback as the
+             mic-mode fallback type on Android 14+. -->
+        <service
+            android:name=".playback.ShazamBubbleService"
+            android:exported="false"
+            android:foregroundServiceType="mediaProjection|mediaPlayback" />
+
+        <!-- Transparent trampoline for the system screen-capture consent when it
+             must be raised from the bubble itself (tap-time re-prompt). -->
+        <activity
+            android:name=".playback.BubbleConsentActivity"
+            android:exported="false"
+            android:excludeFromRecents="true"
+            android:theme="@android:style/Theme.Translucent.NoTitleBar" />
 
     </application>
 </manifest>

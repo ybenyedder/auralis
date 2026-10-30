@@ -50,6 +50,8 @@ import local.auralis.client.model.str
 import local.auralis.client.model.strOr
 import local.auralis.client.net.AuralisApi
 import local.auralis.client.playback.AudioFx
+import local.auralis.client.playback.BubbleBus
+import local.auralis.client.playback.BubbleOutcome
 import local.auralis.client.playback.EqCurve
 import local.auralis.client.playback.PlaybackAccounting
 import local.auralis.client.playback.PlaybackGains
@@ -154,6 +156,18 @@ data class UiState(
     /** Download jobs for global-catalog matches ("Ajouter à la bibliothèque"),
      *  keyed by the match's query. */
     val humRemoteJobs: Map<String, DownloadJobDto> = emptyMap(),
+
+    // "Bulle Shazam" (system-wide recognition bubble) — mirrored from the
+    // playback/BubbleBus service bridge + the persisted Prefs toggle.
+    val bubbleEnabled: Boolean = false,
+    /** The bubble service is running (bubble on screen, notification up). */
+    val bubbleActive: Boolean = false,
+    /** BubbleBus.MODE_INTERNAL ("audio interne") | MODE_MIC ("micro"). */
+    val bubbleCaptureMode: String = "internal",
+    /** Verdict of the last bubble identification (hum sheet "Dernière identification"). */
+    val bubbleLastResult: RecognizeResult? = null,
+    /** Notification mapping of the last bubble identification. */
+    val bubbleLastOutcome: BubbleOutcome? = null,
 
     // Melody index status (settings "Reconnaissance audio" card).
     val melody: MelodyStatus? = null,
@@ -291,6 +305,13 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
             }
         }
         viewModelScope.launch { accounting.messages.collect { notify(it) } }
+        // Mirror the Shazam-bubble service state (playback/BubbleBus) into the UI:
+        // the Settings toggle, the capture-mode row and the "Dernière identification"
+        // row in the recognition sheet all read this.
+        viewModelScope.launch { BubbleBus.active.collect { v -> _ui.update { it.copy(bubbleActive = v) } } }
+        viewModelScope.launch { BubbleBus.captureMode.collect { v -> _ui.update { it.copy(bubbleCaptureMode = v) } } }
+        viewModelScope.launch { BubbleBus.lastResult.collect { v -> _ui.update { it.copy(bubbleLastResult = v) } } }
+        viewModelScope.launch { BubbleBus.lastOutcome.collect { v -> _ui.update { it.copy(bubbleLastOutcome = v) } } }
         // Push the UI-owned inputs the process-lifetime loops consume: the autoplay
         // toggle and the dislike set live in UiState (and Prefs), but the endless-
         // autoplay picker now runs in PlaybackAccounting and must see every change
@@ -329,6 +350,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
                     eqGains = p.eqBands,
                     locale = Locale.from(p.locale),
                     themeMode = p.theme,
+                    bubbleEnabled = p.bubbleEnabled,
                 )
             }
             player.setRepeat(p.repeat)
@@ -1945,6 +1967,69 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
             notify(tr("hum.addedToLibrary"))
             loadAll()
         }
+    }
+
+    // ---- "Bulle Shazam" (system-wide recognition bubble) -------------------
+    // The overlay, the capture pipeline and the notifications live in
+    // playback/ShazamBubbleService (works with the app in the background); this
+    // side owns the persisted toggle + the sheet/settings surface. The
+    // permission dance (overlay → screen-capture consent) lives in
+    // ui/components/BubbleToggle.kt.
+
+    /** Persist the bubble toggle (the UI layer starts/stops the service once the
+     *  overlay + screen-capture permissions are settled). */
+    fun setBubbleEnabled(enabled: Boolean) {
+        _ui.update { it.copy(bubbleEnabled = enabled) }
+        viewModelScope.launch { prefs.setBubbleEnabled(enabled) }
+    }
+
+    /** Show the last bubble identification in the recognition sheet (reuses the
+     *  sheet's result list via `humResult`). */
+    fun showBubbleResult() {
+        val result = _ui.value.bubbleLastResult ?: return
+        _ui.update {
+            it.copy(
+                humSheetOpen = true,
+                humUploading = false,
+                humResult = result,
+                humError = null,
+                humErrorDetail = null,
+            )
+        }
+    }
+
+    /** Play a track identified by the bubble (result-notification "Lire"). */
+    fun playBubbleMatch(trackhash: String) {
+        viewModelScope.launch {
+            val track = awaitTrack(trackhash)
+            if (track == null) {
+                notify(tr("bubble.playFailed"))
+                return@launch
+            }
+            playTrack(track, listOf(track))
+        }
+    }
+
+    /** Add a bubble-identified track to the queue (notification action). */
+    fun queueBubbleMatch(trackhash: String) {
+        viewModelScope.launch {
+            val track = awaitTrack(trackhash)
+            if (track == null) {
+                notify(tr("bubble.playFailed"))
+                return@launch
+            }
+            addToEnd(track)
+        }
+    }
+
+    /** Notification actions can fire on a cold start, before the library is
+     *  loaded — wait briefly for the track index before giving up. */
+    private suspend fun awaitTrack(trackhash: String): Track? {
+        repeat(30) {
+            trackIndex[trackhash]?.let { return it }
+            delay(500)
+        }
+        return null
     }
 
     // ---- lyrics ------------------------------------------------------------

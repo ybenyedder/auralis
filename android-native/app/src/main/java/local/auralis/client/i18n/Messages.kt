@@ -162,6 +162,24 @@ object Messages {
         "hum.noMatch" to "Rien d'identifié — rapprochez le micro de la musique qui joue, ou fredonnez plus distinctement.",
         "hum.uploadFailed" to "Impossible d'analyser l'enregistrement",
         "hum.score" to "{pct} % de correspondance",
+        "hum.lastBubble" to "Dernière identification",
+
+        // ---- "Bulle Shazam" (system-wide recognition bubble) ---------------
+        "bubble.ready" to "Bulle prête — touche-la pour identifier la musique.",
+        "bubble.failed" to "Impossible de capturer l'audio — réessaie.",
+        "bubble.playFailed" to "Piste introuvable",
+        "bubble.listening" to "Écoute… {sec} s",
+        "bubble.notif.active" to "Bulle Shazam active — touche pour identifier",
+        "bubble.notif.stop" to "Arrêter",
+        "bubble.notif.added" to "Ajouté à ta bibliothèque : {title} — {artist}",
+        "bubble.notif.inLibrary" to "Dans ta bibliothèque : {title}",
+        "bubble.notif.notFound" to "Rien d'identifié — réessaie",
+        "bubble.notif.downloadFailed" to "Identification réussie mais ajout impossible : {title}",
+        "bubble.notif.micNote" to "Capture micro — l'audio interne nécessite Android 10.",
+        "bubble.perm.overlayDenied" to "Superposition refusée — autorisez « Afficher au-dessus des autres applications » pour la bulle.",
+        "bubble.perm.screenDenied" to "Capture d'écran refusée — réessaie pour identifier l'audio interne.",
+        "bubble.perm.screenLost" to "Autorisation d'écran perdue — touche la bulle pour la redemander.",
+        "bubble.perm.micDenied" to "Micro refusé — la bulle en a besoin pour capturer l'audio.",
 
         // ---- library --------------------------------------------------------
         "library.tabPlaylists" to "Playlists",
@@ -514,6 +532,16 @@ object Messages {
         "settings.melodyNoFfmpeg" to "ffmpeg est absent du serveur : la reconnaissance audio est désactivée.",
         "settings.melodyHelp" to "Reconnaissance mondiale (optionnelle) : définissez ACRACLOUD_HOST, ACRACLOUD_KEY et ACRACLOUD_SECRET dans l'environnement du serveur.",
 
+        // ---- settings: "Bulle Shazam" ---------------------------------------
+        "settings.bubble" to "Bulle Shazam",
+        "settings.bubble.explain" to "Identifie la musique dans tes vidéos — TikTok, YouTube, jeux…",
+        "settings.bubble.captureMode" to "Mode de capture",
+        "settings.bubble.capture.internal" to "Audio interne",
+        "settings.bubble.capture.mic" to "Micro",
+        "settings.bubble.projectionHint" to "L'autorisation d'écran est demandée à la première identification.",
+        "settings.bubble.resetProjection" to "Réinitialiser l'autorisation d'écran",
+        "settings.bubble.projectionReset" to "Autorisation réinitialisée — elle sera redemandée à la prochaine identification.",
+
         // ---- toasts ---------------------------------------------------------
         "toast.serverUnreachable" to "Serveur injoignable",
         "toast.shareUnavailable" to "Partage indisponible",
@@ -739,6 +767,24 @@ object Messages {
         "hum.noMatch" to "Nothing identified — move closer to the music playing, or hum more clearly.",
         "hum.uploadFailed" to "Could not analyze the recording",
         "hum.score" to "{pct}% match",
+        "hum.lastBubble" to "Last identification",
+
+        // ---- "Bulle Shazam" (system-wide recognition bubble) ---------------
+        "bubble.ready" to "Bubble ready — tap it to identify music.",
+        "bubble.failed" to "Could not capture audio — try again.",
+        "bubble.playFailed" to "Track not found",
+        "bubble.listening" to "Listening… {sec} s",
+        "bubble.notif.active" to "Shazam bubble active — tap to identify",
+        "bubble.notif.stop" to "Stop",
+        "bubble.notif.added" to "Added to your library: {title} — {artist}",
+        "bubble.notif.inLibrary" to "In your library: {title}",
+        "bubble.notif.notFound" to "Nothing identified — try again",
+        "bubble.notif.downloadFailed" to "Identified but could not add it: {title}",
+        "bubble.notif.micNote" to "Mic capture — internal audio needs Android 10.",
+        "bubble.perm.overlayDenied" to "Overlay denied — allow \"Display over other apps\" for the bubble.",
+        "bubble.perm.screenDenied" to "Screen capture denied — try again to identify internal audio.",
+        "bubble.perm.screenLost" to "Screen permission lost — tap the bubble to grant it again.",
+        "bubble.perm.micDenied" to "Microphone denied — the bubble needs it to capture audio.",
 
         // ---- library --------------------------------------------------------
         "library.tabPlaylists" to "Playlists",
@@ -1090,6 +1136,16 @@ object Messages {
         "settings.melodyIndexFailed" to "Could not start indexing",
         "settings.melodyNoFfmpeg" to "ffmpeg is missing on the server: audio recognition is disabled.",
         "settings.melodyHelp" to "Worldwide recognition (optional): set ACRACLOUD_HOST, ACRACLOUD_KEY and ACRACLOUD_SECRET in the server environment.",
+
+        // ---- settings: "Bulle Shazam" ---------------------------------------
+        "settings.bubble" to "Shazam Bubble",
+        "settings.bubble.explain" to "Identify the music in your videos — TikTok, YouTube, games…",
+        "settings.bubble.captureMode" to "Capture mode",
+        "settings.bubble.capture.internal" to "Internal audio",
+        "settings.bubble.capture.mic" to "Mic",
+        "settings.bubble.projectionHint" to "Screen capture is requested at the first identification.",
+        "settings.bubble.resetProjection" to "Reset screen-capture permission",
+        "settings.bubble.projectionReset" to "Permission reset — it will be asked again on the next identification.",
 
         // ---- toasts ---------------------------------------------------------
         "toast.serverUnreachable" to "Server unreachable",

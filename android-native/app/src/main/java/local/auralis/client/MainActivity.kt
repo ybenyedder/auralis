@@ -1,6 +1,7 @@
 package local.auralis.client
 
 import android.Manifest
+import android.content.Intent
 import android.content.pm.PackageManager
 import android.os.Build
 import android.os.Bundle
@@ -14,6 +15,7 @@ import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.core.content.ContextCompat
+import local.auralis.client.playback.ShazamBubbleService
 import local.auralis.client.ui.AppRoot
 import local.auralis.client.ui.AppViewModel
 
@@ -54,5 +56,20 @@ class MainActivity : ComponentActivity() {
             SideEffect { backCallback.isEnabled = ui.backStack.isNotEmpty() }
             AppRoot(vm)
         }
+
+        handleBubbleIntent(intent)
+    }
+
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        handleBubbleIntent(intent)
+    }
+
+    /** "Bulle Shazam" result notifications deep-link here with a play/queue
+     *  trackhash ("Lire" / "Ajouter à la file" on a library match). */
+    private fun handleBubbleIntent(intent: Intent?) {
+        intent ?: return
+        intent.getStringExtra(ShazamBubbleService.EXTRA_PLAY_TRACK)?.let { vm.playBubbleMatch(it) }
+        intent.getStringExtra(ShazamBubbleService.EXTRA_QUEUE_TRACK)?.let { vm.queueBubbleMatch(it) }
     }
 }

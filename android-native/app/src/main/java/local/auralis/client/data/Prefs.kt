@@ -38,6 +38,8 @@ class Prefs(context: Context) {
         val locale: String = "fr",
         /** Appearance mode: "dark" | "light" | "auto" (system). */
         val theme: String = "auto",
+        /** "Bulle Shazam": the system-wide recognition bubble is enabled. */
+        val bubbleEnabled: Boolean = false,
     )
 
     suspend fun load(): Snapshot {
@@ -59,6 +61,7 @@ class Prefs(context: Context) {
             eqBands = parseEqBands(p[EQ_BANDS]),
             locale = p[LOCALE] ?: "fr",
             theme = p[THEME] ?: "auto",
+            bubbleEnabled = p[BUBBLE_ENABLED] ?: false,
         )
     }
 
@@ -147,6 +150,9 @@ class Prefs(context: Context) {
     suspend fun setLocale(locale: String) { store.edit { it[LOCALE] = locale } }
     suspend fun setTheme(mode: String) { store.edit { it[THEME] = mode } }
 
+    /** Persist the "Bulle Shazam" master toggle. */
+    suspend fun setBubbleEnabled(enabled: Boolean) { store.edit { it[BUBBLE_ENABLED] = enabled } }
+
     companion object {
         private val SERVER_BASE = stringPreferencesKey("server_base")
         private val TOKEN = stringPreferencesKey("token")
@@ -170,6 +176,7 @@ class Prefs(context: Context) {
         private val RECAP_SEEN = stringPreferencesKey("recap_seen")
         private val DISCOVER_WEEK = stringPreferencesKey("discover_week")
         private val DISCOVER_HASHES = stringPreferencesKey("discover_hashes")
+        private val BUBBLE_ENABLED = booleanPreferencesKey("bubble_enabled")
 
         /** The 6 EQ band gains stored as a comma-separated list; anything that
          *  isn't exactly six parseable values falls back to a flat curve. */
