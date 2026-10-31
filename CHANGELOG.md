@@ -4,6 +4,41 @@ All notable changes to Auralis are documented here. The format is based on
 [Keep a Changelog](https://keepachangelog.com/) and this project adheres to
 [Semantic Versioning](https://semver.org/).
 
+## [1.27.0] - 2026-10-31
+
+Deux retours utilisateurs : « j'ajoute une playlist et je ne vois rien se
+télécharger — je veux voir les titres se télécharger un par un et s'ajouter à
+la playlist » et « je veux pouvoir enlever la bulle Shazam en la glissant vers
+le bas, comme la vraie app ».
+
+### Changé — Android : import de playlist, téléchargement VISIBLE
+- **Téléchargement automatique** : dès qu'un import (lien Spotify/Deezer/Apple
+  Music/YouTube ou fichier .m3u/.json) laisse des titres manquants, le
+  téléchargement démarre tout seul (plus de boîte de confirmation) avec un
+  toast « Téléchargement de N titres… ».
+- **Feuille live titre par titre** : chaque titre manquant affiche son statut
+  en temps réel — « En attente… » → « Téléchargement… 42 % » (vraie
+  progression du job) → « ✅ Ajouté à la playlist » / « ❌ Échec (raison) » /
+  « Annulé ». Le titre rejoint la playlist **à l'instant** où son
+  téléchargement finit — tu le vois arriver.
+- **Boutons** : « Voir la playlist » (dès le premier ajout), « Fermer » (ça
+  continue en arrière-plan), « Tout annuler ».
+- **Bannière sur la playlist** : « N titres en cours de téléchargement… » tant
+  que ça tourne (appui = rouvrir la feuille) — même si tu navigues ailleurs.
+- Plus jamais de silence : un échec de démarrage affiche la raison serveur
+  (ex. limite de lots) + un bouton « Réessayer ».
+
+### Ajouté — Android : bulle Shazam à glisser pour supprimer
+- **Glisse la bulle vers le bas** → une pastille rouge « Supprimer » apparaît
+  en bas ; lâcher dessus = bulle retirée proprement (service arrêté, réglage
+  mis à jour, toast « Bulle masquée — réactive-la dans les réglages »).
+- Lâcher ailleurs = la bulle retourne au bord le plus proche ; l'appui simple
+  (identifier) est inchangé.
+
+### Tests
+- 31 nouveaux tests JVM (modèle de statut des téléchargements, logique de
+  glissement/suppression de la bulle) — suite Android verte.
+
 ## [1.26.0] - 2026-10-30
 
 L'expérience Shazam complète sur Android : une bulle flottante au-dessus de

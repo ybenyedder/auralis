@@ -27,4 +27,9 @@ object BubbleBus {
 
     /** Notification mapping of the last bubble identification. */
     val lastOutcome = MutableStateFlow<BubbleOutcome?>(null)
+
+    /** Persisted bubble toggle, mirrored when the SERVICE flips it (drag the
+     *  bubble to the bottom remove target → dismissed + toggle off). Null until
+     *  someone writes it — the app's own toggle sets UiState directly. */
+    val enabled = MutableStateFlow<Boolean?>(null)
 }

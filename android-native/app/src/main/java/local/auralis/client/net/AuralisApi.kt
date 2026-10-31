@@ -250,10 +250,13 @@ class AuralisApi {
         return DownloadJobDto.from(job).takeIf { it.id.isNotBlank() }
     }
 
-    /** Bulk enqueue (playlist import → missing tracks): one job per item
-     *  (POST /api/download `{ items }`, max 200 per batch). Empty on failure. */
-    suspend fun startDownloadBatch(items: List<DownloadItem>): List<DownloadJobDto> {
-        if (items.isEmpty()) return emptyList()
+    /** Bulk enqueue (playlist import → missing tracks): one job per item, in
+     *  item order (POST /api/download `{ items }`, max 200 per batch). The
+     *  server's own error text rides along so a failed start is never silent. */
+    data class DownloadBatchResult(val jobs: List<DownloadJobDto>, val error: String?)
+
+    suspend fun startDownloadBatch(items: List<DownloadItem>): DownloadBatchResult {
+        if (items.isEmpty()) return DownloadBatchResult(emptyList(), null)
         val arr = JSONArray()
         for (item in items) {
             arr.put(JSONObject().put("query", item.query).apply {
@@ -261,8 +264,19 @@ class AuralisApi {
             })
         }
         val res = post("/api/download", JSONObject().put("items", arr))
-        if (!apiLastOk) return emptyList()
-        return res.optJSONArray("jobs")?.objects()?.map { DownloadJobDto.from(it) } ?: emptyList()
+        val error = res.optString("error").ifBlank { null }
+        if (!apiLastOk) return DownloadBatchResult(emptyList(), error)
+        val jobs = res.optJSONArray("jobs")?.objects()?.map { DownloadJobDto.from(it) } ?: emptyList()
+        return DownloadBatchResult(jobs, error)
+    }
+
+    /** Cancel a queued/running download job (DELETE /api/download?job=).
+     *  Queued jobs and in-flight fetches both settle as "error"/"Annulé". */
+    suspend fun cancelDownload(id: String): Boolean {
+        if (id.isBlank()) return false
+        return runCatching {
+            delete("/api/download?job=${Uri.encode(id)}").optBoolean("ok", false)
+        }.getOrDefault(false)
     }
 
     /** Every download job owned by this account (bare GET /api/download) — one

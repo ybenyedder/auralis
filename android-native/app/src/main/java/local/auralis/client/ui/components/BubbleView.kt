@@ -7,6 +7,7 @@ import android.graphics.Color
 import android.graphics.Paint
 import android.graphics.Path
 import android.graphics.RectF
+import android.graphics.Typeface
 import android.view.MotionEvent
 import android.view.View
 import android.view.ViewConfiguration
@@ -49,6 +50,10 @@ class BubbleView(context: Context) : View(context) {
 
     /** Dragged by (dx, dy) px since the drag started. */
     var onDrag: ((dx: Int, dy: Int) -> Unit)? = null
+
+    /** A drag ended (finger lifted after moving) — the owner decides between
+     *  the remove-target drop and the snap-back. Never fired on a tap. */
+    var onDragEnd: (() -> Unit)? = null
 
     // Apple-Music-red accent (mirrors ui/theme/Theme.kt — the View lives outside
     // the Compose tree so it carries its own palette constants).
@@ -272,11 +277,81 @@ class BubbleView(context: Context) : View(context) {
                 return true
             }
             MotionEvent.ACTION_UP -> {
-                if (!dragging) onTap?.invoke()
+                if (!dragging) onTap?.invoke() else onDragEnd?.invoke()
                 return true
             }
-            MotionEvent.ACTION_CANCEL -> return true
+            MotionEvent.ACTION_CANCEL -> {
+                // Interrupted drag: let the owner snap the bubble back into place.
+                if (dragging) onDragEnd?.invoke()
+                return true
+            }
         }
         return super.onTouchEvent(event)
+    }
+}
+
+/**
+ * The drag-to-dismiss remove target: a red "Supprimer" trash pill revealed at
+ * the BOTTOM of the screen while the Shazam bubble is dragged low (faded/scaled
+ * in by playback/ShazamBubbleService). Pure drawing, deliberately not touchable
+ * — the drop decision is made from the bubble's position (model/BubbleDragLogic),
+ * so the pill never steals the bubble's gestures.
+ */
+class BubbleRemoveTargetView(context: Context, private val label: String) : View(context) {
+
+    private val accentColor = Color.parseColor("#FA233B")
+    private val inkColor = Color.WHITE
+
+    private val density = context.resources.displayMetrics.density
+    private fun dp(v: Float) = v * density
+
+    private val pillW = dp(180f)
+    private val pillH = dp(52f)
+
+    private val fillPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply { style = Paint.Style.FILL }
+    private val strokePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+        style = Paint.Style.STROKE
+        strokeCap = Paint.Cap.ROUND
+        strokeJoin = Paint.Join.ROUND
+    }
+    private val textPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+        textAlign = Paint.Align.CENTER
+        textSize = dp(13f)
+        typeface = Typeface.DEFAULT_BOLD
+    }
+
+    override fun onMeasure(widthMeasureSpec: Int, heightMeasureSpec: Int) {
+        setMeasuredDimension(pillW.toInt(), pillH.toInt())
+    }
+
+    override fun onDraw(canvas: Canvas) {
+        val rect = RectF(0f, 0f, width.toFloat(), height.toFloat())
+        fillPaint.color = accentColor
+        canvas.drawRoundRect(rect, pillH / 2f, pillH / 2f, fillPaint)
+
+        // Trash glyph + "Supprimer" label, side by side inside the pill.
+        val glyphR = dp(9f)
+        val textW = textPaint.measureText(label)
+        val totalW = glyphR * 2f + dp(10f) + textW
+        val left = width / 2f - totalW / 2f
+        drawTrash(canvas, left + glyphR, height / 2f, glyphR)
+        textPaint.color = inkColor
+        canvas.drawText(label, left + glyphR * 2f + dp(10f) + textW / 2f, height / 2f + dp(4.5f), textPaint)
+    }
+
+    /** Small trash can: lid, handle and a tapered body with two ribs. */
+    private fun drawTrash(canvas: Canvas, cx: Float, cy: Float, r: Float) {
+        strokePaint.color = inkColor
+        strokePaint.strokeWidth = dp(1.8f)
+        // Handle + lid.
+        canvas.drawLine(cx - r * 0.22f, cy - r * 0.72f, cx + r * 0.22f, cy - r * 0.72f, strokePaint)
+        canvas.drawLine(cx - r * 0.55f, cy - r * 0.45f, cx + r * 0.55f, cy - r * 0.45f, strokePaint)
+        // Body (slightly tapered).
+        canvas.drawLine(cx - r * 0.42f, cy - r * 0.28f, cx - r * 0.3f, cy + r * 0.72f, strokePaint)
+        canvas.drawLine(cx + r * 0.42f, cy - r * 0.28f, cx + r * 0.3f, cy + r * 0.72f, strokePaint)
+        canvas.drawLine(cx - r * 0.3f, cy + r * 0.72f, cx + r * 0.3f, cy + r * 0.72f, strokePaint)
+        // Ribs.
+        canvas.drawLine(cx - r * 0.12f, cy - r * 0.12f, cx - r * 0.08f, cy + r * 0.5f, strokePaint)
+        canvas.drawLine(cx + r * 0.12f, cy - r * 0.12f, cx + r * 0.08f, cy + r * 0.5f, strokePaint)
     }
 }

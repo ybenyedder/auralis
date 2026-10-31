@@ -267,8 +267,8 @@ fun Shell(vm: AppViewModel, ui: UiState) {
             local.auralis.client.ui.components.HumSheet(vm, ui, onDismiss = { vm.closeHumSheet() })
         }
 
-        // Playlist import → "Télécharger les N titres manquants" + batch progress.
-        local.auralis.client.ui.components.ImportDownloadDialogs(ui, vm)
+        // Playlist import → the live per-track download sheet (auto-started batch).
+        local.auralis.client.ui.components.ImportDownloadSheet(ui, vm)
 
         // Transient toast (optionally with one action — e.g. the queue "Annuler").
         ui.toast?.let { msg ->

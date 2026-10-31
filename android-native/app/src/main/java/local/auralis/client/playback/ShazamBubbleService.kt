@@ -1,5 +1,6 @@
 package local.auralis.client.playback
 
+import android.animation.ValueAnimator
 import android.app.Notification
 import android.app.NotificationChannel
 import android.app.NotificationManager
@@ -17,7 +18,10 @@ import android.os.IBinder
 import android.os.Looper
 import android.provider.Settings
 import android.view.Gravity
+import android.view.View
 import android.view.WindowManager
+import android.view.animation.DecelerateInterpolator
+import android.widget.Toast
 import androidx.core.app.NotificationCompat
 import androidx.core.app.ServiceCompat
 import androidx.core.content.ContextCompat
@@ -33,9 +37,11 @@ import local.auralis.client.MainActivity
 import local.auralis.client.R
 import local.auralis.client.data.Prefs
 import local.auralis.client.i18n.Messages
+import local.auralis.client.model.BubbleDragLogic
 import local.auralis.client.model.DownloadJobDto
 import local.auralis.client.model.RecognizeResult
 import local.auralis.client.net.AuralisApi
+import local.auralis.client.ui.components.BubbleRemoveTargetView
 import local.auralis.client.ui.components.BubbleView
 
 /**
@@ -60,6 +66,10 @@ class ShazamBubbleService : Service() {
     private var windowManager: WindowManager? = null
     private var bubbleView: BubbleView? = null
     private var bubbleParams: WindowManager.LayoutParams? = null
+    /** The drag-to-dismiss "Supprimer" pill at the bottom edge (hidden until the
+     *  bubble is dragged into the remove zone). */
+    private var removeTarget: BubbleRemoveTargetView? = null
+    private var removeTargetShown = false
 
     private var projection: MediaProjection? = null
     private var foreground = false
@@ -133,6 +143,7 @@ class ShazamBubbleService : Service() {
     override fun onDestroy() {
         scope.cancel()
         removeBubble()
+        removeRemoveTarget()
         runCatching { projection?.unregisterCallback(projectionCallback) }
         runCatching { projection?.stop() }
         projection = null
@@ -426,6 +437,7 @@ class ShazamBubbleService : Service() {
         if (!Settings.canDrawOverlays(this)) return
         val wm = getSystemService(WindowManager::class.java)
         windowManager = wm
+        val margin = (12 * resources.displayMetrics.density).toInt()
         val params = WindowManager.LayoutParams(
             WindowManager.LayoutParams.WRAP_CONTENT,
             WindowManager.LayoutParams.WRAP_CONTENT,
@@ -434,7 +446,7 @@ class ShazamBubbleService : Service() {
             PixelFormat.TRANSLUCENT,
         ).apply {
             gravity = Gravity.TOP or Gravity.START
-            x = (12 * resources.displayMetrics.density).toInt()
+            x = margin
             y = (180 * resources.displayMetrics.density).toInt()
         }
         var baseX = params.x
@@ -446,11 +458,110 @@ class ShazamBubbleService : Service() {
                 params.x = baseX + dx
                 params.y = baseY + dy
                 runCatching { wm.updateViewLayout(this, params) }
+                // Real-Shazam behaviour: dragging toward the bottom edge reveals
+                // the remove target under the finger (≈ 85 % of screen height).
+                val dm = resources.displayMetrics
+                setRemoveTargetVisible(BubbleDragLogic.showsRemoveTarget(params.y + height / 2f, dm.heightPixels))
+            }
+            onDragEnd = {
+                val dm = resources.displayMetrics
+                val cx = params.x + width / 2f
+                val cy = params.y + height / 2f
+                if (removeTargetShown && BubbleDragLogic.isDismissDrop(cx, cy, dm.widthPixels, dm.heightPixels)) {
+                    dismissBubble()
+                } else {
+                    // Anywhere else: hide the target and snap to the nearest edge.
+                    setRemoveTargetVisible(false)
+                    snapBubble(params, this, margin)
+                }
             }
         }
         bubbleView = view
         bubbleParams = params
         runCatching { wm.addView(view, params) }
+        addRemoveTarget()
+    }
+
+    /** The "Supprimer" pill, centered at the bottom — drawn only, never
+     *  touchable, so it can't steal the bubble's gestures. */
+    private fun addRemoveTarget() {
+        val wm = windowManager ?: return
+        if (removeTarget != null) return
+        val params = WindowManager.LayoutParams(
+            WindowManager.LayoutParams.WRAP_CONTENT,
+            WindowManager.LayoutParams.WRAP_CONTENT,
+            WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY,
+            WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE,
+            PixelFormat.TRANSLUCENT,
+        ).apply {
+            gravity = Gravity.BOTTOM or Gravity.CENTER_HORIZONTAL
+            y = (28 * resources.displayMetrics.density).toInt()
+        }
+        val view = BubbleRemoveTargetView(this, Messages.t("bubble.removeTarget")).apply {
+            alpha = 0f
+            scaleX = 0.8f
+            scaleY = 0.8f
+            visibility = View.GONE
+        }
+        removeTarget = view
+        runCatching { wm.addView(view, params) }
+    }
+
+    /** Fade/scale the remove pill in or out as the bubble crosses the zone. */
+    private fun setRemoveTargetVisible(visible: Boolean) {
+        val view = removeTarget ?: return
+        if (removeTargetShown == visible) return
+        removeTargetShown = visible
+        view.animate().cancel()
+        if (visible) {
+            view.visibility = View.VISIBLE
+            view.animate().alpha(1f).scaleX(1f).scaleY(1f).setDuration(150).start()
+        } else {
+            view.animate().alpha(0f).scaleX(0.8f).scaleY(0.8f).setDuration(120)
+                .withEndAction { view.visibility = View.GONE }.start()
+        }
+    }
+
+    private fun removeRemoveTarget() {
+        val view = removeTarget ?: return
+        removeTarget = null
+        removeTargetShown = false
+        runCatching { windowManager?.removeViewImmediate(view) }
+    }
+
+    /** Snap back to the nearest horizontal edge after an aborted drag (or an
+     *  interrupted gesture) — the classic overlay-bubble settle. */
+    private fun snapBubble(params: WindowManager.LayoutParams, view: BubbleView, margin: Int) {
+        val wm = windowManager ?: return
+        val dm = resources.displayMetrics
+        val toX = BubbleDragLogic.snapX(params.x, view.width, dm.widthPixels, margin)
+        val toY = BubbleDragLogic.clampY(params.y, view.height, dm.heightPixels, margin, margin)
+        val fromX = params.x
+        val fromY = params.y
+        ValueAnimator.ofFloat(0f, 1f).apply {
+            duration = 220
+            interpolator = DecelerateInterpolator()
+            addUpdateListener {
+                val t = it.animatedValue as Float
+                params.x = (fromX + (toX - fromX) * t).toInt()
+                params.y = (fromY + (toY - fromY) * t).toInt()
+                runCatching { wm.updateViewLayout(view, params) }
+            }
+        }.start()
+    }
+
+    /** Dropped on the remove target: hide the bubble, turn the persisted toggle
+     *  off (the Settings switch follows via BubbleBus) and stop the service
+     *  cleanly — with a toast pointing at the settings. */
+    private fun dismissBubble() {
+        removeBubble()
+        removeRemoveTarget()
+        BubbleBus.enabled.value = false
+        Toast.makeText(applicationContext, Messages.t("bubble.dismissed"), Toast.LENGTH_SHORT).show()
+        scope.launch {
+            runCatching { Prefs(applicationContext).setBubbleEnabled(false) }
+            stopEverything()
+        }
     }
 
     private fun removeBubble() {

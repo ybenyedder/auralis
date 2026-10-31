@@ -351,6 +351,12 @@ fun PlaylistDetail(vm: AppViewModel, ui: UiState, playlistId: String) {
 
     Box(Modifier.fillMaxSize()) {
     LazyColumn(contentPadding = PaddingValues(start = 16.dp, end = 16.dp, bottom = 170.dp)) {
+        // While THIS playlist's import batch runs, keep a small inline banner up
+        // so the downloaded tracks are seen arriving even after the live sheet
+        // was closed (tap reopens it).
+        item {
+            local.auralis.client.ui.components.ImportDownloadBanner(ui, vm, playlistId)
+        }
         item {
             DetailHero(seed = playlistId) {
                 Box {

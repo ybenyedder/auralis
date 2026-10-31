@@ -180,6 +180,8 @@ object Messages {
         "bubble.perm.screenDenied" to "Capture d'écran refusée — réessaie pour identifier l'audio interne.",
         "bubble.perm.screenLost" to "Autorisation d'écran perdue — touche la bulle pour la redemander.",
         "bubble.perm.micDenied" to "Micro refusé — la bulle en a besoin pour capturer l'audio.",
+        "bubble.removeTarget" to "Supprimer",
+        "bubble.dismissed" to "Bulle masquée — réactive-la dans les réglages",
 
         // ---- library --------------------------------------------------------
         "library.tabPlaylists" to "Playlists",
@@ -213,13 +215,18 @@ object Messages {
         "library.emptyImportCta" to "Importer une playlist (Spotify, Deezer, Apple Music, YouTube)",
 
         // ---- playlist import → download missing tracks ----------------------
-        "import.downloadMissingTitle" to "Titres manquants",
-        "import.downloadMissingHint" to "{count} titres sont introuvables dans la bibliothèque. Les télécharger depuis YouTube et les ajouter à la playlist ?",
         "import.downloadMissing" to "Télécharger les {count} titres manquants",
-        "import.downloadsRunning" to "Téléchargement des titres manquants",
-        "import.downloading" to "{done} / {total} téléchargés",
         "import.downloadComplete" to "{done} titres téléchargés",
         "import.downloadPartial" to "{done} titres téléchargés — {failed} échecs",
+        "import.sheetTitle" to "Import de « {name} » — {done}/{total}",
+        "import.rowQueued" to "En attente…",
+        "import.rowDownloading" to "Téléchargement… {progress}%",
+        "import.rowAdded" to "✅ Ajouté à la playlist",
+        "import.rowFailed" to "❌ Échec",
+        "import.rowCancelled" to "Annulé",
+        "import.viewPlaylist" to "Voir la playlist",
+        "import.cancelAll" to "Tout annuler",
+        "import.bannerRunning" to "{count} titres en cours de téléchargement…",
 
         // ---- favorites / recents / folders ---------------------------------
         "favorites.headline" to "Tes titres aimés",
@@ -603,6 +610,7 @@ object Messages {
         "toast.musicDirUpdated" to "Dossier mis à jour — indexation…",
         "toast.dataImported" to "Données importées",
         "toast.importFailed" to "Import échoué",
+        "toast.downloadBatchStarting" to "Téléchargement de {count} titres…",
         "toast.downloadStartFailed" to "Démarrage impossible",
         "toast.downloadFailed" to "Échec du téléchargement",
         "toast.trackUnreadable" to "Piste illisible — passage à la suivante",
@@ -785,6 +793,8 @@ object Messages {
         "bubble.perm.screenDenied" to "Screen capture denied — try again to identify internal audio.",
         "bubble.perm.screenLost" to "Screen permission lost — tap the bubble to grant it again.",
         "bubble.perm.micDenied" to "Microphone denied — the bubble needs it to capture audio.",
+        "bubble.removeTarget" to "Remove",
+        "bubble.dismissed" to "Bubble hidden — turn it back on in settings",
 
         // ---- library --------------------------------------------------------
         "library.tabPlaylists" to "Playlists",
@@ -818,13 +828,18 @@ object Messages {
         "library.emptyImportCta" to "Import a playlist (Spotify, Deezer, Apple Music, YouTube)",
 
         // ---- playlist import → download missing tracks ----------------------
-        "import.downloadMissingTitle" to "Missing tracks",
-        "import.downloadMissingHint" to "{count} tracks aren't in your library. Download them from YouTube and add them to the playlist?",
         "import.downloadMissing" to "Download the {count} missing tracks",
-        "import.downloadsRunning" to "Downloading missing tracks",
-        "import.downloading" to "{done} / {total} downloaded",
         "import.downloadComplete" to "{done} tracks downloaded",
         "import.downloadPartial" to "{done} tracks downloaded — {failed} failed",
+        "import.sheetTitle" to "Import of \"{name}\" — {done}/{total}",
+        "import.rowQueued" to "Waiting…",
+        "import.rowDownloading" to "Downloading… {progress}%",
+        "import.rowAdded" to "✅ Added to the playlist",
+        "import.rowFailed" to "❌ Failed",
+        "import.rowCancelled" to "Cancelled",
+        "import.viewPlaylist" to "View playlist",
+        "import.cancelAll" to "Cancel all",
+        "import.bannerRunning" to "{count} tracks downloading…",
 
         // ---- favorites / recents / folders ---------------------------------
         "favorites.headline" to "Your liked tracks",
@@ -1208,6 +1223,7 @@ object Messages {
         "toast.musicDirUpdated" to "Music folder updated — indexing…",
         "toast.dataImported" to "Data imported",
         "toast.importFailed" to "Import failed",
+        "toast.downloadBatchStarting" to "Downloading {count} tracks…",
         "toast.downloadStartFailed" to "Could not start",
         "toast.downloadFailed" to "Download failed",
         "toast.trackUnreadable" to "Unreadable track — skipping to the next one",
