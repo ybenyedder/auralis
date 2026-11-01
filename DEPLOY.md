@@ -3,6 +3,43 @@
 Guide d'auto-hébergement pour un petit VPS. L'objectif : installer en 4
 commandes, mettre à jour en 1 commande, sauvegarder en 1 commande.
 
+## ⚙️ Procédure de mise à jour COMPLÈTE (à suivre à chaque livraison)
+
+> Pour toute nouvelle session de travail : quand on « met à jour », on met à
+> jour **PARTOUT** — le dépôt, les releases GitHub, ET le serveur de
+> production. Voici l'ordre exact :
+
+1. **Code** : bump de `package.json` (version sémantique) + entrée dans
+   `CHANGELOG.md` (format Keep a Changelog, français).
+2. **Vérifications** (les deux doivent être vertes) :
+   - Web : `npm run typecheck && npm run lint && npx vitest run`
+   - Android : `cd android-native && JAVA_HOME=<JDK 17> ./gradlew --offline
+     :app:compileFullDebugKotlin :app:testFullDebugUnitTest`
+     (le JDK par défaut est souvent Java 8 → inutilisable ; et `--offline` car
+     Google Maven est inaccessible depuis la machine de dev).
+3. **Commit + push sur `main`**. NB : les tests vivent dans `test/` qui est
+   gitignoré → `git add -f test/…` pour les nouveaux fichiers de test.
+4. **Release** : tag annoté `vX.Y.Z` (DOIT être identique à la version de
+   `package.json`, la CI échoue sinon) + `git push origin vX.Y.Z` → le
+   workflow `release.yml` construit desktop (Linux + Windows), l'APK Android,
+   l'AAB Play Store et l'IPA iOS, puis publie la release GitHub.
+5. **Après les builds** (3 workflows : Desktop / Play Store AAB / iOS) :
+   - rédiger les **notes de release** depuis la section `CHANGELOG.md`
+     correspondante (via l'API GitHub — token dans le credential store git ;
+     `PATCH /repos/<owner>/<repo>/releases/<id>` avec `{ body }`) ;
+   - vérifier le marqueur **"latest"** : les workflows finissent parfois dans
+     un ordre qui le pose sur l'avant-dernière version — le corriger
+     (`make_latest: "true"` sur la dernière) ;
+   - vérifier les **10 assets** (x64.exe, Setup.exe, AppImage, .deb, .apk,
+     .aab, .ipa, blockmap, latest.yml, latest-linux.yml).
+6. **Serveur de production** : suivre `deploy/PRODUCTION.local.md`
+   (gitignoré — accès + commandes exactes) : `git pull` + rebuild de l'image
+   `auralis:local` + recréation du conteneur + sonde `/api/health`.
+   ⚠️ Ne jamais oublier cette étape : le serveur doit être à jour lui aussi, et
+   ses **patchs locaux préservés** (détails dans le fichier).
+
+Le reste de ce document décrit le déploiement générique (Docker compose).
+
 ## Prérequis
 
 - Un VPS modeste suffit : 1 vCPU et 1 Go de RAM (prévoyez 2 Go de swap pour le

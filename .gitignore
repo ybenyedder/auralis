@@ -77,3 +77,6 @@ server.log
 # Dossiers créés par deploy/update.sh sur le serveur
 /deploy/music/
 /deploy/data/
+
+# Fichier local d'exploitation (identifiants serveur) — jamais commité
+deploy/PRODUCTION.local.md
