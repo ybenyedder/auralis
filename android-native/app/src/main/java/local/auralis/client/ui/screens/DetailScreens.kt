@@ -48,6 +48,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.semantics.contentDescription
@@ -102,11 +103,21 @@ fun AlbumDetail(vm: AppViewModel, ui: UiState, albumhash: String) {
     }
     val playback by vm.playback.collectAsState()
     val current = playback.currentId
-    val isPlayingThis = playback.isPlaying && tracks.any { it.trackhash == current }
-    LazyColumn(contentPadding = PaddingValues(start = 16.dp, end = 16.dp, bottom = 170.dp)) {
+    // Only THIS album lights the hero: `playingFrom` is the tag of what seeded
+    // the queue, so a track shared with another playlist doesn't light that one
+    // too. `playingThis` (Pause glyph) additionally requires sound to be coming
+    // out — a paused album shows Play and resumes in place.
+    val playingFrom by vm.playingFrom.collectAsState()
+    val activeThis = playingFrom == "album:$albumhash" && playback.hasItems
+    val playingThis = activeThis && playback.isPlaying
+    LazyColumn(contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 12.dp, bottom = 170.dp)) {
         item {
             DetailHero(seed = albumhash) {
-                CoverArt(album?.image, albumhash, Modifier.size(180.dp), cornerRadius = 12)
+                // Shadow under the cover gives the hero real depth (the flat pasted
+                // rectangle read as "cheap" next to the web's layered cards).
+                Box(Modifier.shadow(18.dp, AMShapes.card, clip = false)) {
+                    CoverArt(album?.image, albumhash, Modifier.size(180.dp), cornerRadius = 12)
+                }
                 Spacer(Modifier.height(14.dp))
                 Eyebrow(tr("mobile.album"))
                 Spacer(Modifier.height(2.dp))
@@ -120,20 +131,22 @@ fun AlbumDetail(vm: AppViewModel, ui: UiState, albumhash: String) {
                 Text(tr("detail.tracksAndDuration", params = mapOf("count" to tracks.size, "duration" to formatLongDuration(dur))), color = colors.textFaint, style = Type.Caption)
                 Spacer(Modifier.height(16.dp))
                 Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(18.dp)) {
-                    HeroPlayButton(enabled = tracks.isNotEmpty(), playing = isPlayingThis) {
-                        if (isPlayingThis) vm.togglePlay() else vm.playList(tracks)
+                    HeroPlayButton(enabled = tracks.isNotEmpty(), playing = playingThis) {
+                        // Active source: pause/resume IN PLACE (never restart the queue).
+                        if (activeThis) vm.togglePlay()
+                        else vm.playList(tracks, from = "album:$albumhash")
                     }
-                    HeroShuffleButton(enabled = tracks.isNotEmpty()) { vm.playShuffled(tracks) }
+                    HeroShuffleButton(enabled = tracks.isNotEmpty()) { vm.playShuffled(tracks, from = "album:$albumhash") }
                     // "Démarrer une radio" from the album's first track (web AlbumMenu).
                     GhostPill(tr("common.radio")) { tracks.firstOrNull()?.let { vm.startRadio(it) } }
                 }
             }
         }
-        items(tracks, key = { it.trackhash }) { t ->
-            val idx = tracks.indexOf(t)
+        itemsIndexed(tracks, key = { i, t -> "${t.trackhash}#$i" }) { idx, t ->
             TrackRow(
-                t, index = idx, isCurrent = t.trackhash == current, isFavorite = ui.favorites.contains(t.trackhash),
-                onClick = { vm.playTrack(t, tracks, idx) },
+                t, index = idx, isCurrent = t.trackhash == current, isPlaying = playback.isPlaying,
+                isFavorite = ui.favorites.contains(t.trackhash),
+                onClick = { vm.playTrack(t, tracks, idx, from = "album:$albumhash") },
                 onToggleFavorite = { vm.toggleFavorite(t.trackhash) }, onMore = { vm.openTrackMenu(t) },
             )
         }
@@ -161,20 +174,25 @@ fun ArtistDetail(vm: AppViewModel, ui: UiState, artisthash: String) {
     val top = derived.top
     val playback by vm.playback.collectAsState()
     val current = playback.currentId
-    val isPlayingThis = playback.isPlaying && tracks.any { it.trackhash == current }
-    LazyColumn(contentPadding = PaddingValues(start = 16.dp, end = 16.dp, bottom = 170.dp)) {
+    val playingFrom by vm.playingFrom.collectAsState()
+    val activeThis = playingFrom == "artist:$artisthash" && playback.hasItems
+    val playingThis = activeThis && playback.isPlaying
+    LazyColumn(contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 12.dp, bottom = 170.dp)) {
         item {
             DetailHero(seed = artisthash, centered = true) {
-                CoverArt(artist?.image, artisthash, Modifier.size(150.dp).clip(CircleShape))
+                Box(Modifier.shadow(18.dp, CircleShape, clip = false)) {
+                    CoverArt(artist?.image, artisthash, Modifier.size(150.dp).clip(CircleShape))
+                }
                 Spacer(Modifier.height(14.dp))
                 Text(artist?.name ?: tr("mobile.artist"), style = AMType.Title1, color = colors.foreground)
                 Text(tr("ctx.albumsAndTracks", params = mapOf("albums" to albums.size, "tracks" to tracks.size)), color = colors.textMuted, style = Type.Label)
                 Spacer(Modifier.height(16.dp))
                 Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(18.dp)) {
-                    HeroPlayButton(enabled = tracks.isNotEmpty(), playing = isPlayingThis) {
-                        if (isPlayingThis) vm.togglePlay() else vm.playList(top.ifEmpty { tracks })
+                    HeroPlayButton(enabled = tracks.isNotEmpty(), playing = playingThis) {
+                        if (activeThis) vm.togglePlay()
+                        else vm.playList(top.ifEmpty { tracks }, from = "artist:$artisthash")
                     }
-                    HeroShuffleButton(enabled = tracks.isNotEmpty()) { vm.playShuffled(tracks) }
+                    HeroShuffleButton(enabled = tracks.isNotEmpty()) { vm.playShuffled(tracks, from = "artist:$artisthash") }
                     // "Démarrer une radio de l'artiste" from a popular track (web ArtistMenu).
                     GhostPill(tr("common.radio")) {
                         (top.firstOrNull() ?: tracks.firstOrNull())?.let { vm.startRadio(it) }
@@ -184,11 +202,11 @@ fun ArtistDetail(vm: AppViewModel, ui: UiState, artisthash: String) {
         }
         if (top.isNotEmpty()) {
             item { local.auralis.client.ui.components.SectionHeader(tr("detail.popular")) }
-            items(top, key = { it.trackhash }) { t ->
-                val idx = top.indexOf(t)
+            itemsIndexed(top, key = { i, t -> "${t.trackhash}#$i" }) { idx, t ->
                 TrackRow(
-                    t, index = idx, isCurrent = t.trackhash == current, isFavorite = ui.favorites.contains(t.trackhash),
-                    onClick = { vm.playTrack(t, top, idx) },
+                    t, index = idx, isCurrent = t.trackhash == current, isPlaying = playback.isPlaying,
+                    isFavorite = ui.favorites.contains(t.trackhash),
+                    onClick = { vm.playTrack(t, top, idx, from = "artist:$artisthash") },
                     onToggleFavorite = { vm.toggleFavorite(t.trackhash) }, onMore = { vm.openTrackMenu(t) },
                 )
             }
@@ -214,20 +232,30 @@ fun PlaylistDetail(vm: AppViewModel, ui: UiState, playlistId: String) {
     val smartConfig = remember(pl?.rules) { pl?.rules?.let { SmartConfig.fromJson(it) } }
     val isSmart = smartConfig != null
     val isCollaborator = pl?.collaborator == true
-    val tracks = if (isSmart) {
-        derivedAsync(ui.tracks, ui.favorites, ui.playCounts, pl?.rules, initial = emptyList<Track>()) {
+    // null = the async evaluation hasn't landed yet (distinguishes "loading" from
+    // a genuinely empty playlist — see `evaluating` below).
+    val smartTracks = if (isSmart) {
+        derivedAsync<List<Track>?>(ui.tracks, ui.favorites, ui.playCounts, pl?.rules, initial = null) {
             smartConfig?.let { evaluateSmartList(ui.tracks, it, SmartContext(ui.favorites, ui.playCounts)) } ?: emptyList()
         }
-    } else {
-        remember(pl, ui.trackByHash) { pl?.trackhashes?.mapNotNull { ui.trackByHash[it] } ?: emptyList() }
-    }
+    } else null
+    val tracks = if (isSmart) smartTracks ?: emptyList()
+    else remember(pl, ui.trackByHash) { pl?.trackhashes?.mapNotNull { ui.trackByHash[it] } ?: emptyList() }
     val playback by vm.playback.collectAsState()
     val current = playback.currentId
-    val isPlayingThis = playback.isPlaying && tracks.any { it.trackhash == current }
+    // Only THIS playlist lights the hero (never every list sharing a track), and
+    // a paused session resumes IN PLACE instead of restarting from track 0.
+    val playingFrom by vm.playingFrom.collectAsState()
+    val activeThis = playingFrom == "playlist:$playlistId" && playback.hasItems
+    val playingThis = activeThis && playback.isPlaying
     // Queue source: playback seeded from THIS playlist never drifts outside it —
     // "quand je mets lire sur ma playlist, ça lit ma playlist" (the endless
     // continuation draws from the playlist only, or stops when it is exhausted).
     val queueSource = remember(tracks) { QueueSource.Playlist(playlistId, tracks.map { it.trackhash }.toSet()) }
+    // `tracks` is empty both while a smart playlist is still evaluating AND when
+    // it is genuinely empty — `evaluating` separates the two so the screen shows
+    // skeletons first and the "playlist vide" hint only for real.
+    val evaluating = isSmart && smartTracks == null
     // The hero ⋯ menu is rendered by Shell's overlay layer (ScreenOverlays) so
     // it draws ABOVE the floating mini player + dock; its open/close and the
     // rename/export/invite flows it opens are UiState-driven (see AppViewModel's
@@ -350,7 +378,7 @@ fun PlaylistDetail(vm: AppViewModel, ui: UiState, playlistId: String) {
     }
 
     Box(Modifier.fillMaxSize()) {
-    LazyColumn(contentPadding = PaddingValues(start = 16.dp, end = 16.dp, bottom = 170.dp)) {
+    LazyColumn(contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 12.dp, bottom = 170.dp)) {
         // While THIS playlist's import batch runs, keep a small inline banner up
         // so the downloaded tracks are seen arriving even after the live sheet
         // was closed (tap reopens it).
@@ -360,7 +388,9 @@ fun PlaylistDetail(vm: AppViewModel, ui: UiState, playlistId: String) {
         item {
             DetailHero(seed = playlistId) {
                 Box {
-                    CoverArt(pl?.imageHash?.let { "/api/art/$it" }, playlistId, Modifier.size(180.dp), cornerRadius = 12)
+                    Box(Modifier.shadow(18.dp, AMShapes.card, clip = false)) {
+                        CoverArt(pl?.imageHash?.let { "/api/art/$it" }, playlistId, Modifier.size(180.dp), cornerRadius = 12)
+                    }
                     if (!isCollaborator) {
                         Box(
                             Modifier
@@ -382,7 +412,7 @@ fun PlaylistDetail(vm: AppViewModel, ui: UiState, playlistId: String) {
                         modifier = Modifier.fillMaxWidth())
                     Spacer(Modifier.height(8.dp))
                     Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                        PlayPill(tr("common.save")) { vm.renamePlaylist(playlistId, newName); vm.setPlaylistRenaming(false) }
+                        PlayPill(tr("common.save"), icon = null) { vm.renamePlaylist(playlistId, newName); vm.setPlaylistRenaming(false) }
                         GhostPill(tr("common.cancel")) { vm.setPlaylistRenaming(false) }
                     }
                 } else {
@@ -395,23 +425,28 @@ fun PlaylistDetail(vm: AppViewModel, ui: UiState, playlistId: String) {
                     // ONE primary action (play), ONE secondary (shuffle); pin, rename,
                     // export, share, invite and delete all live behind the ⋯ menu.
                     Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(Spacing.lg)) {
-                        HeroPlayButton(enabled = tracks.isNotEmpty(), playing = isPlayingThis) {
-                            if (isPlayingThis) vm.togglePlay() else vm.playList(tracks, source = queueSource)
+                        HeroPlayButton(enabled = tracks.isNotEmpty(), playing = playingThis) {
+                            // Active playlist: pause/resume IN PLACE — never rebuild
+                            // the queue from track 0 on a paused session.
+                            if (activeThis) vm.togglePlay()
+                            else vm.playList(tracks, source = queueSource, from = "playlist:$playlistId")
                         }
-                        HeroShuffleButton(enabled = tracks.isNotEmpty()) { vm.playShuffled(tracks, queueSource) }
+                        HeroShuffleButton(enabled = tracks.isNotEmpty()) {
+                            vm.playShuffled(tracks, queueSource, from = "playlist:$playlistId")
+                        }
                         Spacer(Modifier.weight(1f))
                         IconAction(EllipsisCircleIcon, tr("common.moreOptions"), tint = colors.textMuted, iconSize = 24) { vm.openPlaylistMenu() }
                     }
                 }
             }
         }
-        items(tracks, key = { it.trackhash }) { t ->
-            val idx = tracks.indexOf(t)
+        itemsIndexed(tracks, key = { i, t -> "${t.trackhash}#$i" }) { idx, t ->
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Box(Modifier.weight(1f)) {
                     TrackRow(
-                        t, index = idx, isCurrent = t.trackhash == current, isFavorite = ui.favorites.contains(t.trackhash),
-                        onClick = { vm.playTrack(t, tracks, idx, queueSource) },
+                        t, index = idx, isCurrent = t.trackhash == current, isPlaying = playback.isPlaying,
+                        isFavorite = ui.favorites.contains(t.trackhash),
+                        onClick = { vm.playTrack(t, tracks, idx, queueSource, from = "playlist:$playlistId") },
                         onToggleFavorite = { vm.toggleFavorite(t.trackhash) }, onMore = { vm.openTrackMenu(t) },
                     )
                 }
@@ -434,12 +469,13 @@ fun PlaylistDetail(vm: AppViewModel, ui: UiState, playlistId: String) {
                 }
             }
         }
-        if (tracks.isEmpty()) item {
+        if (tracks.isEmpty() && !evaluating) item {
             EmptyHint(
                 tr("detail.emptyPlaylist"),
                 if (isSmart) tr("detail.smartEmpty") else tr("detail.addFromMenu"),
             )
         }
+        if (evaluating) item { local.auralis.client.ui.components.SkeletonRows(3) }
     }
     }
 }

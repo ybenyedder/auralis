@@ -42,6 +42,7 @@ import androidx.compose.material.icons.filled.Mic
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.MusicNote
 import androidx.compose.material.icons.filled.Person
+import androidx.compose.material.icons.filled.Pause
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.PushPin
 import androidx.compose.material.icons.filled.QueueMusic
@@ -94,6 +95,7 @@ import local.auralis.client.ui.components.Eyebrow
 import local.auralis.client.ui.components.GhostPill
 import local.auralis.client.ui.components.IconAction
 import local.auralis.client.ui.components.LargeTitle
+import local.auralis.client.ui.components.LocalPlayingToggle
 import local.auralis.client.ui.components.NetworkImage
 import local.auralis.client.ui.components.PlayPill
 import local.auralis.client.ui.components.SectionHeader
@@ -133,12 +135,12 @@ internal fun <T> derivedAsync(vararg keys: Any?, initial: T, compute: suspend ()
     produceState(initial, *keys) { value = withContext(Dispatchers.Default) { compute() } }.value
 
 @Composable
-private fun currentTrackOf(vm: AppViewModel): String? {
+private fun currentPlaybackOf(vm: AppViewModel): local.auralis.client.playback.PlaybackSnapshot {
     // Reactive: .value would snapshot once at composition and never update while
     // the user sits on this screen (this was the bug — play/pause + the active-row
     // highlight never updated live, only the Shell-level mini player did).
     val playback by vm.playback.collectAsState()
-    return playback.currentId
+    return playback
 }
 
 // ============================ HOME =========================================
@@ -166,7 +168,9 @@ fun HomeScreen(vm: AppViewModel, ui: UiState) {
             moodRecs = recs,
         )
     }
-    val current = currentTrackOf(vm)
+    val pb = currentPlaybackOf(vm)
+    val current = pb.currentId
+    val playing = pb.isPlaying
     val quickTiles = buildList {
         if (home.favTracks.isNotEmpty()) {
             add(
@@ -219,7 +223,7 @@ fun HomeScreen(vm: AppViewModel, ui: UiState) {
                 SectionHeader(tr("home.forYou"), tr("common.playAll")) { vm.playList(ui.forYou) }
                 LazyRow(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                     items(ui.forYou.take(10), key = { it.trackhash }) { t ->
-                        HeroTrackCard(t, t.trackhash == current) { vm.playTrack(t, ui.forYou, ui.forYou.indexOf(t)) }
+                        HeroTrackCard(t, t.trackhash == current, playing) { vm.playTrack(t, ui.forYou, ui.forYou.indexOf(t)) }
                     }
                 }
             }
@@ -364,7 +368,7 @@ fun HomeScreen(vm: AppViewModel, ui: UiState) {
                 }
                 LazyRow(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                     items(mr.recs, key = { it.trackhash }) { t ->
-                        MiniTrackCard(t, t.trackhash == current) { vm.playTrack(t, mr.recs, mr.recs.indexOf(t)) }
+                        MiniTrackCard(t, t.trackhash == current, playing) { vm.playTrack(t, mr.recs, mr.recs.indexOf(t)) }
                     }
                 }
             }
@@ -376,7 +380,7 @@ fun HomeScreen(vm: AppViewModel, ui: UiState) {
                 SectionHeader(tr("nav.recents"), tr("common.showAll")) { vm.navigate(ViewId.RECENTS) }
                 LazyRow(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                     items(recentsTracks.take(10), key = { it.trackhash }) { t ->
-                        MiniTrackCard(t, t.trackhash == current) { vm.playTrack(t, recentsTracks, recentsTracks.indexOf(t)) }
+                        MiniTrackCard(t, t.trackhash == current, playing) { vm.playTrack(t, recentsTracks, recentsTracks.indexOf(t)) }
                     }
                 }
             }
@@ -388,7 +392,7 @@ fun HomeScreen(vm: AppViewModel, ui: UiState) {
                 SectionHeader(tr("home.rediscover"), tr("common.playAll")) { vm.playList(home.rediscover) }
                 LazyRow(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                     items(home.rediscover, key = { it.trackhash }) { t ->
-                        MiniTrackCard(t, t.trackhash == current) { vm.playTrack(t, home.rediscover, home.rediscover.indexOf(t)) }
+                        MiniTrackCard(t, t.trackhash == current, playing) { vm.playTrack(t, home.rediscover, home.rediscover.indexOf(t)) }
                     }
                 }
             }
@@ -406,7 +410,7 @@ fun HomeScreen(vm: AppViewModel, ui: UiState) {
                 }
                 LazyRow(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                     items(discover, key = { it.trackhash }) { t ->
-                        MiniTrackCard(t, t.trackhash == current) { vm.playTrack(t, discover, discover.indexOf(t)) }
+                        MiniTrackCard(t, t.trackhash == current, playing) { vm.playTrack(t, discover, discover.indexOf(t)) }
                     }
                 }
             }
@@ -419,7 +423,7 @@ fun HomeScreen(vm: AppViewModel, ui: UiState) {
             }
             items(home.topTracks, key = { it.trackhash }) { t ->
                 TrackRow(
-                    t, isCurrent = t.trackhash == current, isFavorite = ui.favorites.contains(t.trackhash),
+                    t, isCurrent = t.trackhash == current, isPlaying = playing, isFavorite = ui.favorites.contains(t.trackhash),
                     onClick = { vm.playTrack(t, home.topTracks, home.topTracks.indexOf(t)) },
                     onToggleFavorite = { vm.toggleFavorite(t.trackhash) }, onMore = { vm.openTrackMenu(t) },
                 )
@@ -443,9 +447,10 @@ private class HomeDerived(
 }
 
 /** Apple Music "top picks" hero card: near-full-width editorial art with the
- *  red play control overlaid, title + artist beneath. */
+ *  red play control overlaid, title + artist beneath. The overlay flips to a
+ *  pause glyph on the track currently sounding. */
 @Composable
-private fun LazyItemScope.HeroTrackCard(t: Track, isCurrent: Boolean, onClick: () -> Unit) {
+private fun LazyItemScope.HeroTrackCard(t: Track, isCurrent: Boolean, isPlaying: Boolean, onClick: () -> Unit) {
     val colors = LocalAuralis.current
     Column(Modifier.animateItem(placementSpec = Motion.placement).width(290.dp).clickable { onClick() }) {
         Box {
@@ -467,7 +472,10 @@ private fun LazyItemScope.HeroTrackCard(t: Track, isCurrent: Boolean, onClick: (
                     .clearAndSetSemantics {},
                 contentAlignment = Alignment.Center,
             ) {
-                Icon(Icons.Filled.PlayArrow, null, tint = colors.ink, modifier = Modifier.size(20.dp))
+                Icon(
+                    if (isCurrent && isPlaying) Icons.Filled.Pause else Icons.Filled.PlayArrow,
+                    null, tint = colors.ink, modifier = Modifier.size(20.dp),
+                )
             }
         }
         Text(
@@ -485,7 +493,9 @@ private fun LazyItemScope.HeroTrackCard(t: Track, isCurrent: Boolean, onClick: (
  *  and genre highlights derived from what the scanner picked up lately. */
 @Composable
 fun NewScreen(vm: AppViewModel, ui: UiState) {
-    val current = currentTrackOf(vm)
+    val pb = currentPlaybackOf(vm)
+    val current = pb.currentId
+    val playing = pb.isPlaying
     val daySeed = System.currentTimeMillis() / 86_400_000L
     // recentAlbums is O(tracks x albums) (a firstOrNull scan per newest track) and
     // the genre grouping walks the whole library — derive off the main thread.
@@ -529,7 +539,7 @@ fun NewScreen(vm: AppViewModel, ui: UiState) {
             item { Spacer(Modifier.height(24.dp)); SectionHeader(tr("home.recentlyAdded")) }
             items(derived.recentTracks, key = { it.trackhash }) { t ->
                 TrackRow(
-                    t, isCurrent = t.trackhash == current, isFavorite = ui.favorites.contains(t.trackhash),
+                    t, isCurrent = t.trackhash == current, isPlaying = playing, isFavorite = ui.favorites.contains(t.trackhash),
                     onClick = { vm.playTrack(t, derived.recentTracks, derived.recentTracks.indexOf(t)) },
                     onToggleFavorite = { vm.toggleFavorite(t.trackhash) }, onMore = { vm.openTrackMenu(t) },
                 )
@@ -541,7 +551,7 @@ fun NewScreen(vm: AppViewModel, ui: UiState) {
                 SectionHeader(tr("new.freshDiscovered"), tr("common.playAll")) { vm.playList(derived.discoveries) }
                 LazyRow(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                     items(derived.discoveries, key = { it.trackhash }) { t ->
-                        MiniTrackCard(t, t.trackhash == current) { vm.playTrack(t, derived.discoveries, derived.discoveries.indexOf(t)) }
+                        MiniTrackCard(t, t.trackhash == current, playing) { vm.playTrack(t, derived.discoveries, derived.discoveries.indexOf(t)) }
                     }
                 }
             }
@@ -621,15 +631,17 @@ private fun LazyItemScope.QuickTile(tile: QuickTileItem, modifier: Modifier = Mo
 }
 
 @Composable
-private fun LazyItemScope.MiniTrackCard(t: Track, isCurrent: Boolean, onClick: () -> Unit) {
+private fun LazyItemScope.MiniTrackCard(t: Track, isCurrent: Boolean, isPlaying: Boolean, onClick: () -> Unit) {
     val colors = LocalAuralis.current
+    val onPlayingToggle = LocalPlayingToggle.current
     Column(Modifier.animateItem(placementSpec = Motion.placement).width(160.dp).clickable { onClick() }) {
         Box {
             local.auralis.client.ui.components.CoverArt(
                 t.image, t.albumhash ?: t.title,
                 Modifier.size(160.dp), cornerRadius = Radius.md.value.toInt(),
             )
-            // Frosted play affordance, like the AM shelves.
+            // Frosted play affordance, like the AM shelves — flips to pause on the
+            // track that is currently sounding.
             Box(
                 Modifier
                     .align(Alignment.BottomEnd)
@@ -638,10 +650,14 @@ private fun LazyItemScope.MiniTrackCard(t: Track, isCurrent: Boolean, onClick: (
                     .clip(CircleShape)
                     .background(Color.Black.copy(alpha = 0.32f))
                     .border(0.75.dp, Color.White.copy(alpha = 0.28f), CircleShape)
-                    .clickable { onClick() },
+                    .clickable { if (isCurrent) onPlayingToggle() else onClick() }
+                    .clearAndSetSemantics {},
                 contentAlignment = Alignment.Center,
             ) {
-                Icon(Icons.Filled.PlayArrow, tr("common.play"), tint = Color.White, modifier = Modifier.size(15.dp))
+                Icon(
+                    if (isCurrent && isPlaying) Icons.Filled.Pause else Icons.Filled.PlayArrow,
+                    null, tint = Color.White, modifier = Modifier.size(15.dp),
+                )
             }
         }
         Text(
@@ -740,7 +756,9 @@ private fun LazyItemScope.MixCard(
 @Composable
 fun SearchScreen(vm: AppViewModel, ui: UiState) {
     val colors = LocalAuralis.current
-    val current = currentTrackOf(vm)
+    val pb = currentPlaybackOf(vm)
+    val current = pb.currentId
+    val playing = pb.isPlaying
     Column(Modifier.fillMaxWidth().padding(horizontal = 16.dp)) {
         Spacer(Modifier.height(6.dp))
         LargeTitle(tr("search.title"))
@@ -790,7 +808,7 @@ fun SearchScreen(vm: AppViewModel, ui: UiState) {
                     item { SectionHeader(tr("nav.recents")) }
                     items(history, key = { it.trackhash }) { t ->
                         TrackRow(
-                            t, isCurrent = t.trackhash == current, isFavorite = ui.favorites.contains(t.trackhash),
+                            t, isCurrent = t.trackhash == current, isPlaying = playing, isFavorite = ui.favorites.contains(t.trackhash),
                             onClick = { vm.playTrack(t, history, history.indexOf(t)) },
                             onToggleFavorite = { vm.toggleFavorite(t.trackhash) }, onMore = { vm.openTrackMenu(t) },
                         )
@@ -836,7 +854,7 @@ fun SearchScreen(vm: AppViewModel, ui: UiState) {
                     item { SectionHeader(tr("search.songs")) }
                     items(res.tracks, key = { it.trackhash }) { t ->
                         TrackRow(
-                            t, isCurrent = t.trackhash == current, isFavorite = ui.favorites.contains(t.trackhash),
+                            t, isCurrent = t.trackhash == current, isPlaying = playing, isFavorite = ui.favorites.contains(t.trackhash),
                             onClick = { vm.playTrack(t, res.tracks, res.tracks.indexOf(t)) },
                             onToggleFavorite = { vm.toggleFavorite(t.trackhash) }, onMore = { vm.openTrackMenu(t) },
                         )
@@ -970,7 +988,9 @@ fun LibraryScreen(vm: AppViewModel, ui: UiState) {
         LTab(tr("library.tabAlbums"), Icons.Filled.Album),
         LTab(tr("library.tabTracks"), Icons.Filled.MusicNote),
     )
-    val current = currentTrackOf(vm)
+    val pb = currentPlaybackOf(vm)
+    val current = pb.currentId
+    val playing = pb.isPlaying
 
     // Sorting the whole catalogue (and totalling artist plays — a pass over every
     // track's artist list) on each sort toggle / library update — off the main thread.
@@ -1156,7 +1176,7 @@ fun LibraryScreen(vm: AppViewModel, ui: UiState) {
             3 -> LazyColumn(contentPadding = bottomPad) {
                 itemsIndexed(lib.tracks, key = { _, t -> t.trackhash }) { idx, t ->
                     TrackRow(
-                        t, index = idx, isCurrent = t.trackhash == current, isFavorite = ui.favorites.contains(t.trackhash),
+                        t, index = idx, isCurrent = t.trackhash == current, isPlaying = playing, isFavorite = ui.favorites.contains(t.trackhash),
                         onClick = { vm.playTrack(t, lib.tracks, idx) },
                         onToggleFavorite = { vm.toggleFavorite(t.trackhash) }, onMore = { vm.openTrackMenu(t) },
                     )
@@ -1267,7 +1287,9 @@ fun FavoritesScreen(vm: AppViewModel, ui: UiState) {
         4 -> tr("library.sortPlays")
         else -> tr("library.sortRecent")
     }
-    val current = currentTrackOf(vm)
+    val pb = currentPlaybackOf(vm)
+    val current = pb.currentId
+    val playing = pb.isPlaying
     val totalDur = favTracks.sumOf { it.duration ?: 0.0 }
     LazyColumn(contentPadding = bottomPad) {
         item {
@@ -1280,9 +1302,17 @@ fun FavoritesScreen(vm: AppViewModel, ui: UiState) {
                 Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                     // "Lire" starts a SHUFFLED queue of the liked tracks only —
                     // random order, and the endless continuation never leaves the
-                    // liked set (no surprise unliked tracks, ever).
-                    PlayPill(tr("common.play")) {
-                        vm.playShuffled(favTracks, QueueSource.Favorites(ui.favorites))
+                    // liked set (no surprise unliked tracks, ever). When the liked
+                    // set IS the active source, the pill flips to Pause and toggles
+                    // in place instead of reshuffling.
+                    val favPlayingFrom by vm.playingFrom.collectAsState()
+                    val favActive = favPlayingFrom == "favorites" && pb.hasItems
+                    PlayPill(
+                        if (favActive && pb.isPlaying) tr("player.pause") else tr("common.play"),
+                        icon = if (favActive && pb.isPlaying) Icons.Filled.Pause else Icons.Filled.PlayArrow,
+                    ) {
+                        if (favActive) vm.togglePlay()
+                        else vm.playShuffled(favTracks, QueueSource.Favorites(ui.favorites), from = "favorites")
                     }
                     PlusChip(tr("library.sortLabel", params = mapOf("sort" to sortLabel))) { sort = (sort + 1) % 5 }
                 }
@@ -1290,7 +1320,7 @@ fun FavoritesScreen(vm: AppViewModel, ui: UiState) {
         }
         itemsIndexed(favTracks, key = { _, t -> t.trackhash }) { idx, t ->
             TrackRow(
-                t, isCurrent = t.trackhash == current, isFavorite = true,
+                t, isCurrent = t.trackhash == current, isPlaying = playing, isFavorite = true,
                 onClick = { vm.playTrack(t, favTracks, idx, QueueSource.Favorites(ui.favorites)) },
                 onToggleFavorite = { vm.toggleFavorite(t.trackhash) }, onMore = { vm.openTrackMenu(t) },
             )
@@ -1305,7 +1335,9 @@ fun FavoritesScreen(vm: AppViewModel, ui: UiState) {
 fun RecentsScreen(vm: AppViewModel, ui: UiState) {
     val colors = LocalAuralis.current
     val recents = remember(ui.recents, ui.trackByHash) { ui.recents.mapNotNull { ui.trackByHash[it] } }
-    val current = currentTrackOf(vm)
+    val pb = currentPlaybackOf(vm)
+    val current = pb.currentId
+    val playing = pb.isPlaying
     LazyColumn(contentPadding = bottomPad) {
         item {
             Column(Modifier.padding(vertical = 10.dp)) {
@@ -1316,7 +1348,7 @@ fun RecentsScreen(vm: AppViewModel, ui: UiState) {
         }
         itemsIndexed(recents, key = { _, t -> t.trackhash }) { idx, t ->
             TrackRow(
-                t, isCurrent = t.trackhash == current, isFavorite = ui.favorites.contains(t.trackhash),
+                t, isCurrent = t.trackhash == current, isPlaying = playing, isFavorite = ui.favorites.contains(t.trackhash),
                 onClick = { vm.playTrack(t, recents, idx) },
                 onToggleFavorite = { vm.toggleFavorite(t.trackhash) }, onMore = { vm.openTrackMenu(t) },
             )
@@ -1331,7 +1363,9 @@ fun RecentsScreen(vm: AppViewModel, ui: UiState) {
 fun FoldersScreen(vm: AppViewModel, ui: UiState) {
     val colors = LocalAuralis.current
     var path by androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf<String?>(null) }
-    val current = currentTrackOf(vm)
+    val pb = currentPlaybackOf(vm)
+    val current = pb.currentId
+    val playing = pb.isPlaying
 
     // flatten folder tree to find children of `path`
     fun allNodes(): List<local.auralis.client.model.FolderNode> {
@@ -1390,7 +1424,7 @@ fun FoldersScreen(vm: AppViewModel, ui: UiState) {
         }
         itemsIndexed(directTracks, key = { _, t -> t.trackhash }) { idx, t ->
             TrackRow(
-                t, isCurrent = t.trackhash == current, isFavorite = ui.favorites.contains(t.trackhash),
+                t, isCurrent = t.trackhash == current, isPlaying = playing, isFavorite = ui.favorites.contains(t.trackhash),
                 onClick = { vm.playTrack(t, directTracks, idx) },
                 onToggleFavorite = { vm.toggleFavorite(t.trackhash) }, onMore = { vm.openTrackMenu(t) },
             )

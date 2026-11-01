@@ -4,6 +4,70 @@ All notable changes to Auralis are documented here. The format is based on
 [Keep a Changelog](https://keepachangelog.com/) and this project adheres to
 [Semantic Versioning](https://semver.org/).
 
+## [1.28.0] - 2026-11-01
+
+Grosse passe de correction et de finition sur l'app Android. Deux retours
+utilisateurs centraux : « je lance une musique dans une playlist, je vois le
+bouton Pause, mais mes AUTRES playlists affichent elles aussi le bouton
+Reprendre — seule la playlist en cours doit l'afficher » et « quand je mets une
+musique en plein écran, la barre de progression ne bouge pas, elle reste à 0 ».
+Le reste est une revue complète des bugs et des illogismes de l'interface.
+
+### Corrigé — Android : bouton Lecture/Pause par playlist (le bug principal)
+- **Une seule source active** : l'app trace désormais ce qui a engendré la file
+  (`playlist:<id>`, `favoris`, `album:<hash>`, `artiste:<hash>`). Le bouton
+  hero Pause/Reprendre ne s'allume que sur la liste qu'on écoute réellement —
+  plus jamais sur toutes les playlists qui contiennent le titre en cours.
+- **Reprise en place** : sur la liste active, le bouton met en pause / reprend
+  **à la position actuelle** ; il ne reconstruit plus la file depuis le titre 0.
+  Sur une autre liste, il démarre cette liste depuis le début (comportement
+  attendu).
+- Même logique appliquée aux écrans Album, Artiste et Favoris.
+
+### Corrigé — Android : barre de progression du lecteur plein écran
+- La barre restait figée à `0:00` pendant tout le morceau : le calcul était une
+  **division entière** (`positionMs / durMs` sur deux `Long`) qui valait 0 tant
+  qu'on n'avait pas atteint la fin. Corrigé en division flottante, extraite dans
+  `PlaybackProgress` (testé) — la barre et les compteurs `m:ss` suivent
+  maintenant la lecture en temps réel.
+- Après un *seek*, la barre revient à la bonne position immédiatement (elle
+  clignotait en arrière avant que le ticker ne rattrape).
+
+### Corrigé — Android : autres bugs et illogismes
+- **Tap sur la piste en cours** : met en pause / reprend au lieu de relancer le
+  morceau depuis 0 (partout dans les listes).
+- **Égaliseur « en cours »** : correctement atténué quand la lecture est en
+  pause (il restait toujours « actif »).
+- **Crash silencieux** : une playlist contenant deux fois le même titre faisait
+  planter la liste (« Key was already used ») — clés de liste uniques.
+- **Play/Pause du lecteur** : ne se désynchronise plus du vrai état pendant une
+  mise en mémoire tampon ; l'état « fin de file » n'affiche plus Pause à tort.
+- **Titre de la barre de navigation** : l'animation de repli (grand titre →
+  titre compact) était inversée — elle s'affichait en remontant et disparaissait
+  en descendant. Comportement iOS classique restauré.
+- **Playlists intelligentes** : le flash « playlist vide » pendant l'évaluation
+  des règles est remplacé par des squelettes de chargement.
+- **Libellés d'accessibilité** : le bouton Lecture/Pause annonçait toujours
+  « Lecture » ; « ▶ Enregistrer » (renommer) n'a plus son faux triangle de
+  lecture ; les doublons d'annonce « Lire » sur les cartes sont supprimés.
+- **Cibles tactiles** : les boutons favori / ⋯ des lignes de titre passent de
+  20dp à 40dp (sous le minimum mobile jusqu'ici).
+
+### Changé — Android : finition visuelle
+- **Profondeur** : ombres portées sur les pochettes des écrans de détail
+  (album, playlist, artiste) et des cartes (albums, artistes) — le rendu à plat
+  faisait « bon marché » à côté du web.
+- **Bouton lecture du lecteur plein écran** : cercle plein rouge signature
+  (comme le web) au lieu d'un glyphe nu.
+- **Cartes** : les vignettes « en cours » affichent maintenant Pause.
+- **Espacement** : les écrans de détail reprennent le même retrait haut que les
+  listes (les contenus démarraient 12dp plus haut sans raison).
+- Barre de sélection multi-titre : suppression d'un double padding.
+
+### Tests
+- Nouveaux tests JVM de non-régression sur le calcul de progression
+  (`PlaybackProgressTest`) — suite Android et web vertes (186 tests web).
+
 ## [1.27.0] - 2026-10-31
 
 Deux retours utilisateurs : « j'ajoute une playlist et je ne vois rien se

@@ -51,6 +51,7 @@ import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Shape
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -82,6 +83,12 @@ data class SelectionController(
     val begin: (String) -> Unit = {},
 )
 val LocalSelection = staticCompositionLocalOf { SelectionController() }
+
+// ---- now-playing toggle ----------------------------------------------------
+// Tapping the CURRENT track must pause/resume it, never rebuild the queue from
+// zero (the old behaviour: every row click called playTrack → playTracks(..., 0)).
+// Wired once at the Shell root like LocalSelection, so every TrackRow agrees.
+val LocalPlayingToggle = staticCompositionLocalOf<() -> Unit> { {} }
 
 // ---- frosted surfaces (Apple Music glass) -----------------------------------
 // Real backdrop blur via Haze. The Shell provides the HazeState (over the
@@ -373,6 +380,7 @@ fun LazyItemScope.TrackRow(
     track: Track,
     index: Int? = null,
     isCurrent: Boolean = false,
+    isPlaying: Boolean = false,
     isFavorite: Boolean = false,
     onClick: () -> Unit,
     onToggleFavorite: (() -> Unit)? = null,
@@ -380,6 +388,7 @@ fun LazyItemScope.TrackRow(
 ) {
     val colors = LocalAuralis.current
     val sel = LocalSelection.current
+    val onPlayingToggle = LocalPlayingToggle.current
     val selecting = sel.active
     val checked = selecting && sel.isSelected(track.trackhash)
     Row(
@@ -387,10 +396,17 @@ fun LazyItemScope.TrackRow(
             .fillMaxWidth()
             .animateItem(placementSpec = Motion.placement)
             .clip(AMShapes.tile)
-            // Tap toggles selection while selecting; otherwise plays. Long-press always
-            // enters selection mode (Spotify-style).
+            // Tap toggles selection while selecting; on the CURRENT track it
+            // pauses/resumes in place; otherwise it plays the tapped track.
+            // Long-press always enters selection mode (Spotify-style).
             .combinedClickable(
-                onClick = { if (selecting) sel.toggle(track.trackhash) else onClick() },
+                onClick = {
+                    when {
+                        selecting -> sel.toggle(track.trackhash)
+                        isCurrent -> onPlayingToggle()
+                        else -> onClick()
+                    }
+                },
                 onLongClick = { sel.begin(track.trackhash) },
             )
             .background(if (checked) colors.accent.copy(alpha = 0.18f) else Color.Transparent)
@@ -411,7 +427,8 @@ fun LazyItemScope.TrackRow(
         } else if (index != null) {
             Box(Modifier.width(22.dp), contentAlignment = Alignment.Center) {
                 if (isCurrent) {
-                    EqualizerBars(active = true)
+                    // Dimmed when paused — the web's EqualizerBars contract.
+                    EqualizerBars(active = isPlaying)
                 } else {
                     Text("${index + 1}", color = colors.textFaint, style = Type.Caption)
                 }
@@ -439,13 +456,16 @@ fun LazyItemScope.TrackRow(
         }
         // In selection mode the row's own affordances step aside for the checkbox.
         if (!selecting && onToggleFavorite != null) {
-            Icon(
-                if (isFavorite) Icons.Filled.Favorite else Icons.Filled.FavoriteBorder,
-                contentDescription = tr("common.favoriteAria"),
-                tint = if (isFavorite) colors.accent else colors.textFaint,
-                modifier = Modifier.size(20.dp).clickable { onToggleFavorite() },
-            )
-            Spacer(Modifier.width(Spacing.sm))
+            // 40dp hit target (was a bare 20dp icon — below every mobile minimum).
+            Box(Modifier.size(40.dp).clip(CircleShape).clickable { onToggleFavorite() }, contentAlignment = Alignment.Center) {
+                Icon(
+                    if (isFavorite) Icons.Filled.Favorite else Icons.Filled.FavoriteBorder,
+                    contentDescription = tr("common.favoriteAria"),
+                    tint = if (isFavorite) colors.accent else colors.textFaint,
+                    modifier = Modifier.size(20.dp),
+                )
+            }
+            Spacer(Modifier.width(Spacing.xs))
         }
         Text(
             formatDuration(track.duration),
@@ -453,13 +473,14 @@ fun LazyItemScope.TrackRow(
             style = Type.Caption,
         )
         if (!selecting && onMore != null) {
-            Spacer(Modifier.width(Spacing.xs))
-            Icon(
-                Icons.Filled.MoreVert,
-                contentDescription = tr("common.moreOptions"),
-                tint = colors.textFaint,
-                modifier = Modifier.size(20.dp).clickable { onMore() },
-            )
+            Box(Modifier.size(40.dp).clip(CircleShape).clickable { onMore() }, contentAlignment = Alignment.Center) {
+                Icon(
+                    Icons.Filled.MoreVert,
+                    contentDescription = tr("common.moreOptions"),
+                    tint = colors.textFaint,
+                    modifier = Modifier.size(20.dp),
+                )
+            }
         }
     }
 }
@@ -539,9 +560,10 @@ fun HeroShuffleButton(enabled: Boolean = true, modifier: Modifier = Modifier, on
     }
 }
 
-/** Filled primary pill — the single loudest action of a block ("Lire", "Enregistrer"). */
+/** Filled primary pill — the single loudest action of a block ("Lire", "Enregistrer").
+ *  [icon] = null renders a label-only pill (no play triangle on non-play actions). */
 @Composable
-fun PlayPill(label: String, modifier: Modifier = Modifier, onClick: () -> Unit) {
+fun PlayPill(label: String, modifier: Modifier = Modifier, icon: ImageVector? = Icons.Filled.PlayArrow, onClick: () -> Unit) {
     val colors = LocalAuralis.current
     Row(
         modifier
@@ -552,8 +574,10 @@ fun PlayPill(label: String, modifier: Modifier = Modifier, onClick: () -> Unit) 
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.Center,
     ) {
-        Icon(Icons.Filled.PlayArrow, null, tint = colors.ink, modifier = Modifier.size(18.dp))
-        Spacer(Modifier.width(Spacing.sm))
+        if (icon != null) {
+            Icon(icon, null, tint = colors.ink, modifier = Modifier.size(18.dp))
+            Spacer(Modifier.width(Spacing.sm))
+        }
         Text(label, color = colors.ink, style = Type.Body, fontWeight = FontWeight.Bold)
     }
 }

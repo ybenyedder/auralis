@@ -71,6 +71,7 @@ import local.auralis.client.i18n.tr
 import local.auralis.client.ui.components.IconAction
 import local.auralis.client.ui.components.LocalHazeState
 import local.auralis.client.ui.components.LocalHazeStyle
+import local.auralis.client.ui.components.LocalPlayingToggle
 import local.auralis.client.ui.components.LocalSelection
 import local.auralis.client.ui.components.SelectionController
 import local.auralis.client.ui.components.amFrosted
@@ -96,8 +97,8 @@ import local.auralis.client.ui.theme.Spacing
 // Apple Music's mobile navigation is four tabs: Home (Accueil), New (Nouveau),
 // Search (Recherche) and Library (Bibliothèque). Secondary destinations
 // (favourites, recents, folders, insights, settings, details) live under these
-// roots; the Library tab owns them.
-private val rootViews = setOf(ViewId.HOME, ViewId.NEW, ViewId.EXPLORE, ViewId.LIBRARY)
+// roots; the Library tab owns them. The set is defined ONCE, in AppViewModel
+// (rootViewIds) — the old private copy here silently drifted from it.
 
 internal fun tabOf(view: ViewId): Int = when (view) {
     ViewId.HOME -> 0
@@ -144,17 +145,21 @@ fun Shell(vm: AppViewModel, ui: UiState) {
     // Accumulated scroll of the current view (reset on navigation) — drives the
     // large-title → inline-title collapse. Attached to an ANCESTOR of the content
     // so every screen's LazyColumn reports through it (the connection must wrap
-    // the scrollables, not sit beside them).
+    // the scrollables, not sit beside them). Compose reports DOWNWARD scroll as
+    // NEGATIVE consumed.y, so it must be subtracted: the old `+ consumed.y`
+    // clamped at 0 while descending (no inline title) and accumulated while
+    // scrolling BACK up — the collapsed title flashed near the top, exactly
+    // where the large title is already visible.
     var scrollAcc by remember(ui.nav.view, ui.nav.id) { mutableFloatStateOf(0f) }
     val connection = remember(ui.nav.view, ui.nav.id) {
         object : NestedScrollConnection {
             override fun onPostScroll(consumed: Offset, available: Offset, source: NestedScrollSource): Offset {
-                scrollAcc = (scrollAcc + consumed.y).coerceIn(0f, 600f)
+                scrollAcc = (scrollAcc - consumed.y).coerceIn(0f, 600f)
                 return Offset.Zero
             }
         }
     }
-    // Inline (collapsed) title fades in after ~48dp of downward scroll.
+    // Inline (collapsed) title fades in after ~90dp of downward scroll.
     val titleAlpha by animateFloatAsState(
         targetValue = if (scrollAcc > 90f) 1f else 0f,
         animationSpec = tween(160),
@@ -168,6 +173,9 @@ fun Shell(vm: AppViewModel, ui: UiState) {
             toggle = { vm.toggleSelected(it) },
             begin = { vm.enterSelection(it) },
         ),
+        // Tapping the CURRENT track anywhere pauses/resumes it in place (never
+        // rebuilds the queue from zero) — see LocalPlayingToggle in Common.kt.
+        LocalPlayingToggle provides { vm.togglePlay() },
         LocalHazeState provides hazeState,
         LocalHazeStyle provides hazeStyle,
     ) {
@@ -317,7 +325,7 @@ private fun SelectionBar(ui: UiState, vm: AppViewModel) {
             .padding(horizontal = Spacing.md, vertical = Spacing.sm)
             .clip(AMShapes.pill)
             .background(colors.panel3)
-            .padding(start = Spacing.sm, end = Spacing.sm, top = Spacing.sm, bottom = Spacing.sm),
+            .padding(horizontal = Spacing.sm),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Icon(
@@ -363,7 +371,7 @@ private fun SelectionBar(ui: UiState, vm: AppViewModel) {
 @Composable
 private fun Header(vm: AppViewModel, ui: UiState, titleAlpha: Float) {
     val colors = LocalAuralis.current
-    val isRoot = ui.nav.view in rootViews
+    val isRoot = ui.nav.view in rootViewIds
 
     Row(
         Modifier

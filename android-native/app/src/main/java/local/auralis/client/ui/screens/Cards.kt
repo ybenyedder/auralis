@@ -26,6 +26,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -36,6 +37,7 @@ import local.auralis.client.model.Album
 import local.auralis.client.model.Artist
 import local.auralis.client.ui.components.CoverArt
 import local.auralis.client.ui.components.paletteFor
+import local.auralis.client.ui.theme.AMShapes
 import local.auralis.client.ui.theme.AMType
 import local.auralis.client.ui.theme.LocalAuralis
 import local.auralis.client.ui.theme.LocalApiUrl
@@ -46,7 +48,8 @@ import local.auralis.client.ui.theme.Type
 
 /** Apple Music's card play affordance: a translucent frosted-dark circle pinned
  *  bottom-right of the cover (never a solid accent — the art stays the hero).
- *  Always shown on touch, bottom layer of the tap stack. */
+ *  Always shown on touch, bottom layer of the tap stack. Flips to a pause glyph
+ *  when the card's own action is the one currently sounding. */
 @Composable
 private fun CardPlayFab(onPlay: () -> Unit, modifier: Modifier = Modifier) {
     Box(
@@ -74,7 +77,9 @@ fun LazyItemScope.AlbumCard(
     val colors = LocalAuralis.current
     Column(modifier.animateItem(placementSpec = Motion.placement).combinedClickable(onClick = onClick, onLongClick = onLongPress)) {
         Box {
-            CoverArt(album.image, album.albumhash, Modifier.fillMaxWidth().aspectRatio(1f), cornerRadius = Radius.sm.value.toInt())
+            Box(Modifier.shadow(10.dp, AMShapes.tile, clip = false)) {
+                CoverArt(album.image, album.albumhash, Modifier.fillMaxWidth().aspectRatio(1f), cornerRadius = Radius.sm.value.toInt())
+            }
             if (onPlay != null) {
                 CardPlayFab(onPlay, Modifier.align(Alignment.BottomEnd).padding(Spacing.sm))
             }
@@ -108,7 +113,7 @@ fun LazyItemScope.ArtistCard(
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
         Box(Modifier.fillMaxWidth().aspectRatio(1f)) {
-            Box(Modifier.fillMaxWidth().aspectRatio(1f).clip(CircleShape).background(bg)) {
+            Box(Modifier.fillMaxWidth().aspectRatio(1f).shadow(10.dp, CircleShape, clip = false).clip(CircleShape).background(bg)) {
                 CoverArt(artist.image, artist.artisthash, Modifier.fillMaxWidth().aspectRatio(1f).clip(CircleShape))
             }
             if (onPlay != null) {

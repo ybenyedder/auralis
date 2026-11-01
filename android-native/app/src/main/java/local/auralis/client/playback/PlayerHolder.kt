@@ -161,7 +161,11 @@ class PlayerHolder(
         val ids = (0 until c.mediaItemCount).map { c.getMediaItemAt(it).mediaId }
         _snapshot.value = PlaybackSnapshot(
             currentId = c.currentMediaItem?.mediaId,
-            isPlaying = c.playWhenReady,
+            // "Playing" = the user's intent to play AND not finished. `playWhenReady`
+            // alone stays true after the queue runs out (STATE_ENDED), which left the
+            // transport showing a Pause glyph with nothing playing; buffering still
+            // counts as playing so the button never flip-flops mid-rebuffer.
+            isPlaying = c.playWhenReady && c.playbackState != Player.STATE_ENDED,
             shuffle = c.shuffleModeEnabled,
             repeat = when (c.repeatMode) {
                 Player.REPEAT_MODE_ALL -> "all"
@@ -214,24 +218,35 @@ class PlayerHolder(
 
     fun togglePlay() {
         val c = controller ?: return
-        if (c.isPlaying) c.pause() else { c.prepare(); c.play() }
+        // Mirror the snapshot's notion of "playing" (playWhenReady + not ended):
+        // toggling against `isPlaying` desynced the button when a rebuffer made
+        // the two disagree (tap Pause → it "played" again).
+        if (c.playWhenReady && c.playbackState != Player.STATE_ENDED) c.pause() else { c.prepare(); c.play() }
         pushSnapshot()
     }
 
-    fun next() { controller?.seekToNextMediaItem(); pushSnapshot() }
+    fun next() { controller?.seekToNextMediaItem(); _position.value = 0L; pushSnapshot() }
     fun prev() {
         val c = controller ?: return
-        if (c.currentPosition > 3000) c.seekTo(0) else c.seekToPreviousMediaItem()
+        if (c.currentPosition > 3000) { c.seekTo(0); _position.value = 0L } else { c.seekToPreviousMediaItem(); _position.value = 0L }
         pushSnapshot()
     }
-    fun seekTo(ms: Long) { controller?.seekTo(ms.coerceAtLeast(0L)) }
+    fun seekTo(ms: Long) {
+        val target = ms.coerceAtLeast(0L)
+        // Publish the seek target immediately: the 250ms ticker + ExoPlayer's async
+        // seek left the scrubber snapping back to the stale position after commit.
+        _position.value = target
+        controller?.seekTo(target)
+    }
     fun seekBy(deltaMs: Long) {
         val c = controller ?: return
-        c.seekTo((c.currentPosition + deltaMs).coerceAtLeast(0L))
+        val target = (c.currentPosition + deltaMs).coerceAtLeast(0L)
+        _position.value = target
+        c.seekTo(target)
     }
     fun jumpTo(index: Int) {
         val c = controller ?: return
-        if (index in 0 until c.mediaItemCount) { c.seekTo(index, 0L); c.play(); pushSnapshot() }
+        if (index in 0 until c.mediaItemCount) { c.seekTo(index, 0L); _position.value = 0L; c.play(); pushSnapshot() }
     }
     fun removeAt(index: Int) {
         val c = controller ?: return

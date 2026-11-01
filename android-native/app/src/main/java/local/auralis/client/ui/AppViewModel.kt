@@ -279,6 +279,15 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
     val playback: StateFlow<PlaybackSnapshot> get() = player.snapshot
     val position: StateFlow<Long> get() = player.position
 
+    /** Tag of what SEEDED the current queue — `playlist:<id>`, `favorites`,
+     *  `album:<hash>`, `artist:<hash>` (or `library` for ad-hoc lists). Every
+     *  detail screen compares its own tag against this, so the Pause/Resume
+     *  hero appears on the ONE list being listened to — not on every list that
+     *  happens to contain the current track (the old membership check lit up
+     *  every open playlist at once). */
+    private val _playingFrom = MutableStateFlow<String?>(null)
+    val playingFrom: StateFlow<String?> = _playingFrom.asStateFlow()
+
     /** Translate a catalogue key in the UI's current locale (toast strings). */
     private fun tr(key: String, params: Map<String, Any> = emptyMap()): String =
         Messages.translate(_ui.value.locale, key, params = params)
@@ -552,20 +561,30 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
 
     /** Start a queue from [list]. [source] records what the queue was seeded
      *  from — endless autoplay never leaves a FAVORITES/PLAYLIST set (see
-     *  playback/QueueContinuation.kt). */
+     *  playback/QueueContinuation.kt). [from] is the UI-side tag of that same
+     *  source (`album:<hash>`, `artist:<hash>`, `playlist:<id>`, `favorites`),
+     *  used to light the Pause/Resume hero on exactly one screen. */
     fun playTrack(
         track: Track,
         list: List<Track> = listOf(track),
         startIndex: Int = list.indexOf(track),
         source: QueueSource = QueueSource.Library,
+        from: String? = null,
     ) {
         accounting.setQueueSource(source)
+        _playingFrom.value = from ?: tagOf(source)
         player.playTracks(list, if (startIndex < 0) 0 else startIndex)
     }
 
-    fun playList(list: List<Track>, startIndex: Int = 0, source: QueueSource = QueueSource.Library) {
+    fun playList(
+        list: List<Track>,
+        startIndex: Int = 0,
+        source: QueueSource = QueueSource.Library,
+        from: String? = null,
+    ) {
         if (list.isNotEmpty()) {
             accounting.setQueueSource(source)
+            _playingFrom.value = from ?: tagOf(source)
             player.playTracks(list, startIndex)
         }
     }
@@ -1142,12 +1161,21 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
 
     /** Shuffled queue of [list] only — [source] constrains endless autoplay to
      *  the same set (favorites "Lire", playlist shuffle…). */
-    fun playShuffled(list: List<Track>, source: QueueSource = QueueSource.Library) {
+    fun playShuffled(list: List<Track>, source: QueueSource = QueueSource.Library, from: String? = null) {
         if (list.isEmpty()) return
         accounting.setQueueSource(source)
+        _playingFrom.value = from ?: tagOf(source)
         player.setShuffle(true)
         viewModelScope.launch { prefs.setPlayback(shuffle = true) }
         player.playTracks(list.shuffled(), 0)
+    }
+
+    /** UI tag of a [QueueSource] — the Pause/Resume hero key for lists that seed
+     *  playback through the generic source type (album/artist pass their own). */
+    private fun tagOf(source: QueueSource): String? = when (source) {
+        is QueueSource.Playlist -> "playlist:${source.id}"
+        is QueueSource.Favorites -> "favorites"
+        else -> null
     }
 
     // ---- sleep timer -------------------------------------------------------
@@ -1185,13 +1213,13 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
         // keeps its continuation inside the set after a restart (the tag resolves
         // against the CURRENT favorites/playlist contents).
         val ui = _ui.value
-        accounting.setQueueSource(
-            QueueSource.fromTag(
-                o.optString("source", QueueSource.TAG_LIBRARY),
-                ui.favorites,
-                ui.playlists.associate { p -> p.id to p.trackhashes },
-            ),
+        val source = QueueSource.fromTag(
+            o.optString("source", QueueSource.TAG_LIBRARY),
+            ui.favorites,
+            ui.playlists.associate { p -> p.id to p.trackhashes },
         )
+        accounting.setQueueSource(source)
+        _playingFrom.value = tagOf(source)
         // A resumed track was already partly heard last session; leaving it now isn't
         // a fresh skip (the gate can't see the prior listening).
         if (pos > 0) tracks.getOrNull(idx)?.let { accounting.exemptFromSkip(it.trackhash) }

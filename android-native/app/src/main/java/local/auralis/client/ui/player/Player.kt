@@ -86,6 +86,7 @@ import kotlinx.coroutines.launch
 import local.auralis.client.i18n.tr
 import local.auralis.client.model.LyricsResult
 import local.auralis.client.model.Track
+import local.auralis.client.playback.PlaybackProgress
 import local.auralis.client.playback.PlaybackSnapshot
 import local.auralis.client.ui.AppViewModel
 import local.auralis.client.ui.UiState
@@ -138,10 +139,10 @@ fun MiniPlayer(track: Track, playback: PlaybackSnapshot, positionMs: Long, vm: A
                         onDragEnd = { if (miniDx > 100f) vm.prev() else if (miniDx < -100f) vm.next() },
                     ) { _, dx -> miniDx += dx }
                 }
-                .padding(horizontal = Spacing.sm, vertical = Spacing.sm),
+                .padding(start = Spacing.sm, end = Spacing.xs, top = Spacing.sm, bottom = Spacing.sm),
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            CoverArt(track.image, track.albumhash ?: track.title, Modifier.size(44.dp), cornerRadius = Radius.sm.value.toInt(), sizeDp = 44)
+            CoverArt(track.image, track.albumhash ?: track.title, Modifier.size(46.dp), cornerRadius = Radius.sm.value.toInt(), sizeDp = 46)
             Spacer(Modifier.width(Spacing.md))
             Column(Modifier.weight(1f)) {
                 Text(
@@ -152,7 +153,7 @@ fun MiniPlayer(track: Track, playback: PlaybackSnapshot, positionMs: Long, vm: A
             }
             IconAction(
                 if (playback.isPlaying) Icons.Filled.Pause else Icons.Filled.PlayArrow,
-                tr("mobile.play"), tint = colors.foreground, iconSize = 28,
+                if (playback.isPlaying) tr("player.pause") else tr("mobile.play"), tint = colors.foreground, iconSize = 28,
             ) { vm.togglePlay() }
             IconAction(Icons.Filled.SkipNext, tr("player.next"), tint = colors.foreground, iconSize = 24) { vm.next() }
         }
@@ -306,9 +307,12 @@ fun FullscreenPlayer(
             // Scrubber (custom thin Apple Music slider) + time labels.
             // Prefer the player-reported duration: when metadata lacks `duration` the
             // bar used to stay dead at zero even though playback knows the length.
+            // The fraction comes from PlaybackProgress (floating-point) — a raw
+            // `positionMs / durMs` on two Longs is integer division that stays 0 for
+            // the whole track, which pinned the fullscreen bar at 0:00.
             val durMs = if (playback.durationMs > 0) playback.durationMs else ((track.duration ?: 0.0) * 1000.0).toLong()
             var scrub by remember { mutableStateOf<Float?>(null) }
-            val progress = scrub ?: if (durMs > 0) (positionMs / durMs).toFloat().coerceIn(0f, 1f) else 0f
+            val progress = scrub ?: PlaybackProgress.fraction(positionMs, durMs)
             AMSlider(
                 value = progress,
                 onScrub = { scrub = it },
@@ -333,10 +337,22 @@ fun FullscreenPlayer(
                     tint = if (playback.shuffle) colors.accent else colors.textMuted, iconSize = 24,
                 ) { vm.toggleShuffle() }
                 IconAction(Icons.Filled.SkipPrevious, tr("player.previous"), tint = colors.foreground, iconSize = 42) { vm.prev() }
-                IconAction(
-                    if (playback.isPlaying) Icons.Filled.Pause else Icons.Filled.PlayArrow,
-                    tr("mobile.play"), tint = colors.foreground, iconSize = 64,
-                ) { vm.togglePlay() }
+                // Solid accent play/pause — the one loud control of the transport,
+                // matching the web's signal-button treatment.
+                Box(
+                    Modifier
+                        .size(68.dp)
+                        .clip(CircleShape)
+                        .background(colors.accent)
+                        .clickable { vm.togglePlay() },
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Icon(
+                        if (playback.isPlaying) Icons.Filled.Pause else Icons.Filled.PlayArrow,
+                        if (playback.isPlaying) tr("player.pause") else tr("mobile.play"),
+                        tint = colors.ink, modifier = Modifier.size(40.dp),
+                    )
+                }
                 IconAction(Icons.Filled.SkipNext, tr("player.next"), tint = colors.foreground, iconSize = 42) { vm.next() }
                 IconAction(
                     if (playback.repeat == "one") Icons.Filled.RepeatOne else Icons.Filled.Repeat,
@@ -445,6 +461,7 @@ private fun AMSlider(
     val colors = LocalAuralis.current
     var active by remember { mutableStateOf(false) }
     var fraction by remember { mutableStateOf(value) }
+    var dragStart by remember { mutableStateOf(0f) }
     // Follow the external position only while idle (never fight the finger).
     LaunchedEffect(value) { if (!active) fraction = value }
 
@@ -461,12 +478,14 @@ private fun AMSlider(
             }
             .pointerInput(Unit) {
                 detectHorizontalDragGestures(
-                    onDragStart = { active = true },
+                    onDragStart = { active = true; dragStart = fraction },
                     onDragEnd = {
                         active = false
                         onCommit(fraction)
                     },
-                    onDragCancel = { active = false },
+                    // Cancel restores the pre-drag value instead of freezing the
+                    // thumb mid-track where the finger gave up.
+                    onDragCancel = { active = false; fraction = dragStart; onScrub(dragStart) },
                 ) { change, amt ->
                     change.consume()
                     fraction = (fraction + amt / size.width).coerceIn(0f, 1f)
