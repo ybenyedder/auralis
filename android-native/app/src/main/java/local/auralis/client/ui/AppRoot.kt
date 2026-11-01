@@ -11,7 +11,6 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
@@ -61,14 +60,9 @@ fun AppRoot(vm: AppViewModel) {
 
 @Composable
 private fun LoadingScreen() {
-    val colors = LocalAuralis.current
-    Column(Modifier.fillMaxSize(), verticalArrangement = Arrangement.Center, horizontalAlignment = Alignment.CenterHorizontally) {
-        local.auralis.client.ui.components.BrandMark(64)
-        Spacer(Modifier.height(Spacing.lg))
-        CircularProgressIndicator(color = colors.accent, strokeWidth = 3.dp, modifier = Modifier.size(32.dp))
-        Spacer(Modifier.height(Spacing.lg))
-        Text("Auralis", style = AMType.Headline, color = colors.foreground)
-    }
+    // Skeleton that mirrors the incoming home screen — no spinner on a blank
+    // stage. The content visibly "materialises" instead of a spinner + jump.
+    local.auralis.client.ui.components.SkeletonScreen()
 }
 
 @Composable

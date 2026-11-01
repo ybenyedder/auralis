@@ -81,7 +81,9 @@ object Messages {
         "folders.title" to "Dossiers",
         "insights.eyebrow" to "Analyse",
         "library.title" to "Bibliothèque",
+        "library.kicker" to "Ta musique, ton espace",
         "search.title" to "Rechercher",
+        "search.kicker" to "Trouve tout, tout de suite",
         "mobile.album" to "Album",
         "mobile.artist" to "Artiste",
         "mobile.playlist" to "Playlist",
@@ -98,6 +100,10 @@ object Messages {
         "sel.createMix" to "Créer un mix",
 
         // ---- home -----------------------------------------------------------
+        "home.greeting.morning" to "Bonjour",
+        "home.greeting.afternoon" to "Bon après-midi",
+        "home.greeting.evening" to "Bonsoir",
+        "home.greeting.night" to "Bonne nuit",
         "home.likedTracks" to "Titres likés",
         "home.forYou" to "Fait pour vous",
         "home.dailyMixes" to "Vos mix du jour",
@@ -124,6 +130,7 @@ object Messages {
         // ---- new ------------------------------------------------------------
         "new.nothingNew" to "Rien de neuf",
         "new.nothingNewHint" to "Lance un scan serveur pour indexer de nouveaux fichiers.",
+        "new.kicker" to "Fraîchement ajouté",
         "new.newAlbums" to "Nouveaux albums",
         "new.freshDiscovered" to "Fraîchement découverts",
         "new.byGenre" to "Nouveautés par genre",
@@ -694,7 +701,9 @@ object Messages {
         "folders.title" to "Folders",
         "insights.eyebrow" to "Analytics",
         "library.title" to "Library",
+        "library.kicker" to "Your music, your space",
         "search.title" to "Search",
+        "search.kicker" to "Find anything, instantly",
         "mobile.album" to "Album",
         "mobile.artist" to "Artist",
         "mobile.playlist" to "Playlist",
@@ -711,6 +720,10 @@ object Messages {
         "sel.createMix" to "Create a mix",
 
         // ---- home -----------------------------------------------------------
+        "home.greeting.morning" to "Good morning",
+        "home.greeting.afternoon" to "Good afternoon",
+        "home.greeting.evening" to "Good evening",
+        "home.greeting.night" to "Good night",
         "home.likedTracks" to "Liked Songs",
         "home.forYou" to "Made for you",
         "home.dailyMixes" to "Your daily mixes",
@@ -737,6 +750,7 @@ object Messages {
         // ---- new ------------------------------------------------------------
         "new.nothingNew" to "Nothing new",
         "new.nothingNewHint" to "Run a server scan to index new files.",
+        "new.kicker" to "Freshly added",
         "new.newAlbums" to "New albums",
         "new.freshDiscovered" to "Freshly discovered",
         "new.byGenre" to "New by genre",

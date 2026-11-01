@@ -94,9 +94,10 @@ import local.auralis.client.ui.ViewId
 import local.auralis.client.ui.components.Eyebrow
 import local.auralis.client.ui.components.GhostPill
 import local.auralis.client.ui.components.IconAction
-import local.auralis.client.ui.components.LargeTitle
 import local.auralis.client.ui.components.LocalPlayingToggle
 import local.auralis.client.ui.components.NetworkImage
+import local.auralis.client.ui.components.PageHero
+import local.auralis.client.ui.components.greetingKeyFor
 import local.auralis.client.ui.components.PlayPill
 import local.auralis.client.ui.components.SectionHeader
 import local.auralis.client.ui.components.TrackRow
@@ -200,10 +201,17 @@ fun HomeScreen(vm: AppViewModel, ui: UiState) {
     }
 
     LazyColumn(contentPadding = bottomPad) {
-        // Large title (Apple Music opens each tab with a 34pt title).
+        // Liner-style hero: greeting kicker + large title (replaces the lone bold
+        // word that used to sit in the corner).
         item {
-            Column(Modifier.padding(top = 6.dp, bottom = 12.dp)) {
-                LargeTitle(tr("nav.home"))
+            Column(Modifier.padding(top = 6.dp, bottom = 14.dp)) {
+                val hour = java.util.Calendar.getInstance().get(java.util.Calendar.HOUR_OF_DAY)
+                val greeting = tr(greetingKeyFor(hour))
+                val subtitle = when {
+                    ui.username != null -> "${ui.username}"
+                    else -> null
+                }
+                PageHero(tr("nav.home"), eyebrow = greeting, subtitle = subtitle)
             }
         }
 
@@ -517,7 +525,9 @@ fun NewScreen(vm: AppViewModel, ui: UiState) {
 
     LazyColumn(contentPadding = bottomPad) {
         item {
-            Column(Modifier.padding(top = 6.dp, bottom = 12.dp)) { LargeTitle(tr("nav.new")) }
+            Column(Modifier.padding(top = 6.dp, bottom = 14.dp)) {
+                PageHero(tr("nav.new"), eyebrow = tr("new.kicker"))
+            }
         }
         // Guard on the raw library, not the async list: while the first derivation is
         // still running we must not flash the "nothing new" hint.
@@ -761,8 +771,8 @@ fun SearchScreen(vm: AppViewModel, ui: UiState) {
     val playing = pb.isPlaying
     Column(Modifier.fillMaxWidth().padding(horizontal = 16.dp)) {
         Spacer(Modifier.height(6.dp))
-        LargeTitle(tr("search.title"))
-        Spacer(Modifier.height(10.dp))
+        PageHero(tr("search.title"), eyebrow = tr("search.kicker"))
+        Spacer(Modifier.height(12.dp))
         // Apple Music's rounded grey search field (10pt radius, no border).
         OutlinedTextField(
             value = ui.searchQuery,
@@ -1024,12 +1034,12 @@ fun LibraryScreen(vm: AppViewModel, ui: UiState) {
 
     Box(Modifier.fillMaxSize()) {
     Column(Modifier.fillMaxWidth()) {
-        // Large title + the single "+" action beside it (Apple Music header).
+        // Liner-style hero + the single "+" action beside it.
         Row(
             Modifier.fillMaxWidth().padding(start = 16.dp, end = 16.dp, top = 6.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            LargeTitle(tr("nav.library"), Modifier.weight(1f))
+            PageHero(tr("nav.library"), eyebrow = tr("library.kicker"), modifier = Modifier.weight(1f))
             Box(
                 Modifier
                     .size(48.dp)

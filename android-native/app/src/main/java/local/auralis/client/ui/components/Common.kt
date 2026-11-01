@@ -215,7 +215,7 @@ fun Eyebrow(text: String, modifier: Modifier = Modifier) {
     )
 }
 
-/** The 34pt bold large title that opens each tab's content (Apple Music). */
+/** The 34pt bold large title that opens each tab's content (Liner/Apple Music). */
 @Composable
 fun LargeTitle(text: String, modifier: Modifier = Modifier) {
     Text(
@@ -224,6 +224,48 @@ fun LargeTitle(text: String, modifier: Modifier = Modifier) {
         color = LocalAuralis.current.foreground,
         modifier = modifier,
     )
+}
+
+/**
+ * Liner-style page hero: a small muted eyebrow (greeting / section kicker) over
+ * the large title, with an optional muted subtitle beneath. This is the polished
+ * replacement for a bare LargeTitle — it gives each tab an editorial opening
+ * instead of a lone bold word stuck in the corner.
+ */
+@Composable
+fun PageHero(
+    title: String,
+    modifier: Modifier = Modifier,
+    eyebrow: String? = null,
+    subtitle: String? = null,
+) {
+    val colors = LocalAuralis.current
+    Column(modifier) {
+        if (eyebrow != null) {
+            Eyebrow(eyebrow)
+            Spacer(Modifier.height(Spacing.xs))
+        }
+        Text(
+            title,
+            style = AMType.LargeTitle,
+            color = colors.foreground,
+            maxLines = 1,
+            overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
+        )
+        if (subtitle != null) {
+            Spacer(Modifier.height(Spacing.xs))
+            Text(subtitle, style = AMType.Subhead, color = colors.textMuted)
+        }
+    }
+}
+
+/** Time-of-day greeting key ("Bonjour" / "Bonsoir"…) — the Liner-style warm
+ *  kicker above the home hero. Uses the device clock. */
+fun greetingKeyFor(hour: Int): String = when (hour) {
+    in 5..11 -> "home.greeting.morning"
+    in 12..17 -> "home.greeting.afternoon"
+    in 18..22 -> "home.greeting.evening"
+    else -> "home.greeting.night"
 }
 
 /** Apple Music shelf header: bold Title3 on the left, red "Tout afficher" link on the right. */

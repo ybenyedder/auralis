@@ -394,11 +394,12 @@ private fun SelectionBar(ui: UiState, vm: AppViewModel) {
 }
 
 /**
- * Apple Music navigation bar. On a tab root the bar stays minimal (profile avatar
- * on the right); the tab's large title lives at the top of the content and the
- * inline title only fades in once the content has scrolled past it — the classic
- * iOS large-title collapse, implemented with a nested-scroll accumulator so every
- * screen gets it for free.
+ * Liner-style navigation bar. On a tab root the bar is a clean, airy row: the
+ * page identity on the left, the profile avatar (gradient-ringed) on the right;
+ * the tab's large title lives at the top of the content and the inline title
+ * only fades in once the content has scrolled past it — the classic iOS
+ * large-title collapse, driven by a nested-scroll accumulator so every screen
+ * gets it for free. Detail screens swap the identity for a back + title pair.
  */
 @OptIn(androidx.compose.foundation.ExperimentalFoundationApi::class)
 @Composable
@@ -410,30 +411,39 @@ private fun Header(vm: AppViewModel, ui: UiState, titleAlpha: Float) {
         Modifier
             .fillMaxWidth()
             .statusBarsPadding()
-            .padding(horizontal = Spacing.lg, vertical = Spacing.xs),
+            .padding(start = Spacing.lg, end = Spacing.md, top = Spacing.sm, bottom = Spacing.sm),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         if (!isRoot) {
-            IconAction(Icons.Filled.ArrowBack, tr("common.back"), tint = colors.accent, iconSize = 24) { vm.back() }
+            // Detail screens: a back chevron + the section title, left-aligned.
+            IconAction(Icons.Filled.ArrowBack, tr("common.back"), tint = colors.foreground, iconSize = 22) { vm.back() }
+            Spacer(Modifier.width(Spacing.xs))
             Text(
                 tr(titleKeyOf(ui.nav.view)),
                 color = colors.foreground,
                 style = AMType.Headline,
+                maxLines = 1,
+                overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
             )
             Spacer(Modifier.weight(1f))
         } else {
-            // Collapsed large title, centered — visible only once scrolled.
-            Box(Modifier.weight(1f).fillMaxWidth(), contentAlignment = Alignment.Center) {
+            // Root screens: the large title collapses into this spot on scroll.
+            // While at the top the row is deliberately airy — the big title is
+            // down in the content — so the bar never fights it.
+            Box(Modifier.weight(1f).fillMaxWidth(), contentAlignment = Alignment.CenterStart) {
                 Text(
                     tr(titleKeyOf(ui.nav.view)),
                     color = colors.foreground,
                     style = AMType.Headline,
+                    maxLines = 1,
+                    overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
                     modifier = Modifier.graphicsLayer { alpha = titleAlpha },
                 )
             }
         }
-        // Profile avatar (Apple Music's tab-root affordance) → Réglages.
-        // Long-press opens the quick-jump command palette. 48dp touch target.
+        // Profile avatar → Réglages. Long-press opens the quick-jump palette.
+        // A gradient-ringed initial that reads as a real profile chip, not a
+        // lone grey circle floating in the bar.
         Box(
             Modifier
                 .size(48.dp)
@@ -443,18 +453,31 @@ private fun Header(vm: AppViewModel, ui: UiState, titleAlpha: Float) {
                 ),
             contentAlignment = Alignment.Center,
         ) {
-            Box(
-                Modifier
-                    .size(34.dp)
-                    .clip(CircleShape)
-                    .background(colors.panel2),
-                contentAlignment = Alignment.Center,
-            ) {
-                Text(
-                    (ui.username ?: "A").trim().take(1).uppercase(),
-                    color = colors.foreground,
-                    style = AMType.Headline,
+            Box(contentAlignment = Alignment.Center) {
+                // Ring: a soft accent halo around the avatar.
+                Box(
+                    Modifier
+                        .size(40.dp)
+                        .clip(CircleShape)
+                        .background(
+                            androidx.compose.ui.graphics.Brush.linearGradient(
+                                listOf(colors.accent.copy(alpha = 0.9f), colors.accent.copy(alpha = 0.35f)),
+                            ),
+                        ),
                 )
+                Box(
+                    Modifier
+                        .size(35.dp)
+                        .clip(CircleShape)
+                        .background(colors.panel2),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Text(
+                        (ui.username ?: "A").trim().take(1).uppercase(),
+                        color = colors.foreground,
+                        style = AMType.Headline,
+                    )
+                }
             }
         }
     }

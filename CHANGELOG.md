@@ -4,6 +4,75 @@ All notable changes to Auralis are documented here. The format is based on
 [Keep a Changelog](https://keepachangelog.com/) and this project adheres to
 [Semantic Versioning](https://semver.org/).
 
+## [1.30.0] - 2026-11-01
+
+Suite de la refonte « vibe Liner » : finition de l'expérience de chargement et
+de la barre de navigation, deux points qui juraient à l'ouverture de l'app.
+
+### Changé — Android : chargement en skeleton (fini le spinner)
+- Le lancement affiche désormais un **skeleton complet qui mime la home à
+  venir** — barre de nav, hero, étagère de cartes, tuiles rapides, lignes — le
+  tout en shimmer. Le contenu « se matérialise » au lieu d'un spinner sur fond
+  vide, puis d'un saut brutal (le rythme de chargement calme de Liner).
+
+### Changé — Android : barre de nav & titres refaits
+- **Profil** : l'avatar est une vraie puce de profil — cercle avec **anneau
+  dégradé accent** — plus un simple rond gris flottant dans la barre.
+- **Barre de nav** : alignement et espacement retravaillés (le titre ne se
+  battait plus avec le contenu), chevron de retour plus fin, ellipsis propre
+  sur les longs titres.
+- **Titres des onglets** : un vrai hero façon Liner — petit kicker muet au-dessus
+  du grand titre (« Bonjour / Bonsoir… » sur la home, « Fraîchement ajouté »,
+  « Trouve tout, tout de suite », « Ta musique, ton espace »), avec sous-titre
+  optionnel. Fini le mot en gras isolé coincé dans le coin.
+
+### Ajouté
+- Salutations contextuelles selon l'heure (Bonjour / Bon après-midi / Bonsoir /
+  Bonne nuit) sur la home.
+- Composants réutilisés : `PageHero`, `SkeletonScreen`, `greetingKeyFor`.
+
+### Tests
+- Suite web : **193 tests verts** ; build + tests Android verts.
+
+Deux chantiers : une refonte visuelle complète de l'app Android (« je rouvre
+Auralis, on dirait une toute nouvelle app ») et un moteur de paroles élargi
+(« il y a plein de morceaux où ça ne met aucune parole »).
+
+### Changé — Android : refonte « vibe Liner » (nouvelle identité)
+- **Palette profonde** : stage `#000000`, surfaces quasi-noires (`#0A0A0A` →
+  `#1A1A1A`), un seul accent rouge `#FF4D4D`, texte blanc/70 %/45 %. Fini les
+  gris iOS translucides — l'interface est sombre, nette, moderne.
+- **Dark par défaut** : l'app démarre en dark (le mode clair reste dispo dans
+  les réglages).
+- **« La couleur vient du contenu »** : un **fond ambiant piloté par la
+  pochette** — deux teintes dominantes extraites de l'artwork lavent le fond
+  noir d'un halo doux, et glissent d'un titre à l'autre au lieu de claquer.
+  L'ambiance suit ce qui joue (comme Liner).
+- **Verre, pas de boîtes** : le chrome flottant (mini-player, barre d'onglets)
+  est un verre dépoli translucide qui floute le contenu en dessous — plus de
+  panneaux gris opaques.
+- **Lecteur plein écran** : voile flouté de la pochette plus profond + lueur
+  chaude en haut (la couleur de la pochette déborde du bord).
+- Bouton lecture en cercle rouge plein, vignettes « en cours » animées.
+
+### Ajouté — Moteur de paroles multi-providers (NetEase + QQ Music)
+La chaîne de repli s'élargit pour couvrir les « paroles introuvables » — en
+particulier titres CN/JP/KR et internationaux absents de LRCLIB :
+- **NetEase Cloud Music** (music.163.com) : sert le format **`yrc` mot à mot**
+  (vrai karaoke par mot) quand il existe, sinon le `lrc` ligne à ligne +
+  traduction. Converti en LRC amélioré pour le karaoke.
+- **QQ Music** (y.qq.com) : second grand réservoir de paroles manquantes,
+  format `lrc`.
+- Nouvel ordre : **Musixmatch (richsync) → NetEase (yrc) → LRCLIB → QQ Music →
+  lyrics.ovh**. Les deux nouvelles sources comblent les trous que LRCLIB laisse ;
+  le tout reste auto-hébergé (écrit dans le cache + sidecar `.lrc`).
+- Sélection de candidat protégée (titre/artiste/durée) : jamais les paroles de
+  la mauvaise chanson.
+- Config : `AURALIS_LYRICS_NETEASE` / `AURALIS_LYRICS_QQ` (on par défaut).
+
+### Tests
+- Suite web : **193 tests verts** ; build + tests Android verts.
+
 ## [1.29.0] - 2026-11-01
 
 Deux chantiers : une refonte visuelle complète de l'app Android (« je rouvre
@@ -51,10 +120,6 @@ particulier titres CN/JP/KR et internationaux absents de LRCLIB :
 
 Grosse passe de correction et de finition sur l'app Android. Deux retours
 utilisateurs centraux : « je lance une musique dans une playlist, je vois le
-bouton Pause, mais mes AUTRES playlists affichent elles aussi le bouton
-Reprendre — seule la playlist en cours doit l'afficher » et « quand je mets une
-musique en plein écran, la barre de progression ne bouge pas, elle reste à 0 ».
-Le reste est une revue complète des bugs et des illogismes de l'interface.
 
 ### Corrigé — Android : bouton Lecture/Pause par playlist (le bug principal)
 - **Une seule source active** : l'app trace désormais ce qui a engendré la file
