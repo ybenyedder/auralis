@@ -58,6 +58,27 @@ private object ArtCache {
 
     fun cached(url: String): ImageBitmap? = cache.get(url)
 
+    /** Tiny decode for the ambient colour wash — reuses the disk cache, decodes
+     *  at a coarse sample so it costs almost nothing. Serves the background
+     *  sampler without touching the LRU or the network when art is cached. */
+    suspend fun decodeForAmbient(url: String, cacheDir: File): ImageBitmap? = withContext(Dispatchers.IO) {
+        cache.get(url)?.let { return@withContext it }
+        val dir = File(cacheDir, "art").apply { mkdirs() }
+        val file = File(dir, diskKey(url))
+        if (!file.exists()) return@withContext load(url, cacheDir)
+        runCatching {
+            val bytes = file.readBytes()
+            val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
+            BitmapFactory.decodeByteArray(bytes, 0, bytes.size, bounds)
+            var sample = 1
+            val maxDim = 96 // ambient wash is blurred — 96px is plenty
+            val w = bounds.outWidth; val h = bounds.outHeight
+            if (w > 0 && h > 0) while (w / (sample * 2) >= maxDim || h / (sample * 2) >= maxDim) sample *= 2
+            BitmapFactory.decodeByteArray(bytes, 0, bytes.size, BitmapFactory.Options().apply { inSampleSize = sample })
+                ?.asImageBitmap()
+        }.getOrNull()
+    }
+
     // Decode with a dimension cap. The fullscreen player requests the ORIGINAL cover
     // (no ?w= bucket), so a 2000–3000px source would otherwise decode to a
     // tens-of-MB ARGB_8888 bitmap and spike memory / risk OOM. Two-pass: read bounds
@@ -87,8 +108,7 @@ private object ArtCache {
                 val bytes = file.readBytes()
                 decodeBounded(bytes)
             }.getOrNull()?.let { cache.put(url, it); return@withContext it }
-        }
-        // Miss → fetch, write through to disk, decode. The fetch is awaited
+        }        // Miss → fetch, write through to disk, decode. The fetch is awaited
         // COOPERATIVELY: each visible image suspends in its LaunchedEffect coroutine,
         // so when the composable leaves composition (fast scroll) the cancellation
         // reaches the socket via call.cancel() instead of the old blocking execute()
@@ -124,7 +144,12 @@ private object ArtCache {
  * soft shimmer veil; the artwork then crossfades in (placeholder → image) so
  * covers never pop into place — the calm Apple Music/Spotify loading rhythm.
  */
-@Composable
+
+/** Public accessor for the ambient sampler: decodes a cover at low resolution
+ *  (reusing the disk cache) so the background wash can read its colours without
+ *  reaching into the private [ArtCache]. Suspend + IO — call off the main thread. */
+suspend fun decodeCoverForAmbient(url: String, cacheDir: java.io.File): ImageBitmap? =
+    ArtCache.decodeForAmbient(url, cacheDir)@Composable
 fun NetworkImage(
     url: String?,
     modifier: Modifier = Modifier,

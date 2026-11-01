@@ -108,8 +108,8 @@ data class UiState(
 
     /** UI language (web uiSlice.locale) — persisted in Prefs, default FR. */
     val locale: Locale = Locale.FR,
-    /** Appearance mode (web Mode): "dark" | "light" | "auto" (system). */
-    val themeMode: String = "auto",
+    /** Appearance mode (web Mode): "dark" (default) | "light" | "auto" (system). */
+    val themeMode: String = "dark",
 
     val tracks: List<Track> = emptyList(),
     val albums: List<Album> = emptyList(),

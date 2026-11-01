@@ -1,7 +1,10 @@
 // Lyrics service. Resolution order: DB cache → on-disk .lrc sidecar → Musixmatch
-// richsync (word-by-word karaoke) → LRCLIB (open, key-less line-level database) →
-// lyrics.ovh (plain). Anything fetched online is written back to the cache AND to a
-// .lrc sidecar so the library self-hosts it.
+// richsync (word-by-word karaoke) → NetEase (yrc word-level / lrc) → QQ Music →
+// LRCLIB (open, key-less line-level database) → lyrics.ovh (plain). Anything
+// fetched online is written back to the cache AND to a .lrc sidecar so the
+// library self-hosts it. The two extra providers are what close the "paroles
+// introuvables" gap: their catalogues cover CN/JP/KR and international titles
+// LRCLIB routinely misses.
 
 import fs from "fs";
 import path from "path";
@@ -12,6 +15,8 @@ import { resolveLibraryPath } from "../paths";
 import { normalizeName } from "../library/ids";
 import { parseSyncedLyrics, isSynced, type SyncedLine } from "./lrc";
 import { fetchRichsync } from "./musixmatch";
+import { fetchFromNetease } from "./netease";
+import { fetchFromQq } from "./qq";
 
 const log = createLogger("lyrics");
 
@@ -56,7 +61,7 @@ async function fetchJsonCapped(url: string): Promise<unknown | null> {
 }
 
 export type LyricsStatus = "found" | "instrumental" | "notfound";
-export type LyricsSource = "sidecar" | "lrclib" | "lyricsovh" | "musixmatch" | "manual" | "cache" | null;
+export type LyricsSource = "sidecar" | "lrclib" | "lyricsovh" | "musixmatch" | "netease" | "qq" | "manual" | "cache" | null;
 
 export interface LyricsResult {
   trackhash: string;
@@ -388,6 +393,20 @@ async function resolveLyrics(trackhash: string, opts: { forceRefetch?: boolean }
       }
     }
 
+    // NetEase: word-level `yrc` when available (the CN/JP/KR + international gap
+    // LRCLIB leaves). Runs before LRCLIB so a yrc hit upgrades straight to karaoke.
+    if (getConfig().lyricsNetease) {
+      try {
+        const ne = await fetchFromNetease(track);
+        if (ne && (ne.synced || ne.plain)) {
+          await writeSidecar(track.filepath, ne.synced, ne.plain);
+          return persist(trackhash, { synced: ne.synced, plain: ne.plain, source: "netease", status: "found" });
+        }
+      } catch (error) {
+        log.warn("netease lyrics failed", { error: String(error) });
+      }
+    }
+
     const hit = await fetchFromLrclib(track);
     if (hit) {
       if (hit.instrumental) return persist(trackhash, { source: "lrclib", status: "instrumental", instrumental: true });
@@ -396,6 +415,20 @@ async function resolveLyrics(trackhash: string, opts: { forceRefetch?: boolean }
       if (synced || plain) {
         await writeSidecar(track.filepath, synced, plain);
         return persist(trackhash, { synced, plain, source: "lrclib", status: "found" });
+      }
+    }
+
+    // QQ Music: second gap-filler, after LRCLIB so the open DB is preferred when
+    // it does have the track (it keeps Auralis self-hostable without CN mirrors).
+    if (getConfig().lyricsQq) {
+      try {
+        const qq = await fetchFromQq(track);
+        if (qq && (qq.synced || qq.plain)) {
+          await writeSidecar(track.filepath, qq.synced, qq.plain);
+          return persist(trackhash, { synced: qq.synced, plain: qq.plain, source: "qq", status: "found" });
+        }
+      } catch (error) {
+        log.warn("qq lyrics failed", { error: String(error) });
       }
     }
 

@@ -19,18 +19,21 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.sp
 import local.auralis.client.R
 
-// Auralis design system: a single opaque Apple-Music-inspired palette in two
-// modes (dark + light), driven by the system setting. The old 14-theme engine
-// (cosmic/vivid glass themes + animated starfield/nebula backdrop) has been
-// retired, mirroring the web redesign (see docs/design-system.md).
+// Auralis design system — "Liner" edition. The signature: the CONTENT is the
+// colour. A near-black stage (#000) with translucent glass surfaces floats over
+// a soft ambient wash driven by the cover art; chrome stays neutral so the
+// artwork — never the UI — sets the mood. One red accent (#FF4D4D) is the only
+// saturated UI colour, echoed from the artwork's warm tones.
 
-/** Apple Music red accent (identical in both modes). */
-private val AppleMusicRed = Color(0xFFFA233B)
+/** Liner red accent (identical in both modes). */
+private val LinerRed = Color(0xFFFF4D4D)
+/** Softer red steps for hovers/glows. */
+private val LinerRedSoft = Color(0xFFFF8A8A)
 
 /**
  * Palette consumed by call sites via [LocalAuralis]. The field set is preserved
  * from the legacy theme engine so components keep compiling; every field is now
- * bound to one of the Apple Music tokens below.
+ * bound to one of the Liner tokens below.
  */
 @Immutable
 data class AuralisColors(
@@ -49,61 +52,63 @@ data class AuralisColors(
     val accentSoft: Color,
     val accentDeep: Color,
     val brass: Color,
-    val verdigris: Color = AppleMusicRed,
+    val verdigris: Color = LinerRed,
     val destructive: Color = Color(0xFFFF453A),
 )
 
-// ---- Apple Music palettes --------------------------------------------------
-// Token values mirror docs/design-system.md (iOS systemBackground tiers).
+// ---- Liner palettes ---------------------------------------------------------
+// Token values mirror Liner's globals.css (dark #000 stage, glass surfaces, one
+// red accent). Dark is the DEFAULT mode — the app boots dark and stays there
+// unless the user picks light.
 
 /**
  * Public accessor for the dark palette. Used to force the fullscreen now-playing
- * stage to its always-dark Apple Music treatment regardless of the system setting
- * (the stage is dominated by the ambient blurred cover, so it is always dark).
+ * stage to its always-dark treatment regardless of the system setting (the stage
+ * is dominated by the ambient blurred cover, so it is always dark).
  */
 fun auralisDarkColors(): AuralisColors = darkColors()
 
 private fun darkColors() = AuralisColors(
-    foreground = Color(0xFFFFFFFF),        // --foreground
-    background = Color(0xFF000000),        // --background  (app stage)
-    paper = Color(0xFF1C1C1E),             // surface-1 alias (legacy "paper")
-    ink = Color(0xFFFFFFFF),               // --ink (text on the red accent)
-    panel = Color(0xFF1C1C1E),             // --surface-1 (cards)
-    panel2 = Color(0xFF2C2C2E),            // --surface-2 (elevated/hover)
-    panel3 = Color(0xFF3A3A3C),            // --surface-3 (active/pressed)
-    line = Color(0x14FFFFFF),              // rgba(255,255,255,0.08)
-    lineStrong = Color(0x33FFFFFF),        // hairline emphasis
-    textMuted = Color(0xFF98989F),         // iOS secondaryLabel
-    textFaint = Color(0xFF636366),         // iOS tertiaryLabel
-    accent = AppleMusicRed,                // --primary
-    accentSoft = AppleMusicRed,            // aliases of the single accent
-    accentDeep = AppleMusicRed,
-    brass = Color(0xFF98989F),             // eyebrow text → secondaryLabel
-    verdigris = AppleMusicRed,
-    destructive = Color(0xFFFF453A),       // iOS systemRed (dark)
+    foreground = Color(0xFFFFFFFF),        // --text-primary
+    background = Color(0xFF000000),        // --bg-canvas (deep black stage)
+    paper = Color(0xFF0A0A0A),             // --bg-surface alias
+    ink = Color(0xFFFFFFFF),               // text on the red accent
+    panel = Color(0xFF0A0A0A),             // --bg-surface (cards, near-black)
+    panel2 = Color(0xFF141414),            // --bg-elevated
+    panel3 = Color(0xFF1A1A1A),            // --bg-panel (active/pressed)
+    line = Color(0x14FFFFFF),              // rgba(255,255,255,0.08) hairline
+    lineStrong = Color(0x33FFFFFF),        // rgba(255,255,255,0.2) emphasis
+    textMuted = Color(0xB3FFFFFF),         // rgba(255,255,255,0.7)
+    textFaint = Color(0x73FFFFFF),         // rgba(255,255,255,0.45)
+    accent = LinerRed,                     // --accent-primary
+    accentSoft = LinerRedSoft,             // --accent-soft
+    accentDeep = Color(0xFFE03535),
+    brass = Color(0xB3FFFFFF),             // eyebrow text → muted
+    verdigris = LinerRed,
+    destructive = Color(0xFFFF453A),
 )
 
 private fun lightColors() = AuralisColors(
-    foreground = Color(0xFF000000),        // --foreground
-    background = Color(0xFFFFFFFF),        // --background
-    paper = Color(0xFFF2F2F7),             // surface-1 alias
+    foreground = Color(0xFF18181B),        // --text-primary (zinc-900)
+    background = Color(0xFFFFFFFF),        // --bg-canvas
+    paper = Color(0xFFF5F5F7),             // --bg-primary alias
     ink = Color(0xFFFFFFFF),               // text on the red accent
-    panel = Color(0xFFF2F2F7),             // --surface-1 (iOS secondarySystemBackground)
-    panel2 = Color(0xFFE5E5EA),            // --surface-2
-    panel3 = Color(0xFFD1D1D6),            // --surface-3
-    line = Color(0x14000000),              // rgba(0,0,0,0.08)
-    lineStrong = Color(0x33000000),
-    textMuted = Color(0x993C3C43),         // rgba(60,60,67,0.6)  iOS secondaryLabel
-    textFaint = Color(0x4D3C3C43),         // rgba(60,60,67,0.3)  iOS tertiaryLabel
-    accent = AppleMusicRed,
-    accentSoft = AppleMusicRed,
-    accentDeep = AppleMusicRed,
-    brass = Color(0x993C3C43),
-    verdigris = AppleMusicRed,
-    destructive = Color(0xFFFF3B30),       // iOS systemRed (light)
+    panel = Color(0xFFF5F5F7),             // --bg-primary (soft cards)
+    panel2 = Color(0xFFE6E6EB),            // --bg-elevated
+    panel3 = Color(0xFFDEDEE3),            // --bg-panel
+    line = Color(0x0F000000),              // rgba(0,0,0,0.06) hairline
+    lineStrong = Color(0x24000000),        // rgba(0,0,0,0.14)
+    textMuted = Color(0xA6000000),         // rgba(0,0,0,0.65)
+    textFaint = Color(0x73000000),         // rgba(0,0,0,0.45)
+    accent = Color(0xFFFF3B3B),            // --accent-primary (light)
+    accentSoft = Color(0xFFFF5C5C),
+    accentDeep = Color(0xFFE02B2B),
+    brass = Color(0xA6000000),
+    verdigris = Color(0xFFFF3B3B),
+    destructive = Color(0xFFFF3B30),
 )
 
-/** Palette for the current mode — defaults to the dark palette before first composition. */
+/** Palette for the current mode — dark is the default before first composition. */
 val LocalAuralis = staticCompositionLocalOf { darkColors() }
 
 /**

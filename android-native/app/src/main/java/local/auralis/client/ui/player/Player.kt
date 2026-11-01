@@ -208,9 +208,10 @@ fun FullscreenPlayer(
                 )
             },
     ) {
-        // Apple Music signature stage: the now-playing screen is layered over a
-        // blown-up, heavily blurred copy of the cover art, dimmed by a vertical scrim
-        // so it reads as an ambient colour field (always dark, like Apple Music).
+        // Liner signature stage: the now-playing screen is layered over a
+        // blown-up, heavily blurred copy of the cover art, dimmed by a vertical
+        // scrim so it reads as an ambient colour field (always dark), with a soft
+        // warm glow bleeding from the top edge.
         if (!track.image.isNullOrBlank()) {
             // Resolve the relative art path against the server base — a raw
             // "/api/art/…" path made OkHttp throw inside the loader and the
@@ -218,18 +219,26 @@ fun FullscreenPlayer(
             val resolveUrl = LocalApiUrl.current
             NetworkImage(
                 resolveUrl(track.image),
-                Modifier.fillMaxSize().blur(64.dp),
+                Modifier.fillMaxSize().blur(72.dp),
                 contentScale = ContentScale.Crop,
             )
             Box(
                 Modifier.fillMaxSize().background(
                     Brush.verticalGradient(
                         listOf(
-                            Color.Black.copy(alpha = 0.50f),
-                            Color.Black.copy(alpha = 0.22f),
+                            Color.Black.copy(alpha = 0.38f),
+                            Color.Black.copy(alpha = 0.18f),
                             Color.Black.copy(alpha = 0.30f),
-                            Color.Black.copy(alpha = 0.66f),
+                            Color.Black.copy(alpha = 0.62f),
                         ),
+                    ),
+                ),
+            )
+            // Warm top glow — the cover's colour bleeding over the edge.
+            Box(
+                Modifier.fillMaxSize().background(
+                    Brush.verticalGradient(
+                        listOf(Color.White.copy(alpha = 0.10f), Color.Transparent),
                     ),
                 ),
             )

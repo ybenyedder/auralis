@@ -48,6 +48,7 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -60,6 +61,7 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.input.nestedscroll.NestedScrollConnection
 import androidx.compose.ui.input.nestedscroll.NestedScrollSource
 import androidx.compose.ui.input.nestedscroll.nestedScroll
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -67,6 +69,8 @@ import dev.chrisbanes.haze.HazeState
 import dev.chrisbanes.haze.HazeStyle
 import dev.chrisbanes.haze.HazeTint
 import dev.chrisbanes.haze.hazeSource
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import local.auralis.client.i18n.tr
 import local.auralis.client.ui.components.IconAction
 import local.auralis.client.ui.components.LocalHazeState
@@ -90,9 +94,13 @@ import local.auralis.client.ui.screens.SearchScreen
 import local.auralis.client.ui.screens.SettingsScreen
 import local.auralis.client.ui.theme.AMShapes
 import local.auralis.client.ui.theme.AMType
+import local.auralis.client.ui.theme.AmbientBackdrop
+import local.auralis.client.ui.theme.LocalAmbient
+import local.auralis.client.ui.theme.LocalApiUrl
 import local.auralis.client.ui.theme.LocalAuralis
 import local.auralis.client.ui.theme.Motion
 import local.auralis.client.ui.theme.Spacing
+import local.auralis.client.ui.theme.extractAmbient
 
 // Apple Music's mobile navigation is four tabs: Home (Accueil), New (Nouveau),
 // Search (Recherche) and Library (Bibliothèque). Secondary destinations
@@ -130,17 +138,38 @@ fun Shell(vm: AppViewModel, ui: UiState) {
     val current = ui.trackByHash[playback.currentId]
     val fullscreen = remember { mutableStateOf(false) }
 
-    // Frosted-glass plumbing: the scrolling content is the blur SOURCE; the
-    // floating chrome (mini player + tab bar) renders through it with a tinted
-    // material, like Apple Music's translucent bars.
+    // Frosted-glass plumbing ("glass, not boxes", Liner): the scrolling content
+    // is the blur SOURCE; the floating chrome (mini player + tab bar) renders
+    // through it with a translucent tinted material so the cover wash and rows
+    // blur through — never an opaque grey panel.
     val hazeState = remember { HazeState() }
     val darkSurface = colors.background.luminance() < 0.5f
     val hazeStyle = HazeStyle(
         backgroundColor = colors.background,
-        tint = HazeTint(colors.background.copy(alpha = if (darkSurface) 0.68f else 0.74f)),
-        blurRadius = 24.dp,
-        fallbackTint = HazeTint(colors.panel.copy(alpha = 0.92f)),
+        tint = HazeTint(colors.background.copy(alpha = if (darkSurface) 0.55f else 0.72f)),
+        blurRadius = 28.dp,
+        fallbackTint = HazeTint(colors.panel.copy(alpha = 0.85f)),
     )
+
+    // Ambient stage ("content is the colour"): sample the CURRENT cover for two
+    // tones and wash the near-black background with them, so the app's mood
+    // follows whatever is playing. Falls back to the accent-neutral before art
+    // loads. Kept behind the scrolling content so panels float over it.
+    val context = LocalContext.current
+    val resolveUrl = LocalApiUrl.current
+    val fallbackAmbient = LocalAmbient.current
+    val coverUrl = remember(current?.image) { resolveUrl(current?.image) }
+    val ambient = produceState(
+        initialValue = fallbackAmbient,
+        key1 = coverUrl,
+    ) {
+        value = withContext(Dispatchers.IO) {
+            val bmp = if (coverUrl != null) {
+                local.auralis.client.ui.components.decodeCoverForAmbient(coverUrl, context.cacheDir)
+            } else null
+            extractAmbient(bmp) ?: fallbackAmbient
+        }
+    }.value
 
     // Accumulated scroll of the current view (reset on navigation) — drives the
     // large-title → inline-title collapse. Attached to an ANCESTOR of the content
@@ -180,6 +209,10 @@ fun Shell(vm: AppViewModel, ui: UiState) {
         LocalHazeStyle provides hazeStyle,
     ) {
     Box(Modifier.fillMaxSize()) {
+        // Ambient stage: a soft cover-driven wash over the deep-black canvas,
+        // behind everything (Liner's "content is the colour").
+        AmbientBackdrop(ambient, Modifier.fillMaxSize())
+
         // Content occupies the full stage; the mini player + dock float above it
         // so scrolled content passes underneath, Apple Music-style.
         Column(

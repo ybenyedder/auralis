@@ -27,6 +27,11 @@ export interface AuralisConfig {
   lyricsOnline: boolean;
   /** Whether to query Musixmatch for word-by-word (richsync) karaoke lyrics. */
   lyricsMusixmatch: boolean;
+  /** Whether to query NetEase Cloud Music (music.163.com) — the biggest gap-filler
+   *  for titles LRCLIB lacks (CN/JP/KR + international). Serves word-level `yrc`. */
+  lyricsNetease: boolean;
+  /** Whether to query QQ Music (y.qq.com) after the other providers — second gap-filler. */
+  lyricsQq: boolean;
   /** Base URL of the open lyrics database. Self-hostable LRCLIB mirrors are supported. */
   lyricsEndpoint: string;
   /** Keyless plain-lyrics fallback used when LRCLIB has nothing (lyrics.ovh). Empty disables it. */
@@ -131,6 +136,8 @@ export function getConfig(): AuralisConfig {
     authToken: firstDefined(process.env.AURALIS_TOKEN) ?? "",
     lyricsOnline: parseBool(process.env.AURALIS_LYRICS_ONLINE, true),
     lyricsMusixmatch: parseBool(process.env.AURALIS_LYRICS_MUSIXMATCH, true),
+    lyricsNetease: parseBool(process.env.AURALIS_LYRICS_NETEASE, true),
+    lyricsQq: parseBool(process.env.AURALIS_LYRICS_QQ, true),
     lyricsEndpoint: firstDefined(process.env.AURALIS_LYRICS_ENDPOINT) ?? "https://lrclib.net",
     lyricsFallbackEndpoint: process.env.AURALIS_LYRICS_FALLBACK ?? "https://api.lyrics.ovh",
     lyricsWriteSidecar: parseBool(process.env.AURALIS_LYRICS_SIDECAR, true),

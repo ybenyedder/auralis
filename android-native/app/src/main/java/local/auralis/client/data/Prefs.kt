@@ -36,8 +36,8 @@ class Prefs(context: Context) {
         val eqBands: List<Float>,
         /** UI language: "fr" (default) | "en". */
         val locale: String = "fr",
-        /** Appearance mode: "dark" | "light" | "auto" (system). */
-        val theme: String = "auto",
+        /** Appearance mode: "dark" (default) | "light" | "auto" (system). */
+        val theme: String = "dark",
         /** "Bulle Shazam": the system-wide recognition bubble is enabled. */
         val bubbleEnabled: Boolean = false,
     )
@@ -60,7 +60,7 @@ class Prefs(context: Context) {
             eqPreset = p[EQ_PRESET] ?: "flat",
             eqBands = parseEqBands(p[EQ_BANDS]),
             locale = p[LOCALE] ?: "fr",
-            theme = p[THEME] ?: "auto",
+            theme = p[THEME] ?: "dark",
             bubbleEnabled = p[BUBBLE_ENABLED] ?: false,
         )
     }
