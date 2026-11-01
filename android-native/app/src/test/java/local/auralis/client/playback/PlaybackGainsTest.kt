@@ -69,4 +69,45 @@ class PlaybackGainsTest {
         assertEquals(1f, PlaybackGains.combinedVolume(1f, 2f, 1f), 1e-6f)
         assertEquals(0f, PlaybackGains.combinedVolume(0f, 1f, 1f), 1e-6f)
     }
+
+    // ── Silence guard ──────────────────────────────────────────────────────
+    // A wild/legacy `gain` row must NEVER mute the track (the "Kanye West has no
+    // sound" report): attenuation is floored at MIN_VOLUME_FACTOR, and non-finite
+    // values fall back to unity.
+
+    @Test
+    fun `volumeFactor floors at MIN_VOLUME_FACTOR so a wild gain cannot mute the track`() {
+        // A pathologically loud master (gain far below anything real) is quietened
+        // but never silenced.
+        assertEquals(PlaybackGains.MIN_VOLUME_FACTOR, PlaybackGains.volumeFactor(-60.0), 1e-6f)
+        assertEquals(PlaybackGains.MIN_VOLUME_FACTOR, PlaybackGains.volumeFactor(-200.0), 1e-6f)
+        // The full factor keeps the same floor, so the degraded (no-enhancer) path
+        // can't mute either.
+        assertEquals(PlaybackGains.MIN_VOLUME_FACTOR, PlaybackGains.gainFactor(-200.0), 1e-6f)
+    }
+
+    @Test
+    fun `non-finite gain values fall back to unity instead of NaN silence`() {
+        assertEquals(1f, PlaybackGains.volumeFactor(Double.NaN), 1e-6f)
+        assertEquals(1f, PlaybackGains.volumeFactor(Double.POSITIVE_INFINITY), 1e-6f)
+        assertEquals(1f, PlaybackGains.volumeFactor(Double.NEGATIVE_INFINITY), 1e-6f)
+        assertEquals(1f, PlaybackGains.gainFactor(Double.NaN), 1e-6f)
+        assertEquals(0f, PlaybackGains.boostDb(Double.NaN), 1e-6f)
+    }
+
+    @Test
+    fun `resolveGainDb ignores non-finite members so one bad row cannot poison the album mean`() {
+        // Album mode: the NaN/∞ members are dropped, the finite mean is used.
+        val db = PlaybackGains.resolveGainDb(PlaybackGains.MODE_ALBUM, null, listOf(-4.0, Double.NaN, -2.0))
+        assertEquals(-3.0, db!!, 1e-9)
+        // Track mode with a bad own gain → nothing to apply (unity), not NaN.
+        assertNull(PlaybackGains.resolveGainDb(PlaybackGains.MODE_TRACK, Double.NaN, emptyList()))
+    }
+
+    @Test
+    fun `combinedVolume with a floored factor still produces audible output`() {
+        // Even the worst-case gain + full user volume yields an audible floor, not 0.
+        val v = PlaybackGains.combinedVolume(1f, PlaybackGains.volumeFactor(-200.0), 1f)
+        assertEquals(PlaybackGains.MIN_VOLUME_FACTOR, v, 1e-6f)
+    }
 }

@@ -84,8 +84,11 @@ import local.auralis.client.model.MoodMix
 import local.auralis.client.model.MoodRecs
 import local.auralis.client.model.Moods
 import local.auralis.client.model.OnlineTrack
+import local.auralis.client.model.SmartConfig
+import local.auralis.client.model.SmartContext
 import local.auralis.client.model.Track
 import local.auralis.client.model.dailyMoodMixes
+import local.auralis.client.model.evaluateSmartList
 import local.auralis.client.model.moodRecs
 import local.auralis.client.playback.QueueSource
 import local.auralis.client.ui.AppViewModel
@@ -1094,12 +1097,25 @@ fun LibraryScreen(vm: AppViewModel, ui: UiState) {
                 val ordered = remember(ui.playlists) { ui.playlists.sortedWith(compareByDescending { it.pinned }) }
                 LazyColumn(contentPadding = bottomPad) {
                     items(ordered, key = { it.id }) { pl ->
+                        // Resolved tracks for this row. Static playlists resolve their
+                        // hashes; SMART playlists compute theirs from rules — so the
+                        // count must reflect the EVALUATED list, not `trackhashes.size`
+                        // (which is empty for a smart playlist → the "0 titre" that
+                        // showed 30 on the detail screen).
+                        val rowTracks = remember(pl, ui.trackByHash, ui.tracks, ui.favorites, ui.playCounts) {
+                            if (pl.rules != null) {
+                                val cfg = runCatching { SmartConfig.fromJson(pl.rules) }.getOrNull()
+                                cfg?.let { evaluateSmartList(ui.tracks, it, SmartContext(ui.favorites, ui.playCounts)) } ?: emptyList()
+                            } else {
+                                pl.trackhashes.mapNotNull { ui.trackByHash[it] }
+                            }
+                        }
                         Row(verticalAlignment = Alignment.CenterVertically) {
                             Box(Modifier.weight(1f)) {
                                 PlaylistTile(
                                     if (pl.pinned) "📌 ${pl.name}" else pl.name,
-                                    pl.trackhashes.size, pl.id, pl.imageHash,
-                                    tracks = pl.trackhashes.mapNotNull { ui.trackByHash[it] }.take(4),
+                                    rowTracks.size, pl.id, pl.imageHash,
+                                    tracks = rowTracks.take(4),
                                 ) { vm.navigate(ViewId.PLAYLIST, pl.id) }
                             }
                             // Pin / reorder live behind ONE ⋯ button (labelled for

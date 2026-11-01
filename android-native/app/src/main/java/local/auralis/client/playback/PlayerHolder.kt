@@ -317,18 +317,30 @@ class PlayerHolder(
     /** Fade the gain in from ~0 to the target over [seconds] at each track start —
      *  the web's fadeInGain (scaled by the crossfade setting, no hard starts).
      *  The envelope multiplies over the user volume, so slider moves mid-fade just
-     *  rescale it — robust across pause/seek, which never retrigger the ramp. */
+     *  rescale it — robust across pause/seek, which never retrigger the ramp.
+     *
+     *  The ramp runs in its own job but is GUARANTEED to land on 1: `try/finally`
+     *  snaps the envelope to full even if the job is cancelled mid-ramp (a rapid
+     *  skip / release used to leave it stuck near 0 → the track played but stayed
+     *  silent until the app restarted). */
     private fun startFadeIn(seconds: Float) {
-        if (seconds <= 0f) return // crossfade off — plain instant transition
+        if (seconds <= 0f) { fadeEnvelope = 1f; return } // crossfade off — instant, full gain
         fadeJob?.cancel()
         fadeJob = scope.launch {
             val start = SystemClock.elapsedRealtime()
             val durMs = (seconds * 1000f).toLong().coerceAtLeast(1L)
             fadeEnvelope = 0f
             applyVolume()
-            while (fadeEnvelope < 1f) {
-                delay(50)
-                fadeEnvelope = ((SystemClock.elapsedRealtime() - start).toFloat() / durMs).coerceIn(0f, 1f)
+            try {
+                while (fadeEnvelope < 1f) {
+                    delay(50)
+                    fadeEnvelope = ((SystemClock.elapsedRealtime() - start).toFloat() / durMs).coerceIn(0f, 1f)
+                    applyVolume()
+                }
+            } finally {
+                // Never leave the envelope below full: a cancelled ramp must not
+                // mute the audio chain.
+                fadeEnvelope = 1f
                 applyVolume()
             }
         }

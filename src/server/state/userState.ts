@@ -230,7 +230,12 @@ export function upsertPlaylist(userId: number, input: PlaylistInput): string {
       WHERE playlists.user_id = @userId
     `).run({ id, userId, name, description, pinned: input.pinned ? 1 : 0, position, rules, now });
 
-    if (input.trackhashes) {
+    // Guard: `[]` is TRUTHY in JS. `if (input.trackhashes)` used to be true for an
+    // EMPTY array, so a metadata-only upsert (rename/pin/cover, which legitimately
+    // send `trackhashes: []` because they don't touch tracks) DELETED every row and
+    // reinserted none — silently emptying the playlist. Only rewrite tracks when a
+    // NON-EMPTY list is supplied; an empty/absent list leaves them untouched.
+    if (Array.isArray(input.trackhashes) && input.trackhashes.length > 0) {
       // Re-check ownership AFTER the metadata upsert: a row just created above is owned
       // by the caller (so it passes), but an existing id belonging to another user must
       // NOT have its tracks rewritten (IDOR). Only mutate tracks for an owned playlist.

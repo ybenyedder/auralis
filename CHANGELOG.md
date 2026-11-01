@@ -4,6 +4,42 @@ All notable changes to Auralis are documented here. The format is based on
 [Keep a Changelog](https://keepachangelog.com/) and this project adheres to
 [Semantic Versioning](https://semver.org/).
 
+## [1.32.0] - 2026-11-01
+
+Correction de trois bugs signalés après la mise à jour : titres de playlist
+disparus / comptés à zéro, et silence sur certains morceaux.
+
+### Corrigé — Android/Serveur : titres de playlist perdus (perte de données)
+Le vrai bug de fond : une mise à jour « métadonnées seulement » (renommer,
+épingler, changer la pochette) envoyait `trackhashes: []`. Côté serveur,
+`if (input.trackhashes)` est **vrai pour un tableau vide** en JS → la playlist
+était **vidée de tous ses titres** puis réinsérée… vide. C'est la cause des
+« anciennes playlists où j'ai perdu mes titres ».
+- **Serveur** : les titres ne sont réécrits que si une liste **non vide** est
+  fournie ; une liste vide/absente les laisse intacts.
+
+### Corrigé — Android : « 0 titre » mais 30 au clic
+Les playlists **intelligentes** affichaient `trackhashes.size` (= 0, car leurs
+titres sont calculés par règles) dans la liste, alors que le détail évalue les
+règles (30 titres). Le compte reflète désormais la **vraie liste évaluée**.
+
+### Corrigé — Android : silence sur certains morceaux (ex. Kanye West)
+Deux causes, deux garde-fous :
+- **Gain de normalisation sauvage** : un `gain` corrompu/ancien (non borné)
+  poussait le volume du lecteur vers 0 → le morceau tournait **sans son**. La
+  normalisation est désormais **planchée** (−12 dB max d'attenuation) et
+  immunisée contre NaN/∞ → un mauvais gain peut baisser le son, jamais le
+  couper. Aussi : un membre non fini ne peut plus empoisonner la moyenne d'album.
+- **Fondu bloqué à zéro** : l'enveloppe de fondu (crossfade) pouvait rester à 0
+  après une transition interrompue → **plus de son jusqu'au redémarrage de
+  l'app**. Le fondu atterrit toujours à 1 (garanti `try/finally`) et le fondu
+  désactivé passe directement à pleine puissance.
+
+### Tests
+- Nouveaux tests JVM : plancher de normalisation (jamais de silence), garde
+  NaN/∞, moyenne d'album protégée, sortie audible au pire cas. **197 tests web
+  verts** ; build + tests Android verts.
+
 ## [1.31.0] - 2026-11-01
 
 Grande passe « qualité perçue » sur Android : paroles façon Liner, pochettes de
