@@ -15,6 +15,7 @@ import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.aspectRatio
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -224,6 +225,55 @@ fun LargeTitle(text: String, modifier: Modifier = Modifier) {
         color = LocalAuralis.current.foreground,
         modifier = modifier,
     )
+}
+
+/**
+ * Spotify-style playlist cover: a 2×2 mosaic of the first four tracks' ALBUM
+ * covers (1 track → its album cover, 2 → split, 3 → 2+1). This replaces the
+ * hash-seeded gradient wash that made every auto-covered playlist look
+ * machine-generated — the mosaic is always real album art. The seeded gradient
+ * remains only as a last resort for a truly empty playlist.
+ */
+@Composable
+fun PlaylistMosaic(
+    tracks: List<Track>,
+    seed: String?,
+    modifier: Modifier = Modifier,
+    cornerRadius: Int = 10,
+    sizeDp: Int = 0,
+) {
+    val covers = tracks.take(4).map { it.image }
+    Box(
+        modifier
+            .clip(RoundedCornerShape(cornerRadius.dp))
+            .background(LocalAuralis.current.panel2),
+    ) {
+        when {
+            covers.isEmpty() -> CoverArt(null, seed, Modifier.fillMaxSize(), cornerRadius = cornerRadius, sizeDp = sizeDp)
+            covers.size == 1 -> CoverArt(covers[0], tracks[0].albumhash ?: seed, Modifier.fillMaxSize(), cornerRadius = cornerRadius, sizeDp = sizeDp)
+            covers.size == 2 -> Column(Modifier.fillMaxSize()) {
+                CoverArt(covers[0], tracks[0].albumhash ?: seed, Modifier.fillMaxWidth().weight(1f), cornerRadius = 0, sizeDp = sizeDp / 2)
+                CoverArt(covers[1], tracks[1].albumhash ?: seed, Modifier.fillMaxWidth().weight(1f), cornerRadius = 0, sizeDp = sizeDp / 2)
+            }
+            covers.size == 3 -> Row(Modifier.fillMaxSize()) {
+                CoverArt(covers[0], tracks[0].albumhash ?: seed, Modifier.fillMaxHeight().weight(1f), cornerRadius = 0, sizeDp = sizeDp / 2)
+                Column(Modifier.fillMaxHeight().weight(1f)) {
+                    CoverArt(covers[1], tracks[1].albumhash ?: seed, Modifier.fillMaxWidth().weight(1f), cornerRadius = 0, sizeDp = sizeDp / 2)
+                    CoverArt(covers[2], tracks[2].albumhash ?: seed, Modifier.fillMaxWidth().weight(1f), cornerRadius = 0, sizeDp = sizeDp / 2)
+                }
+            }
+            else -> Column(Modifier.fillMaxSize()) {
+                Row(Modifier.fillMaxWidth().weight(1f)) {
+                    CoverArt(covers[0], tracks[0].albumhash ?: seed, Modifier.weight(1f).fillMaxSize(), cornerRadius = 0, sizeDp = sizeDp / 2)
+                    CoverArt(covers[1], tracks[1].albumhash ?: seed, Modifier.weight(1f).fillMaxSize(), cornerRadius = 0, sizeDp = sizeDp / 2)
+                }
+                Row(Modifier.fillMaxWidth().weight(1f)) {
+                    CoverArt(covers[2], tracks[2].albumhash ?: seed, Modifier.weight(1f).fillMaxSize(), cornerRadius = 0, sizeDp = sizeDp / 2)
+                    CoverArt(covers[3], tracks[3].albumhash ?: seed, Modifier.weight(1f).fillMaxSize(), cornerRadius = 0, sizeDp = sizeDp / 2)
+                }
+            }
+        }
+    }
 }
 
 /**

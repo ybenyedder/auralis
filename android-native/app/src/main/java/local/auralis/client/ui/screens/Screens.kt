@@ -110,7 +110,7 @@ import local.auralis.client.ui.theme.Radius
 import local.auralis.client.ui.theme.Spacing
 import local.auralis.client.ui.theme.Type
 
-private val bottomPad = PaddingValues(start = 16.dp, end = 16.dp, top = 12.dp, bottom = 170.dp)
+private val bottomPad = PaddingValues(start = 16.dp, end = 16.dp, top = 4.dp, bottom = 170.dp)
 
 private fun seededShuffle(list: List<Track>, seed: Long): List<Track> {
     val arr = list.toMutableList()
@@ -172,11 +172,16 @@ fun HomeScreen(vm: AppViewModel, ui: UiState) {
     val pb = currentPlaybackOf(vm)
     val current = pb.currentId
     val playing = pb.isPlaying
-    val quickTiles = buildList {
+    // Built once per (home derivation + recents) change, not on every
+    // recomposition: this allocates a QuickTileItem + closures per tile.
+    // tr() is composable, so the translated labels are resolved OUTSIDE the
+    // remember and passed in as keys.
+    val likedLabel = tr("home.likedTracks")
+    val quickTiles = remember(home, recentsTracks, likedLabel) { buildList {
         if (home.favTracks.isNotEmpty()) {
             add(
                 QuickTileItem(
-                    "liked", tr("home.likedTracks"), null, null, null, liked = true,
+                    "liked", likedLabel, null, null, null, liked = true,
                     onOpen = { vm.navigate(ViewId.FAVORITES) },
                     // "Titres likés" plays a shuffled queue of the liked tracks
                     // ONLY — the continuation stays inside the liked set.
@@ -198,13 +203,17 @@ fun HomeScreen(vm: AppViewModel, ui: UiState) {
                 ),
             )
         }
+    } }
+    // Memoised: this is an O(library) scan and ran on EVERY recomposition.
+    val hasUnheard = remember(ui.tracks, ui.playCounts, ui.dislikes) {
+        ui.tracks.any { (ui.playCounts[it.trackhash] ?: 0) == 0 && it.trackhash !in ui.dislikes }
     }
 
     LazyColumn(contentPadding = bottomPad) {
         // Liner-style hero: greeting kicker + large title (replaces the lone bold
         // word that used to sit in the corner).
         item {
-            Column(Modifier.padding(top = 6.dp, bottom = 14.dp)) {
+            Column(Modifier.padding(top = 0.dp, bottom = 14.dp)) {
                 val hour = java.util.Calendar.getInstance().get(java.util.Calendar.HOUR_OF_DAY)
                 val greeting = tr(greetingKeyFor(hour))
                 val subtitle = when {
@@ -254,7 +263,7 @@ fun HomeScreen(vm: AppViewModel, ui: UiState) {
 
         // "Jamais écoutés" hero — the discovery entry point on the ACCUEIL tab,
         // where users look for it.
-        if (ui.tracks.any { (ui.playCounts[it.trackhash] ?: 0) == 0 && it.trackhash !in ui.dislikes }) {
+        if (hasUnheard) {
             item {
                 Spacer(Modifier.height(16.dp))
                 Box(
@@ -317,40 +326,6 @@ fun HomeScreen(vm: AppViewModel, ui: UiState) {
             }
         }
 
-        // "Blend du foyer" (web BlendShelf): one card per other account, each a
-        // mix that averages both tastes (engine-side) + its match score.
-        if (ui.blendMembers.isNotEmpty()) {
-            item {
-                Spacer(Modifier.height(24.dp))
-                SectionHeader(tr("home.blend"))
-                LazyRow(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                    items(ui.blendMembers, key = { it.username }) { m ->
-                        val (c0, c1, _) = local.auralis.client.ui.components.paletteFor(m.username)
-                        Box(
-                            Modifier.width(160.dp).height(120.dp)
-                                .clip(AMShapes.card)
-                                .background(Brush.linearGradient(listOf(c0, c1)))
-                                .clickable { vm.startBlend(m.username, m.username) }
-                                .padding(14.dp),
-                        ) {
-                            Column(Modifier.align(Alignment.BottomStart)) {
-                                Text(
-                                    tr("home.blendWith", params = mapOf("user" to m.username)), color = Color.White,
-                                    style = AMType.Subhead, fontWeight = FontWeight.Bold,
-                                    maxLines = 1, overflow = TextOverflow.Ellipsis,
-                                )
-                                Text(
-                                    tr("home.blendMatch", params = mapOf("match" to m.match)),
-                                    color = Color.White.copy(alpha = 0.8f), style = AMType.Caption1,
-                                    maxLines = 1, overflow = TextOverflow.Ellipsis,
-                                )
-                            }
-                        }
-                    }
-                }
-            }
-        }
-
         // "Pour votre humeur" (web HomeView moodRecs): discovery within the vibe the
         // user already loves — the mood they listen to most (engine affinity first),
         // surfaced as tracks from it the engine scores highest / they played least.
@@ -359,12 +334,6 @@ fun HomeScreen(vm: AppViewModel, ui: UiState) {
             item {
                 Spacer(Modifier.height(24.dp))
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    Box(
-                        Modifier.size(44.dp).clip(AMShapes.tile)
-                            .background(hexColor(mood?.c0 ?: "#888888")),
-                        contentAlignment = Alignment.Center,
-                    ) { Icon(Icons.Filled.MusicNote, null, tint = Color.White, modifier = Modifier.size(22.dp)) }
-                    Spacer(Modifier.width(12.dp))
                     Column(Modifier.weight(1f)) {
                         Eyebrow(tr("home.forMood"))
                         Text(mood?.label ?: mr.moodId, style = AMType.Title3, color = colors.foreground)
@@ -816,10 +785,10 @@ fun SearchScreen(vm: AppViewModel, ui: UiState) {
             LazyColumn(contentPadding = PaddingValues(bottom = 170.dp)) {
                 if (history.isNotEmpty()) {
                     item { SectionHeader(tr("nav.recents")) }
-                    items(history, key = { it.trackhash }) { t ->
+                    itemsIndexed(history, key = { i, t -> "${t.trackhash}#$i" }) { idx, t ->
                         TrackRow(
                             t, isCurrent = t.trackhash == current, isPlaying = playing, isFavorite = ui.favorites.contains(t.trackhash),
-                            onClick = { vm.playTrack(t, history, history.indexOf(t)) },
+                            onClick = { vm.playTrack(t, history, idx) },
                             onToggleFavorite = { vm.toggleFavorite(t.trackhash) }, onMore = { vm.openTrackMenu(t) },
                         )
                     }
@@ -862,10 +831,10 @@ fun SearchScreen(vm: AppViewModel, ui: UiState) {
                 }
                 if (res.tracks.isNotEmpty()) {
                     item { SectionHeader(tr("search.songs")) }
-                    items(res.tracks, key = { it.trackhash }) { t ->
+                    itemsIndexed(res.tracks, key = { i, t -> "${t.trackhash}#$i" }) { idx, t ->
                         TrackRow(
                             t, isCurrent = t.trackhash == current, isPlaying = playing, isFavorite = ui.favorites.contains(t.trackhash),
-                            onClick = { vm.playTrack(t, res.tracks, res.tracks.indexOf(t)) },
+                            onClick = { vm.playTrack(t, res.tracks, idx) },
                             onToggleFavorite = { vm.toggleFavorite(t.trackhash) }, onMore = { vm.openTrackMenu(t) },
                         )
                     }
@@ -1127,7 +1096,11 @@ fun LibraryScreen(vm: AppViewModel, ui: UiState) {
                     items(ordered, key = { it.id }) { pl ->
                         Row(verticalAlignment = Alignment.CenterVertically) {
                             Box(Modifier.weight(1f)) {
-                                PlaylistTile(if (pl.pinned) "📌 ${pl.name}" else pl.name, pl.trackhashes.size, pl.id, pl.imageHash) { vm.navigate(ViewId.PLAYLIST, pl.id) }
+                                PlaylistTile(
+                                    if (pl.pinned) "📌 ${pl.name}" else pl.name,
+                                    pl.trackhashes.size, pl.id, pl.imageHash,
+                                    tracks = pl.trackhashes.mapNotNull { ui.trackByHash[it] }.take(4),
+                                ) { vm.navigate(ViewId.PLAYLIST, pl.id) }
                             }
                             // Pin / reorder live behind ONE ⋯ button (labelled for
                             // TalkBack) — no more emoji piles scattered in the row.

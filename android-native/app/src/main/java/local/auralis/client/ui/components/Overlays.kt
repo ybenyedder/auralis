@@ -27,6 +27,7 @@ import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -118,8 +119,12 @@ private fun Cmd(title: String, subtitle: String, onClick: () -> Unit) {
 // is kept as a purely DECORATIVE looping sine animation — labelled as such in the
 // UI and for accessibility so it isn't mistaken for a real spectrum.
 @Composable
-fun VisualizerOverlay(title: String?, isPlaying: Boolean, amplitudes: FloatArray?, onClose: () -> Unit) {
+fun VisualizerOverlay(title: String?, isPlaying: Boolean, vm: local.auralis.client.ui.AppViewModel, onClose: () -> Unit) {
     val colors = LocalAuralis.current
+    // Collected here (the only consumer): AudioFx emits at capture rate (~20 Hz)
+    // and reading it at the Shell root would recompose the whole chrome at 20 Hz.
+    val amps by vm.visualizerAmps.collectAsState()
+    val amplitudes = amps
     val real = amplitudes != null
     val transition = rememberInfiniteTransition(label = "viz")
     val t by transition.animateFloat(

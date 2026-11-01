@@ -389,7 +389,13 @@ fun PlaylistDetail(vm: AppViewModel, ui: UiState, playlistId: String) {
             DetailHero(seed = playlistId) {
                 Box {
                     Box(Modifier.shadow(18.dp, AMShapes.card, clip = false)) {
-                        CoverArt(pl?.imageHash?.let { "/api/art/$it" }, playlistId, Modifier.size(180.dp), cornerRadius = 12)
+                        // Custom cover when set, else the Spotify-style album mosaic
+                        // (never the seeded gradient wash).
+                        if (pl?.imageHash != null) {
+                            CoverArt(pl?.imageHash?.let { "/api/art/$it" }, playlistId, Modifier.size(180.dp), cornerRadius = 12)
+                        } else {
+                            local.auralis.client.ui.components.PlaylistMosaic(tracks, playlistId, Modifier.size(180.dp), cornerRadius = 12, sizeDp = 180)
+                        }
                     }
                     if (!isCollaborator) {
                         Box(

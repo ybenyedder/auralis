@@ -525,6 +525,9 @@ data class LyricsResult(
     val synced: Boolean,
     val lines: List<LyricsLine>,
     val plain: String?,
+    /** Which provider served these lyrics (musixmatch | netease | lrclib | qq |
+     *  lyricsovh | sidecar | manual) — shown on the Liner-style source pill. */
+    val source: String? = null,
 ) {
     val isSynced: Boolean get() = synced && (lines.size > 1 || lines.any { it.time > 0 })
 
@@ -546,6 +549,7 @@ data class LyricsResult(
                 synced = o.boolOr("synced", false),
                 lines = lines,
                 plain = o.str("plain"),
+                source = o.str("source"),
             )
         }
     }

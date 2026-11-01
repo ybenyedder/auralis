@@ -16,7 +16,7 @@
 import { createLogger } from "../logger";
 import { normalizeName } from "../library/ids";
 import { serializeLrc, type LyricWord, type SyncedLine } from "./lrc";
-import { fetchJsonCapped, qs } from "./net";
+import { fetchJsonCapped, qs, searchVariants } from "./net";
 
 const log = createLogger("lyrics:netease");
 
@@ -42,41 +42,44 @@ interface NeteaseLyricBody {
   code?: number;
 }
 
-/** Search NetEase for the closest (title, artist, duration) candidate. */
+/** Search NetEase for the closest (title, artist, duration) candidate, trying
+ *  each query variant in turn (exact → cleaned → bare title) so decorated or
+ *  apostrophe-heavy titles ("Kyle's mom") still resolve. */
 async function searchBestId(title: string, artist: string, durationMs: number): Promise<number | null> {
-  const kw = [title, artist].filter(Boolean).join(" ");
-  if (!kw) return null;
-  const json = (await fetchJsonCapped(
-    `${BASE_URL}/api/search/get/web?${qs({ s: kw, type: 1, limit: 10 })}`,
-    { headers: WEB_HEADERS },
-  )) as { result?: { songs?: NeteaseSong[] } } | null;
-  const songs = json?.result?.songs ?? [];
-  if (songs.length === 0) return null;
+  for (const kw of searchVariants(title, artist)) {
+    const json = (await fetchJsonCapped(
+      `${BASE_URL}/api/search/get/web?${qs({ s: kw, type: 1, limit: 10 })}`,
+      { headers: WEB_HEADERS },
+    )) as { result?: { songs?: NeteaseSong[] } } | null;
+    const songs = json?.result?.songs ?? [];
+    if (songs.length === 0) continue;
 
-  const wantTitle = normalizeName(title);
-  const wantArtist = normalizeName(artist);
-  let best: { id: number; score: number } | null = null;
-  for (const s of songs) {
-    if (typeof s.id !== "number") continue;
-    const sTitle = normalizeName(s.name ?? "");
-    const sArtist = normalizeName((s.artists ?? []).map((a) => a.name ?? "").join(" "));
-    let score = 0;
-    if (sTitle === wantTitle) score += 60;
-    else if (sTitle && wantTitle && (sTitle.includes(wantTitle) || wantTitle.includes(sTitle))) score += 25;
-    else score -= 80;
-    if (sArtist && wantArtist && (sArtist.includes(wantArtist) || wantArtist.includes(sArtist))) score += 30;
-    else if (sArtist && wantArtist) score -= 30;
-    if (durationMs > 0 && typeof s.duration === "number" && s.duration > 0) {
-      const delta = Math.abs(s.duration - durationMs) / 1000;
-      if (delta <= 3) score += 25;
-      else if (delta <= 8) score += 8;
-      else if (delta > 25) score -= 60; // clearly a different recording
+    const wantTitle = normalizeName(title);
+    const wantArtist = normalizeName(artist);
+    let best: { id: number; score: number } | null = null;
+    for (const s of songs) {
+      if (typeof s.id !== "number") continue;
+      const sTitle = normalizeName(s.name ?? "");
+      const sArtist = normalizeName((s.artists ?? []).map((a) => a.name ?? "").join(" "));
+      let score = 0;
+      if (sTitle === wantTitle) score += 60;
+      else if (sTitle && wantTitle && (sTitle.includes(wantTitle) || wantTitle.includes(sTitle))) score += 25;
+      else score -= 80;
+      if (sArtist && wantArtist && (sArtist.includes(wantArtist) || wantArtist.includes(sArtist))) score += 30;
+      else if (sArtist && wantArtist) score -= 30;
+      if (durationMs > 0 && typeof s.duration === "number" && s.duration > 0) {
+        const delta = Math.abs(s.duration - durationMs) / 1000;
+        if (delta <= 3) score += 25;
+        else if (delta <= 8) score += 8;
+        else if (delta > 25) score -= 60; // clearly a different recording
+      }
+      if (!best || score > best.score) best = { id: s.id, score };
     }
-    if (!best || score > best.score) best = { id: s.id, score };
+    // Only accept a candidate the matcher actually recognises — a wild pick would
+    // pair the wrong song's words with the track (the wrong-song guard).
+    if (best && best.score > 0) return best.id;
   }
-  // Only accept a candidate the matcher actually recognises — a wild pick would
-  // pair the wrong song's words with the track (the wrong-song guard).
-  return best && best.score > 0 ? best.id : null;
+  return null;
 }
 
 /**

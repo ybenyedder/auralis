@@ -12,7 +12,7 @@
 
 import { createLogger } from "../logger";
 import { normalizeName } from "../library/ids";
-import { fetchJsonCapped, fetchTextCapped, qs } from "./net";
+import { fetchJsonCapped, fetchTextCapped, qs, searchVariants } from "./net";
 
 const log = createLogger("lyrics:qq");
 
@@ -35,40 +35,42 @@ interface QqSearchBody {
   data?: { song?: { list?: QqSong[] } };
 }
 
-/** Pick the QQ song whose (title, artist, duration) best matches the track. */
+/** Pick the QQ song whose (title, artist, duration) best matches the track,
+ *  trying each query variant in turn (exact → cleaned → bare title). */
 async function searchBestMid(title: string, artist: string, durationSec: number): Promise<string | null> {
-  const kw = [title, artist].filter(Boolean).join(" ");
-  if (!kw) return null;
-  const json = (await fetchJsonCapped(
-    `${SEARCH_BASE}/soso/fcgi-bin/client_search_cp?${qs({ w: kw, format: "json", n: 10, p: 1 })}`,
-    { headers: WEB_HEADERS },
-  )) as QqSearchBody | null;
-  const songs = json?.data?.song?.list ?? [];
-  if (songs.length === 0) return null;
+  for (const kw of searchVariants(title, artist)) {
+    const json = (await fetchJsonCapped(
+      `${SEARCH_BASE}/soso/fcgi-bin/client_search_cp?${qs({ w: kw, format: "json", n: 10, p: 1 })}`,
+      { headers: WEB_HEADERS },
+    )) as QqSearchBody | null;
+    const songs = json?.data?.song?.list ?? [];
+    if (songs.length === 0) continue;
 
-  const wantTitle = normalizeName(title);
-  const wantArtist = normalizeName(artist);
-  let best: { mid: string; score: number } | null = null;
-  for (const s of songs) {
-    const mid = s.songmid;
-    if (!mid) continue;
-    const sTitle = normalizeName(s.songname ?? "");
-    const sArtist = normalizeName((s.singer ?? []).map((x) => x.name ?? "").join(" "));
-    let score = 0;
-    if (sTitle === wantTitle) score += 60;
-    else if (sTitle && wantTitle && (sTitle.includes(wantTitle) || wantTitle.includes(sTitle))) score += 25;
-    else score -= 80;
-    if (sArtist && wantArtist && (sArtist.includes(wantArtist) || wantArtist.includes(sArtist))) score += 30;
-    else if (sArtist && wantArtist) score -= 30;
-    if (durationSec > 0 && typeof s.interval === "number" && s.interval > 0) {
-      const delta = Math.abs(s.interval - durationSec);
-      if (delta <= 3) score += 25;
-      else if (delta <= 8) score += 8;
-      else if (delta > 25) score -= 60;
+    const wantTitle = normalizeName(title);
+    const wantArtist = normalizeName(artist);
+    let best: { mid: string; score: number } | null = null;
+    for (const s of songs) {
+      const mid = s.songmid;
+      if (!mid) continue;
+      const sTitle = normalizeName(s.songname ?? "");
+      const sArtist = normalizeName((s.singer ?? []).map((x) => x.name ?? "").join(" "));
+      let score = 0;
+      if (sTitle === wantTitle) score += 60;
+      else if (sTitle && wantTitle && (sTitle.includes(wantTitle) || wantTitle.includes(sTitle))) score += 25;
+      else score -= 80;
+      if (sArtist && wantArtist && (sArtist.includes(wantArtist) || wantArtist.includes(sArtist))) score += 30;
+      else if (sArtist && wantArtist) score -= 30;
+      if (durationSec > 0 && typeof s.interval === "number" && s.interval > 0) {
+        const delta = Math.abs(s.interval - durationSec);
+        if (delta <= 3) score += 25;
+        else if (delta <= 8) score += 8;
+        else if (delta > 25) score -= 60;
+      }
+      if (!best || score > best.score) best = { mid, score };
     }
-    if (!best || score > best.score) best = { mid, score };
+    if (best && best.score > 0) return best.mid;
   }
-  return best && best.score > 0 ? best.mid : null;
+  return null;
 }
 
 /** Strip QQ's UTF-8 BOM / wrapper whitespace so the LRC parser sees clean text. */

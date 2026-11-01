@@ -4,6 +4,60 @@ All notable changes to Auralis are documented here. The format is based on
 [Keep a Changelog](https://keepachangelog.com/) and this project adheres to
 [Semantic Versioning](https://semver.org/).
 
+## [1.31.0] - 2026-11-01
+
+Grande passe « qualité perçue » sur Android : paroles façon Liner, pochettes de
+playlist réelles, home nettoyée, et un audit de performance complet pour enfin
+une app fluide.
+
+### Changé — Android : paroles façon Liner
+- **Îlot verre** : une barre dépolie unique en bas du voile de paroles — la
+  source qui les a servies (« Musixmatch », « NetEase », « LRCLIB »…) à gauche,
+  le bouton Karaoké et le pas-à-pas de décalage (− / +0.1s / +) à droite. Fini
+  la rangée de puces brutes en haut.
+- **Rendu karaoke** : ligne active plus grande et centrée, révélation mot à mot
+  plus lisible, voisines atténuées et adoucies.
+
+### Changé — Android : pochettes de playlist réelles (comme Spotify)
+- Fini le dégradé généré par hash (« trop IA ») : sans pochette custom, une
+  playlist affiche une **mosaïque 2×2 des pochettes d'albums de ses titres**
+  (1 titre → sa pochette, 2/3 → réparti). Le dégradé n'apparaît que pour une
+  playlist vraiment vide. Partout : liste + écran de détail.
+
+### Changé — Android : home nettoyée et remontée
+- **« Blend du foyer » supprimé** de la home (et son chargement réseau).
+- **« Pour votre humeur »** : la petite icône carrée disparaît.
+- Le hero (« Bonsoir / ACCUEIL ») et tout le contenu sont **remontés** — l'espace
+  vide en haut est comblé (retraits haut réduits).
+
+### Changé — Android : transitions plus fluides
+- Le changement d'onglet (Accueil ↔ Nouveau…) est un **fondu rapide + micro
+  échelle** — plus de glissement latéral qui sautillait ; le push d'écran garde
+  son glissement doux.
+
+### Corrigé — paroles introuvables (ex. « South Park — Kyle's mom »)
+- **Variantes de recherche** : chaque provider essaie titre+artiste → nettoyé
+  (apostrophes, parenthèses, « feat. » retirés) → titre seul. Les titres
+  décorés résolvent enfin.
+- **Cache négatif** : « introuvable » est retenté au bout d'**1 jour** au lieu
+  d'une semaine (un titre cherché avant NetEase/QQ restait bloqué des jours).
+
+### Performance — audit complet (fluidité)
+- **Position de lecture** : plus collectée à la racine Shell (elle tiquait
+  4×/sec et recomposait toute l'app + le lecteur entier) → collectée dans les
+  feuilles concernées (mini-player, scrubber, paroles).
+- **Glissement de fermeture** du lecteur : le calcul d'échelle passe en phase de
+  dessin (plus de recomposition à chaque frame du doigt).
+- **Sélecteur de sélection / toggle de lecture** : mémoïsés et arrêtent de
+  capturer tout l'état (plus de recomposition de chaque ligne à chaque changement).
+- **Home** : scans mémoïsés (tuiles rapides, « jamais écoutés »).
+- **Visualiseur** : amplitudes collectées dans l'overlay (plus de 20 Hz sur toute
+  l'app).
+- **Clés de liste** sûres sur recherche/historique (crash « Key was already used »).
+
+### Tests
+- Suite web : **197 tests verts** ; build + tests Android verts.
+
 ## [1.30.0] - 2026-11-01
 
 Suite de la refonte « vibe Liner » : finition de l'expérience de chargement et

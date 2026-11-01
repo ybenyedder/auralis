@@ -25,7 +25,8 @@ const log = createLogger("lyrics");
 // library can't grow this set without bound.
 const warnedSidecarDirs = new Set<string>();
 
-const NEGATIVE_TTL_MS = 7 * 24 * 60 * 60 * 1000; // retry "not found" weekly
+const NEGATIVE_TTL_MS = 24 * 60 * 60 * 1000; // retry "not found" daily (was a week — a
+// track first looked up before NetEase/QQ were added stayed "introuvable" for days)
 const FETCH_TIMEOUT_MS = 9000;
 const MAX_LYRICS_BYTES = 512 * 1024; // bound memory: a lyrics doc is never this big
 const USER_AGENT = "Auralis/1.2.0 (self-hosted music server; https://github.com/ybenyedder/auralis)";

@@ -7,7 +7,10 @@ import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.aspectRatio
+import androidx.compose.foundation.layout.fillMaxHeight
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -35,7 +38,9 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import local.auralis.client.model.Album
 import local.auralis.client.model.Artist
+import local.auralis.client.model.Track
 import local.auralis.client.ui.components.CoverArt
+import local.auralis.client.ui.components.PlaylistMosaic
 import local.auralis.client.ui.components.paletteFor
 import local.auralis.client.ui.theme.AMShapes
 import local.auralis.client.ui.theme.AMType
@@ -130,7 +135,14 @@ fun LazyItemScope.ArtistCard(
 }
 
 @Composable
-fun LazyItemScope.PlaylistTile(name: String, count: Int, seed: String, imageHash: String? = null, onClick: () -> Unit) {
+fun LazyItemScope.PlaylistTile(
+    name: String,
+    count: Int,
+    seed: String,
+    imageHash: String? = null,
+    tracks: List<Track> = emptyList(),
+    onClick: () -> Unit,
+) {
     val colors = LocalAuralis.current
     androidx.compose.foundation.layout.Row(
         Modifier
@@ -141,14 +153,16 @@ fun LazyItemScope.PlaylistTile(name: String, count: Int, seed: String, imageHash
             .padding(vertical = Spacing.sm),
         verticalAlignment = Alignment.CenterVertically,
     ) {
+        // Custom cover if the user set one; otherwise the Spotify-style 2×2
+        // mosaic of the playlist's first album covers (never a gradient wash).
         if (imageHash != null) {
             val resolveUrl = LocalApiUrl.current
             NetworkImage(
                 resolveUrl("/api/art/$imageHash"), Modifier.size(52.dp),
-                fallback = { CoverArt(null, seed, Modifier.size(52.dp), cornerRadius = Radius.sm.value.toInt(), sizeDp = 52) },
+                fallback = { PlaylistMosaic(tracks, seed, Modifier.size(52.dp), cornerRadius = 8, sizeDp = 52) },
             )
         } else {
-            CoverArt(null, seed, Modifier.size(52.dp), cornerRadius = Radius.sm.value.toInt(), sizeDp = 52)
+            PlaylistMosaic(tracks, seed, Modifier.size(52.dp), cornerRadius = 8, sizeDp = 52)
         }
         androidx.compose.foundation.layout.Spacer(Modifier.width(Spacing.md))
         Column(Modifier.weight(1f)) {

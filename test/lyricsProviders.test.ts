@@ -7,6 +7,7 @@ import { test } from "vitest";
 import assert from "node:assert/strict";
 import { parseYrc } from "../src/server/lyrics/netease";
 import { __qqInternals } from "../src/server/lyrics/qq";
+import { searchVariants } from "../src/server/lyrics/net";
 
 // ── NetEase yrc parsing ─────────────────────────────────────────────────────
 // Format: [startMs,durationMs](wordStartMs,wordDurationMs,0)word(...)word…
@@ -63,4 +64,33 @@ test("cleanLyric normalises escaped newlines and BOM into parseable LRC", () => 
   assert.ok(cleaned);
   assert.ok(cleaned.includes("\n"));
   assert.ok(cleaned.startsWith("[00:01.00]"));
+});
+
+// ── searchVariants (the "Kyle's mom" gap-filler) ────────────────────────────
+// Decorated / apostrophe-heavy titles match poorly against a literal
+// title+artist query. The variants go exact → cleaned → bare title.
+
+test("searchVariants leads with the exact title+artist query", () => {
+  const v = searchVariants("Kyle's mom", "South Park");
+  assert.equal(v[0], "Kyle's mom South Park");
+});
+
+test("searchVariants offers a cleaned query with decorations and apostrophes stripped", () => {
+  const v = searchVariants("Kyle's mom (From \"South Park\")", "South Park feat. someone");
+  const cleaned = v.find((q) => !q.includes("'") && !q.includes("("));
+  assert.ok(cleaned, "a decoration-free variant exists");
+  assert.ok(!cleaned.includes("feat"), "feat. tails are dropped");
+});
+
+test("searchVariants includes a bare-title fallback for over-constrained lookups", () => {
+  const v = searchVariants("Bohemian Rhapsody", "Queen");
+  assert.ok(v.includes("Bohemian Rhapsody"), "bare title is among the variants");
+});
+
+test("searchVariants de-duplicates and never emits an empty query", () => {
+  const v = searchVariants("", "");
+  assert.equal(v.length, 0);
+  const v2 = searchVariants("Hello", "");
+  assert.ok(v2.every((q) => q.trim().length >= 2));
+  assert.equal(new Set(v2).size, v2.length, "no duplicate queries");
 });

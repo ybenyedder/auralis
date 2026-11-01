@@ -61,3 +61,37 @@ export function qs(params: Record<string, string | number>): string {
     .map(([k, v]) => `${encodeURIComponent(k)}=${encodeURIComponent(String(v))}`)
     .join("&");
 }
+
+/**
+ * Search-term variants for a track, from most to least specific. Providers get
+ * ONE query today; "South Park — Kyle's mom" style titles (apostrophes,
+ * parentheticals, "feat.") match poorly against a literal title+artist string.
+ * Trying these in order — exact, cleaned, bare title — is what closes those
+ * "aucune parole" gaps without ever loosening the candidate match guard.
+ */
+export function searchVariants(title: string, artist: string): string[] {
+  const out: string[] = [];
+  const push = (s: string) => {
+    const t = s.replace(/\s+/g, " ").trim();
+    if (t.length >= 2 && !out.includes(t)) out.push(t);
+  };
+  // 1) title + artist (the canonical lookup).
+  push(`${title} ${artist}`);
+  // 2) title + artist with decorations stripped: (feat. X), [Remastered 2011],
+  //    apostrophes/quotes, " - Remastered", "Live", "Version"… keep it musical.
+  const clean = (s: string) =>
+    s
+      .replace(/\([^)]*\)/g, " ")
+      .replace(/\[[^\]]*\]/g, " ")
+      .replace(/[''`´]/g, "")
+      .replace(/\b(feat\.?|ft\.?|featuring)\b[^,]*/gi, " ")
+      .replace(/[-–—]\s*(remaster(ed)?|live|version|remix|edit|mono|stereo|bonus track).*$/i, " ")
+      .replace(/[^\p{L}\p{N}\s]/gu, " ");
+  push(`${clean(title)} ${clean(artist)}`);
+  // 3) bare cleaned title (a title alone often resolves where title+artist is
+  //    over-constrained — e.g. a show name in the artist slot).
+  push(clean(title));
+  // 4) bare original title as a last resort.
+  push(title);
+  return out;
+}

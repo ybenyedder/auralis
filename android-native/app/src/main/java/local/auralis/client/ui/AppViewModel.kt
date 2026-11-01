@@ -499,7 +499,6 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
                 accounting.refreshRecoNow()
                 fetchRecapAndMaybeNotify()
                 refreshDiscoverMix()
-                loadBlendShelf()
                 restoreLastSession()
             } catch (e: AuralisApi.ApiException) {
                 if (e.code == 401) {

@@ -53,6 +53,7 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -113,8 +114,11 @@ import kotlin.math.abs
 // ---------------------------------------------------------------------------
 
 @Composable
-fun MiniPlayer(track: Track, playback: PlaybackSnapshot, positionMs: Long, vm: AppViewModel, onOpen: () -> Unit) {
+fun MiniPlayer(track: Track, playback: PlaybackSnapshot, vm: AppViewModel, onOpen: () -> Unit) {
     val colors = LocalAuralis.current
+    // Collected in the leaf, not at the Shell root: the 4 Hz position tick only
+    // invalidates this card (and its hairline), never the whole app chrome.
+    val positionMs by vm.position.collectAsState()
     // Player-reported duration first: stream metadata can omit `duration`, which left
     // this hairline stuck at zero even though playback knows the length.
     val dur = if (playback.durationMs > 0) playback.durationMs.toDouble() else (track.duration ?: 0.0) * 1000.0
@@ -174,7 +178,6 @@ fun MiniPlayer(track: Track, playback: PlaybackSnapshot, positionMs: Long, vm: A
 fun FullscreenPlayer(
     track: Track,
     playback: PlaybackSnapshot,
-    positionMs: Long,
     ui: UiState,
     vm: AppViewModel,
     onClose: () -> Unit,
@@ -188,9 +191,9 @@ fun FullscreenPlayer(
 
     // Interactive dismissal: pulling the stage down slides it while the artwork
     // scales back; release past the threshold closes, otherwise it springs home.
+    // `dismissY.value` is read ONLY inside graphicsLayer blocks (draw phase), so
+    // dragging does not recompose this whole tree per pointer move.
     val dismissY = remember { Animatable(0f) }
-    val dismissYv = dismissY.value // reading .value subscribes this scope to changes
-    val artScale = (1f - (dismissYv / 2200f)).coerceIn(0.72f, 1f)
 
     Box(
         Modifier
@@ -266,7 +269,7 @@ fun FullscreenPlayer(
             Box(Modifier.weight(1f).fillMaxWidth()) {
                 when {
                     showQueue -> QueuePane(playback, ui, vm)
-                    showLyrics -> LyricsPane(ui, vm, positionMs, track)
+                    showLyrics -> LyricsPane(ui, vm, track)
                     else -> Box(
                         Modifier.fillMaxSize(),
                         contentAlignment = Alignment.Center,
@@ -274,12 +277,16 @@ fun FullscreenPlayer(
                         CoverArt(
                             track.image, track.albumhash ?: track.title,
                             // Swipe the cover horizontally → next / prev (Apple Music).
+                            // The dismiss scale is computed HERE (draw phase) from
+                            // dismissY — reading the animatable in composition would
+                            // recompose this whole tree on every drag frame.
                             Modifier
                                 .fillMaxWidth()
                                 .aspectRatio(1f)
                                 .graphicsLayer {
-                                    scaleX = artScale
-                                    scaleY = artScale
+                                    val s = (1f - (dismissY.value / 2200f)).coerceIn(0.72f, 1f)
+                                    scaleX = s
+                                    scaleY = s
                                 }
                                 .shadow(24.dp, AMShapes.card, clip = false)
                                 .pointerInput(track.trackhash) {
@@ -313,27 +320,10 @@ fun FullscreenPlayer(
                 ) { vm.toggleFavorite(track.trackhash) }
             }
 
-            // Scrubber (custom thin Apple Music slider) + time labels.
-            // Prefer the player-reported duration: when metadata lacks `duration` the
-            // bar used to stay dead at zero even though playback knows the length.
-            // The fraction comes from PlaybackProgress (floating-point) — a raw
-            // `positionMs / durMs` on two Longs is integer division that stays 0 for
-            // the whole track, which pinned the fullscreen bar at 0:00.
-            val durMs = if (playback.durationMs > 0) playback.durationMs else ((track.duration ?: 0.0) * 1000.0).toLong()
-            var scrub by remember { mutableStateOf<Float?>(null) }
-            val progress = scrub ?: PlaybackProgress.fraction(positionMs, durMs)
-            AMSlider(
-                value = progress,
-                onScrub = { scrub = it },
-                onCommit = {
-                    vm.seekTo((it * durMs).toLong())
-                    scrub = null
-                },
-            )
-            Row(Modifier.fillMaxWidth().padding(top = 2.dp), horizontalArrangement = Arrangement.SpaceBetween) {
-                Text(formatDuration(((scrub ?: progress) * durMs) / 1000.0), color = colors.textMuted, style = AMType.Caption2)
-                Text("-" + formatDuration(((1f - (scrub ?: progress)) * durMs) / 1000.0), color = colors.textMuted, style = AMType.Caption2)
-            }
+            // Scrubber (custom thin Apple Music slider) + time labels — its own
+            // leaf so the 4 Hz position tick recomposes only this row, not the
+            // whole now-playing tree (see the Shell note on `vm.position`).
+            Scrubber(playback, track, vm)
 
             // Transport — naked glyphs (no filled circle): shuffle · prev · play · next · repeat.
             Row(
@@ -456,10 +446,41 @@ fun FullscreenPlayer(
 }
 
 // ---------------------------------------------------------------------------
+// Scrubber — the fullscreen progress bar + time labels. Owns its own position
+// subscription: the 4 Hz tick recomposes only this row (and the lyrics line),
+// never the whole now-playing tree.
+// ---------------------------------------------------------------------------
+
+@Composable
+private fun Scrubber(playback: PlaybackSnapshot, track: Track, vm: AppViewModel) {
+    val colors = LocalAuralis.current
+    val positionMs by vm.position.collectAsState()
+    // Prefer the player-reported duration: when metadata lacks `duration` the
+    // bar used to stay dead at zero even though playback knows the length.
+    // The fraction comes from PlaybackProgress (floating-point) — a raw
+    // `positionMs / durMs` on two Longs is integer division that stays 0 for
+    // the whole track, which pinned the fullscreen bar at 0:00.
+    val durMs = if (playback.durationMs > 0) playback.durationMs else ((track.duration ?: 0.0) * 1000.0).toLong()
+    var scrub by remember { mutableStateOf<Float?>(null) }
+    val progress = scrub ?: PlaybackProgress.fraction(positionMs, durMs)
+    AMSlider(
+        value = progress,
+        onScrub = { scrub = it },
+        onCommit = {
+            vm.seekTo((it * durMs).toLong())
+            scrub = null
+        },
+    )
+    Row(Modifier.fillMaxWidth().padding(top = 2.dp), horizontalArrangement = Arrangement.SpaceBetween) {
+        Text(formatDuration(((scrub ?: progress) * durMs) / 1000.0), color = colors.textMuted, style = AMType.Caption2)
+        Text("-" + formatDuration(((1f - (scrub ?: progress)) * durMs) / 1000.0), color = colors.textMuted, style = AMType.Caption2)
+    }
+}
+
+// ---------------------------------------------------------------------------
 // AMSlider — the thin iOS scrubber: 7dp rounded track, plain fill, a thumb
 // that only appears while touched, tap-to-jump and drag-to-scrub.
 // ---------------------------------------------------------------------------
-
 @Composable
 private fun AMSlider(
     value: Float,
@@ -542,8 +563,10 @@ private fun AMSlider(
 // ---------------------------------------------------------------------------
 
 @Composable
-private fun LyricsPane(ui: UiState, vm: AppViewModel, positionMs: Long, track: Track) {
+private fun LyricsPane(ui: UiState, vm: AppViewModel, track: Track) {
     val colors = LocalAuralis.current
+    // Leaf-level position subscription (see the Shell note on `vm.position`).
+    val positionMs by vm.position.collectAsState()
     val lyrics = ui.lyrics
     val posSec = positionMs / 1000.0 + ui.lyricsOffset
     // AppViewModel already fetches lyrics on every track change; this pane-open call
@@ -579,48 +602,6 @@ private fun LyricsPane(ui: UiState, vm: AppViewModel, positionMs: Long, track: T
         if (activeIndex >= 0) listState.animateScrollToItem(activeIndex.coerceAtLeast(0))
     }
     Column(Modifier.fillMaxSize()) {
-        if (synced) {
-            Row(
-                Modifier.fillMaxWidth().padding(bottom = 6.dp),
-                horizontalArrangement = Arrangement.Center,
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                val kOn = ui.karaoke
-                val alignLabel = if (ui.lyricsAligning) tr("lyrics.aligning") else tr("lyrics.wordByWord")
-                val alignDesc = tr("lyrics.alignTitle")
-                val delayDesc = tr("lyrics.delay")
-                val resetDesc = tr("lyrics.resetOffset")
-                val advanceDesc = tr("lyrics.advance")
-                Box(
-                    Modifier.clip(CircleShape).background(if (kOn) colors.accent else colors.panel2.copy(alpha = 0.7f))
-                        .clickable { vm.toggleKaraoke() }.padding(horizontal = 12.dp, vertical = 6.dp),
-                ) { Text(tr("lyrics.karaoke"), color = if (kOn) colors.ink else colors.textMuted, style = AMType.Caption1, fontWeight = FontWeight.SemiBold) }
-                Spacer(Modifier.width(10.dp))
-                // Forced word-by-word alignment (web GenerateWordByWord): the heavy
-                // job runs server-side and the view model polls it.
-                Box(
-                    Modifier.clip(CircleShape).background(colors.panel2.copy(alpha = 0.7f))
-                        .clickable(enabled = !ui.lyricsAligning) { vm.alignLyrics() }
-                        .padding(horizontal = 12.dp, vertical = 6.dp),
-                ) {
-                    Text(
-                        alignLabel, color = colors.textMuted, style = AMType.Caption1, fontWeight = FontWeight.SemiBold,
-                        modifier = Modifier.semantics { contentDescription = alignDesc },
-                    )
-                }
-                Spacer(Modifier.width(14.dp))
-                Text("−", color = colors.foreground, fontSize = 20.sp,
-                    modifier = Modifier.clickable { vm.adjustLyricsOffset(-0.1f) }
-                        .semantics { contentDescription = delayDesc }.padding(horizontal = 8.dp))
-                // The offset chip resets to the default on tap (web SyncOffset).
-                Text("%+.1fs".format(ui.lyricsOffset), color = colors.textMuted, style = AMType.Caption1,
-                    modifier = Modifier.clickable { vm.resetLyricsOffset() }
-                        .semantics { contentDescription = resetDesc })
-                Text("+", color = colors.foreground, fontSize = 20.sp,
-                    modifier = Modifier.clickable { vm.adjustLyricsOffset(0.1f) }
-                        .semantics { contentDescription = advanceDesc }.padding(horizontal = 8.dp))
-            }
-        }
         LazyColumn(state = listState, modifier = Modifier.weight(1f).fillMaxWidth()) {
         itemsIndexed(lyrics.lines) { i, line ->
             val isActive = i == activeIndex
@@ -628,27 +609,100 @@ private fun LyricsPane(ui: UiState, vm: AppViewModel, positionMs: Long, track: T
                 !synced -> colors.foreground.copy(alpha = 0.85f)
                 isActive -> colors.foreground
                 i < activeIndex -> colors.textFaint
-                else -> colors.textMuted.copy(alpha = 0.6f)
+                else -> colors.textMuted.copy(alpha = 0.55f)
             }
             // Karaoke: reveal words progressively on the active line when enabled.
             if (synced && isActive && ui.karaoke && line.words.isNotEmpty()) {
                 val revealedCount = line.words.count { it.time <= posSec }
-                val builder = buildAnnotated(line.words.map { it.text }, revealedCount, colors.accent, colors.textMuted)
-                Text(builder, fontSize = 21.sp, fontWeight = FontWeight.Bold,
-                    modifier = Modifier.fillMaxWidth().clickable { vm.seekTo((line.time * 1000).toLong()) }.padding(vertical = 8.dp), textAlign = TextAlign.Center)
+                val builder = buildAnnotated(line.words.map { it.text }, revealedCount, colors.accent, colors.foreground.copy(alpha = 0.42f))
+                Text(builder, fontSize = 25.sp, fontWeight = FontWeight.Bold,
+                    modifier = Modifier.fillMaxWidth().clickable { vm.seekTo((line.time * 1000).toLong()) }.padding(vertical = 11.dp), textAlign = TextAlign.Center)
             } else {
                 Text(
                     line.text.ifBlank { "♪" },
                     color = if (isActive && synced) colors.foreground else color,
-                    fontSize = if (isActive) 22.sp else 18.sp,
+                    fontSize = when {
+                        isActive -> 25.sp
+                        i + 1 == activeIndex || i - 1 == activeIndex -> 20.sp
+                        else -> 18.sp
+                    },
                     fontWeight = if (isActive) FontWeight.Bold else FontWeight.Medium,
                     textAlign = TextAlign.Center,
                     modifier = Modifier.fillMaxWidth()
                         .clickable(enabled = synced) { vm.seekTo((line.time * 1000).toLong()) }
-                        .padding(vertical = 8.dp),
+                        .padding(vertical = 11.dp),
                 )
             }
         }
+        }
+
+        // Liner-style glass island: source pill + sync-offset stepper, floating
+        // over the lyrics — one compact frosted bar instead of a raw chip row.
+        LyricsIsland(ui, vm)
+    }
+}
+
+/** Source label for the Liner-style island ("Musixmatch", "NetEase"…). */
+@Composable
+private fun sourceLabelOf(ui: UiState): String {
+    val key = "lyrics.source." + (ui.lyrics.source ?: "manual")
+    val label = tr(key)
+    // tr() returns the key itself when unknown — fall back to a neutral label.
+    return if (label.startsWith("lyrics.source.")) tr("lyrics.source.manual") else label
+}
+
+/**
+ * The Liner lyrics island: a single frosted bar over the lyrics with the
+ * provider that served them on the left and the sync-offset stepper on the
+ * right (tap the value to reset). Replaces the loose chip row that used to sit
+ * at the top of the pane.
+ */
+@Composable
+private fun LyricsIsland(ui: UiState, vm: AppViewModel) {
+    val colors = LocalAuralis.current
+    Row(
+        Modifier
+            .fillMaxWidth()
+            .padding(horizontal = Spacing.lg, vertical = Spacing.sm)
+            .amFrosted(AMShapes.pill, colors.panel2.copy(alpha = 0.72f))
+            .padding(horizontal = Spacing.md, vertical = 6.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        // Source pill — which provider served these lyrics.
+        Row(
+            Modifier.clip(AMShapes.pill).background(colors.panel3.copy(alpha = 0.6f))
+                .padding(horizontal = 10.dp, vertical = 5.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Box(Modifier.size(6.dp).clip(CircleShape).background(colors.accent))
+            Spacer(Modifier.width(6.dp))
+            Text(sourceLabelOf(ui), color = colors.textMuted, style = AMType.Caption1, fontWeight = FontWeight.SemiBold)
+        }
+        Spacer(Modifier.weight(1f))
+        // Karaoke toggle (word-by-word reveal).
+        Box(
+            Modifier.clip(AMShapes.pill).background(if (ui.karaoke) colors.accent else colors.panel3.copy(alpha = 0.6f))
+                .clickable { vm.toggleKaraoke() }
+                .padding(horizontal = 11.dp, vertical = 5.dp),
+        ) {
+            Text(tr("lyrics.karaoke"), color = if (ui.karaoke) colors.ink else colors.textMuted, style = AMType.Caption1, fontWeight = FontWeight.SemiBold)
+        }
+        Spacer(Modifier.width(Spacing.sm))
+        // Sync-offset stepper (− value +) — tap the value to reset.
+        val delayDesc = tr("lyrics.delay")
+        val resetDesc = tr("lyrics.resetOffset")
+        val advanceDesc = tr("lyrics.advance")
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Text("−", color = colors.foreground, fontSize = 18.sp,
+                modifier = Modifier.clip(CircleShape).clickable { vm.adjustLyricsOffset(-0.1f) }
+                    .semantics { contentDescription = delayDesc }.padding(horizontal = 9.dp, vertical = 2.dp))
+            Text("%+.1fs".format(ui.lyricsOffset), color = colors.textMuted, style = AMType.Caption1,
+                fontWeight = FontWeight.SemiBold,
+                modifier = Modifier.clip(CircleShape).clickable { vm.resetLyricsOffset() }
+                    .semantics { contentDescription = resetDesc }.padding(horizontal = 2.dp))
+            Text("+", color = colors.foreground, fontSize = 18.sp,
+                modifier = Modifier.clip(CircleShape).clickable { vm.adjustLyricsOffset(0.1f) }
+                    .semantics { contentDescription = advanceDesc }.padding(horizontal = 9.dp, vertical = 2.dp))
         }
     }
 }

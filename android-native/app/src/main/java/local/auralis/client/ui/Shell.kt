@@ -134,7 +134,10 @@ private fun titleKeyOf(view: ViewId): String = when (view) {
 fun Shell(vm: AppViewModel, ui: UiState) {
     val colors = LocalAuralis.current
     val playback by vm.playback.collectAsState()
-    val position by vm.position.collectAsState()
+    // NOTE: `vm.position` is deliberately NOT collected here — it ticks 4×/sec
+    // and would invalidate this whole root scope (header, content, dock, overlays)
+    // on every tick. The two consumers (MiniPlayer + the fullscreen scrubber/
+    // lyrics) collect it in their own leaf scopes instead.
     val current = ui.trackByHash[playback.currentId]
     val fullscreen = remember { mutableStateOf(false) }
 
@@ -196,17 +199,22 @@ fun Shell(vm: AppViewModel, ui: UiState) {
     )
 
     CompositionLocalProvider(
-        LocalSelection provides SelectionController(
-            active = ui.selectionMode,
-            isSelected = { it in ui.selected },
-            toggle = { vm.toggleSelected(it) },
-            begin = { vm.enterSelection(it) },
-        ),
+        // Remembered + keyed on the NARROW state they read: rebuilding these with
+        // lambdas capturing the whole `ui` made every visible TrackRow recompose
+        // on any UiState change (play-count bump, toast, scan…).
+        LocalSelection provides remember(ui.selectionMode, ui.selected) {
+            SelectionController(
+                active = ui.selectionMode,
+                isSelected = { it in ui.selected },
+                toggle = { vm.toggleSelected(it) },
+                begin = { vm.enterSelection(it) },
+            )
+        },
         // Tapping the CURRENT track anywhere pauses/resumes it in place (never
         // rebuilds the queue from zero) — see LocalPlayingToggle in Common.kt.
-        LocalPlayingToggle provides { vm.togglePlay() },
+        LocalPlayingToggle provides remember(vm) { { vm.togglePlay() } },
         LocalHazeState provides hazeState,
-        LocalHazeStyle provides hazeStyle,
+        LocalHazeStyle provides remember(darkSurface, colors.background, colors.panel) { hazeStyle },
     ) {
     Box(Modifier.fillMaxSize()) {
         // Ambient stage: a soft cover-driven wash over the deep-black canvas,
@@ -236,7 +244,7 @@ fun Shell(vm: AppViewModel, ui: UiState) {
             ) {
                 if (current != null) {
                     Box(Modifier.fillMaxWidth().padding(horizontal = Spacing.md, vertical = Spacing.xs)) {
-                        MiniPlayer(current, playback, position, vm) { fullscreen.value = true }
+                        MiniPlayer(current, playback, vm) { fullscreen.value = true }
                     }
                 }
             }
@@ -260,7 +268,7 @@ fun Shell(vm: AppViewModel, ui: UiState) {
                     local.auralis.client.ui.theme.LocalAuralis provides local.auralis.client.ui.theme.auralisDarkColors(),
                 ) {
                     Box(Modifier.fillMaxSize()) {
-                        local.auralis.client.ui.player.FullscreenPlayer(current, playback, position, ui, vm) {
+                        local.auralis.client.ui.player.FullscreenPlayer(current, playback, ui, vm) {
                             fullscreen.value = false
                         }
                     }
@@ -340,9 +348,11 @@ fun Shell(vm: AppViewModel, ui: UiState) {
         }
 
         // Audio visualizer (real waveform amplitudes when the tap is live).
+        // The amplitude stream is collected INSIDE the overlay: AudioFx emits at
+        // capture rate (~20 Hz) and reading it here would recompose the whole
+        // Shell body at 20 Hz while the overlay is open.
         if (ui.visualizerOpen) {
-            val amps by vm.visualizerAmps.collectAsState()
-            local.auralis.client.ui.components.VisualizerOverlay(current?.title, playback.isPlaying, amps) { vm.toggleVisualizer() }
+            local.auralis.client.ui.components.VisualizerOverlay(current?.title, playback.isPlaying, vm) { vm.toggleVisualizer() }
         }
     }
     }
@@ -411,7 +421,7 @@ private fun Header(vm: AppViewModel, ui: UiState, titleAlpha: Float) {
         Modifier
             .fillMaxWidth()
             .statusBarsPadding()
-            .padding(start = Spacing.lg, end = Spacing.md, top = Spacing.sm, bottom = Spacing.sm),
+            .padding(start = Spacing.lg, end = Spacing.md, top = 2.dp, bottom = Spacing.xs),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         if (!isRoot) {
@@ -485,16 +495,24 @@ private fun Header(vm: AppViewModel, ui: UiState, titleAlpha: Float) {
 
 @Composable
 private fun MainContent(vm: AppViewModel, ui: UiState) {
-    // Apple Music motion: pushing a detail screen slides it in from the right
-    // (the previous one parallax-slides out); switching tabs crossfades in place.
-    // Both share the app's motion vocabulary: a soft spring slide + fade.
+    // Motion language: switching tabs is a QUICK, quiet crossfade (no lateral
+    // slide — a slide between peers reads as janky); pushing a detail screen
+    // slides it in from the right (the previous one parallax-slides out). Both
+    // are fast enough to feel instant but soft enough not to flash.
     AnimatedContent(
         targetState = ui.nav,
         transitionSpec = {
             if (targetState.view !in rootViewIds && initialState.view != targetState.view) {
+                // Detail push: slide in from the right, slightly parallaxed out.
                 (slideInHorizontally(Motion.slide) { it / 3 } + fadeIn(Motion.fade)) togetherWith
                     (slideOutHorizontally(Motion.slide) { -it / 4 } + fadeOut(Motion.fade))
+            } else if (initialState.view != targetState.view) {
+                // Tab switch: a fast fade + micro-scale — content settles without
+                // travelling, so the eye keeps its place between Accueil/Nouveau.
+                (fadeIn(tween(150)) + scaleIn(initialScale = 0.985f, animationSpec = tween(180))) togetherWith
+                    fadeOut(tween(110))
             } else {
+                // Same view, different id (album → album…): plain fade.
                 fadeIn(Motion.fade) togetherWith fadeOut(Motion.fade)
             }
         },

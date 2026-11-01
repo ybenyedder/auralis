@@ -327,6 +327,14 @@ object Messages {
         "lyrics.delay" to "Retarder les paroles",
         "lyrics.advance" to "Avancer les paroles",
         "lyrics.resetOffset" to "Décalage de synchro — toucher pour réinitialiser",
+        "lyrics.source" to "Source",
+        "lyrics.source.musixmatch" to "Musixmatch",
+        "lyrics.source.netease" to "NetEase",
+        "lyrics.source.lrclib" to "LRCLIB",
+        "lyrics.source.qq" to "QQ Music",
+        "lyrics.source.lyricsovh" to "lyrics.ovh",
+        "lyrics.source.sidecar" to "Fichier local",
+        "lyrics.source.manual" to "Manuel",
 
         // ---- context menus --------------------------------------------------
         "ctx.startRadio" to "Démarrer une radio",
@@ -947,6 +955,14 @@ object Messages {
         "lyrics.delay" to "Delay lyrics",
         "lyrics.advance" to "Advance lyrics",
         "lyrics.resetOffset" to "Sync offset — tap to reset",
+        "lyrics.source" to "Source",
+        "lyrics.source.musixmatch" to "Musixmatch",
+        "lyrics.source.netease" to "NetEase",
+        "lyrics.source.lrclib" to "LRCLIB",
+        "lyrics.source.qq" to "QQ Music",
+        "lyrics.source.lyricsovh" to "lyrics.ovh",
+        "lyrics.source.sidecar" to "Local file",
+        "lyrics.source.manual" to "Manual",
 
         // ---- context menus --------------------------------------------------
         "ctx.startRadio" to "Start a radio",
