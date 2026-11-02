@@ -20,6 +20,18 @@ export function ensureLibraryReady(): void {
     }
     
     initWatcher();
+
+    // Re-download any title the server downloaded whose file has since
+    // vanished (wiped downloads folder, unmounted volume...). Lazy import: the
+    // download engine is heavy and must not load on every request path just
+    // for this check.
+    void import("./library/downloader")
+      .then((m) => {
+        m.restoreLostDownloads();
+      })
+      .catch(() => {
+        /* never block bootstrap on the download engine */
+      });
   } catch {
     // never block the request on bootstrap problems
   }

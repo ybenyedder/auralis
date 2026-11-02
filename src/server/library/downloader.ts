@@ -65,8 +65,29 @@ export function downloadsEnabled(): boolean {
 }
 
 export function downloadsDir(): string {
-  const name = process.env.AURALIS_DOWNLOADS_DIR?.trim() || "Auralis Downloads";
-  return path.join(/*turbopackIgnore: true*/ getConfig().musicDir, name);
+  const configured = process.env.AURALIS_DOWNLOADS_DIR?.trim();
+  const root = getConfig().musicDir;
+  if (configured) {
+    // Relative values stay relative to the music root (historical behaviour);
+    // absolute values are honored as-is so a deployment can point downloads at
+    // a PERSISTENT mount. In Docker setups where /music is the ephemeral
+    // container layer and only subfolders are bind mounts (e.g. /music/ssd),
+    // the default would land in the container layer and be wiped at every
+    // `docker rm`/update — the "downloaded titles disappear after an update"
+    // bug this option exists to fix.
+    const abs = path.isAbsolute(configured)
+      ? path.resolve(/*turbopackIgnore: true*/ configured)
+      : path.resolve(/*turbopackIgnore: true*/ root, configured);
+    const rel = path.relative(root, abs);
+    if (rel && !rel.startsWith("..") && !path.isAbsolute(rel)) return abs;
+    // Outside the music root the scanner would never index the files (and the
+    // stream routes refuse to serve them) — say so loudly and fall back.
+    log.warn("AURALIS_DOWNLOADS_DIR is outside the music root — falling back to the default", {
+      configured: abs,
+      musicDir: root,
+    });
+  }
+  return path.join(/*turbopackIgnore: true*/ root, "Auralis Downloads");
 }
 
 // ---- online search ----------------------------------------------------------
@@ -140,6 +161,19 @@ function activeCount(): number {
   return n;
 }
 
+/** Jobs currently being worked on (post-queue). The queue-depth [activeCount]
+ *  above is the wrong gate for pacing: it counts WAITING jobs too, so a burst
+ *  of enqueued jobs (bulk import, restore) used to starve itself — with 3+
+ *  queued and 0 running, `activeCount() > MAX_ACTIVE` was instantly true and
+ *  nothing ever started. */
+function runningCount(): number {
+  let n = 0;
+  for (const job of jobs.values()) {
+    if (job.status === "resolving" || job.status === "downloading" || job.status === "scanning") n++;
+  }
+  return n;
+}
+
 function sanitize(message: string): string {
   return message.replace(/\s+/g, " ").trim().slice(0, 300);
 }
@@ -184,10 +218,143 @@ function existingFileFor(videoId: string): string | null {
 }
 
 function pumpQueue() {
+  topUpRestore();
   for (const job of jobs.values()) {
     if (job.status !== "queued") continue;
-    if (activeCount() > MAX_ACTIVE) return;
+    if (runningCount() >= MAX_ACTIVE) return;
     void execute(job);
+  }
+}
+
+// ---- lost-download recovery -------------------------------------------------
+
+/** Requester shown for auto-restored jobs (visible in the admin job list). */
+const RESTORE_USER = "system:restore";
+/** Automatic re-download attempts a single title may receive before the
+ *  manifest gives up. A title that keeps vanishing after being restored is
+ *  being deleted on purpose — stop resurrecting it. A deliberate re-download
+ *  by a user resets the budget (it's an explicit "I want this back"). */
+const MAX_AUTO_RESTORES = 3;
+/** Restore jobs waiting for a queue slot. They trickle in a couple at a time
+ *  instead of flooding [jobs], so real user requests always find room and the
+ *  job list stays readable. */
+const restoreBacklog: Array<{ videoId: string; title: string }> = [];
+
+function restoreEnabled(): boolean {
+  const v = process.env.AURALIS_DOWNLOADS_RESTORE?.trim().toLowerCase();
+  return !(v === "false" || v === "0" || v === "off" || v === "no");
+}
+
+function manifestFileExists(filepath: string): boolean {
+  try {
+    return fs.existsSync(path.resolve(/*turbopackIgnore: true*/ getConfig().musicDir, filepath));
+  } catch {
+    return false;
+  }
+}
+
+/** Record a successfully imported download in the manifest table. The manifest
+ *  (unlike the tracks table) survives the scanner's prune on purpose: it is the
+ *  authoritative list of "titles this server downloaded", so a wiped downloads
+ *  folder can be re-downloaded instead of silently forgotten. */
+export function recordDownload(opts: {
+  videoId: string;
+  title: string;
+  /** Library-relative posix path of the imported file. */
+  filepath: string;
+  trackhash: string | null;
+  requestedBy: string;
+}): void {
+  const db = getDb();
+  const prev = db.prepare("SELECT restore_count FROM downloads WHERE video_id = ?").get(opts.videoId) as
+    | { restore_count: number }
+    | undefined;
+  // An explicit user re-download = "I want this title" → fresh restore budget.
+  // A restore job keeps its (already incremented) budget.
+  const restoreCount = opts.requestedBy === RESTORE_USER ? (prev?.restore_count ?? 0) : 0;
+  db.prepare(
+    `INSERT INTO downloads (video_id, title, filepath, trackhash, requested_by, created_at, restore_count)
+     VALUES (@videoId, @title, @filepath, @trackhash, @requestedBy, @now, @restoreCount)
+     ON CONFLICT(video_id) DO UPDATE SET
+       title = excluded.title,
+       filepath = excluded.filepath,
+       trackhash = excluded.trackhash,
+       requested_by = excluded.requested_by,
+       restore_count = excluded.restore_count`,
+  ).run({ ...opts, now: Date.now(), restoreCount });
+}
+
+/**
+ * Re-download manifest entries whose file is gone from disk. Called once at
+ * bootstrap: a downloads folder wiped by a container re-create, an unmounted
+ * volume or a storage cleaner loses the FILES but never this list, so the
+ * titles come back on their own instead of having to be found again by hand.
+ * Entries that already burned their restore budget are dropped (deleted on
+ * purpose). Returns what it found — useful for tests and logs.
+ */
+export function restoreLostDownloads(): { missing: number; enqueued: number; dropped: number } {
+  const result = { missing: 0, enqueued: 0, dropped: 0 };
+  if (!downloadsEnabled() || !restoreEnabled()) return result;
+  let rows: Array<{ video_id: string; title: string; filepath: string; restore_count: number }>;
+  try {
+    rows = getDb()
+      .prepare("SELECT video_id, title, filepath, restore_count FROM downloads")
+      .all() as typeof rows;
+  } catch {
+    return result;
+  }
+  const db = getDb();
+  for (const row of rows) {
+    if (!row.filepath || manifestFileExists(row.filepath)) continue;
+    result.missing++;
+    if (row.restore_count >= MAX_AUTO_RESTORES) {
+      try {
+        db.prepare("DELETE FROM downloads WHERE video_id = ?").run(row.video_id);
+      } catch {
+        /* best effort */
+      }
+      result.dropped++;
+      continue;
+    }
+    try {
+      db.prepare("UPDATE downloads SET restore_count = restore_count + 1 WHERE video_id = ?").run(row.video_id);
+    } catch {
+      /* best effort */
+    }
+    restoreBacklog.push({ videoId: row.video_id, title: row.title || row.video_id });
+    result.enqueued++;
+  }
+  if (result.enqueued > 0 || result.dropped > 0) {
+    log.info("lost downloads scan", { enqueued: result.enqueued, dropped: result.dropped, missing: result.missing });
+  }
+  pumpQueue();
+  return result;
+}
+
+/** Move waiting restores into the job queue while there is room to spare. */
+function topUpRestore(): void {
+  while (restoreBacklog.length > 0 && activeCount() < 3) {
+    const entry = restoreBacklog.shift();
+    if (!entry) break;
+    // Never queue the same video twice.
+    const twin = [...jobs.values()].find(
+      (j) => j.videoId === entry.videoId && j.status !== "done" && j.status !== "error",
+    );
+    if (twin) continue;
+    const id = `dl_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 8)}`;
+    jobs.set(id, {
+      id,
+      query: entry.title,
+      videoId: entry.videoId,
+      title: entry.title,
+      status: "queued",
+      progress: 0,
+      error: null,
+      trackhash: null,
+      requestedBy: RESTORE_USER,
+      startedAt: Date.now(),
+      finishedAt: null,
+    });
   }
 }
 
@@ -421,12 +588,15 @@ async function execute(job: DownloadJob) {
         } catch {
           /* best effort */
         }
-        // Last resort: the newest AUDIO file that appeared in the dir during
-        // the run (audio-only, for the same leftover-masquerade reason).
+        // Last resort: the newest AUDIO file this job's output template could
+        // have produced. The `[VIDEOID]` marker is REQUIRED: a concurrent
+        // download's fresh file must never be claimed by a failing job (it
+        // would import the wrong track — and poison the downloads manifest).
         try {
           const since = job.startedAt - 2000;
           const newest = fs
             .readdirSync(/*turbopackIgnore: true*/ dir)
+            .filter((name) => name.includes(`[${job.videoId}]`))
             .map((name) => path.join(dir, name))
             .filter((p) => isSupportedAudioPath(p))
             .filter((p) => {
@@ -466,6 +636,19 @@ async function execute(job: DownloadJob) {
     job.trackhash = row.trackhash;
     job.title = row.title || job.title;
     job.finishedAt = Date.now();
+    // Remember this download in the manifest so it can be restored if the file
+    // ever disappears from disk (see restoreLostDownloads).
+    try {
+      recordDownload({
+        videoId: job.videoId,
+        title: job.title ?? "",
+        filepath: rel.split(path.sep).join("/"),
+        trackhash: row.trackhash,
+        requestedBy: job.requestedBy,
+      });
+    } catch (err) {
+      log.warn("download manifest write failed", { videoId: job.videoId, error: err instanceof Error ? err.message : String(err) });
+    }
     // Sidecar leftovers (non-audio, same template name) are no longer needed
     // once embedded — drop them so they can't confuse a later job.
     try {

@@ -82,6 +82,17 @@ Le script fait tout : `git pull`, reconstruction de l'image, remplacement du
 conteneur, nettoyage des vieilles images, contrôle de santé. Les données
 (`music/` et `data/`) ne sont jamais touchées.
 
+> ⚠️ **Téléchargements** (« Télécharger » depuis la recherche, import de
+> playlists) : les titres atterrissent dans `<dossier musique>/Auralis
+> Downloads`. Avec le montage par défaut (`./music:/music`) tout est persistant ;
+> mais si vous ne montez que des **sous-dossiers** de `/music` (ex.
+> `/music/ssd`), le dossier par défaut reste dans l'éphémère du conteneur et
+> **disparaît à chaque mise à jour**. Dans ce cas, définissez
+> `AURALIS_DOWNLOADS_DIR` sur un dossier monté (voir `deploy/.env.example`).
+> Filet de sécurité : le serveur garde en base la liste de ses téléchargements
+> et les re-télécharge automatiquement au démarrage s'ils ont disparu
+> (`AURALIS_DOWNLOADS_RESTORE`, 3 tentatives par titre).
+
 Pour une installation sans git (archive tarball) : `./update.sh --no-pull`
 (reconstruit et redémarre sans toucher au code).
 

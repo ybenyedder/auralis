@@ -4,6 +4,49 @@ All notable changes to Auralis are documented here. The format is based on
 [Keep a Changelog](https://keepachangelog.com/) and this project adheres to
 [Semantic Versioning](https://semver.org/).
 
+## [1.33.0] - 2026-11-02
+
+Correction du bug « les titres téléchargés disparaissent après une mise à jour »
++ filet de sécurité anti-perte et bug de file d'attente du téléchargement.
+
+### Corrigé — Serveur : téléchargements effacés à chaque mise à jour (perte de données)
+Cause racine : les titres téléchargés (« Télécharger » depuis la recherche,
+import de playlists) étaient écrits dans `<musicDir>/Auralis Downloads`. Sur un
+serveur Docker qui ne monte que des SOUS-DOSSIERS de `/music` (ex. `/music/ssd`,
+cas de notre production), ce dossier reste dans la **couche éphémère du
+conteneur** : `docker rm` / toute mise à jour l'efface, puis le scan purge les
+titres devenus introuvables. D'où le « je dois re-télécharger après chaque maj ».
+- **`AURALIS_DOWNLOADS_DIR` accepte désormais un chemin ABSOLU** : pointez-le
+  sur un dossier monté et persistant (ex. `/music/ssd/Auralis Downloads`). Un
+  chemin hors de la racine musique est refusé (non indexable) avec repli.
+- **Procédures mises à jour** : `deploy/PRODUCTION.local.md` (env ajoutée au
+  `docker run`), `deploy/.env.example` et `DEPLOY.md` (avertissement montage).
+- **Procédure de récupération** des titres déjà perdus depuis les sauvegardes
+  `pre-*.db` (dans `deploy/PRODUCTION.local.md`).
+
+### Ajouté — Restauration automatique des téléchargements perdus
+Nouvelle table `downloads` (migration 014) : le manifeste des titres
+téléchargés, qui survit volontairement à la purge du scan. Au démarrage, tout
+titre téléchargé dont le fichier a disparu est **re-téléchargé automatiquement**
+(3 tentatives max par titre, `AURALIS_DOWNLOADS_RESTORE=0` pour désactiver ;
+une re-téléchargement explicite par un utilisateur réinitialise le budget).
+
+### Corrigé — Serveur : file de téléchargement qui se bloquait toute seule
+`pumpQueue` calibrait la concurrence sur la PROFONDEUR de file (en attente +
+en cours) : dès 3 téléchargements mis en file d'un coup (lots d'import de
+playlist, restauration), `activeCount() > MAX_ACTIVE` était vrai immédiatement
+et **rien ne démarrait jamais** (« En file » éternel). Le pacing compte
+désormais les seuls travaux réellement en cours.
+- Durcissement connexe : un téléchargement en échec ne peut plus s'approprier le
+  fichier d'un téléchargement concurrent (le filet « fichier le plus récent »
+  exige désormais le marqueur `[videoId]`).
+
+### Tests
+- Nouveaux tests : résolution de `AURALIS_DOWNLOADS_DIR` (absolu/relatif/hors
+  racine), manifeste + restauration après perte, abandon après épuisement du
+  budget, re-téléchargement explicite, pacing de lot (5 téléchargements).
+  **205 tests web verts**, typecheck et lint verts.
+
 ## [1.32.0] - 2026-11-01
 
 Correction de trois bugs signalés après la mise à jour : titres de playlist
