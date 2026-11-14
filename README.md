@@ -1,115 +1,177 @@
+<div align="center">
+
 # Auralis
 
-Lecteur de musique auto-hébergé, pensé mobile d'abord. Scannez votre bibliothèque,
-écoutez partout : interface tactile complète, PWA installable (Android / iOS),
-égaliseur temps réel, paroles synchronisées, radio intelligente — en français et
-en anglais, sans le moindre emoji.
+**Self-hosted, local-first music player & streaming server with synced lyrics, real-time EQ, and native clients.**
 
-> Version mobile retravaillée de fond en comble à partir du projet
-> [ybenyedder/auralis](https://github.com/ybenyedder/auralis) — voir
-> [Licence](#licence).
+[![CI](https://img.shields.io/github/actions/workflow/status/ybenyedder/auralis/ci.yml?branch=main&style=flat-square&label=CI&labelColor=0d0d10&logo=githubactions&logoColor=white)](https://github.com/ybenyedder/auralis/actions/workflows/ci.yml) [![Release](https://img.shields.io/github/v/release/ybenyedder/auralis?style=flat-square&label=release&labelColor=0d0d10&color=7a4dff)](https://github.com/ybenyedder/auralis/releases/latest) [![Downloads](https://img.shields.io/github/downloads/ybenyedder/auralis/total?style=flat-square&label=downloads&labelColor=0d0d10&color=4d71ff)](https://github.com/ybenyedder/auralis/releases) [![Platforms](https://img.shields.io/badge/platforms-Web%20%C2%B7%20Desktop%20%C2%B7%20Android%20%C2%B7%20iOS-2ec4b6?style=flat-square&labelColor=0d0d10)](https://github.com/ybenyedder/auralis/releases/latest) [![License](https://img.shields.io/badge/license-Attribution%20MIT-534dff?style=flat-square&labelColor=0d0d10)](./LICENSE)
 
-![Capture d'écran — accueil mobile](public/screenshots/narrow-home.jpg)
-![Capture d'écran — lecteur plein écran](public/screenshots/narrow-player.jpg)
-![Capture d'écran — bibliothèque](public/screenshots/wide-library.jpg)
+[Preview](#preview) • [Architecture](#architecture) • [Getting Started](#getting-started) • [Testing](#testing) • [Building](#building) • [Docs](#docs) • [Contributing](#contributing) • [License](#license)
 
-## Points forts
+<br/>
 
-**Mobile / PWA**
+<img src="./docs/screenshot-player.png" alt="Auralis Desktop Player" width="100%" />
 
-- Barre d'onglets type Apple Music : 5 onglets distincts (Accueil, Parcourir,
-  Radio, Bibliothèque, Recherche) avec état actif fiable et retour haptique.
-- Lecteur plein écran : glisser horizontalement pour changer de titre,
-  minuterie de sommeil (15/30/60 min ou fin du titre), paroles karaoké avec
-  ligne active, poignée de progression adaptée au toucher.
-- Media Session : commandes casque / écran de verrouillage / enceintes
-  connectées.
-- PWA installable : manifeste complet, raccourcis, captures d'écran, service
-  worker (mode hors-ligne de l'interface).
-- Design 100 % responsive, zones tactiles ≥ 44 px, zones sûres iOS.
+</div>
 
-**Audio**
+---
 
-- Égaliseur 6 bandes temps réel (8 préréglages + courbes personnalisées,
-  persistance par appareil), intégré à la chaîne ReplayGain / analyseur.
-- Normalisation du volume (ReplayGain), analyse BPM / énergie, transitions.
-- Radio « MoodMix » et suggestions basées sur l'historique d'écoute.
+## Preview
 
-**Bibliothèque**
+<div align="center">
+  <table>
+    <tr>
+      <td align="center" width="50%">
+        <img src="./public/screenshots/narrow-home.jpg" alt="Auralis Mobile Home" width="280" />
+        <br/>
+        <sub><b>Mobile Home &amp; Daily Mixes</b></sub>
+      </td>
+      <td align="center" width="50%">
+        <img src="./public/screenshots/narrow-player.jpg" alt="Auralis Fullscreen Player" width="280" />
+        <br/>
+        <sub><b>Fullscreen Player &amp; Lyrics</b></sub>
+      </td>
+    </tr>
+  </table>
+</div>
 
-- Scan automatique (ID3, pochettes, albums, artistes, genres), montage NAS
-  possible (polling), fichiers `.lrc` pris en charge.
-- Playlists intelligentes, favoris, historique, statistiques d'écoute
-  (séries, récapitulatifs mensuels).
-- Recherche instantanée avec résultats groupés et recherches récentes.
+---
 
-**Serveur**
+> [!NOTE]
+> Auralis runs as a single self-hosted Next.js 16 + SQLite server that powers the web PWA, Electron desktop app, and native Android/iOS clients with zero paid external dependencies.
 
-- Bilingue FR / EN sur toutes les surfaces (interface, notifications,
-  aria-labels) — aucune chaîne codée en dur.
-- Docker : installation en 4 commandes, mise à jour en 1 commande
-  (`deploy/update.sh`), sauvegarde en 1 commande (`deploy/backup.sh`).
-- Prêt Google Play : déclaration Digital Asset Links automatique
-  (`/.well-known/assetlinks.json`) — voir [PLAYSTORE.md](PLAYSTORE.md).
-- Aucune dépendance externe payante : SQLite embarqué, tout reste sur votre
-  serveur.
+---
 
-## Démarrage rapide (développement)
+## Architecture
 
-```bash
-bun install
-cp .env.local.example .env.local   # puis adaptez les chemins
-bun run dev                        # http://localhost:3000
+One Next.js App Router server (with embedded SQLite and filesystem watcher) backs the web PWA, the Electron desktop shell, and the native mobile clients.
+
+```text
+auralis/
+├── desktop/
+│   ├── main.js              # Electron main process: window chrome, tray, updates, forks server
+│   ├── preload.js           # Context bridge between renderer and Electron main process
+│   ├── setup.html           # First-launch server URL setup view
+│   └── updater.js           # Auto-update handler
+├── android-native/          # Native Android client (Kotlin / Gradle)
+├── ios-native/              # Native iOS client (SwiftUI / XcodeGen)
+├── src/
+│   ├── app/                 # Next.js App Router pages and HTTP API routes
+│   ├── components/auralis/  # Player bar, fullscreen player, equalizer, lyrics, views, modals
+│   ├── lib/auralis/         # Audio graph, i18n (FR/EN), mood engine, recommendations, themes
+│   ├── server/              # SQLite DB/migrations, library scanner, lyrics sync, reco engine, auth
+│   └── store/               # Zustand client state stores
+├── deploy/                  # Dockerfile, docker-compose.yml, update.sh, backup.sh, .env.example
+├── scripts/                 # Desktop packager, APK builder, audio alignment & sample music scripts
+├── docs/                    # Architecture, design system, recommendation engine, native apps
+├── test/                    # Vitest unit, security, route and UI test suite
+├── electron-builder.yml
+└── package.json
 ```
 
-Variables principales (voir `deploy/.env.example` pour la liste complète) :
+---
 
-| Variable                 | Rôle                                            |
-| ------------------------ | ----------------------------------------------- |
-| `AURALIS_MUSIC_DIR`      | Dossier scanné (votre musique)                  |
-| `AURALIS_DATA_DIR`       | Base SQLite, pochettes, analyses                |
-| `AURALIS_ADMIN_PASSWORD` | Mot de passe initial du compte admin            |
-| `AURALIS_LYRICS_ONLINE`  | `false` = mode 100 % hors-ligne                 |
+## Getting Started
 
-Une bibliothèque de démonstration (27 titres) peut être générée avec
-`scripts/gen-sample-music.sh`.
+### Prerequisites
 
-## Déployer sur un serveur
+- **Node.js** `v20+` (`v22` used in CI) and **npm**
+- **Docker** and **Docker Compose** (optional, for server deployment)
 
-Guide complet dans [DEPLOY.md](DEPLOY.md) — en résumé :
+---
+
+### Setup
 
 ```bash
-git clone <votre-fork> /opt/auralis
+git clone https://github.com/ybenyedder/auralis.git
+cd auralis
+npm ci
+cp .env.local.example .env.local
+```
+
+Edit `.env.local` to point `AURALIS_MUSIC_DIR` to your audio folder and `AURALIS_DATA_DIR` to where SQLite and cached artwork should live. You can generate a 27-track sample library with `./scripts/gen-sample-music.sh`.
+
+---
+
+### Running in Development
+
+```bash
+# Web / PWA dev server (http://localhost:3000)
+npm run dev
+
+# Electron desktop shell attached to dev server
+npm run desktop:dev
+```
+
+---
+
+### Self-Hosting with Docker
+
+```bash
+git clone https://github.com/ybenyedder/auralis.git /opt/auralis
 cd /opt/auralis/deploy
-cp .env.example .env && nano .env
+cp .env.example .env
 ./update.sh
 ```
 
-## Publier sur Google Play
+See [DEPLOY.md](./DEPLOY.md) for reverse-proxy setup, automated backups (`deploy/backup.sh`), and Pterodactyl egg configuration.
 
-La PWA peut être encapsulée (TWA) et publiée sur le Play Store. Toute la
-démarche — empreinte SHA-256, `assetlinks.json`, captures réglementaires — est
-détaillée dans [PLAYSTORE.md](PLAYSTORE.md).
+---
 
-## Dépôt GitHub et clients natifs
-
-Tout vit dans [ybenyedder/auralis](https://github.com/ybenyedder/auralis) :
-
-- la **refonte web mobile** (ce dépôt : interface PWA, serveur, kit Docker) ;
-- le **client Android natif** (`android-native/`, APK signé par la CI sur chaque
-  tag, voir [PLAYSTORE.md](PLAYSTORE.md)) ;
-- le **client iOS natif** (`ios-native/`) et le client **desktop** Electron
-  (`desktop/`) ;
-- la suite de **tests** (`test/`, exécutée par la CI à chaque push).
-
-Après une mise à jour du code sur le serveur :
+## Testing
 
 ```bash
-cd /opt/auralis && git pull && cd deploy && ./update.sh
+# Unit, route and component tests (Vitest)
+npm test
+
+# Everything CI runs on a pull request: ESLint, TypeScript check and Next.js build
+npm run check
 ```
 
-## Licence
+---
 
-[Auralis Attribution License v1.0](LICENSE) — licence MIT avec attribution
-obligatoire, © Youssef Ben yedder. Toute redistribution doit conserver la
-mention d'attribution et le présent fichier de licence.
+## Building
+
+```bash
+# Production Next.js web server
+npm run build
+
+# Linux desktop packages (AppImage & .deb)
+npm run desktop:build:linux
+
+# Windows desktop installer (.exe)
+npm run desktop:build:win
+
+# Native Android APK
+npm run mobile:native
+```
+
+Desktop installers and packages are placed in `dist-desktop/`. CI also builds signed desktop releases and Android/iOS artifacts from tagged commits (`v*`).
+
+---
+
+## Docs
+
+- [Architecture](./docs/architecture.md): single-process server shape, routes and module boundaries
+- [Design system](./docs/design-system.md): palette, glass surfaces, motion and responsive layout
+- [Recommendation engine](./docs/reco-engine.md): MoodMix, audio embeddings and smart playlists
+- [Native apps](./docs/native-apps.md): Android, iOS and Electron client notes
+- [Deployment guide](./DEPLOY.md): Docker Compose, upgrades and backups
+- [Google Play / TWA](./PLAYSTORE.md): Digital Asset Links (`assetlinks.json`), signing and store listing
+
+---
+
+## Contributing
+
+Bug fixes, features, translations and docs improvements are welcome. Read [CONTRIBUTING.md](./CONTRIBUTING.md) before opening a pull request, and report bugs via [GitHub Issues](https://github.com/ybenyedder/auralis/issues). Security vulnerabilities should be reported privately per [SECURITY.md](./SECURITY.md). See [PRIVACY.md](./PRIVACY.md) for privacy details; redistribution terms are defined in [LICENSE](./LICENSE).
+
+---
+
+## License
+
+Auralis is distributed under the **Auralis Attribution License v1.0** (MIT-based with mandatory attribution).
+
+- **Allowed**: Personal and hosted usage, local builds, modifications, and forks.
+- **Required**: Any public deployment, fork, or redistribution must preserve clear visible credit and link back to [https://github.com/ybenyedder/auralis](https://github.com/ybenyedder/auralis).
+
+See [LICENSE](./LICENSE) for full terms.
