@@ -99,12 +99,12 @@ async function followTikTokRedirects(startUrl: string): Promise<string> {
 }
 
 interface MusicEmbedFallback {
-  videoUrl: string | null;
+  videoUrls: string[];
   fallbackMeta: TikTokMeta | null;
 }
 
 /** Resolve a TikTok `/music/...-<id>` sound page via TikTok's public embed page
- *  to grab the first public video using that sound (for TikWM + Shazam) plus
+ *  to grab up to 3 public videos using that sound (for TikWM + Shazam) plus
  *  embed metadata/MP4 fallback. */
 async function resolveTikTokMusicEmbed(musicId: string): Promise<MusicEmbedFallback> {
   const controller = new AbortController();
@@ -117,10 +117,10 @@ async function resolveTikTokMusicEmbed(musicId: string): Promise<MusicEmbedFallb
       },
       signal: controller.signal,
     });
-    if (!res.ok) return { videoUrl: null, fallbackMeta: null };
+    if (!res.ok) return { videoUrls: [], fallbackMeta: null };
     const html = await res.text();
     const match = /<script[^>]*id="__FRONTITY_CONNECT_STATE__"[^>]*>([\s\S]*?)<\/script>/i.exec(html);
-    if (!match) return { videoUrl: null, fallbackMeta: null };
+    if (!match) return { videoUrls: [], fallbackMeta: null };
     const state = JSON.parse(match[1]) as {
       source?: {
         data?: Record<
@@ -134,14 +134,21 @@ async function resolveTikTokMusicEmbed(musicId: string): Promise<MusicEmbedFallb
     };
     const dataMap = state.source?.data ?? {};
     const entry = dataMap[`/embed/music/${musicId}`] ?? Object.values(dataMap).find((v) => Array.isArray(v?.videoList));
-    const first = entry?.videoList?.find((v) => v && (v.id || isSafeHttpsUrl(v.playAddr)));
-    if (!first) return { videoUrl: null, fallbackMeta: null };
+    const candidates = (entry?.videoList ?? []).filter((v) => v && (v.id || isSafeHttpsUrl(v.playAddr)));
+    if (candidates.length === 0) return { videoUrls: [], fallbackMeta: null };
 
-    const videoUrl = first.id
-      ? `https://www.tiktok.com/@${encodeURIComponent(first.authorUniqueId || "tiktok")}/video/${encodeURIComponent(first.id)}`
-      : null;
-    const playAddr = isSafeHttpsUrl(first.playAddr) ? first.playAddr : null;
-    const cover = [entry?.embedInfo?.coverUrl, first.coverUrl].find((u) => isSafeHttpsUrl(u)) ?? null;
+    const videoUrls: string[] = [];
+    for (const v of candidates) {
+      if (v.id && videoUrls.length < 3) {
+        videoUrls.push(
+          `https://www.tiktok.com/@${encodeURIComponent(v.authorUniqueId || "tiktok")}/video/${encodeURIComponent(v.id)}`,
+        );
+      }
+    }
+    const withPlay = candidates.find((v) => isSafeHttpsUrl(v.playAddr));
+    const playAddr = withPlay && isSafeHttpsUrl(withPlay.playAddr) ? withPlay.playAddr : null;
+    const cover =
+      [entry?.embedInfo?.coverUrl, withPlay?.coverUrl, candidates[0]?.coverUrl].find((u) => isSafeHttpsUrl(u)) ?? null;
     const fallbackMeta: TikTokMeta | null = playAddr
       ? {
           audioUrl: playAddr,
@@ -153,10 +160,10 @@ async function resolveTikTokMusicEmbed(musicId: string): Promise<MusicEmbedFallb
           cover,
         }
       : null;
-    return { videoUrl, fallbackMeta };
+    return { videoUrls, fallbackMeta };
   } catch (err) {
     log.debug("tiktok music embed lookup failed", { musicId, error: err instanceof Error ? err.message.slice(0, 120) : String(err) });
-    return { videoUrl: null, fallbackMeta: null };
+    return { videoUrls: [], fallbackMeta: null };
   } finally {
     clearTimeout(timer);
   }
@@ -172,29 +179,7 @@ function isSafeHttpsUrl(rawUrl: string | null | undefined): rawUrl is string {
   }
 }
 
-async function fetchTikWmMeta(tiktokUrl: string): Promise<TikTokMeta> {
-  let targetUrl = tiktokUrl;
-  let fallbackMeta: TikTokMeta | null = null;
-
-  let musicId = extractTikTokMusicId(targetUrl);
-  if (!musicId && !/\/(?:video|photo)\/\d+/i.test(targetUrl)) {
-    const expanded = await followTikTokRedirects(targetUrl);
-    musicId = extractTikTokMusicId(expanded);
-    const canonicalVideo = /https:\/\/[^/]*tiktok\.com\/@[^/?#]+\/(?:video|photo)\/\d+/i.exec(expanded);
-    if (canonicalVideo) targetUrl = canonicalVideo[0];
-    else if (expanded !== targetUrl) targetUrl = expanded;
-  }
-
-  if (musicId) {
-    const resolved = await resolveTikTokMusicEmbed(musicId);
-    if (resolved.videoUrl) targetUrl = resolved.videoUrl;
-    fallbackMeta = resolved.fallbackMeta;
-    if (!resolved.videoUrl && fallbackMeta) return fallbackMeta;
-    if (!resolved.videoUrl) {
-      throw new TikTokError("Impossible de récupérer cet extrait audio TikTok.", 404);
-    }
-  }
-
+async function queryTikWmVideo(targetUrl: string, fallbackMeta: TikTokMeta | null): Promise<TikTokMeta> {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS);
   try {
@@ -203,7 +188,6 @@ async function fetchTikWmMeta(tiktokUrl: string): Promise<TikTokMeta> {
       signal: controller.signal,
     });
     if (!res.ok) {
-      if (fallbackMeta) return fallbackMeta;
       throw new TikTokError(`Service TikTok indisponible (${res.status}).`, 502);
     }
     const payload = (await res.json()) as {
@@ -228,7 +212,6 @@ async function fetchTikWmMeta(tiktokUrl: string): Promise<TikTokMeta> {
     };
     const d = payload.data;
     if (payload.code !== 0 || !d) {
-      if (fallbackMeta) return fallbackMeta;
       throw new TikTokError(payload.msg || "Impossible de lire ce lien TikTok.", 404);
     }
     const mi = d.music_info ?? {};
@@ -240,17 +223,60 @@ async function fetchTikWmMeta(tiktokUrl: string): Promise<TikTokMeta> {
       musicAuthor: (mi.author ?? "").trim(),
       album: (mi.album ?? "").trim(),
       original: Boolean(mi.original),
-      duration: typeof mi.duration === "number" && mi.duration > 0 ? Math.round(mi.duration) : typeof d.duration === "number" && d.duration > 0 ? Math.round(d.duration) : 0,
+      duration:
+        typeof mi.duration === "number" && mi.duration > 0
+          ? Math.round(mi.duration)
+          : typeof d.duration === "number" && d.duration > 0
+            ? Math.round(d.duration)
+            : 0,
       cover,
     };
   } catch (err) {
-    if (fallbackMeta) return fallbackMeta;
     if (err instanceof TikTokError) throw err;
     log.warn("tikwm lookup failed", { error: err instanceof Error ? err.message.slice(0, 200) : String(err) });
     throw new TikTokError("Impossible de récupérer cette vidéo TikTok.", 502);
   } finally {
     clearTimeout(timer);
   }
+}
+
+async function fetchTikWmMeta(tiktokUrl: string): Promise<TikTokMeta> {
+  let candidateUrls = [tiktokUrl];
+  let fallbackMeta: TikTokMeta | null = null;
+
+  let musicId = extractTikTokMusicId(tiktokUrl);
+  if (!musicId && !/\/(?:video|photo)\/\d+/i.test(tiktokUrl)) {
+    const expanded = await followTikTokRedirects(tiktokUrl);
+    musicId = extractTikTokMusicId(expanded);
+    const canonicalVideo = /https:\/\/[^/]*tiktok\.com\/@[^/?#]+\/(?:video|photo)\/\d+/i.exec(expanded);
+    if (canonicalVideo) candidateUrls = [canonicalVideo[0]];
+    else if (expanded !== tiktokUrl) candidateUrls = [expanded];
+  }
+
+  if (musicId) {
+    const resolved = await resolveTikTokMusicEmbed(musicId);
+    fallbackMeta = resolved.fallbackMeta;
+    if (resolved.videoUrls.length > 0) {
+      candidateUrls = resolved.videoUrls;
+    } else if (fallbackMeta) {
+      return fallbackMeta;
+    } else {
+      throw new TikTokError("Impossible de récupérer cet extrait audio TikTok.", 404);
+    }
+  }
+
+  let lastErr: unknown = null;
+  for (const targetUrl of candidateUrls) {
+    try {
+      const meta = await queryTikWmVideo(targetUrl, fallbackMeta);
+      if (meta.audioUrl || isUsableTikTokMusicMeta(meta)) return meta;
+    } catch (err) {
+      lastErr = err;
+    }
+  }
+  if (fallbackMeta) return fallbackMeta;
+  if (lastErr instanceof TikTokError) throw lastErr;
+  throw new TikTokError("Impossible de récupérer cette vidéo TikTok.", 502);
 }
 
 async function downloadAudioSnippet(audioUrl: string): Promise<Buffer | null> {
@@ -307,6 +333,20 @@ export async function identifyTikTokAudio(rawUrl: string, deps: IdentifyTikTokDe
 
   const meta = await (deps.fetchMeta ?? fetchTikWmMeta)(cleanUrl);
 
+  // When TikTok already attributes a licensed non-original sound, prefer that
+  // official attribution directly so pitched/bass-boosted edits don't mis-match
+  // onto third-party hardtek/slowed bootlegs in Shazam.
+  if (!meta.original && isUsableTikTokMusicMeta(meta)) {
+    return {
+      title: meta.musicTitle,
+      artist: meta.musicAuthor,
+      album: meta.album || undefined,
+      duration: meta.duration || undefined,
+      thumbnail: meta.cover,
+      source: "tiktok-meta",
+    };
+  }
+
   if (meta.audioUrl) {
     const audioBuf = await (deps.fetchAudio ?? downloadAudioSnippet)(meta.audioUrl);
     if (audioBuf && audioBuf.length > 0) {
@@ -341,4 +381,63 @@ export async function identifyTikTokAudio(rawUrl: string, deps: IdentifyTikTokDe
   }
 
   throw new TikTokError("Musique introuvable sur cet extrait TikTok (son original ou trop court).", 404);
+}
+
+const UNWANTED_VARIANT_PATTERNS: RegExp[] = [
+  "hardtek",
+  "hardtekk",
+  "uptempo",
+  "frenchcore",
+  "slowed",
+  "sped\\s+up",
+  "speed\\s+up",
+  "nightcore",
+  "8d\\s+audio",
+  "bass\\s+boosted",
+  "remix",
+  "bootleg",
+  "karaoke",
+  "instrumental",
+  "cover",
+  "live",
+].map((w) => new RegExp(`\\b${w}\\b`, "i"));
+
+export interface StreamSearchCandidate {
+  title: string;
+  artist?: string | null;
+  uploader: string;
+}
+
+/** Pick the YouTube search result matching the identified song while penalising
+ *  unofficial derivative versions (hardtek, slowed, sped up, nightcore, remix...)
+ *  unless those keywords are explicitly part of the detected title or artist. */
+export function pickBestTikTokStreamHit<T extends StreamSearchCandidate>(
+  results: T[],
+  detected: Pick<DetectedTikTokTrack, "title" | "artist">,
+): T | undefined {
+  if (results.length <= 1) return results[0];
+  const wantText = `${detected.title} ${detected.artist}`;
+  const normArtist = detected.artist.toLowerCase().trim();
+  const normTitle = detected.title.toLowerCase().trim();
+
+  let best = results[0];
+  let bestScore = Number.NEGATIVE_INFINITY;
+  for (let i = 0; i < results.length; i += 1) {
+    const r = results[i];
+    const haystack = `${r.title} ${r.artist ?? ""} ${r.uploader}`;
+    const haystackLower = haystack.toLowerCase();
+    let score = -i * 0.5;
+    if (normTitle && r.title.toLowerCase().includes(normTitle)) score += 4;
+    if (normArtist && haystackLower.includes(normArtist)) score += 3;
+    for (const re of UNWANTED_VARIANT_PATTERNS) {
+      if (re.test(haystack) && !re.test(wantText)) {
+        score -= 6;
+      }
+    }
+    if (score > bestScore) {
+      bestScore = score;
+      best = r;
+    }
+  }
+  return best;
 }

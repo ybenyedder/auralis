@@ -1285,15 +1285,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
 
             val instantResolved = if (filtered.isNotEmpty()) api.resolveOnlineBatch(filtered, instant = true) else emptyList()
             val resolvedTracks = instantResolved?.filterNotNull().orEmpty()
-            if (resolvedTracks.isNotEmpty()) {
-                val existingHashes = _ui.value.tracks.mapTo(HashSet()) { it.trackhash }
-                val toAddUi = resolvedTracks.filter { existingHashes.add(it.trackhash) }
-                for (t in resolvedTracks) trackIndex = trackIndex + (t.trackhash to t)
-                accounting.setLibrary(trackIndex)
-                if (toAddUi.isNotEmpty()) {
-                    _ui.update { it.copy(tracks = toAddUi + it.tracks) }
-                }
-            }
+            registerTracksInUi(resolvedTracks)
 
             val combined = (unique + resolvedTracks.map { it.trackhash }).distinct()
             val pl = JSONObject().put("name", clean).put("trackhashes", JSONArray(combined))
@@ -1370,11 +1362,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
                 onDone(false)
                 return@launch
             }
-            trackIndex = trackIndex + (track.trackhash to track)
-            accounting.setLibrary(trackIndex)
-            if (_ui.value.tracks.none { it.trackhash == track.trackhash }) {
-                _ui.update { it.copy(tracks = listOf(track) + it.tracks) }
-            }
+            registerTracksInUi(listOf(track))
             addDownloadedTracksToPlaylist(playlistId, listOf(track.trackhash))
             val plName = _ui.value.playlists.find { it.id == playlistId }?.name ?: tr("mobile.playlist")
             notify("${track.displayArtist} — ${track.title} • ${tr("toast.addedToPlaylist", mapOf("name" to plName))}")
@@ -1550,13 +1538,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
                 }
 
                 if (newTracks.isNotEmpty()) {
-                    val existingHashes = _ui.value.tracks.mapTo(HashSet()) { it.trackhash }
-                    val toAddUi = newTracks.filter { existingHashes.add(it.trackhash) }
-                    for (t in newTracks) trackIndex = trackIndex + (t.trackhash to t)
-                    accounting.setLibrary(trackIndex)
-                    if (toAddUi.isNotEmpty()) {
-                        _ui.update { it.copy(tracks = toAddUi + it.tracks) }
-                    }
+                    registerTracksInUi(newTracks)
                     addDownloadedTracksToPlaylist(playlistId, newHashes)
                 }
             }
@@ -1596,6 +1578,26 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
                     },
                 ),
             )
+        }
+    }
+
+    /** Merge newly discovered/resolved tracks into the in-memory index, accounting
+     *  engine, and reactive UI state (`tracks` + `trackByHash`) so playlists and
+     *  library views render them immediately without requiring an app restart. */
+    private fun registerTracksInUi(newTracks: List<Track>, prepend: Boolean = true) {
+        if (newTracks.isEmpty()) return
+        val existingHashes = _ui.value.tracks.mapTo(HashSet()) { it.trackhash }
+        val toAddUi = newTracks.filter { existingHashes.add(it.trackhash) }
+        for (t in newTracks) trackIndex = trackIndex + (t.trackhash to t)
+        val mergedIndex = trackIndex
+        accounting.setLibrary(mergedIndex)
+        _ui.update { s ->
+            val updatedTracks = when {
+                toAddUi.isEmpty() -> s.tracks.map { mergedIndex[it.trackhash] ?: it }
+                prepend -> toAddUi + s.tracks
+                else -> s.tracks + toAddUi
+            }
+            s.copy(tracks = updatedTracks, trackByHash = mergedIndex)
         }
     }
 
@@ -2028,17 +2030,11 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
         val queue = allHits.map { it.toTrack() }
         val idx = allHits.indexOfFirst { it.videoId == hit.videoId }.coerceAtLeast(0)
         val clicked = queue[idx]
-        trackIndex = trackIndex + (clicked.trackhash to clicked)
-        val currentTracks = _ui.value.tracks
-        if (currentTracks.none { it.trackhash == clicked.trackhash }) {
-            _ui.update { it.copy(tracks = listOf(clicked) + it.tracks) }
-        }
-        accounting.setLibrary(trackIndex)
+        registerTracksInUi(listOf(clicked))
         playTrack(clicked, queue, idx)
         viewModelScope.launch {
             val saved = api.registerOnlineTrack(hit) ?: return@launch
-            trackIndex = trackIndex + (saved.trackhash to saved)
-            accounting.setLibrary(trackIndex)
+            registerTracksInUi(listOf(saved))
         }
     }
 

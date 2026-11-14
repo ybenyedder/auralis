@@ -238,6 +238,53 @@ test("identifyTikTokAudio prioritizes Shazam recognition, falls back to non-orig
       }),
     (e: unknown) => e instanceof TikTokError && e.status === 404,
   );
+
+  // Licensed non-original TikTok metadata skips Shazam so pitched/edited audio
+  // cannot be mis-attributed to a hardtek/slowed bootleg
+  const { pickBestTikTokStreamHit } = await import("../src/server/library/tiktok");
+  let shazamCalledForOfficial = false;
+  const officialMeta = await identifyTikTokAudio("https://www.tiktok.com/@a/video/456", {
+    fetchMeta: async () => ({
+      audioUrl: "https://cdn.example.com/audio.mp3",
+      musicTitle: "Sanechka",
+      musicAuthor: "DJ Artist",
+      album: "",
+      original: false,
+      duration: 24,
+      cover: null,
+    }),
+    fetchAudio: async () => {
+      shazamCalledForOfficial = true;
+      return Buffer.from("fake-mp3");
+    },
+    recognize: async () => {
+      shazamCalledForOfficial = true;
+      return [{ title: "Sanechka hardtekk (Slowed)", artists: ["Bootleg"], album: null, score: 1, source: "shazam" }];
+    },
+  });
+  assert.equal(shazamCalledForOfficial, false);
+  assert.equal(officialMeta.title, "Sanechka");
+  assert.equal(officialMeta.source, "tiktok-meta");
+
+  // Stream hit selector avoids hardtek/slowed bootlegs in favour of the original track
+  const chosenOriginal = pickBestTikTokStreamHit(
+    [
+      { title: "Sanechka hardtekk (Rampage, Slowed)", artist: "Anhenfil", uploader: "BootlegChannel" },
+      { title: "Sanechka", artist: "DJ Artist", uploader: "DJ Artist - Topic" },
+    ],
+    { title: "Sanechka", artist: "DJ Artist" },
+  );
+  assert.equal(chosenOriginal?.title, "Sanechka");
+
+  // Word-boundary check must NOT penalise normal words containing "live" or "cover"
+  const chosenAlive = pickBestTikTokStreamHit(
+    [
+      { title: "Stay Alive (Hardtek Remix)", artist: "RandomDJ", uploader: "RandomDJ" },
+      { title: "Stay Alive", artist: "Jose Gonzalez", uploader: "Jose Gonzalez" },
+    ],
+    { title: "Stay Alive", artist: "Jose Gonzalez" },
+  );
+  assert.equal(chosenAlive?.title, "Stay Alive");
 });
 
 test("instantRegisterOnlineTracksBatch registers lazy placeholders immediately and resolveLazyVideoId resolves once", async () => {

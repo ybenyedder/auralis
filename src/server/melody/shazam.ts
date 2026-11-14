@@ -133,9 +133,26 @@ export async function shazamRecognize(audio: Buffer): Promise<ShazamMatch[]> {
   }
   if (!signatures.length) return [];
 
-  // The reference client starts in the middle of the take and steps — each
-  // signature is one query; stop at the first hit.
-  for (let i = Math.floor(signatures.length / 2); i < signatures.length; i += 4) {
+  // Prefer full-length (~12 s) center/initial windows first, then fall back to
+  // any remaining window (e.g., short 14 s TikTok clips produce [0..12s, 12..14s]
+  // where starting solely at length/2 used to skip window 0 completely).
+  const order: number[] = [];
+  const fullIndices = signatures
+    .map((s, idx) => ({ idx, ms: s?.samplems ?? 0 }))
+    .filter((x) => x.ms >= 3500)
+    .map((x) => x.idx);
+  const pool = fullIndices.length ? fullIndices : signatures.map((_, idx) => idx);
+  const mid = Math.floor(pool.length / 2);
+  order.push(pool[mid]);
+  for (let offset = 1; offset < pool.length; offset += 1) {
+    if (mid - offset >= 0) order.push(pool[mid - offset]);
+    if (mid + offset < pool.length) order.push(pool[mid + offset]);
+  }
+  for (let idx = 0; idx < signatures.length; idx += 1) {
+    if (!order.includes(idx)) order.push(idx);
+  }
+
+  for (const i of order.slice(0, 3)) {
     const signature = signatures[i];
     if (!signature?.uri) continue;
     try {

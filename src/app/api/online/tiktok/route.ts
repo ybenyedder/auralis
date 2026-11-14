@@ -4,7 +4,7 @@ import { rateLimitWindow } from "@/server/rateLimit";
 import { onlineSearch } from "@/server/library/downloader";
 import { upsertOnlineTrack } from "@/server/library/online";
 import { invalidateSnapshotCache } from "@/server/library/repository";
-import { identifyTikTokAudio, TikTokError } from "@/server/library/tiktok";
+import { identifyTikTokAudio, pickBestTikTokStreamHit, TikTokError } from "@/server/library/tiktok";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -30,8 +30,8 @@ export async function POST(request: Request) {
   try {
     const detected = await identifyTikTokAudio(url);
     const query = [detected.artist, detected.title].filter(Boolean).join(" ").trim();
-    const search = await onlineSearch(query, 3, { bypassDownloadGate: true });
-    const hit = search.results[0];
+    const search = await onlineSearch(query, 6, { bypassDownloadGate: true });
+    const hit = pickBestTikTokStreamHit(search.results, detected);
     if (!hit) {
       return json(
         {
