@@ -573,19 +573,58 @@ data class SearchResult(
 
 // ---- online (downloadable) search + download jobs ---------------------------
 
-/** A YouTube hit offered for download when the library can't answer the query. */
+/** A YouTube hit offered for instant streaming (or optional download). */
 data class OnlineTrack(
     val videoId: String,
     val title: String,
+    val artist: String?,
     val uploader: String,
     val duration: Double,
     val thumbnail: String?,
     val url: String,
 ) {
+    val displayArtist: String
+        get() = (artist ?: uploader).replace(Regex("\\s*-\\s*Topic$", RegexOption.IGNORE_CASE), "").trim().ifBlank { "YouTube" }
+
+    fun toTrack(): Track {
+        val art = "/api/online/art/${android.net.Uri.encode(videoId)}"
+        return Track(
+            trackhash = "yt:$videoId",
+            title = title,
+            artist = displayArtist,
+            album = "Streaming",
+            albumhash = null,
+            duration = duration,
+            filepath = "yt://$videoId",
+            folder = null,
+            image = art,
+            isFavorite = false,
+            playcount = 0,
+            disc = null,
+            track = null,
+            year = null,
+            genre = null,
+            mood = null,
+            energy = null,
+            bpm = null,
+            gain = null,
+            bitrate = null,
+            samplerate = null,
+            codec = null,
+            lossless = false,
+            size = null,
+            hasLyrics = false,
+            addedAt = null,
+            color = null,
+            artists = listOf(ArtistRef("yt-ar:${displayArtist.lowercase()}", displayArtist)),
+        )
+    }
+
     companion object {
         fun from(o: JSONObject): OnlineTrack = OnlineTrack(
             videoId = o.strOr("videoId", ""),
             title = o.strOr("title", ""),
+            artist = o.str("artist"),
             uploader = o.strOr("uploader", "YouTube"),
             duration = o.doubleOrNull("duration") ?: 0.0,
             thumbnail = o.str("thumbnail"),

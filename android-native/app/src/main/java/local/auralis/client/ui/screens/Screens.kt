@@ -842,10 +842,10 @@ fun SearchScreen(vm: AppViewModel, ui: UiState) {
                         )
                     }
                 }
-                // Downloadable online hits — shown when the library answers poorly
-                // (fewer than 5 local tracks) so anything missing can be fetched.
+                // Instant-streaming online hits — always available when searching
+                // so the PC doesn't need every song stored locally.
                 val showOnline = ui.onlineLoading || (ui.onlineEnabled && ui.onlineResults.isNotEmpty())
-                if (showOnline && res.tracks.size < 5) {
+                if (showOnline) {
                     item { SectionHeader(tr("search.online")) }
                     if (ui.onlineLoading) {
                         item {
@@ -859,7 +859,12 @@ fun SearchScreen(vm: AppViewModel, ui: UiState) {
                         item { local.auralis.client.ui.components.SkeletonRows(3) }
                     }
                     items(ui.onlineResults, key = { "online-${it.videoId}" }) { hit ->
-                        OnlineRow(hit = hit, job = ui.downloadJobs[hit.videoId]) { vm.downloadOnline(it) }
+                        OnlineRow(
+                            hit = hit,
+                            job = ui.downloadJobs[hit.videoId],
+                            onPlay = { vm.playOnline(it) },
+                            onDownload = { vm.downloadOnline(it) },
+                        )
                     }
                 }
                 if (res.tracks.isEmpty() && res.albums.isEmpty() && res.artists.isEmpty() && !showOnline) {
@@ -870,10 +875,15 @@ fun SearchScreen(vm: AppViewModel, ui: UiState) {
     }
 }
 
-/** One downloadable YouTube hit: thumbnail, title, uploader, and a button whose
- *  label follows the server-side download job (queued → % → ajouté). */
+/** One instant-streaming YouTube hit: tap row to stream immediately, or tap
+ *  the compact download icon on the right to save it on the server. */
 @Composable
-private fun OnlineRow(hit: OnlineTrack, job: DownloadJobDto?, onDownload: (OnlineTrack) -> Unit) {
+private fun OnlineRow(
+    hit: OnlineTrack,
+    job: DownloadJobDto?,
+    onPlay: (OnlineTrack) -> Unit,
+    onDownload: (OnlineTrack) -> Unit,
+) {
     val colors = LocalAuralis.current
     val busy = job?.busy == true
     val done = job?.status == "done"
@@ -891,6 +901,7 @@ private fun OnlineRow(hit: OnlineTrack, job: DownloadJobDto?, onDownload: (Onlin
             .fillMaxWidth()
             .clip(AMShapes.card)
             .background(colors.panel2)
+            .clickable { onPlay(hit) }
             .padding(horizontal = 10.dp, vertical = 8.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
@@ -903,7 +914,7 @@ private fun OnlineRow(hit: OnlineTrack, job: DownloadJobDto?, onDownload: (Onlin
         Column(Modifier.weight(1f)) {
             Text(hit.title, color = colors.foreground, style = Type.Body, fontWeight = FontWeight.Bold, maxLines = 1, overflow = TextOverflow.Ellipsis)
             Text(
-                "${hit.uploader} · ${formatLongDuration(hit.duration)}",
+                "${hit.displayArtist} · ${formatLongDuration(hit.duration)}",
                 color = colors.textMuted, style = Type.Caption, fontWeight = FontWeight.Medium,
                 maxLines = 1, overflow = TextOverflow.Ellipsis,
             )
@@ -916,11 +927,11 @@ private fun OnlineRow(hit: OnlineTrack, job: DownloadJobDto?, onDownload: (Onlin
                     when {
                         done -> colors.panel3
                         failed -> Color(0x26FF5252)
-                        else -> colors.accent
+                        else -> colors.panel3
                     },
                 )
                 .clickable(enabled = !busy && !done) { onDownload(hit) }
-                .padding(horizontal = 14.dp, vertical = 8.dp),
+                .padding(horizontal = 12.dp, vertical = 8.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
             if (busy) {
@@ -929,20 +940,24 @@ private fun OnlineRow(hit: OnlineTrack, job: DownloadJobDto?, onDownload: (Onlin
                     modifier = Modifier.size(14.dp),
                 )
                 Spacer(Modifier.width(6.dp))
-            } else {
+                Text(label, color = colors.foreground, style = Type.Caption, fontWeight = FontWeight.Bold)
+            } else if (done || failed) {
                 Icon(
-                    when {
-                        done -> Icons.Filled.Check
-                        failed -> Icons.Filled.Close
-                        else -> Icons.Filled.Download
-                    },
+                    if (done) Icons.Filled.Check else Icons.Filled.Close,
                     contentDescription = label,
                     tint = if (failed) Color(0xFFFF6B6B) else colors.foreground,
                     modifier = Modifier.size(16.dp),
                 )
                 Spacer(Modifier.width(6.dp))
+                Text(label, color = if (failed) Color(0xFFFF6B6B) else colors.foreground, style = Type.Caption, fontWeight = FontWeight.Bold)
+            } else {
+                Icon(
+                    Icons.Filled.Download,
+                    contentDescription = label,
+                    tint = colors.textMuted,
+                    modifier = Modifier.size(16.dp),
+                )
             }
-            Text(label, color = if (failed) Color(0xFFFF6B6B) else colors.foreground, style = Type.Caption, fontWeight = FontWeight.Bold)
         }
     }
     Spacer(Modifier.height(8.dp))

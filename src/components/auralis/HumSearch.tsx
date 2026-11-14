@@ -9,7 +9,7 @@
 // importing server modules (client-safe).
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { Mic, Square, Loader2, Check, AlertCircle, Music2 } from "lucide-react";
+import { Mic, Square, Loader2, Check, AlertCircle, Music2, Play } from "lucide-react";
 import { api } from "@/lib/auralis/api";
 import { paletteForName } from "@/lib/auralis/brand";
 import { cn } from "@/lib/utils";
@@ -226,12 +226,14 @@ export function HumResultsView({
   result,
   jobs,
   onPlayLocal,
+  onPlayRemote,
   onStartRemote,
   t,
 }: {
   result: HumRecognizeResult;
   jobs: Record<string, DownloadJobView>;
   onPlayLocal: (match: HumLocalMatch) => void;
+  onPlayRemote?: (match: HumRemoteMatch) => void;
   onStartRemote: (match: HumRemoteMatch, jobKey: string) => void;
   t: TFn;
 }) {
@@ -296,7 +298,7 @@ export function HumResultsView({
             eyebrow={`${remote.length}`}
           />
           <p className="mb-3 text-[12px] font-medium text-muted-foreground">
-            {t("search.humResults.remoteHint", "Pas dans ta bibliothèque — ajoute-le au serveur")}
+            {t("search.humResults.remoteHint", "Pas dans ta bibliothèque — écoute en streaming instantané ou télécharge sur le serveur")}
           </p>
           <div className="flex flex-col gap-2">
             {remote.map((match) => {
@@ -307,6 +309,7 @@ export function HumResultsView({
                   match={match}
                   jobKey={jobKey}
                   job={jobs[jobKey]}
+                  onPlay={onPlayRemote}
                   onStart={onStartRemote}
                   t={t}
                 />
@@ -336,15 +339,18 @@ function HumRemoteRow({
   match,
   jobKey,
   job,
+  onPlay,
   onStart,
   t,
 }: {
   match: HumRemoteMatch;
   jobKey: string;
   job?: DownloadJobView;
+  onPlay?: (match: HumRemoteMatch) => void;
   onStart: (match: HumRemoteMatch, jobKey: string) => void;
   t: TFn;
 }) {
+  const [resolvingPlay, setResolvingPlay] = useState(false);
   const status = job?.status;
   const busy = status === "queued" || status === "resolving" || status === "downloading" || status === "scanning";
   const label =
@@ -380,6 +386,21 @@ function HumRemoteRow({
           </div>
         )}
       </div>
+      {onPlay && (
+        <button
+          onClick={() => {
+            if (resolvingPlay) return;
+            setResolvingPlay(true);
+            Promise.resolve(onPlay(match)).finally(() => setResolvingPlay(false));
+          }}
+          disabled={resolvingPlay}
+          aria-label={`${t("common.play", "Lire")} — ${match.title}`}
+          className="signal-button tap-press flex h-11 shrink-0 items-center gap-1.5 rounded-full px-4 text-[12px] font-bold lg:h-9"
+        >
+          {resolvingPlay ? <Loader2 className="size-4 animate-spin" /> : <Play className="size-4 fill-current" />}
+          <span>{t("common.play", "Lire")}</span>
+        </button>
+      )}
       <button
         onClick={() => !busy && status !== "done" && onStart(match, jobKey)}
         disabled={busy || status === "done"}
@@ -392,7 +413,7 @@ function HumRemoteRow({
               ? "bg-red-500/15 text-red-400 hover:bg-red-500/25"
               : busy
                 ? "bg-[var(--surface-2)] text-muted-foreground"
-                : "bg-foreground text-background hover:opacity-90",
+                : "bg-[var(--surface-2)] text-foreground hover:bg-[var(--panel-3)]",
         )}
       >
         {busy && <Loader2 className="size-4 animate-spin" />}

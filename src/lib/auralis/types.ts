@@ -61,6 +61,9 @@ export interface Track {
   addedAt?: number;
   color?: [string, string, string];
   lyrics?: { time: number; text: string; words?: { time: number; text: string }[] }[];
+  /** True when the track is streamed on demand without a local file on disk. */
+  isOnline?: boolean;
+  videoId?: string;
 }
 
 export interface FolderNode {

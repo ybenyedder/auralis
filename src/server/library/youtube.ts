@@ -355,3 +355,90 @@ export async function downloadYouTubeAudio(opts: DownloadAudioOptions): Promise<
   }
   throw new Error(lastError.slice(0, 300));
 }
+
+// ---- instant streaming -----------------------------------------------------
+
+export interface ResolvedAudioStream {
+  url: string;
+  mime: string;
+  contentLength: number | null;
+  client: StreamClient;
+  expiresAt: number;
+}
+
+const STREAM_CACHE_TTL_MS = 20 * 60 * 1000;
+const STREAM_CACHE_MAX = 200;
+const streamUrlCache = new Map<string, ResolvedAudioStream>();
+const streamInflight = new Map<string, Promise<ResolvedAudioStream>>();
+
+export function invalidateYouTubeStream(videoId: string): void {
+  streamUrlCache.delete(videoId);
+}
+
+/** Resolve a playable audio stream URL for `videoId` without touching disk.
+ *  Caches URLs briefly in memory so browser/ExoPlayer Range seeks are instant,
+ *  and deduplicates concurrent probes for the same videoId. */
+export async function resolveYouTubeStream(
+  videoId: string,
+  opts: { forceRefresh?: boolean; skipClient?: StreamClient } = {},
+): Promise<ResolvedAudioStream> {
+  if (opts.forceRefresh) streamUrlCache.delete(videoId);
+  const cached = streamUrlCache.get(videoId);
+  if (cached && cached.expiresAt > Date.now()) {
+    return cached;
+  }
+
+  if (!opts.forceRefresh) {
+    const pending = streamInflight.get(videoId);
+    if (pending) return pending;
+  }
+
+  const task = (async (): Promise<ResolvedAudioStream> => {
+    const startIdx = opts.skipClient
+      ? Math.max(0, STREAM_CLIENTS.indexOf(opts.skipClient) + 1)
+      : 0;
+    let lastError = "Flux audio introuvable";
+
+    for (let attempt = 0; attempt < STREAM_CLIENTS.length; attempt++) {
+      const client = STREAM_CLIENTS[(startIdx + attempt) % STREAM_CLIENTS.length];
+      try {
+        const yt = await getSession();
+        const format = await yt.getStreamingData(videoId, {
+          type: "audio",
+          quality: "best",
+          client,
+        });
+        const url = format.url;
+        if (!url) throw new Error("Aucun flux audio exploitable");
+
+        const entry: ResolvedAudioStream = {
+          url,
+          mime: format.mime_type?.split(";")[0]?.trim() || "audio/mp4",
+          contentLength: typeof format.content_length === "number" && Number.isFinite(format.content_length)
+            ? format.content_length
+            : null,
+          client,
+          expiresAt: Date.now() + STREAM_CACHE_TTL_MS,
+        };
+        streamUrlCache.set(videoId, entry);
+        if (streamUrlCache.size > STREAM_CACHE_MAX) {
+          const oldest = [...streamUrlCache.entries()].sort((a, b) => a[1].expiresAt - b[1].expiresAt).slice(0, 50);
+          for (const [k] of oldest) streamUrlCache.delete(k);
+        }
+        return entry;
+      } catch (err) {
+        lastError = err instanceof Error ? err.message : String(err);
+        log.warn("youtube stream resolve failed", { videoId, client, attempt: attempt + 1, error: lastError.slice(0, 200) });
+        if (attempt === 1) resetSession();
+      }
+    }
+    throw new Error(lastError.slice(0, 300));
+  })();
+
+  streamInflight.set(videoId, task);
+  try {
+    return await task;
+  } finally {
+    if (streamInflight.get(videoId) === task) streamInflight.delete(videoId);
+  }
+}

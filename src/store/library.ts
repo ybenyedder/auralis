@@ -50,6 +50,7 @@ interface LibraryState {
   rescan: () => Promise<void>;
   applyPayload: (payload: LibraryPayload) => void;
   setScan: (scan: ScanProgress) => void;
+  upsertTrack: (track: Track) => void;
   getTrack: (hash: string) => Track | undefined;
 }
 
@@ -85,6 +86,18 @@ export const useLibraryStore = create<LibraryState>((set, get) => ({
       // An empty library is a normal first-run state, not an error — only surface
       // a real scan error so views show a friendly empty state instead of red text.
       error: payload.error ?? null,
+    });
+  },
+
+  upsertTrack: (track) => {
+    set((state) => {
+      const idx = new Map(state.trackIndex);
+      const existed = idx.has(track.trackhash);
+      idx.set(track.trackhash, track);
+      const tracks = existed
+        ? state.tracks.map((t) => (t.trackhash === track.trackhash ? track : t))
+        : [track, ...state.tracks];
+      return { tracks, trackIndex: idx };
     });
   },
 

@@ -16,12 +16,14 @@ import { getDb } from "../db";
 import { isSupportedAudioPath } from "../paths";
 import { runScan } from "./scanner";
 import { youtubeSearch, downloadYouTubeAudio, type YouTubeHit } from "./youtube";
+import { parseOnlineMeta } from "./online";
 
 const log = createLogger("downloader");
 
 export interface OnlineResult {
   videoId: string;
   title: string;
+  artist?: string;
   uploader: string;
   duration: number;
   thumbnail: string | null;
@@ -97,9 +99,11 @@ const SEARCH_CACHE_MS = 10 * 60 * 1000;
 const MAX_DURATION_S = 15 * 60; // skip uploads longer than 15 min (mixes, podcasts)
 
 function toOnlineResult(hit: YouTubeHit): OnlineResult {
+  const parsed = parseOnlineMeta(hit.title, hit.uploader);
   return {
     videoId: hit.videoId,
-    title: hit.title,
+    title: parsed.title,
+    artist: parsed.artist,
     uploader: hit.uploader,
     duration: hit.duration,
     thumbnail: hit.thumbnail,

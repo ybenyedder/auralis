@@ -13,6 +13,7 @@
 import { getDb } from "../db";
 import { getConfig } from "../config";
 import { getScanProgress } from "./scanner";
+import { listOnlineTracks, mapOnlineRowToTrack, type OnlineTrackRow } from "./online";
 import type { Album, Artist, Track, FolderNode } from "@/lib/auralis/types";
 
 interface TrackRow {
@@ -156,6 +157,10 @@ export interface LibrarySnapshot {
 // return of the already-built object.
 let cached: { version: string; snapshot: LibrarySnapshot } | null = null;
 
+export function invalidateSnapshotCache(): void {
+  cached = null;
+}
+
 /** Cheap fingerprint of everything that can change the catalogue body. */
 function libraryVersion(db: ReturnType<typeof getDb>): string {
   const { n } = db.prepare("SELECT COUNT(*) AS n FROM tracks").get() as { n: number };
@@ -165,7 +170,8 @@ function libraryVersion(db: ReturnType<typeof getDb>): string {
   // covers are first requested) surface on the next /api/library instead of being
   // pinned behind the cached snapshot.
   const colors = (db.prepare("SELECT COUNT(*) AS n FROM art_colors").get() as { n: number }).n;
-  return `${n}-${scannedAt}-${analyzedAt}-${colors}`;
+  const online = db.prepare("SELECT COUNT(*) AS n, COALESCE(MAX(added_at), 0) AS m FROM online_tracks").get() as { n: number; m: number };
+  return `${n}-${scannedAt}-${analyzedAt}-${colors}-${online.n}-${online.m}`;
 }
 
 function buildSnapshot(db: ReturnType<typeof getDb>): LibrarySnapshot {
@@ -175,7 +181,10 @@ function buildSnapshot(db: ReturnType<typeof getDb>): LibrarySnapshot {
   const trackRows = db.prepare(
     `${TRACK_SELECT} ORDER BY t.albumhash, t.disc_no, t.track_no, t.title COLLATE NOCASE`
   ).all() as TrackRow[];
-  const tracks = trackRows.map(mapTrack);
+  const localTracks = trackRows.map(mapTrack);
+  const onlineTracks = listOnlineTracks();
+  const seenHashes = new Set(localTracks.map((t) => t.trackhash));
+  const tracks = [...localTracks, ...onlineTracks.filter((t) => !seenHashes.has(t.trackhash))];
 
   // Album + artist aggregates derived from the same rows (counts/durations/genres).
   const albumAgg = new Map<string, { count: number; duration: number; genres: Set<string> }>();
@@ -242,11 +251,11 @@ function buildSnapshot(db: ReturnType<typeof getDb>): LibrarySnapshot {
     tracks,
     albums,
     artists,
-    folders: buildFolders(tracks, rootName),
+    folders: buildFolders(localTracks, rootName),
     root: musicDir,
     scannedAt,
     count: tracks.length,
-    error: tracks.length === 0 ? "Aucun fichier audio indexé. Lance un scan ou configure AURALIS_MUSIC_DIR." : null,
+    error: null,
   };
 }
 
@@ -291,14 +300,41 @@ export function search(query: string, limit = 50): SearchResults {
     "SELECT trackhash FROM track_fts WHERE track_fts MATCH ? ORDER BY rank LIMIT ?"
   ).all(expr, limit) as { trackhash: string }[];
 
-  if (!hashes.length) return { tracks: [], albums: [], artists: [] };
-  const placeholders = hashes.map(() => "?").join(",");
-  const rows = db.prepare(
-    `${TRACK_SELECT} WHERE t.trackhash IN (${placeholders})`
-  ).all(...hashes.map((h) => h.trackhash)) as TrackRow[];
+  let tracks: Track[] = [];
+  if (hashes.length > 0) {
+    const placeholders = hashes.map(() => "?").join(",");
+    const rows = db.prepare(
+      `${TRACK_SELECT} WHERE t.trackhash IN (${placeholders})`
+    ).all(...hashes.map((h) => h.trackhash)) as TrackRow[];
 
-  const order = new Map(hashes.map((h, i) => [h.trackhash, i]));
-  const tracks = rows.map(mapTrack).sort((a, b) => (order.get(a.trackhash) ?? 0) - (order.get(b.trackhash) ?? 0));
+    const order = new Map(hashes.map((h, i) => [h.trackhash, i]));
+    tracks = rows.map(mapTrack).sort((a, b) => (order.get(a.trackhash) ?? 0) - (order.get(b.trackhash) ?? 0));
+  }
+
+  // Also include matching virtual online_tracks so played/liked streamed tracks
+  // surface in local search instantly without duplicate hits.
+  if (tracks.length < limit) {
+    const tokens = query.trim().toLowerCase().split(/\s+/).filter(Boolean).slice(0, 5);
+    if (tokens.length > 0) {
+      const clauses = tokens.map(() => "(LOWER(o.title) LIKE ? OR LOWER(o.artist) LIKE ?)").join(" AND ");
+      const params = tokens.flatMap((tok) => [`%${tok}%`, `%${tok}%`]);
+      const onlineRows = db.prepare(`
+        SELECT o.*,
+          CASE WHEN l.synced IS NOT NULL OR l.plain IS NOT NULL THEN 1 ELSE 0 END AS lyrics_present
+        FROM online_tracks o
+        LEFT JOIN lyrics l ON l.trackhash = o.trackhash
+        WHERE ${clauses}
+        ORDER BY o.added_at DESC
+        LIMIT ?
+      `).all(...params, limit - tracks.length) as OnlineTrackRow[];
+      const seen = new Set(tracks.map((t) => t.trackhash));
+      for (const row of onlineRows) {
+        if (!seen.has(row.trackhash)) tracks.push(mapOnlineRowToTrack(row));
+      }
+    }
+  }
+
+  if (!tracks.length) return { tracks: [], albums: [], artists: [] };
 
   const albumSeen = new Map<string, Album>();
   const artistSeen = new Map<string, Artist>();

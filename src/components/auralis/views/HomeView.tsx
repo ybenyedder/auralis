@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { Play, Settings, Heart, Music2, Compass } from "lucide-react";
+import { Play, Settings, Heart, Music2, Compass, Search } from "lucide-react";
 import { usePlayer } from "@/store/player";
 import { shuffleArray } from "@/store/slices/helpers";
 import { useLibraryStore, tracksFromIndex, artistPlayTotals } from "@/store/library";
@@ -194,13 +194,22 @@ export function HomeView() {
           {error && <p className="mt-2 max-w-xl text-[12px] font-medium text-[var(--text-muted)]">{error}</p>}
 
           {tracks.length === 0 ? (
-            <button
-              onClick={() => navigate("settings")}
-              className="signal-button mt-4 inline-flex items-center gap-2 rounded-full px-5 py-3 text-[14px] font-bold"
-            >
-              <Settings className="size-4" />
-              {t("home.setupLibrary", "Configurer la bibliothèque")}
-            </button>
+            <div className="mt-4 flex flex-wrap items-center gap-3">
+              <button
+                onClick={() => navigate("search")}
+                className="signal-button inline-flex items-center gap-2 rounded-full px-5 py-3 text-[14px] font-bold"
+              >
+                <Search className="size-4" />
+                {t("home.searchInstant", "Rechercher et écouter un titre")}
+              </button>
+              <button
+                onClick={() => navigate("settings")}
+                className="inline-flex items-center gap-2 rounded-full bg-[var(--panel-2)] px-5 py-3 text-[14px] font-bold text-foreground transition-colors hover:bg-[var(--panel-3)]"
+              >
+                <Settings className="size-4" />
+                {t("home.setupLibrary", "Configurer la bibliothèque")}
+              </button>
+            </div>
           ) : quickTiles.length > 0 ? (
             <div className="grid grid-cols-2 gap-3 xl:grid-cols-4">
               {quickTiles.map(({ key, ...rest }) => (

@@ -97,6 +97,10 @@ export const api = {
    *  Feeds <audio src> / external players, which cannot send an Authorization
    *  header — hence the query token (cookie clients work either way). */
   streamUrl(filepath: string): string {
+    if (filepath.startsWith("yt://")) {
+      const videoId = filepath.slice(5).trim();
+      return this.urlWithToken(`/api/online/stream/${encodeURIComponent(videoId)}`);
+    }
     const encoded = filepath.split(/[\\/]+/).filter(Boolean).map(encodeURIComponent).join("/");
     return this.urlWithToken(`/api/stream/${encoded}`);
   },
@@ -105,8 +109,12 @@ export const api = {
    *  anyone can open is a session leak; cookie clients still stream fine, and
    *  token clients simply re-authenticate in their own player. */
   streamUrlShared(filepath: string): string {
-    const encoded = filepath.split(/[\\/]+/).filter(Boolean).map(encodeURIComponent).join("/");
     const base = this.base() || (typeof window !== "undefined" ? window.location.origin : "");
+    if (filepath.startsWith("yt://")) {
+      const videoId = filepath.slice(5).trim();
+      return `${base}/api/online/stream/${encodeURIComponent(videoId)}`;
+    }
+    const encoded = filepath.split(/[\\/]+/).filter(Boolean).map(encodeURIComponent).join("/");
     return `${base}/api/stream/${encoded}`;
   },
   /** Resolve an art/image URL coming back from the API against the configured base.

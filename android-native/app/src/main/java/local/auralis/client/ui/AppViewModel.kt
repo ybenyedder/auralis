@@ -1964,9 +1964,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
             if (_ui.value.searchQuery != query) return@launch
             val res = api.search(query)
             if (_ui.value.searchQuery == query) _ui.update { it.copy(searchResult = res) }
-            // The library answers poorly (or not at all) → also ask the server's
-            // YouTube engine for downloadable hits ("that song isn't here — fetch it").
-            if (_ui.value.searchQuery == query && query.length >= 2 && res.tracks.size < 5) {
+            if (_ui.value.searchQuery == query && query.length >= 2) {
                 _ui.update { it.copy(onlineLoading = true) }
                 val (enabled, online) = api.searchOnline(query)
                 if (_ui.value.searchQuery == query) {
@@ -1975,6 +1973,26 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
             } else if (_ui.value.searchQuery == query) {
                 _ui.update { it.copy(onlineResults = emptyList(), onlineLoading = false) }
             }
+        }
+    }
+
+    /** Play an online hit immediately in streaming without downloading it onto the PC. */
+    fun playOnline(hit: OnlineTrack) {
+        val allHits = _ui.value.onlineResults.ifEmpty { listOf(hit) }
+        val queue = allHits.map { it.toTrack() }
+        val idx = allHits.indexOfFirst { it.videoId == hit.videoId }.coerceAtLeast(0)
+        val clicked = queue[idx]
+        trackIndex = trackIndex + (clicked.trackhash to clicked)
+        val currentTracks = _ui.value.tracks
+        if (currentTracks.none { it.trackhash == clicked.trackhash }) {
+            _ui.update { it.copy(tracks = listOf(clicked) + it.tracks) }
+        }
+        accounting.setLibrary(trackIndex)
+        playTrack(clicked, queue, idx)
+        viewModelScope.launch {
+            val saved = api.registerOnlineTrack(hit) ?: return@launch
+            trackIndex = trackIndex + (saved.trackhash to saved)
+            accounting.setLibrary(trackIndex)
         }
     }
 
@@ -2209,9 +2227,10 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
 
     fun fetchLyrics(force: Boolean) {
         val id = player.snapshot.value.currentId ?: return
+        val tr = track(id) ?: _ui.value.tracks.firstOrNull { it.trackhash == id }
         viewModelScope.launch {
             _ui.update { it.copy(lyricsLoading = true) }
-            val res = api.lyrics(id, force)
+            val res = api.lyrics(id, force, tr)
             if (player.snapshot.value.currentId == id) {
                 _ui.update { it.copy(lyrics = res, lyricsLoading = false) }
             } else {

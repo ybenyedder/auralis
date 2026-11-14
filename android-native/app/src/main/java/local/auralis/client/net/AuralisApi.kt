@@ -18,6 +18,7 @@ import local.auralis.client.model.RecoTrack
 import local.auralis.client.model.RecommendResult
 import local.auralis.client.model.ScanProgress
 import local.auralis.client.model.SearchResult
+import local.auralis.client.model.Track
 import local.auralis.client.model.UserState
 import local.auralis.client.model.objects
 import local.auralis.client.model.stringArray
@@ -61,6 +62,10 @@ class AuralisApi {
     // No ?token= on the URL: the media DataSource attaches the token as an
     // Authorization header instead, keeping it out of access/proxy logs.
     fun streamUrl(filepath: String): String {
+        if (filepath.startsWith("yt://")) {
+            val videoId = filepath.removePrefix("yt://").trim()
+            return "$base/api/online/stream/${Uri.encode(videoId)}"
+        }
         val encoded = filepath.split(Regex("[\\\\/]+"))
             .filter { it.isNotBlank() }
             .joinToString("/") { Uri.encode(it) }
@@ -231,6 +236,18 @@ class AuralisApi {
         }.getOrDefault(false to emptyList())
     }
 
+    suspend fun registerOnlineTrack(hit: OnlineTrack): Track? {
+        val body = JSONObject()
+            .put("videoId", hit.videoId)
+            .put("title", hit.title)
+            .put("artist", hit.displayArtist)
+            .put("duration", hit.duration)
+        if (!hit.thumbnail.isNullOrBlank()) body.put("thumbnail", hit.thumbnail)
+        val res = runCatching { post("/api/online/register", body) }.getOrNull() ?: return null
+        val t = res.optJSONObject("track") ?: return null
+        return Track.from(t)
+    }
+
     /** Start (or join) a server-side download job for one online hit. */
     suspend fun startDownload(videoId: String?, title: String, query: String): DownloadJobDto? {
         val body = JSONObject().put("title", title).put("query", query)
@@ -319,8 +336,17 @@ class AuralisApi {
      *  response body; check [apiLastOk] + `error` for the failure verdict. */
     suspend fun startMelodyIndex(): JSONObject = post("/api/library/melody", JSONObject())
 
-    suspend fun lyrics(trackhash: String, force: Boolean): LyricsResult = withContext(Dispatchers.IO) {
-        val url = "$base/api/lyrics/${Uri.encode(trackhash)}"
+    suspend fun lyrics(trackhash: String, force: Boolean, track: Track? = null): LyricsResult = withContext(Dispatchers.IO) {
+        val baseUrl = ("$base/api/lyrics/${Uri.encode(trackhash)}".toHttpUrlOrNull() ?: return@withContext LyricsResult.NONE)
+        val urlBuilder = baseUrl.newBuilder()
+        if ((trackhash.startsWith("yt:") || track?.filepath?.startsWith("yt://") == true) && track != null && track.title.isNotBlank()) {
+            urlBuilder.addQueryParameter("title", track.title)
+            if (!track.artist.isNullOrBlank()) urlBuilder.addQueryParameter("artist", track.artist)
+            if (!track.album.isNullOrBlank()) urlBuilder.addQueryParameter("album", track.album)
+            val dur = track.duration ?: 0.0
+            if (dur > 0) urlBuilder.addQueryParameter("duration", dur.toInt().toString())
+        }
+        val url = urlBuilder.build()
         val builder = Request.Builder().url(url)
         if (force) builder.post("".toRequestBody(JSON)) else builder.get()
         runCatching {

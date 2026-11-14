@@ -1,0 +1,176 @@
+// Lightweight virtual tracks streamed on demand without storing audio files
+// on disk. Persisted in SQLite `online_tracks` so likes, recents, playlists,
+// queue restore, and lyrics survive reloads while keeping local storage at 0 B.
+
+import { getDb } from "../db";
+import type { Artist, Track } from "@/lib/auralis/types";
+import { cleanTitle, splitArtistTitle } from "./youtube";
+
+export const ONLINE_VIDEO_ID_RE = /^[A-Za-z0-9_-]{6,20}$/;
+
+export function isValidVideoId(id: unknown): id is string {
+  return typeof id === "string" && ONLINE_VIDEO_ID_RE.test(id);
+}
+
+export function onlineTrackhash(videoId: string): string {
+  return `yt:${videoId}`;
+}
+
+export function onlineFilepath(videoId: string): string {
+  return `yt://${videoId}`;
+}
+
+export function isOnlineTrackhash(hash: string): boolean {
+  return hash.startsWith("yt:");
+}
+
+export function isOnlineFilepath(filepath: string): boolean {
+  return filepath.startsWith("yt://");
+}
+
+export function videoIdFromOnlineRef(ref: string): string | null {
+  const raw = ref.startsWith("yt://") ? ref.slice(5) : ref.startsWith("yt:") ? ref.slice(3) : ref;
+  return isValidVideoId(raw) ? raw : null;
+}
+
+export interface OnlineTrackRow {
+  trackhash: string;
+  video_id: string;
+  title: string;
+  artist: string;
+  album: string;
+  duration: number;
+  thumbnail: string | null;
+  added_at: number;
+  lyrics_present?: number;
+}
+
+function stableHash(input: string): string {
+  let h = 2166136261;
+  for (let i = 0; i < input.length; i++) {
+    h ^= input.charCodeAt(i);
+    h = Math.imul(h, 16777619);
+  }
+  return (h >>> 0).toString(16).padStart(8, "0");
+}
+
+export function parseOnlineMeta(rawTitle: string, uploader?: string, explicitArtist?: string): { title: string; artist: string } {
+  const cleaned = cleanTitle(rawTitle).trim() || rawTitle.trim();
+  const split = splitArtistTitle(cleaned);
+  if (split) {
+    return {
+      title: split.title,
+      artist: explicitArtist?.trim() || split.artist,
+    };
+  }
+  const fallbackArtist = (explicitArtist || uploader || "YouTube").replace(/\s*-\s*Topic$/i, "").trim() || "YouTube";
+  return { title: cleaned, artist: fallbackArtist };
+}
+
+export function mapOnlineRowToTrack(row: OnlineTrackRow): Track {
+  const artisthash = `yt-ar:${stableHash(row.artist.toLowerCase())}`;
+  const albumhash = `yt-al:${stableHash(`${row.album.toLowerCase()}::${row.artist.toLowerCase()}`)}`;
+  const artistRef: Artist = { artisthash, name: row.artist };
+  return {
+    trackhash: row.trackhash,
+    title: row.title,
+    artist: row.artist,
+    artists: [artistRef],
+    album: row.album || "YouTube",
+    albumhash,
+    albumartists: [artistRef],
+    duration: Number.isFinite(row.duration) ? row.duration : 0,
+    filepath: onlineFilepath(row.video_id),
+    image: row.thumbnail || `/api/online/art/${encodeURIComponent(row.video_id)}`,
+    hasLyrics: row.lyrics_present === 1,
+    addedAt: row.added_at || undefined,
+    isOnline: true,
+    videoId: row.video_id,
+  };
+}
+
+export interface RegisterOnlineTrackInput {
+  videoId: string;
+  title: string;
+  artist?: string;
+  album?: string;
+  duration?: number;
+  thumbnail?: string | null;
+}
+
+/** Upsert one streamed track's metadata into `online_tracks`.
+ *  Returns `{ track, inserted }` so callers know whether the catalogue version changed. */
+export function upsertOnlineTrack(input: RegisterOnlineTrackInput): { track: Track; inserted: boolean } {
+  if (!isValidVideoId(input.videoId)) {
+    throw new Error("Identifiant vidéo invalide");
+  }
+  const db = getDb();
+  const trackhash = onlineTrackhash(input.videoId);
+  const existing = db
+    .prepare("SELECT trackhash FROM online_tracks WHERE trackhash = ?")
+    .get(trackhash) as { trackhash: string } | undefined;
+
+  const parsed = parseOnlineMeta(input.title || input.videoId, input.artist, input.artist);
+  const title = parsed.title.slice(0, 240);
+  const artist = parsed.artist.slice(0, 200);
+  const album = (input.album?.trim() || "Streaming").slice(0, 200);
+  const duration = typeof input.duration === "number" && Number.isFinite(input.duration) && input.duration > 0
+    ? Math.round(input.duration)
+    : 0;
+  const thumbnail = input.thumbnail && /^https?:\/\//i.test(input.thumbnail)
+    ? input.thumbnail.slice(0, 500)
+    : `/api/online/art/${encodeURIComponent(input.videoId)}`;
+  const now = Date.now();
+
+  db.prepare(`
+    INSERT INTO online_tracks (trackhash, video_id, title, artist, album, duration, thumbnail, added_at)
+    VALUES (@trackhash, @video_id, @title, @artist, @album, @duration, @thumbnail, @added_at)
+    ON CONFLICT(trackhash) DO UPDATE SET
+      title = excluded.title,
+      artist = excluded.artist,
+      album = excluded.album,
+      duration = CASE WHEN excluded.duration > 0 THEN excluded.duration ELSE online_tracks.duration END,
+      thumbnail = COALESCE(excluded.thumbnail, online_tracks.thumbnail)
+  `).run({
+    trackhash,
+    video_id: input.videoId,
+    title,
+    artist,
+    album,
+    duration,
+    thumbnail,
+    added_at: now,
+  });
+
+  const row = db.prepare(`
+    SELECT o.*,
+      CASE WHEN l.synced IS NOT NULL OR l.plain IS NOT NULL THEN 1 ELSE 0 END AS lyrics_present
+    FROM online_tracks o
+    LEFT JOIN lyrics l ON l.trackhash = o.trackhash
+    WHERE o.trackhash = ?
+  `).get(trackhash) as OnlineTrackRow;
+
+  return { track: mapOnlineRowToTrack(row), inserted: !existing };
+}
+
+export function getOnlineTrack(trackhash: string): Track | null {
+  const row = getDb().prepare(`
+    SELECT o.*,
+      CASE WHEN l.synced IS NOT NULL OR l.plain IS NOT NULL THEN 1 ELSE 0 END AS lyrics_present
+    FROM online_tracks o
+    LEFT JOIN lyrics l ON l.trackhash = o.trackhash
+    WHERE o.trackhash = ?
+  `).get(trackhash) as OnlineTrackRow | undefined;
+  return row ? mapOnlineRowToTrack(row) : null;
+}
+
+export function listOnlineTracks(): Track[] {
+  const rows = getDb().prepare(`
+    SELECT o.*,
+      CASE WHEN l.synced IS NOT NULL OR l.plain IS NOT NULL THEN 1 ELSE 0 END AS lyrics_present
+    FROM online_tracks o
+    LEFT JOIN lyrics l ON l.trackhash = o.trackhash
+    ORDER BY o.added_at DESC
+  `).all() as OnlineTrackRow[];
+  return rows.map(mapOnlineRowToTrack);
+}

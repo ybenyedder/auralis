@@ -38,6 +38,9 @@ export async function POST(request: Request, context: Ctx) {
   }
 
   const { trackhash } = await context.params;
+  if (trackhash.startsWith("yt:")) {
+    return json({ state: "no-source", message: "Alignement IA indisponible pour les titres en streaming." });
+  }
   const cached = getCachedLyrics(trackhash);
 
   // Forced alignment refines a known transcript — it needs line-level SYNCED lyrics

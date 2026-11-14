@@ -1,11 +1,12 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState, useDeferredValue } from "react";
-import { Search, X, Play, Loader2, Clock, Trash2, Download, Check, AlertCircle } from "lucide-react";
+import { Search, X, Play, Pause, Loader2, Clock, Trash2, Download, Check, AlertCircle, Heart } from "lucide-react";
 import { usePlayer } from "@/store/player";
 import { shuffleArray } from "@/store/slices/helpers";
 import { useLibraryStore, artistPlayTotals } from "@/store/library";
 import { api } from "@/lib/auralis/api";
+import { onlineHitToTrack, registerOnlineTrack, type OnlineSearchHit } from "@/lib/auralis/onlineTrack";
 import { paletteForName, trackArtist, trackTitle, formatDuration } from "@/lib/auralis/brand";
 import { useT } from "@/lib/auralis/i18n";
 import { cn, foldAccents } from "@/lib/utils";
@@ -29,16 +30,7 @@ import {
 
 type ResultTab = "all" | "songs" | "albums" | "artists";
 
-// Online (downloadable) results + download jobs — mirrors the server's
-// downloader.ts shapes without importing the server module (client-safe).
-interface OnlineResult {
-  videoId: string;
-  title: string;
-  uploader: string;
-  duration: number;
-  thumbnail: string | null;
-  url: string;
-}
+type OnlineResult = OnlineSearchHit;
 
 const RECENT_KEY = "auralis.recentSearches";
 const MAX_RECENT = 8;
@@ -81,7 +73,6 @@ export function SearchView() {
   // Load persisted recent queries once on mount (after hydration — localStorage
   // isn't available during SSR, so a lazy useState initializer would mismatch).
   useEffect(() => {
-    // eslint-disable-next-line react-hooks/set-state-in-effect
     setRecent(readRecent());
   }, []);
 
@@ -119,7 +110,6 @@ export function SearchView() {
   const [searching, setSearching] = useState(false);
   useEffect(() => {
     if (!deferredQuery) {
-      // eslint-disable-next-line react-hooks/set-state-in-effect
       setServerTracks(null);
       return;
     }
@@ -188,14 +178,13 @@ export function SearchView() {
     return [...serverTracks, ...client.filter((tr) => !seen.has(tr.trackhash))];
   }, [serverTracks, results]);
 
-  // ---- online results ("not in the library? download it") ------------------
-  // Only asked for when the local search is starving (< 5 track hits): the
-  // server then runs a YouTube search (pure-JS engine) and offers downloadable results.
+  // ---- online instant streaming ("Liner mode") -----------------------------
+  // Always query the server's YouTube engine when typing >= 2 chars so any
+  // song can be streamed immediately without downloading to local disk first.
   const [online, setOnline] = useState<{ enabled: boolean; results: OnlineResult[]; error?: string } | null>(null);
   const [onlineLoading, setOnlineLoading] = useState(false);
   useEffect(() => {
-    if (!deferredQuery || deferredQuery.length < 2 || trackResults.length >= 5) {
-      // eslint-disable-next-line react-hooks/set-state-in-effect
+    if (!deferredQuery || deferredQuery.length < 2) {
       setOnline(null);
       setOnlineLoading(false);
       return;
@@ -205,7 +194,7 @@ export function SearchView() {
     const id = setTimeout(() => {
       void api
         .get<{ online?: { enabled: boolean; results: OnlineResult[]; error?: string } }>(
-          `/api/search?q=${encodeURIComponent(deferredQuery)}&online=1&limit=8`,
+          `/api/search?q=${encodeURIComponent(deferredQuery)}&online=1&limit=10`,
         )
         .then((res) => {
           if (cancelled) return;
@@ -217,12 +206,12 @@ export function SearchView() {
           setOnline(null);
           setOnlineLoading(false);
         });
-    }, 550);
+    }, 350);
     return () => {
       cancelled = true;
       clearTimeout(id);
     };
-  }, [deferredQuery, trackResults.length]);
+  }, [deferredQuery]);
 
   // Active/recent download jobs keyed by videoId — drives each row's button state.
   const [jobs, setJobs] = useState<Record<string, DownloadJobView>>({});
@@ -249,7 +238,6 @@ export function SearchView() {
     if (!autoPlayHash) return;
     const track = trackIndex.get(autoPlayHash);
     if (!track) return;
-    // eslint-disable-next-line react-hooks/set-state-in-effect
     setAutoPlayHash(null);
     playList([track], 0);
   }, [autoPlayHash, trackIndex, playList]);
@@ -289,6 +277,47 @@ export function SearchView() {
         });
     }, 1200);
     pollTimers.current.add(timer);
+  };
+
+  const currentTrack = usePlayer((s) => s.currentTrack);
+  const isPlaying = usePlayer((s) => s.isPlaying);
+  const togglePlay = usePlayer((s) => s.togglePlay);
+  const toggleFavorite = usePlayer((s) => s.toggleFavorite);
+  const favorites = usePlayer((s) => s.favorites);
+
+  const playOnline = (result: OnlineResult) => {
+    const allHits = online?.results ?? [result];
+    const clickedHash = `yt:${result.videoId}`;
+    if (currentTrack?.trackhash === clickedHash) {
+      togglePlay();
+      return;
+    }
+    const queueTracks = allHits.map((hit) =>
+      hit.videoId === result.videoId ? registerOnlineTrack(hit) : onlineHitToTrack(hit),
+    );
+    const idx = Math.max(0, allHits.findIndex((hit) => hit.videoId === result.videoId));
+    playList(queueTracks, idx);
+  };
+
+  const toggleFavoriteOnline = (result: OnlineResult) => {
+    const track = registerOnlineTrack(result);
+    toggleFavorite(track.trackhash);
+  };
+
+  const playHumRemote = async (match: HumRemoteMatch) => {
+    const q = [match.artists.join(" "), match.title].filter(Boolean).join(" ");
+    try {
+      const res = await api.post<{ ok: boolean; track?: Track; error?: string }>("/api/online/resolve", {
+        query: q,
+        title: match.title,
+        artist: match.artists[0],
+      });
+      if (!res?.ok || !res.track) throw new Error(res?.error || "unavailable");
+      useLibraryStore.getState().upsertTrack(res.track);
+      playList([res.track], 0);
+    } catch {
+      notify(t("search.onlineUnavailable", "Streaming indisponible"), { tone: "error" });
+    }
   };
 
   const startDownload = (result: OnlineResult) => {
@@ -359,19 +388,20 @@ export function SearchView() {
 
   const placeholder = t("search.placeholder", "Que souhaitez-vous écouter ?");
 
-  // The downloadable section appears whenever the local library can't answer the
-  // query well — empty results OR fewer than 5 track hits — and the server has
-  // online downloads enabled (or we're still asking it).
   const onlineVisible =
     !!deferredQuery &&
     deferredQuery.length >= 2 &&
-    trackResults.length < 5 &&
     (onlineLoading || (!!online?.enabled && online.results.length > 0));
   const onlineSection = onlineVisible ? (
     <OnlineSection
       results={online?.results ?? []}
       jobs={jobs}
       loading={onlineLoading}
+      currentTrackhash={currentTrack?.trackhash ?? null}
+      isPlaying={isPlaying}
+      favorites={favorites}
+      onPlay={playOnline}
+      onToggleFavorite={toggleFavoriteOnline}
       onStart={startDownload}
       t={t}
     />
@@ -456,6 +486,7 @@ export function SearchView() {
                 result={hum.result}
                 jobs={jobs}
                 onPlayLocal={playHumMatch}
+                onPlayRemote={playHumRemote}
                 onStartRemote={startHumDownload}
                 t={t}
               />
@@ -573,19 +604,21 @@ export function SearchView() {
 
       {empty || emptyForTab ? (
         <div className="space-y-8">
-          <div className="flex flex-col items-center justify-center gap-3 py-8 text-center lg:py-12">
-            <div className="grid h-16 w-16 place-items-center rounded-lg border border-dashed border-[var(--line-strong)]">
-              <Search className="size-7 text-muted-foreground/60" />
+          {!onlineVisible && (
+            <div className="flex flex-col items-center justify-center gap-3 py-8 text-center lg:py-12">
+              <div className="grid h-16 w-16 place-items-center rounded-lg border border-dashed border-[var(--line-strong)]">
+                <Search className="size-7 text-muted-foreground/60" />
+              </div>
+              <p className="text-[14px] font-bold text-muted-foreground">
+                {emptyForTab
+                  ? t("search.noResultsIn", `Aucun résultat dans "${TABS.find((tb) => tb.id === tab)?.label}" pour “${searchQuery}”`, {
+                      tab: TABS.find((tb) => tb.id === tab)?.label ?? "",
+                      query: searchQuery,
+                    })
+                  : t("search.noResults", `Aucun résultat pour “${searchQuery}”`, { query: searchQuery })}
+              </p>
             </div>
-            <p className="text-[14px] font-bold text-muted-foreground">
-              {emptyForTab
-                ? t("search.noResultsIn", `Aucun résultat dans "${TABS.find((tb) => tb.id === tab)?.label}" pour “${searchQuery}”`, {
-                    tab: TABS.find((tb) => tb.id === tab)?.label ?? "",
-                    query: searchQuery,
-                  })
-                : t("search.noResults", `Aucun résultat pour “${searchQuery}”`, { query: searchQuery })}
-            </p>
-          </div>
+          )}
           {onlineSection}
         </div>
       ) : (
@@ -651,28 +684,34 @@ export function SearchView() {
   );
 }
 
-/** Downloadable online results — the "search something you don't own" shelf.
- *  Each row fetches the track onto the SERVER (JS YouTube engine); the library
- *  scan then makes it a normal track (and it starts playing once imported). */
+/** Instant-streaming online results — click any track to play immediately
+ *  without downloading files onto the PC, with optional server-save button. */
 function OnlineSection({
   results,
   jobs,
   loading,
+  currentTrackhash,
+  isPlaying,
+  favorites,
+  onPlay,
+  onToggleFavorite,
   onStart,
   t,
 }: {
   results: OnlineResult[];
   jobs: Record<string, DownloadJobView>;
   loading: boolean;
+  currentTrackhash: string | null;
+  isPlaying: boolean;
+  favorites: Set<string>;
+  onPlay: (result: OnlineResult) => void;
+  onToggleFavorite: (result: OnlineResult) => void;
   onStart: (result: OnlineResult) => void;
   t: (key: string, fallback?: string, params?: Record<string, string | number>) => string;
 }) {
   return (
-    <section aria-label={t("search.online", "Trouver ailleurs")}>
-      <SectionHeader title={t("search.online", "Trouver ailleurs")} eyebrow={loading ? undefined : `${results.length}`} />
-      <p className="mb-3 text-[12px] font-medium text-muted-foreground">
-        {t("search.onlineHint", "Pas dans ta bibliothèque — télécharge-le sur le serveur")}
-      </p>
+    <section aria-label={t("search.onlineStreaming", "Streaming instantané")}>
+      <SectionHeader title={t("search.onlineStreaming", "Streaming instantané")} eyebrow={loading ? undefined : `${results.length}`} />
       {loading && (
         <div className="flex items-center gap-2 px-1 py-4 text-[13px] font-semibold text-muted-foreground">
           <Loader2 className="size-4 animate-spin" />
@@ -681,12 +720,23 @@ function OnlineSection({
       )}
       {!loading && results.length === 0 && (
         <p className="px-1 py-4 text-[13px] font-semibold text-muted-foreground">
-          {t("search.onlineUnavailable", "Téléchargement indisponible")}
+          {t("search.onlineUnavailable", "Streaming indisponible")}
         </p>
       )}
       <div className="flex flex-col gap-2">
         {results.map((result) => (
-          <OnlineRow key={result.videoId} result={result} job={jobs[result.videoId]} onStart={onStart} t={t} />
+          <OnlineRow
+            key={result.videoId}
+            result={result}
+            job={jobs[result.videoId]}
+            active={currentTrackhash === `yt:${result.videoId}`}
+            playing={isPlaying && currentTrackhash === `yt:${result.videoId}`}
+            liked={favorites.has(`yt:${result.videoId}`)}
+            onPlay={onPlay}
+            onToggleFavorite={onToggleFavorite}
+            onStart={onStart}
+            t={t}
+          />
         ))}
       </div>
     </section>
@@ -696,11 +746,21 @@ function OnlineSection({
 function OnlineRow({
   result,
   job,
+  active,
+  playing,
+  liked,
+  onPlay,
+  onToggleFavorite,
   onStart,
   t,
 }: {
   result: OnlineResult;
   job?: DownloadJobView;
+  active: boolean;
+  playing: boolean;
+  liked: boolean;
+  onPlay: (result: OnlineResult) => void;
+  onToggleFavorite: (result: OnlineResult) => void;
   onStart: (result: OnlineResult) => void;
   t: (key: string, fallback?: string, params?: Record<string, string | number>) => string;
 }) {
@@ -712,34 +772,56 @@ function OnlineRow({
       : status === "downloading"
         ? t("search.downloadRunning", "{progress} %", { progress: job?.progress ?? 0 })
         : status === "scanning"
-          ? t("search.downloadScanning", "Ajout à la bibliothèque…")
+          ? t("search.downloadScanning", "Ajout…")
           : status === "done"
-            ? t("search.downloaded", "Ajouté")
+            ? t("search.downloaded", "Enregistré")
             : status === "error"
-              ? t("search.downloadFailed", "Échec — réessayer")
+              ? t("search.downloadFailed", "Réessayer")
               : t("search.download", "Télécharger");
 
+  const displayArtist = (result.artist || result.uploader || "YouTube").replace(/\s*-\s*Topic$/i, "").trim();
+
   return (
-    <div className="matte-panel flex items-center gap-3 rounded-lg p-2 pr-3">
-      {result.thumbnail ? (
-        // YouTube thumbnail — remote, lazy, never blocks the row.
-        // eslint-disable-next-line @next/next/no-img-element
+    <div
+      role="button"
+      tabIndex={0}
+      onClick={() => onPlay(result)}
+      onKeyDown={(e) => {
+        if (e.key === "Enter" || e.key === " ") {
+          e.preventDefault();
+          onPlay(result);
+        }
+      }}
+      className={cn(
+        "group matte-panel flex cursor-pointer items-center gap-3 rounded-lg p-2 pr-3 transition-colors hover:bg-[var(--surface-2)] focus-auralis",
+        active && "bg-[var(--surface-2)]",
+      )}
+    >
+      <div className="relative h-14 w-14 shrink-0 overflow-hidden rounded-md bg-[var(--surface-2)]">
+        {/* Same-origin thumbnail proxy — instant, cached, CSP-clean */}
+        {/* eslint-disable-next-line @next/next/no-img-element */}
         <img
-          src={result.thumbnail}
+          src={`/api/online/art/${encodeURIComponent(result.videoId)}`}
           alt=""
           loading="lazy"
-          referrerPolicy="no-referrer"
-          className="h-14 w-14 shrink-0 rounded-md object-cover"
+          className="h-full w-full object-cover"
         />
-      ) : (
-        <div className="grid h-14 w-14 shrink-0 place-items-center rounded-md bg-[var(--surface-2)]">
-          <Download className="size-5 text-muted-foreground" />
-        </div>
-      )}
+        <span
+          aria-hidden
+          className={cn(
+            "absolute inset-0 grid place-items-center bg-black/45 text-white transition-opacity",
+            active ? "opacity-100" : "opacity-0 group-hover:opacity-100",
+          )}
+        >
+          {playing ? <Pause className="size-5 fill-current" /> : <Play className="size-5 fill-current ml-0.5" />}
+        </span>
+      </div>
       <div className="min-w-0 flex-1">
-        <p className="truncate text-[14px] font-bold text-foreground">{result.title}</p>
+        <p className={cn("truncate text-[14px] font-bold", active ? "text-[var(--accent,var(--foreground))]" : "text-foreground")}>
+          {result.title}
+        </p>
         <p className="truncate text-[12px] font-semibold text-muted-foreground">
-          {result.uploader} · {formatDuration(result.duration)}
+          {displayArtist} · {formatDuration(result.duration)}
         </p>
         {status === "downloading" && (
           <div className="mt-1.5 h-1 overflow-hidden rounded-full bg-[var(--surface-2)]">
@@ -751,24 +833,44 @@ function OnlineRow({
         )}
       </div>
       <button
-        onClick={() => !busy && status !== "done" && onStart(result)}
+        type="button"
+        onClick={(e) => {
+          e.stopPropagation();
+          onToggleFavorite(result);
+        }}
+        aria-label={liked ? t("track.unlike", "Retirer des favoris") : t("track.like", "Ajouter aux favoris")}
+        className={cn(
+          "tap-press grid h-10 w-10 shrink-0 place-items-center rounded-full transition-colors lg:h-9 lg:w-9",
+          liked ? "text-[var(--accent,#1db954)]" : "text-muted-foreground hover:bg-white/10 hover:text-foreground",
+        )}
+      >
+        <Heart className={cn("size-4", liked && "fill-current")} />
+      </button>
+      <button
+        type="button"
+        onClick={(e) => {
+          e.stopPropagation();
+          if (!busy && status !== "done") onStart(result);
+        }}
         disabled={busy || status === "done"}
+        title={label}
         aria-label={`${label} — ${result.title}`}
         className={cn(
-          "tap-press flex h-11 shrink-0 items-center gap-2 rounded-full px-4 text-[12px] font-bold transition-colors lg:h-9",
+          "tap-press flex h-10 shrink-0 items-center gap-1.5 rounded-full px-3 text-[12px] font-bold transition-colors lg:h-9",
           status === "done"
             ? "bg-[var(--surface-2)] text-muted-foreground"
             : status === "error"
               ? "bg-red-500/15 text-red-400 hover:bg-red-500/25"
               : busy
                 ? "bg-[var(--surface-2)] text-muted-foreground"
-                : "bg-foreground text-background hover:opacity-90",
+                : "bg-[var(--surface-2)] text-muted-foreground hover:text-foreground",
         )}
       >
         {busy && <Loader2 className="size-4 animate-spin" />}
         {status === "done" && <Check className="size-4" />}
         {status === "error" && <AlertCircle className="size-4" />}
-        <span>{label}</span>
+        {!busy && status !== "done" && status !== "error" && <Download className="size-4" />}
+        {(busy || status === "done" || status === "error") && <span>{label}</span>}
       </button>
     </div>
   );

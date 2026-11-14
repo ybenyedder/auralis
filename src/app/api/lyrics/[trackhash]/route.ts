@@ -10,6 +10,16 @@ interface Ctx {
   params: Promise<{ trackhash: string }>;
 }
 
+function metaFromUrl(request: Request) {
+  const sp = new URL(request.url).searchParams;
+  const title = sp.get("title")?.trim() || undefined;
+  const artist = sp.get("artist")?.trim() || undefined;
+  const album = sp.get("album")?.trim() || undefined;
+  const rawDur = sp.get("duration");
+  const duration = rawDur ? Number(rawDur) : undefined;
+  return title ? { title, artist, album, duration: Number.isFinite(duration) ? duration : undefined } : undefined;
+}
+
 // GET resolves lyrics (cache → sidecar → online). ?cached=1 skips any network call.
 export async function GET(request: Request, context: Ctx) {
   const denied = checkAuth(request);
@@ -29,7 +39,7 @@ export async function GET(request: Request, context: Ctx) {
   if (user && rateLimitWindow(`lyrics-get:${user.id}`, 90, 60_000)) {
     return json({ error: "Trop de requêtes — réessaie dans un instant" }, { status: 429, headers: { "Retry-After": "60" } });
   }
-  const result = await getLyrics(trackhash);
+  const result = await getLyrics(trackhash, { meta: metaFromUrl(request) });
   return json(result);
 }
 
@@ -51,6 +61,6 @@ export async function POST(request: Request, context: Ctx) {
   }
 
   const { trackhash } = await context.params;
-  const result = await getLyrics(trackhash, { forceRefetch: true });
+  const result = await getLyrics(trackhash, { forceRefetch: true, meta: metaFromUrl(request) });
   return json(result);
 }

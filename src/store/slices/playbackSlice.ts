@@ -433,9 +433,20 @@ fetchLyrics: async (force = false) => {
       if (!track) return;
       set({ lyricsLoading: true, lyricsStatus: "loading" });
       try {
+        const encoded = encodeURIComponent(track.trackhash);
+        const isVirtual = track.trackhash.startsWith("yt:") || Boolean(track.filepath?.startsWith("yt://"));
+        const params = new URLSearchParams();
+        if (isVirtual && track.title) {
+          params.set("title", track.title);
+          if (track.artist) params.set("artist", track.artist);
+          if (track.album) params.set("album", track.album);
+          if (typeof track.duration === "number" && track.duration > 0) params.set("duration", String(Math.round(track.duration)));
+        }
+        const qs = params.toString();
+        const url = `/api/lyrics/${encoded}${qs ? `?${qs}` : ""}`;
         const res = force
-          ? await api.post<LyricsResponse>(`/api/lyrics/${track.trackhash}`)
-          : await api.get<LyricsResponse>(`/api/lyrics/${track.trackhash}`);
+          ? await api.post<LyricsResponse>(url)
+          : await api.get<LyricsResponse>(url);
         const lines = res.lines ?? [];
         const updated: any /* eslint-disable-line @typescript-eslint/no-explicit-any */ = { ...track, lyrics: lines.length ? lines : undefined, hasLyrics: res.status === "found" };
 

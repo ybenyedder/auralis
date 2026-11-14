@@ -95,11 +95,47 @@ interface LyricsRow {
   fetched_at: number;
 }
 
-function getTrackMeta(trackhash: string): TrackMeta | null {
+export interface LyricsTrackFallbackMeta {
+  title?: string;
+  artist?: string;
+  album?: string;
+  duration?: number;
+}
+
+function getTrackMeta(trackhash: string, fallback?: LyricsTrackFallbackMeta): TrackMeta | null {
   const db = getDb();
-  return (db.prepare(
+  const local = db.prepare(
     "SELECT trackhash, title, artist, albumartist, album, duration, filepath FROM tracks WHERE trackhash = ?"
-  ).get(trackhash) as TrackMeta | undefined) ?? null;
+  ).get(trackhash) as TrackMeta | undefined;
+  if (local) return local;
+
+  const online = db.prepare(
+    "SELECT trackhash, title, artist, album, duration FROM online_tracks WHERE trackhash = ?"
+  ).get(trackhash) as { trackhash: string; title: string; artist: string; album: string; duration: number } | undefined;
+  if (online) {
+    return {
+      trackhash: online.trackhash,
+      title: online.title,
+      artist: online.artist,
+      albumartist: "",
+      album: online.album,
+      duration: online.duration,
+      filepath: "",
+    };
+  }
+
+  if (fallback?.title?.trim()) {
+    return {
+      trackhash,
+      title: fallback.title.trim(),
+      artist: fallback.artist?.trim() || "",
+      albumartist: "",
+      album: fallback.album?.trim() || "",
+      duration: typeof fallback.duration === "number" && Number.isFinite(fallback.duration) ? fallback.duration : 0,
+      filepath: "",
+    };
+  }
+  return null;
 }
 
 function rowToResult(row: LyricsRow): LyricsResult {
@@ -325,7 +361,10 @@ function isFresh(row: LyricsRow): boolean {
 // opts out and always hits the network).
 const inflight = new Map<string, Promise<LyricsResult>>();
 
-export function getLyrics(trackhash: string, opts: { forceRefetch?: boolean } = {}): Promise<LyricsResult> {
+export function getLyrics(
+  trackhash: string,
+  opts: { forceRefetch?: boolean; meta?: LyricsTrackFallbackMeta } = {},
+): Promise<LyricsResult> {
   if (opts.forceRefetch) return resolveLyrics(trackhash, opts);
   const existing = inflight.get(trackhash);
   if (existing) return existing;
@@ -336,9 +375,12 @@ export function getLyrics(trackhash: string, opts: { forceRefetch?: boolean } = 
   return p;
 }
 
-async function resolveLyrics(trackhash: string, opts: { forceRefetch?: boolean } = {}): Promise<LyricsResult> {
+async function resolveLyrics(
+  trackhash: string,
+  opts: { forceRefetch?: boolean; meta?: LyricsTrackFallbackMeta } = {},
+): Promise<LyricsResult> {
   const db = getDb();
-  const track = getTrackMeta(trackhash);
+  const track = getTrackMeta(trackhash, opts.meta);
   if (!track) return { trackhash, status: "notfound", source: null, lines: [], plain: null, synced: false };
 
   const cached = db.prepare("SELECT * FROM lyrics WHERE trackhash = ?").get(trackhash) as LyricsRow | undefined;
