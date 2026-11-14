@@ -4,6 +4,20 @@ All notable changes to Auralis are documented here. The format is based on
 [Keep a Changelog](https://keepachangelog.com/) and this project adheres to
 [Semantic Versioning](https://semver.org/).
 
+## [1.34.1] - 2026-11-14
+
+### Corrigé — Import de playlists en streaming instantané (0 téléchargement disque)
+- **`POST /api/online/resolve-batch`** : résolution parallèle (par lots) des
+  titres importés directement en pistes `yt://` dans `online_tracks` sans rien
+  télécharger sur le disque.
+- **Playlists YouTube (`externalPlaylist.ts`)** : extraction directe du
+  `videoId` et de la durée pour un import quasi instantané sans recherche
+  supplémentaire.
+- **Web & Android (`LibraryView`, `importDownloads`, `AppViewModel`)** :
+  l'import d'une playlist (Spotify, Deezer, Apple Music, YouTube, `.m3u`/`.json`)
+  ajoute désormais tous les titres manquants en streaming instantané au lieu de
+  lancer des dizaines de téléchargements `/api/download`.
+
 ## [1.34.0] - 2026-11-14
 
 Mode streaming instantané façon Liner — lecture immédiate sans avoir à stocker

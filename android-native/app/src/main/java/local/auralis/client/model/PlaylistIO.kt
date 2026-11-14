@@ -10,7 +10,14 @@ import java.text.Normalizer
 // with the web exports so files are interchangeable between clients. Pure Kotlin
 // (org.json only) — JVM-unit-testable.
 
-data class ExternalTrackEntry(val title: String, val artist: String? = null, val album: String? = null)
+data class ExternalTrackEntry(
+    val title: String,
+    val artist: String? = null,
+    val album: String? = null,
+    val videoId: String? = null,
+    val duration: Int? = null,
+    val thumbnail: String? = null,
+)
 
 data class ImportedPlaylist(
     val name: String,

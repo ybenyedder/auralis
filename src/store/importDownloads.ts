@@ -1,104 +1,52 @@
 "use client";
 
-// Playlist-import bulk downloads — the "Télécharger les N titres manquants"
-// offer that follows a .m3u/.json or URL import. One POST /api/download batch,
-// then each returned job id is polled exactly like the single online-search
-// downloads, and every finished track is folded into the just-created playlist
-// through the regular addToPlaylist action. Lives in a module-level zustand
-// store (not in the view) so the run keeps completing — and keeps adding to the
-// playlist — even after the user navigates away from the import screen.
+// Instant Liner-style streaming resolution for unmatched tracks after a
+// playlist import (.m3u/.json or Spotify/Deezer/Apple/YouTube link). Instead of
+// downloading audio files to disk, resolves entries via POST /api/online/resolve-batch
+// into lightweight `yt:<videoId>` tracks stored in `online_tracks` and adds
+// them straight to the imported playlist.
 
 import { create } from "zustand";
 import { api } from "@/lib/auralis/api";
 import { translate } from "@/lib/auralis/messages";
+import type { ExternalTrackEntry } from "@/lib/auralis/playlistIO";
 import type { Track } from "@/lib/auralis/types";
 import { usePlayer } from "./player";
 import { useLibraryStore } from "./library";
 
-type DownloadStatus = "queued" | "resolving" | "downloading" | "scanning" | "done" | "error";
-
-interface ImportJobView {
-  id: string;
-  status: DownloadStatus;
-  progress: number;
-  trackhash: string | null;
-  error: string | null;
-  title: string | null;
-}
-
-/** The /api/download bulk endpoint caps a batch at 200 items. */
-const MAX_BATCH = 200;
-const POLL_MS = 1500;
-const MAX_POLLS = 600;
+const CHUNK_SIZE = 25;
+const MAX_ITEMS = 500;
 
 export interface ImportDownloadsState {
-  /** The playlist finished downloads are appended to. */
   playlistId: string | null;
-  /** Jobs queued in the current run. */
   total: number;
-  /** Jobs that produced a track and were added to the playlist. */
   added: number;
-  /** Jobs that errored (or finished without a track) — tolerated per job. */
   failed: number;
   running: boolean;
   finished: boolean;
-  /** Enqueue `misses` ("Artist — Title" strings) as one bulk download batch. */
-  start: (playlistId: string, misses: string[]) => void;
-  /** Hide the finished run's panel and reset the counters. */
+  start: (playlistId: string, entries: ExternalTrackEntry[] | string[]) => void;
+  cancel: () => void;
   dismiss: () => void;
 }
 
-// The run target lives outside the state so a re-render or a partial reset can
-// never detach in-flight jobs from the playlist they belong to.
-let targetPlaylistId: string | null = null;
+let activeRunId = 0;
+
+function normalizeEntries(input: ExternalTrackEntry[] | string[]): ExternalTrackEntry[] {
+  return input
+    .slice(0, MAX_ITEMS)
+    .map((item) => {
+      if (typeof item !== "string") return item;
+      const sep = item.indexOf(" — ");
+      if (sep > 0) return { artist: item.slice(0, sep).trim(), title: item.slice(sep + 3).trim() };
+      return { title: item.trim() };
+    })
+    .filter((e) => Boolean(e.title?.trim() || e.videoId?.trim()));
+}
 
 export const useImportDownloads = create<ImportDownloadsState>()((set, get) => {
   const notify = (key: string, fallback: string, params?: Record<string, string | number>, tone?: "success" | "error") => {
     const player = usePlayer.getState();
     player.notify(translate(player.locale, key, fallback, params), tone ? { tone } : undefined);
-  };
-
-  const settle = (ok: boolean, trackhash: string | null, title: string | null) => {
-    const state = get();
-    const resolved = ok && Boolean(trackhash);
-    const added = state.added + (resolved ? 1 : 0);
-    const failed = state.failed + (resolved ? 0 : 1);
-    const finished = added + failed >= state.total;
-    if (resolved && targetPlaylistId) {
-      // addToPlaylist only needs the hash — the scan import materialises the
-      // full track in the library snapshot a moment later.
-      const track =
-        useLibraryStore.getState().trackIndex.get(trackhash as string) ??
-        ({ trackhash: trackhash as string, title: title ?? "" } as Track);
-      usePlayer.getState().addToPlaylist(targetPlaylistId, track, { silent: true });
-    }
-    set({ added, failed, running: !finished, finished });
-    if (finished) {
-      notify("library.importDownloadDone", "Playlist mise à jour : {count} titres ajoutés", { count: added }, added > 0 ? "success" : "error");
-    }
-  };
-
-  const poll = (jobId: string, attempt: number) => {
-    setTimeout(() => {
-      void api
-        .get<{ job?: ImportJobView }>(`/api/download?job=${encodeURIComponent(jobId)}`)
-        .then((res) => {
-          const job = res.job;
-          if (!job) {
-            if (attempt < MAX_POLLS) poll(jobId, attempt + 1);
-            else settle(false, null, null);
-            return;
-          }
-          if (job.status === "done") settle(true, job.trackhash, job.title);
-          else if (job.status === "error") settle(false, null, null);
-          else if (attempt < MAX_POLLS) poll(jobId, attempt + 1);
-          else settle(false, null, null);
-        })
-        .catch(() => {
-          if (attempt < MAX_POLLS) poll(jobId, attempt + 1);
-          else settle(false, null, null);
-        });
-    }, POLL_MS);
   };
 
   return {
@@ -109,29 +57,72 @@ export const useImportDownloads = create<ImportDownloadsState>()((set, get) => {
     running: false,
     finished: false,
 
-    start: (playlistId, misses) => {
+    start: (playlistId, rawEntries) => {
       if (get().running) return;
-      const items = misses.slice(0, MAX_BATCH).map((m) => ({
-        // "Artist — Title" → a plain "<artist> <title>" search query.
-        query: m.replace(/\s+[—–-]\s+/g, " ").trim(),
-        title: m,
-      }));
+      const items = normalizeEntries(rawEntries);
       if (items.length === 0) return;
-      targetPlaylistId = playlistId;
+
+      const runId = ++activeRunId;
       set({ playlistId, total: items.length, added: 0, failed: 0, running: true, finished: false });
-      void api
-        .post<{ ok: boolean; jobs?: ImportJobView[]; error?: string }>("/api/download", { items })
-        .then((res) => {
-          const jobs = res.jobs ?? [];
-          if (!res.ok || jobs.length === 0) throw new Error(res.error || "no jobs");
-          // The server may trim the batch — track what it actually queued.
-          set({ total: jobs.length });
-          for (const job of jobs) poll(job.id, 0);
-        })
-        .catch(() => {
-          set({ running: false, finished: true, failed: get().total });
-          notify("search.downloadFailed", "Échec du téléchargement", undefined, "error");
-        });
+
+      void (async () => {
+        let added = 0;
+        let failed = 0;
+        try {
+          for (let offset = 0; offset < items.length; offset += CHUNK_SIZE) {
+            if (runId !== activeRunId) return;
+            const chunk = items.slice(offset, offset + CHUNK_SIZE);
+            try {
+              const res = await api.post<{
+                ok: boolean;
+                resolved?: { index: number; track: Track | null }[];
+              }>("/api/online/resolve-batch", { items: chunk });
+              if (runId !== activeRunId) return;
+
+              const tracks: Track[] = [];
+              const resolvedRows = res.resolved ?? [];
+              for (const row of resolvedRows) {
+                if (row.track) {
+                  useLibraryStore.getState().upsertTrack(row.track);
+                  tracks.push(row.track);
+                  added += 1;
+                } else {
+                  failed += 1;
+                }
+              }
+              if (resolvedRows.length < chunk.length) {
+                failed += chunk.length - resolvedRows.length;
+              }
+              if (tracks.length > 0) {
+                usePlayer.getState().addTracksToPlaylist(playlistId, tracks, { silent: true });
+              }
+            } catch {
+              if (runId !== activeRunId) return;
+              failed += chunk.length;
+            }
+            set({ added, failed });
+          }
+
+          if (runId !== activeRunId) return;
+          set({ added, failed, running: false, finished: true });
+          notify(
+            "library.importDownloadDone",
+            "Playlist mise à jour : {count} titres prêts en streaming",
+            { count: added },
+            added > 0 ? "success" : "error",
+          );
+        } catch {
+          if (runId !== activeRunId) return;
+          set({ running: false, finished: true, failed: items.length - added });
+          notify("search.downloadFailed", "Échec de la résolution", undefined, "error");
+        }
+      })();
+    },
+
+    cancel: () => {
+      if (!get().running) return;
+      activeRunId += 1;
+      set({ running: false, finished: true });
     },
 
     dismiss: () => {

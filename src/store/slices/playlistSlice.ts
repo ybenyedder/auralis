@@ -20,7 +20,7 @@ const pushPlaylist = (id: string) => {
     }).catch(() => {});
   };
 
-export const createPlaylistSlice: StateCreator<PlayerState, [], [], Pick<PlayerState, "customPlaylists" | "createPlaylist" | "createSmartPlaylist" | "deletePlaylist" | "renamePlaylist" | "setPlaylistCover" | "addToPlaylist" | "removeFromPlaylist" | "reorderInPlaylist" | "importPlaylist" | "sharePlaylist" | "addPlaylistCollaborator" | "reorderCustomPlaylists">> = (set, get) => ({
+export const createPlaylistSlice: StateCreator<PlayerState, [], [], Pick<PlayerState, "customPlaylists" | "createPlaylist" | "createSmartPlaylist" | "deletePlaylist" | "renamePlaylist" | "setPlaylistCover" | "addToPlaylist" | "addTracksToPlaylist" | "removeFromPlaylist" | "reorderInPlaylist" | "importPlaylist" | "sharePlaylist" | "addPlaylistCollaborator" | "reorderCustomPlaylists">> = (set, get) => ({
 customPlaylists: [],
 
 createPlaylist: (name, description) => {
@@ -109,24 +109,35 @@ setPlaylistCover: async (id, dataUrl) => {
       }
     },
 
-addToPlaylist: (id, track, opts) => {
-      set((s) => {
-        const upd = {
-          customPlaylists: s.customPlaylists.map((p) => {
-            if (String(p.id) !== id) return p;
-            if (p.trackhashes?.includes(track.trackhash)) return p;
-            const trackhashes = [...(p.trackhashes ?? []), track.trackhash];
-            return { ...p, trackhashes, trackcount: trackhashes.length };
-          }),
-        };
-        return upd;
-      });
+addTracksToPlaylist: (id, tracks, opts) => {
+      if (tracks.length === 0) return;
+      const newHashes = tracks.map((t) => t.trackhash).filter(Boolean);
+      if (newHashes.length === 0) return;
+      set((s) => ({
+        customPlaylists: s.customPlaylists.map((p) => {
+          if (String(p.id) !== id) return p;
+          const existing = new Set(p.trackhashes ?? []);
+          const merged = [...(p.trackhashes ?? [])];
+          for (const h of newHashes) {
+            if (!existing.has(h)) {
+              existing.add(h);
+              merged.push(h);
+            }
+          }
+          return { ...p, trackhashes: merged, trackcount: merged.length };
+        }),
+      }));
       const pl = usePlayer.getState().customPlaylists.find((p: any /* eslint-disable-line @typescript-eslint/no-explicit-any */) => String(p.id) === id);
-      // Collaborator playlists (owned by another user) must use the GRANULAR add —
-      // the full upsert is owner-scoped and would be IDOR-rejected.
-      if (pl?.collaborator) void api.put("/api/state", { action: "playlist.addTrack", id, trackhash: track.trackhash }).catch(() => {});
-      else pushPlaylist(id);
+      if (pl?.collaborator) {
+        for (const h of newHashes) void api.put("/api/state", { action: "playlist.addTrack", id, trackhash: h }).catch(() => {});
+      } else {
+        pushPlaylist(id);
+      }
       if (!opts?.silent) get().notify(translate(get().locale, "toast.addedToPlaylist", undefined, { name: pl?.name ?? translate(get().locale, "toast.thePlaylist") }));
+    },
+
+addToPlaylist: (id, track, opts) => {
+      get().addTracksToPlaylist(id, [track], opts);
     },
 
 removeFromPlaylist: (id, trackhash) => {

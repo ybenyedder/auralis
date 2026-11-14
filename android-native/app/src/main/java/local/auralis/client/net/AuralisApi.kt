@@ -248,6 +248,35 @@ class AuralisApi {
         return Track.from(t)
     }
 
+    /** Resolve a batch of playlist entries into lightweight `yt:` streaming
+     *  tracks via POST /api/online/resolve-batch (zero audio files on disk). */
+    suspend fun resolveOnlineBatch(items: List<local.auralis.client.model.ExternalTrackEntry>): List<Track?>? {
+        if (items.isEmpty()) return emptyList()
+        val arr = JSONArray()
+        for (item in items) {
+            val obj = JSONObject().put("title", item.title)
+            if (!item.artist.isNullOrBlank()) obj.put("artist", item.artist)
+            if (!item.album.isNullOrBlank()) obj.put("album", item.album)
+            if (!item.videoId.isNullOrBlank()) obj.put("videoId", item.videoId)
+            if (item.duration != null && item.duration > 0) obj.put("duration", item.duration)
+            if (!item.thumbnail.isNullOrBlank()) obj.put("thumbnail", item.thumbnail)
+            arr.put(obj)
+        }
+        val res = runCatching { post("/api/online/resolve-batch", JSONObject().put("items", arr)) }.getOrNull() ?: return null
+        if (!apiLastOk || !res.optBoolean("ok", false)) return null
+        val rows = res.optJSONArray("resolved") ?: return null
+        val out = MutableList<Track?>(items.size) { null }
+        for (i in 0 until rows.length()) {
+            val row = rows.optJSONObject(i) ?: continue
+            val idx = row.optInt("index", i)
+            val tObj = row.optJSONObject("track")
+            if (idx in out.indices && tObj != null) {
+                out[idx] = Track.from(tObj)
+            }
+        }
+        return out
+    }
+
     /** Start (or join) a server-side download job for one online hit. */
     suspend fun startDownload(videoId: String?, title: String, query: String): DownloadJobDto? {
         val body = JSONObject().put("title", title).put("query", query)

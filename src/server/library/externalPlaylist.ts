@@ -32,6 +32,9 @@ export interface ExternalTrack {
   title: string;
   artist: string;
   album?: string;
+  videoId?: string;
+  duration?: number;
+  thumbnail?: string;
 }
 
 export interface ExternalPlaylist {
@@ -118,10 +121,26 @@ function clean(s: unknown): string {
   return typeof s === "string" ? s.replace(/\s+/g, " ").trim() : "";
 }
 
-function pushTrack(out: ExternalTrack[], title: unknown, artist: unknown, album?: unknown): void {
+function pushTrack(
+  out: ExternalTrack[],
+  title: unknown,
+  artist: unknown,
+  album?: unknown,
+  extra?: { videoId?: unknown; duration?: unknown; thumbnail?: unknown },
+): void {
   const t = clean(title);
   if (!t || out.length >= MAX_TRACKS) return;
-  out.push({ title: t, artist: clean(artist), ...(clean(album) ? { album: clean(album) } : {}) });
+  const videoId = typeof extra?.videoId === "string" && /^[A-Za-z0-9_-]{6,20}$/.test(extra.videoId.trim()) ? extra.videoId.trim() : undefined;
+  const duration = typeof extra?.duration === "number" && Number.isFinite(extra.duration) && extra.duration > 0 ? Math.round(extra.duration) : undefined;
+  const thumbnail = typeof extra?.thumbnail === "string" && /^https?:\/\//i.test(extra.thumbnail.trim()) ? extra.thumbnail.trim() : undefined;
+  out.push({
+    title: t,
+    artist: clean(artist),
+    ...(clean(album) ? { album: clean(album) } : {}),
+    ...(videoId ? { videoId } : {}),
+    ...(duration ? { duration } : {}),
+    ...(thumbnail ? { thumbnail } : {}),
+  });
 }
 
 /** Depth-first search for the first array whose objects look like tracklist rows
@@ -214,8 +233,11 @@ async function fromDeezer(kind: "playlist" | "album", id: string): Promise<Exter
   if (data.error) throw new PlaylistImportError("Playlist Deezer introuvable (est-elle publique ?).", 404);
   const tracks: ExternalTrack[] = [];
   for (const raw of data.tracks?.data ?? []) {
-    const t = raw as { title?: string; artist?: { name?: string }; album?: { title?: string } };
-    pushTrack(tracks, t.title, t.artist?.name, t.album?.title);
+    const t = raw as { title?: string; duration?: number; artist?: { name?: string }; album?: { title?: string; cover_medium?: string } };
+    pushTrack(tracks, t.title, t.artist?.name, t.album?.title, {
+      duration: t.duration,
+      thumbnail: t.album?.cover_medium,
+    });
   }
   if (!tracks.length) throw new PlaylistImportError("Playlist Deezer vide.", 404);
   return { name: clean(data.title) || "Playlist Deezer", source: "Deezer", tracks };
@@ -316,23 +338,25 @@ async function fromYouTube(id: string): Promise<ExternalPlaylist> {
   const tracks: ExternalTrack[] = [];
   // New format: lockupViewModel.metadata.lockupMetadataViewModel.{title, metadataRows}.
   for (const n of collectByKey(data, "lockupViewModel")) {
-    const meta = (n as { metadata?: { lockupMetadataViewModel?: unknown } })?.metadata?.lockupMetadataViewModel as
+    const lockup = n as { contentId?: string; metadata?: { lockupMetadataViewModel?: unknown } };
+    const meta = lockup?.metadata?.lockupMetadataViewModel as
       | { title?: { content?: string }; metadata?: { contentMetadataViewModel?: { metadataRows?: { metadataParts?: { text?: { content?: string } }[] }[] } } }
       | undefined;
     const rawTitle = clean(meta?.title?.content);
     if (!rawTitle) continue;
     const channel = clean(meta?.metadata?.contentMetadataViewModel?.metadataRows?.[0]?.metadataParts?.[0]?.text?.content);
     const { title, artist } = splitYouTubeTitle(rawTitle, channel);
-    pushTrack(tracks, title, artist);
+    pushTrack(tracks, title, artist, undefined, { videoId: lockup?.contentId });
   }
   // Legacy format fallback.
   if (!tracks.length) {
     for (const r of collectByKey(data, "playlistVideoRenderer")) {
-      const row = r as { title?: { runs?: { text?: string }[] }; shortBylineText?: { runs?: { text?: string }[] } };
+      const row = r as { videoId?: string; lengthSeconds?: string; title?: { runs?: { text?: string }[] }; shortBylineText?: { runs?: { text?: string }[] } };
       const rawTitle = clean(row.title?.runs?.[0]?.text);
       if (!rawTitle) continue;
       const { title, artist } = splitYouTubeTitle(rawTitle, clean(row.shortBylineText?.runs?.[0]?.text));
-      pushTrack(tracks, title, artist);
+      const len = row.lengthSeconds ? Number(row.lengthSeconds) : undefined;
+      pushTrack(tracks, title, artist, undefined, { videoId: row.videoId, duration: len });
     }
   }
   if (!tracks.length) throw new PlaylistImportError("Playlist YouTube vide ou privée.", 404);

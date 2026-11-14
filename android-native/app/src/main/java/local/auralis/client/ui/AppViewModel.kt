@@ -10,6 +10,7 @@ import android.provider.OpenableColumns
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.withContext
@@ -296,6 +297,9 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
         /** Web DEFAULT_LYRICS_OFFSET — the sync-offset reset target. */
         const val DEFAULT_LYRICS_OFFSET = 0.15f
     }
+
+    private var importResolveEntries: List<ExternalTrackEntry> = emptyList()
+    private var importResolveJob: Job? = null
 
     // index helpers
     private var trackIndex: Map<String, Track> = emptyMap()
@@ -1294,7 +1298,14 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
             val arr = res.optJSONArray("tracks")
             val entries = (0 until (arr?.length() ?: 0)).mapNotNull { i ->
                 arr?.optJSONObject(i)?.let { o ->
-                    ExternalTrackEntry(title = o.strOr("title", ""), artist = o.str("artist"), album = o.str("album"))
+                    ExternalTrackEntry(
+                        title = o.strOr("title", ""),
+                        artist = o.str("artist"),
+                        album = o.str("album"),
+                        videoId = o.str("videoId"),
+                        duration = o.optInt("duration", 0).takeIf { it > 0 },
+                        thumbnail = o.str("thumbnail"),
+                    )
                 }
             }
             if (entries.isEmpty()) {
@@ -1354,16 +1365,13 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
         }
     }
 
-    // ---- playlist import → download the missing tracks ----------------------
-    // After an import, entries with no library counterpart are fetched through
-    // the server download engine (POST /api/download { items }, one job each) and
-    // dropped into the just-created playlist as each job completes. The batch
-    // STARTS AUTOMATICALLY — no confirm dialog — and the live per-track sheet
-    // shows every row arriving (visibility was the whole point).
+    // ---- playlist import → instant streaming resolution --------------------
+    // Liner-style instant streaming: entries without a local library match are
+    // resolved via POST /api/online/resolve-batch into `yt:` tracks in SQLite
+    // `online_tracks` (0 audio bytes downloaded to disk) and added straight into
+    // the imported playlist chunk by chunk.
 
-    /** Hide the live sheet — the batch keeps running in the background, the
-     *  playlist screen keeps its "en cours de téléchargement" banner and the
-     *  completion toast still fires. */
+    /** Hide the live sheet — resolution keeps running in the background. */
     fun dismissImportSheet() { _ui.update { it.copy(importSheetOpen = false) } }
 
     /** Reopen the live sheet (playlist-screen banner tap). */
@@ -1378,25 +1386,32 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
         navigate(ViewId.PLAYLIST, dl.playlistId)
     }
 
-    /** Auto-start the missing-tracks batch right after the import: toast
-     *  "Téléchargement de N titres…" + open the live per-track sheet. */
+    /** Auto-start instant streaming resolution right after import. */
     private fun beginImportDownload(playlistId: String, playlistName: String, entries: List<ExternalTrackEntry>) {
         if (_ui.value.importDownload?.running == true) return
-        val rows = importRows(entries)
+        val filtered = ArrayList<ExternalTrackEntry>()
+        val seenKeys = HashSet<String>()
+        for (e in entries) {
+            val q = local.auralis.client.model.downloadQuery(e).lowercase()
+            if (q.isNotEmpty() && seenKeys.add(q)) {
+                filtered.add(e)
+                if (filtered.size >= 500) break
+            }
+        }
+        val rows = importRows(filtered, max = 500)
         if (rows.isEmpty()) return
+        importResolveEntries = filtered.take(rows.size)
         _ui.update {
             it.copy(
-                importDownload = ImportDownloadState(playlistId, playlistName, rows),
+                importDownload = ImportDownloadState(playlistId, playlistName, rows, running = true),
                 importSheetOpen = true,
             )
         }
         notify(tr("toast.downloadBatchStarting", mapOf("count" to rows.size)))
-        enqueueImportBatch()
+        startImportResolve()
     }
 
-    /** Manual retry — the "Télécharger les N titres manquants" affordance is
-     *  offered ONLY when the batch failed to start (rate limit, downloads
-     *  disabled…): requeue the unassigned rows and try the batch again. */
+    /** Retry failed/remaining rows without duplicating already-added tracks. */
     fun retryImportDownload() {
         val dl = _ui.value.importDownload ?: return
         if (dl.running) return
@@ -1405,114 +1420,92 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
             s.copy(
                 importDownload = cur.copy(
                     rows = cur.rows.map { r ->
-                        if (r.jobId.isBlank() && r.state != ImportRowState.CANCELLED) {
+                        if (r.state == ImportRowState.FAILED || r.state == ImportRowState.CANCELLED) {
                             r.copy(state = ImportRowState.QUEUED, progress = 0, detail = null)
                         } else r
                     },
+                    running = true,
                     startError = null,
                 ),
                 importSheetOpen = true,
             )
         }
-        enqueueImportBatch()
+        startImportResolve()
     }
 
-    /** Enqueue the queued rows as one download batch. On failure the sheet says
-     *  WHY (the server's own error text) and keeps the retry button up — never
-     *  a silent no-op. */
-    private fun enqueueImportBatch() {
-        val target = _ui.value.importDownload?.rows
-            ?.filter { it.jobId.isBlank() && it.state == ImportRowState.QUEUED }
-            .orEmpty()
-        if (target.isEmpty()) return
-        viewModelScope.launch {
-            val result = api.startDownloadBatch(importBatchItems(target))
-            val jobs = result.jobs
-            if (jobs.isEmpty()) {
-                val err = result.error?.takeIf { it.isNotBlank() } ?: tr("toast.downloadStartFailed")
+    private fun startImportResolve() {
+        val dl = _ui.value.importDownload ?: return
+        val playlistId = dl.playlistId
+        val entries = importResolveEntries
+        if (entries.isEmpty()) return
+        importResolveJob?.cancel()
+        importResolveJob = viewModelScope.launch {
+            val pendingIndices = (_ui.value.importDownload?.rows ?: emptyList())
+                .mapIndexedNotNull { idx, r -> if (r.state == ImportRowState.QUEUED && idx in entries.indices) idx else null }
+            val chunkSize = 20
+            val seenHashes = HashSet<String>()
+
+            for (offset in pendingIndices.indices step chunkSize) {
+                if (!isActive) break
+                val batchIdx = pendingIndices.subList(offset, minOf(offset + chunkSize, pendingIndices.size))
                 _ui.update { s ->
                     val cur = s.importDownload ?: return@update s
-                    s.copy(importDownload = cur.copy(running = false, startError = err))
+                    val set = batchIdx.toHashSet()
+                    s.copy(
+                        importDownload = cur.copy(
+                            rows = cur.rows.mapIndexed { i, r ->
+                                if (i in set && r.state == ImportRowState.QUEUED) r.copy(state = ImportRowState.DOWNLOADING, progress = 50)
+                                else r
+                            },
+                        ),
+                    )
                 }
-                notify(err)
-                return@launch
-            }
-            // The server returns one job per item, in item order (query-only
-            // items are never deduped) — zip them back onto their rows; anything
-            // the server trimmed settles as failed instead of vanishing.
-            _ui.update { s ->
-                val cur = s.importDownload ?: return@update s
-                var idx = 0
-                val rows = cur.rows.map { r ->
-                    if (r.jobId.isBlank() && r.state == ImportRowState.QUEUED) {
-                        val j = jobs.getOrNull(idx++)
-                        if (j != null) r.copy(jobId = j.id)
-                        else r.copy(state = ImportRowState.FAILED, detail = tr("toast.downloadStartFailed"))
-                    } else r
-                }
-                s.copy(importDownload = cur.copy(rows = rows, running = true, startError = null))
-            }
-            pollImportBatch()
-        }
-    }
 
-    /** Poll the batch (one bare GET covers the whole batch) and fold every job
-     *  update into its row so the sheet shows each track landing ONE BY ONE;
-     *  each finished trackhash is added to the playlist as it arrives. */
-    private fun pollImportBatch() {
-        viewModelScope.launch {
-            val playlistId = _ui.value.importDownload?.playlistId ?: return@launch
-            val seenHashes = HashSet<String>()
-            var misses = 0
-            while (isActive) {
-                delay(2000)
-                val rows0 = _ui.value.importDownload?.rows ?: break
-                if (!importRowsActive(rows0)) break
-                val all = api.downloadJobs()
-                if (all == null) {
-                    // Transient poll failures are fine; give up after a long outage.
-                    if (++misses > 60) {
-                        _ui.update { s ->
-                            val cur = s.importDownload ?: return@update s
-                            s.copy(
-                                importDownload = cur.copy(
-                                    rows = cur.rows.map { r ->
-                                        if (r.state == ImportRowState.QUEUED || r.state == ImportRowState.DOWNLOADING) {
-                                            r.copy(state = ImportRowState.FAILED, detail = tr("toast.serverUnreachable"))
-                                        } else r
-                                    },
-                                    running = false,
-                                ),
+                val batchItems = batchIdx.map { entries[it] }
+                val resolved = api.resolveOnlineBatch(batchItems)
+                if (!isActive) break
+
+                val newTracks = ArrayList<Track>()
+                val newHashes = ArrayList<String>()
+
+                _ui.update { s ->
+                    val cur = s.importDownload ?: return@update s
+                    val mutableRows = cur.rows.toMutableList()
+                    if (resolved == null) {
+                        for (rowIdx in batchIdx) {
+                            mutableRows[rowIdx] = mutableRows[rowIdx].copy(
+                                state = ImportRowState.FAILED,
+                                detail = tr("toast.serverUnreachable"),
                             )
                         }
-                        break
+                    } else {
+                        for ((k, rowIdx) in batchIdx.withIndex()) {
+                            val t = resolved.getOrNull(k)
+                            if (t != null) {
+                                mutableRows[rowIdx] = mutableRows[rowIdx].copy(state = ImportRowState.ADDED, progress = 100, detail = null)
+                                newTracks.add(t)
+                                if (seenHashes.add(t.trackhash)) newHashes.add(t.trackhash)
+                            } else {
+                                mutableRows[rowIdx] = mutableRows[rowIdx].copy(state = ImportRowState.FAILED)
+                            }
+                        }
                     }
-                    continue
+                    s.copy(importDownload = cur.copy(rows = mutableRows, startError = null))
                 }
-                misses = 0
-                val byId = all.associateBy { it.id }
-                var rows = rows0
-                for (r in rows0) {
-                    if (r.state != ImportRowState.QUEUED && r.state != ImportRowState.DOWNLOADING) continue
-                    if (r.jobId.isBlank()) continue
-                    // Jobs outside the bare list's window (the server lists the
-                    // 30 most recent) are polled individually — same contract as
-                    // the web, so large batches still settle.
-                    val j = byId[r.jobId]
-                        ?: runCatching { api.downloadJob(r.jobId) }.getOrNull()
-                        ?: continue
-                    rows = applyImportJob(rows, j)
-                    if (j.status == "done") {
-                        val h = j.trackhash
-                        if (!h.isNullOrBlank() && seenHashes.add(h)) addDownloadedToPlaylist(playlistId, h)
+
+                if (newTracks.isNotEmpty()) {
+                    val existingHashes = _ui.value.tracks.mapTo(HashSet()) { it.trackhash }
+                    val toAddUi = newTracks.filter { existingHashes.add(it.trackhash) }
+                    for (t in newTracks) trackIndex = trackIndex + (t.trackhash to t)
+                    accounting.setLibrary(trackIndex)
+                    if (toAddUi.isNotEmpty()) {
+                        _ui.update { it.copy(tracks = toAddUi + it.tracks) }
                     }
+                    addDownloadedTracksToPlaylist(playlistId, newHashes)
                 }
-                _ui.update { s -> s.copy(importDownload = s.importDownload?.copy(rows = rows)) }
             }
-            // Batch end: keep the sheet open on the final state and fire the
-            // existing completion toast wording (skipped for a pure cancel).
+
             _ui.update { s -> s.copy(importDownload = s.importDownload?.copy(running = false)) }
-            loadAll()
             val fin = _ui.value.importDownload
             if (fin != null && (fin.done > 0 || fin.failed > 0)) {
                 notify(
@@ -1526,9 +1519,10 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
         }
     }
 
-    /** "Tout annuler" — cancel every remaining job (DELETE /api/download?job=)
-     *  and mark its row "Annulé". Rows already added/failed keep their verdict. */
+    /** "Tout annuler" — stop resolving further chunks and mark pending rows "Annulé". */
     fun cancelImportDownload() {
+        importResolveJob?.cancel()
+        importResolveJob = null
         val dl = _ui.value.importDownload ?: return
         val pending = dl.rows.filter {
             it.state == ImportRowState.QUEUED || it.state == ImportRowState.DOWNLOADING
@@ -1547,26 +1541,22 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
                 ),
             )
         }
-        viewModelScope.launch {
-            for (r in pending) {
-                if (r.jobId.isBlank()) continue
-                runCatching { api.cancelDownload(r.jobId) }
-            }
-        }
     }
 
-    /** Append a freshly downloaded track to the import's playlist — silent
-     *  variant of [addToPlaylist] (one toast per batch, not per track). */
-    private fun addDownloadedToPlaylist(playlistId: String, trackhash: String) {
+    /** Append a batch of resolved streaming tracks to the import's playlist in one
+     *  server upsert (silent variant of [addTracksToPlaylist]). */
+    private fun addDownloadedTracksToPlaylist(playlistId: String, trackhashes: List<String>) {
+        if (trackhashes.isEmpty()) return
         val pl = _ui.value.playlists.find { it.id == playlistId } ?: return
-        if (trackhash in pl.trackhashes) return
-        val next = pl.trackhashes + trackhash
+        val add = trackhashes.filter { it !in pl.trackhashes }
+        if (add.isEmpty()) return
+        val next = pl.trackhashes + add
         if (pl.collaborator) {
-            // Collaborator playlists must use the GRANULAR add — the full upsert is
-            // owner-scoped and would be IDOR-rejected (see addToPlaylist).
             _ui.update { it.copy(playlists = it.playlists.map { p -> if (p.id == playlistId) p.copy(trackhashes = next) else p }) }
             viewModelScope.launch {
-                api.putState(JSONObject().put("action", "playlist.addTrack").put("id", playlistId).put("trackhash", trackhash))
+                for (h in add) {
+                    api.putState(JSONObject().put("action", "playlist.addTrack").put("id", playlistId).put("trackhash", h))
+                }
             }
         } else {
             upsertPlaylist(pl.copy(trackhashes = next))

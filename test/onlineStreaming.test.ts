@@ -130,3 +130,40 @@ test("GET /api/lyrics/[trackhash] accepts metadata for virtual yt: tracks", asyn
   assert.equal(body.trackhash, "yt:dQw4w9WgXcQ");
   assert.equal(body.status, "notfound");
 });
+
+test("resolveOnlineTracksBatch resolves playlist entries to yt:// tracks with zero search when videoId or cached track exists", async () => {
+  const { resolveOnlineTracksBatch } = await import("../src/server/library/online");
+  const { matchLibraryTracks } = await import("../src/lib/auralis/playlistIO");
+
+  const searchCalls: string[] = [];
+  const res = await resolveOnlineTracksBatch(
+    [
+      { title: "Direct Video", artist: "Artist A", videoId: "aqz-KE-bpKQ", duration: 634 },
+      { title: "One More Time", artist: "Daft Punk" }, // already registered in online_tracks from previous test
+      { title: "Around the World", artist: "Daft Punk" },
+    ],
+    async (query) => {
+      searchCalls.push(query);
+      return { videoId: "dwDns8x3Jb4", title: "Around the World", artist: "Daft Punk", duration: 429 };
+    },
+    3,
+  );
+
+  assert.equal(res.insertedAny, true);
+  assert.equal(res.entries[0]?.track?.trackhash, "yt:aqz-KE-bpKQ");
+  assert.equal(res.entries[0]?.track?.filepath, "yt://aqz-KE-bpKQ");
+  assert.equal(res.entries[1]?.track?.trackhash, "yt:jNQXAC9IVRw");
+  assert.equal(res.entries[2]?.track?.trackhash, "yt:dwDns8x3Jb4");
+  assert.deepEqual(searchCalls, ["Daft Punk Around the World"]);
+
+  const matched = matchLibraryTracks(
+    [
+      { title: "Song Missing 1", artist: "Artist X", videoId: "xxxxxxxxxxx" },
+      { title: "One More Time", artist: "Daft Punk" },
+    ],
+    res.entries[1]?.track ? [res.entries[1].track] : [],
+  );
+  assert.equal(matched.hashes.length, 1);
+  assert.equal(matched.unmatched.length, 1);
+  assert.equal(matched.unmatched[0]?.videoId, "xxxxxxxxxxx");
+});

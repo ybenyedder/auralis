@@ -174,3 +174,131 @@ export function listOnlineTracks(): Track[] {
   `).all() as OnlineTrackRow[];
   return rows.map(mapOnlineRowToTrack);
 }
+
+export interface OnlineResolveBatchItem {
+  title: string;
+  artist?: string;
+  album?: string;
+  videoId?: string;
+  duration?: number;
+  thumbnail?: string;
+}
+
+export interface OnlineResolveHit {
+  videoId: string;
+  title: string;
+  artist?: string;
+  uploader?: string;
+  duration?: number;
+  thumbnail?: string | null;
+}
+
+export interface OnlineResolveBatchEntry {
+  index: number;
+  track: Track | null;
+  error?: string;
+}
+
+function normalizeLookupKey(title: string, artist?: string): string {
+  const norm = (s: string) =>
+    s
+      .normalize("NFKD")
+      .replace(/[\u0300-\u036f]/g, "")
+      .toLowerCase()
+      .replace(/[^\p{L}\p{N}]+/gu, " ")
+      .trim();
+  return `${norm(title)}::${norm(artist ?? "")}`;
+}
+
+/** Resolve a batch of playlist entries to lightweight `yt:` streaming tracks
+ *  in SQLite `online_tracks` with zero audio files downloaded to disk. Reuses
+ *  already-known tracks, accepts direct `videoId` entries without searching,
+ *  and runs remaining lookups with bounded concurrency. */
+export async function resolveOnlineTracksBatch(
+  items: OnlineResolveBatchItem[],
+  searcher: (query: string) => Promise<OnlineResolveHit | null>,
+  concurrency = 6,
+): Promise<{ entries: OnlineResolveBatchEntry[]; insertedAny: boolean }> {
+  const existing = listOnlineTracks();
+  const byVideoId = new Map<string, Track>();
+  const byKey = new Map<string, Track>();
+  for (const t of existing) {
+    if (t.videoId) byVideoId.set(t.videoId, t);
+    const k = normalizeLookupKey(t.title, t.artist);
+    if (k !== "::" && !byKey.has(k)) byKey.set(k, t);
+  }
+
+  const results: OnlineResolveBatchEntry[] = new Array(items.length);
+  let insertedAny = false;
+  let cursor = 0;
+
+  async function resolveOne(item: OnlineResolveBatchItem): Promise<{ track: Track | null; error?: string }> {
+    const title = item.title?.trim() ?? "";
+    const artist = item.artist?.trim() || undefined;
+    if (!title && !isValidVideoId(item.videoId)) {
+      return { track: null, error: "Titre manquant" };
+    }
+
+    if (isValidVideoId(item.videoId)) {
+      const cached = byVideoId.get(item.videoId);
+      if (cached) return { track: cached };
+      const { track, inserted } = upsertOnlineTrack({
+        videoId: item.videoId,
+        title: title || item.videoId,
+        artist,
+        album: item.album?.trim() || undefined,
+        duration: item.duration,
+        thumbnail: item.thumbnail,
+      });
+      byVideoId.set(item.videoId, track);
+      if (inserted) insertedAny = true;
+      return { track };
+    }
+
+    const key = normalizeLookupKey(title, artist);
+    const matched = byKey.get(key);
+    if (matched) return { track: matched };
+
+    const query = [artist, title].filter(Boolean).join(" ").trim();
+    if (!query) return { track: null, error: "Recherche vide" };
+
+    const hit = await searcher(query);
+    if (!hit || !isValidVideoId(hit.videoId)) {
+      return { track: null, error: "Aucun flux trouvé" };
+    }
+
+    const { track, inserted } = upsertOnlineTrack({
+      videoId: hit.videoId,
+      title: title || hit.title,
+      artist: artist || hit.artist || hit.uploader,
+      album: item.album?.trim() || undefined,
+      duration: item.duration || hit.duration,
+      thumbnail: item.thumbnail || hit.thumbnail,
+    });
+    byVideoId.set(hit.videoId, track);
+    if (key !== "::") byKey.set(key, track);
+    if (inserted) insertedAny = true;
+    return { track };
+  }
+
+  const workers = Math.min(Math.max(1, concurrency), Math.max(1, items.length));
+  await Promise.all(
+    Array.from({ length: workers }, async () => {
+      while (cursor < items.length) {
+        const index = cursor++;
+        try {
+          const r = await resolveOne(items[index]);
+          results[index] = { index, track: r.track, ...(r.error ? { error: r.error } : {}) };
+        } catch (err) {
+          results[index] = {
+            index,
+            track: null,
+            error: err instanceof Error ? err.message.slice(0, 120) : "Échec",
+          };
+        }
+      }
+    }),
+  );
+
+  return { entries: results, insertedAny };
+}

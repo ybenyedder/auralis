@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState, type ComponentType } from "react";
 import { Music2, Disc3, UserRound, ListMusic, ArrowDownUp, LayoutGrid, List, History, FolderTree, BarChart3, Settings, ChevronRight, Plus, Heart, Search, X, Upload, SlidersHorizontal, Link2, Loader2, Download } from "lucide-react";
-import { parsePlaylistFile, matchLibraryTracks } from "@/lib/auralis/playlistIO";
+import { parsePlaylistFile, matchLibraryTracks, type ExternalTrackEntry } from "@/lib/auralis/playlistIO";
 import { api } from "@/lib/auralis/api";
 import { SMART_PRESETS } from "@/lib/auralis/smartlist";
 import { usePlayer } from "@/store/player";
@@ -81,9 +81,8 @@ export function LibraryView() {
   const [linkOpen, setLinkOpen] = useState(false);
   const [linkUrl, setLinkUrl] = useState("");
   const [linkBusy, setLinkBusy] = useState(false);
-  // Unmatched import entries, offered as a bulk download once the playlist
-  // exists ("Télécharger les N titres manquants").
-  const [importOffer, setImportOffer] = useState<{ playlistId: string; misses: string[] } | null>(null);
+  // Unmatched import entries: auto-resolved into instant streaming tracks.
+  const [importOffer, setImportOffer] = useState<{ playlistId: string; misses: ExternalTrackEntry[] } | null>(null);
   const importDl = useImportDownloads();
   const customPlaylists = usePlayer((s) => s.customPlaylists);
   const playCounts = usePlayer((s) => s.playCounts);
@@ -175,11 +174,9 @@ export function LibraryView() {
         return;
       }
       const id = importPlaylist(res.name, res.hashes);
-      if (res.matched < res.total) notify(`${res.matched}/${res.total} ${t("library.tabTracks", "Titres").toLowerCase()}`, { tone: "info" });
-      if (res.misses.length > 0) {
-        // Unmatched entries → offer the bulk download instead of navigating away
-        // (the panel lives on this screen and tracks the download progress).
-        setImportOffer({ playlistId: id, misses: res.misses });
+      const pending = res.unmatched?.length ? res.unmatched : res.misses.map((m) => ({ title: m }));
+      if (pending.length > 0) {
+        useImportDownloads.getState().start(id, pending);
       } else {
         navigate("playlist", id);
       }
@@ -204,7 +201,7 @@ export function LibraryView() {
         body: JSON.stringify({ url }),
         credentials: "include",
       });
-      const data = (await r.json().catch(() => ({}))) as { error?: string; name?: string; tracks?: { title: string; artist?: string; album?: string }[] };
+      const data = (await r.json().catch(() => ({}))) as { error?: string; name?: string; tracks?: ExternalTrackEntry[] };
       if (!r.ok) {
         notify(data.error || t("library.linkImportFailed", "Impossible d'importer ce lien"), { tone: "error" });
         return;
@@ -215,20 +212,15 @@ export function LibraryView() {
         return;
       }
       const res = matchLibraryTracks(entries, tracks);
-      if (res.hashes.length === 0 && res.misses.length === 0) {
+      if (res.hashes.length === 0 && res.unmatched.length === 0) {
         notify(t("library.linkNoTracks", "Aucun titre trouvé dans ce lien"), { tone: "error" });
         return;
       }
       const id = importPlaylist(data.name?.trim() || t("library.importedName", "Playlist importée"), res.hashes);
-      if (res.matched < res.total) {
-        notify(`${res.matched}/${res.total}`, { tone: "info" });
-      }
       setLinkUrl("");
       setLinkOpen(false);
-      if (res.misses.length > 0) {
-        // Unmatched entries → offer the bulk download instead of navigating away
-        // (the panel lives on this screen and tracks the download progress).
-        setImportOffer({ playlistId: id, misses: res.misses });
+      if (res.unmatched.length > 0) {
+        useImportDownloads.getState().start(id, res.unmatched);
       } else {
         navigate("playlist", id);
       }
@@ -741,7 +733,7 @@ function ImportDownloadPanel({
   onDismiss,
   t,
 }: {
-  offer: { playlistId: string; misses: string[] } | null;
+  offer: { playlistId: string; misses: ExternalTrackEntry[] } | null;
   running: boolean;
   finished: boolean;
   total: number;
@@ -757,15 +749,15 @@ function ImportDownloadPanel({
   return (
     <div className="matte-panel mb-4 flex items-start gap-3 rounded-lg p-3">
       <div className="grid size-9 shrink-0 place-items-center rounded-full bg-[var(--surface-2)]">
-        <Download className="size-4 text-muted-foreground" />
+        {running ? <Loader2 className="size-4 animate-spin text-muted-foreground" /> : <Download className="size-4 text-muted-foreground" />}
       </div>
       <div className="min-w-0 flex-1">
         <p className="text-[13px] font-bold text-foreground">
           {offer
             ? t("library.importMissingTitle", "Titres manquants")
             : finished
-              ? t("library.importDownloadDone", "Playlist mise à jour : {count} titres ajoutés", { count: added })
-              : t("library.importDownloadProgress", "{done} / {total} téléchargés", { done: settled, total })}
+              ? t("library.importDownloadDone", "Playlist mise à jour : {count} titres prêts en streaming", { count: added })
+              : t("library.importDownloadProgress", "{done} / {total} prêts en streaming", { done: settled, total })}
         </p>
         {offer && (
           <p className="mt-0.5 text-[12px] font-medium text-muted-foreground">

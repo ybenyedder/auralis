@@ -221,19 +221,19 @@ object Messages {
         "library.emptyNoPlaylistsHint" to "Touche le bouton + pour créer ou importer une playlist, ou ⋮ sur un titre pour l'ajouter.",
         "library.emptyImportCta" to "Importer une playlist (Spotify, Deezer, Apple Music, YouTube)",
 
-        // ---- playlist import → download missing tracks ----------------------
-        "import.downloadMissing" to "Télécharger les {count} titres manquants",
-        "import.downloadComplete" to "{done} titres téléchargés",
-        "import.downloadPartial" to "{done} titres téléchargés — {failed} échecs",
+        // ---- playlist import → instant streaming resolution ------------------
+        "import.downloadMissing" to "Ajouter les {count} titres en streaming",
+        "import.downloadComplete" to "{done} titres prêts en streaming",
+        "import.downloadPartial" to "{done} titres ajoutés — {failed} introuvables",
         "import.sheetTitle" to "Import de « {name} » — {done}/{total}",
         "import.rowQueued" to "En attente…",
-        "import.rowDownloading" to "Téléchargement… {progress}%",
+        "import.rowDownloading" to "Streaming…",
         "import.rowAdded" to "✅ Ajouté à la playlist",
-        "import.rowFailed" to "❌ Échec",
+        "import.rowFailed" to "❌ Introuvable",
         "import.rowCancelled" to "Annulé",
         "import.viewPlaylist" to "Voir la playlist",
         "import.cancelAll" to "Tout annuler",
-        "import.bannerRunning" to "{count} titres en cours de téléchargement…",
+        "import.bannerRunning" to "{count} titres en cours d'ajout (streaming)…",
 
         // ---- favorites / recents / folders ---------------------------------
         "favorites.headline" to "Tes titres aimés",
@@ -625,7 +625,7 @@ object Messages {
         "toast.musicDirUpdated" to "Dossier mis à jour — indexation…",
         "toast.dataImported" to "Données importées",
         "toast.importFailed" to "Import échoué",
-        "toast.downloadBatchStarting" to "Téléchargement de {count} titres…",
+        "toast.downloadBatchStarting" to "Ajout en streaming de {count} titres…",
         "toast.downloadStartFailed" to "Démarrage impossible",
         "toast.downloadFailed" to "Échec du téléchargement",
         "toast.trackUnreadable" to "Piste illisible — passage à la suivante",
@@ -849,19 +849,19 @@ object Messages {
         "library.emptyNoPlaylistsHint" to "Tap the + button to create or import a playlist, or ⋮ on a track to add one.",
         "library.emptyImportCta" to "Import a playlist (Spotify, Deezer, Apple Music, YouTube)",
 
-        // ---- playlist import → download missing tracks ----------------------
-        "import.downloadMissing" to "Download the {count} missing tracks",
-        "import.downloadComplete" to "{done} tracks downloaded",
-        "import.downloadPartial" to "{done} tracks downloaded — {failed} failed",
+        // ---- playlist import → instant streaming resolution ------------------
+        "import.downloadMissing" to "Add {count} tracks for streaming",
+        "import.downloadComplete" to "{done} tracks ready to stream",
+        "import.downloadPartial" to "{done} tracks added — {failed} not found",
         "import.sheetTitle" to "Import of \"{name}\" — {done}/{total}",
         "import.rowQueued" to "Waiting…",
-        "import.rowDownloading" to "Downloading… {progress}%",
+        "import.rowDownloading" to "Resolving…",
         "import.rowAdded" to "✅ Added to the playlist",
-        "import.rowFailed" to "❌ Failed",
+        "import.rowFailed" to "❌ Not found",
         "import.rowCancelled" to "Cancelled",
         "import.viewPlaylist" to "View playlist",
         "import.cancelAll" to "Cancel all",
-        "import.bannerRunning" to "{count} tracks downloading…",
+        "import.bannerRunning" to "Adding {count} streaming tracks…",
 
         // ---- favorites / recents / folders ---------------------------------
         "favorites.headline" to "Your liked tracks",
@@ -1253,7 +1253,7 @@ object Messages {
         "toast.musicDirUpdated" to "Music folder updated — indexing…",
         "toast.dataImported" to "Data imported",
         "toast.importFailed" to "Import failed",
-        "toast.downloadBatchStarting" to "Downloading {count} tracks…",
+        "toast.downloadBatchStarting" to "Adding {count} streaming tracks…",
         "toast.downloadStartFailed" to "Could not start",
         "toast.downloadFailed" to "Download failed",
         "toast.trackUnreadable" to "Unreadable track — skipping to the next one",

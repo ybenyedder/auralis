@@ -111,11 +111,19 @@ function toOnlineResult(hit: YouTubeHit): OnlineResult {
   };
 }
 
-/** YouTube search via the JS engine. Cached 10 min per query. */
-export async function onlineSearch(query: string, limit = 8): Promise<{ enabled: boolean; results: OnlineResult[]; error?: string }> {
+/** YouTube search via the JS engine. Cached 10 min per query.
+ *  Streaming callers pass `bypassDownloadGate: true` so search-for-streaming
+ *  keeps working even when disk downloads are disabled. */
+export async function onlineSearch(
+  query: string,
+  limit = 8,
+  opts?: { bypassDownloadGate?: boolean },
+): Promise<{ enabled: boolean; results: OnlineResult[]; error?: string }> {
   const trimmed = query.trim();
   if (!trimmed) return { enabled: downloadsEnabled(), results: [] };
-  if (!downloadsEnabled()) return { enabled: false, results: [], error: "Téléchargement désactivé sur ce serveur" };
+  if (!opts?.bypassDownloadGate && !downloadsEnabled()) {
+    return { enabled: false, results: [], error: "Téléchargement désactivé sur ce serveur" };
+  }
 
   const cached = searchCache.get(trimmed.toLowerCase());
   if (cached && Date.now() - cached.at < SEARCH_CACHE_MS) {
