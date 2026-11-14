@@ -74,13 +74,12 @@ interface SearchVideoLike {
   thumbnails?: Array<{ url?: string }>;
 }
 
-/** YouTube search (videos only). Throws on engine failure — callers map the
- *  error to their own user-facing wording. */
-export async function youtubeSearch(query: string, limit: number): Promise<YouTubeHit[]> {
-  const yt = await getSession();
-  const search = await yt.search(query, { type: "video" });
+const AGE_GATE_WORDS_RE = /\b(?:sexy|sex|porn|nude|nudity|nsfw|explicit|uncensored)\b/gi;
+const MASKED_WORD_RE = /\S*\*\S*/g;
+
+function collectSearchHits(videos: unknown, limit: number): YouTubeHit[] {
   const hits: YouTubeHit[] = [];
-  for (const video of ((search.videos ?? []) as unknown as SearchVideoLike[])) {
+  for (const video of (Array.isArray(videos) ? videos : []) as SearchVideoLike[]) {
     const videoId = video.video_id;
     // Some YouTube result nodes mash metadata into the title text (view
     // counts, line breaks) — flatten it to a single clean line.
@@ -95,6 +94,29 @@ export async function youtubeSearch(query: string, limit: number): Promise<YouTu
       url: `https://www.youtube.com/watch?v=${videoId}`,
     });
     if (hits.length >= limit) break;
+  }
+  return hits;
+}
+
+/** YouTube search (videos only). Throws on engine failure — callers map the
+ *  error to their own user-facing wording. */
+export async function youtubeSearch(query: string, limit: number): Promise<YouTubeHit[]> {
+  const yt = await getSession();
+  const search = await yt.search(query, { type: "video" });
+  const hits = collectSearchHits(search.videos, limit);
+  if (hits.length > 0) return hits;
+
+  // Anonymous InnerTube Web returns `BackgroundPromo: Confirm your age` with 0
+  // videos when a title includes mature/censored keywords like "sexy" or "s*xy".
+  // Retry once with those trigger tokens stripped so tracks remain discoverable.
+  const sanitized = query
+    .replace(MASKED_WORD_RE, " ")
+    .replace(AGE_GATE_WORDS_RE, " ")
+    .replace(/\s{2,}/g, " ")
+    .trim();
+  if (sanitized.length >= 2 && sanitized.toLowerCase() !== query.trim().toLowerCase()) {
+    const retry = await yt.search(sanitized, { type: "video" });
+    return collectSearchHits(retry.videos, limit);
   }
   return hits;
 }

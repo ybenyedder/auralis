@@ -287,12 +287,45 @@ test("identifyTikTokAudio prioritizes Shazam recognition, falls back to non-orig
   assert.equal(chosenAlive?.title, "Stay Alive");
 
   // Speed/pitch sweep helpers & derivative detector
-  const { isDerivativeVariantText } = await import("../src/server/library/tiktok");
+  const { isDerivativeVariantText, extractTrackFromVideoCaption } = await import("../src/server/library/tiktok");
   const { resamplePcmSpeed } = await import("../src/server/melody/shazam");
   assert.equal(isDerivativeVariantText("Sanechka hardtekk (Rampage, Slowed)"), true);
   assert.equal(isDerivativeVariantText("Stay Alive"), false);
   const resampledUp = resamplePcmSpeed(new Float32Array([0, 2, 4, 6, 8, 10]), 2);
   assert.deepEqual(Array.from(resampledUp), [0, 4, 8]);
+
+  // Caption parser unmasks TikTok profanity censorship & strips hashtags
+  const parsedCaption = extractTrackFromVideoCaption(
+    "laydownrot - s*xy scene girl #songlyrics #lyrics_songs #fyp",
+    "ipostlyricvidz",
+  );
+  assert.deepEqual(parsedCaption, { artist: "laydownrot", title: "sexy scene girl", highConfidence: true });
+  assert.equal(extractTrackFromVideoCaption("#fridaythe13th #edit"), null);
+
+  // Verified caption takes priority over a false-positive Shazam match
+  let shazamInvoked = false;
+  const captionVerified = await identifyTikTokAudio("https://www.tiktok.com/@ipostlyricvidz/video/123", {
+    fetchMeta: async () => ({
+      audioUrl: "https://cdn.example.com/audio.mp3",
+      musicTitle: "original sound - ipostlyricvidz",
+      musicAuthor: "ipostlyricvidz",
+      album: "",
+      original: true,
+      duration: 15,
+      cover: null,
+      videoTitle: "laydownrot - s*xy scene girl #songlyrics",
+      videoAuthor: "ipostlyricvidz",
+    }),
+    verifyCaption: async (c) => c.artist === "laydownrot" && c.title === "sexy scene girl",
+    recognize: async () => {
+      shazamInvoked = true;
+      return [{ title: "Work That Body", artists: ["Temper"], album: null, score: 1, source: "shazam" }];
+    },
+  });
+  assert.equal(shazamInvoked, false);
+  assert.equal(captionVerified.artist, "laydownrot");
+  assert.equal(captionVerified.title, "sexy scene girl");
+  assert.equal(captionVerified.source, "tiktok-meta");
 });
 
 test("instantRegisterOnlineTracksBatch registers lazy placeholders immediately and resolveLazyVideoId resolves once", async () => {

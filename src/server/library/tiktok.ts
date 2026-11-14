@@ -4,6 +4,7 @@
 
 import { createLogger } from "../logger";
 import { shazamRecognize } from "../melody/shazam";
+import { youtubeSearch } from "./youtube";
 
 const log = createLogger("tiktok");
 
@@ -20,6 +21,8 @@ export interface TikTokMeta {
   original: boolean;
   duration: number;
   cover: string | null;
+  videoTitle?: string;
+  videoAuthor?: string;
 }
 
 export interface DetectedTikTokTrack {
@@ -194,11 +197,15 @@ async function queryTikWmVideo(targetUrl: string, fallbackMeta: TikTokMeta | nul
       code?: number;
       msg?: string;
       data?: {
+        title?: string;
         duration?: number;
         cover?: string;
         origin_cover?: string;
         music?: string;
         play?: string;
+        author?: {
+          unique_id?: string;
+        };
         music_info?: {
           title?: string;
           author?: string;
@@ -230,6 +237,8 @@ async function queryTikWmVideo(targetUrl: string, fallbackMeta: TikTokMeta | nul
             ? Math.round(d.duration)
             : 0,
       cover,
+      videoTitle: (d.title ?? "").trim() || undefined,
+      videoAuthor: (d.author?.unique_id ?? "").trim() || undefined,
     };
   } catch (err) {
     if (err instanceof TikTokError) throw err;
@@ -316,15 +325,87 @@ function isUsableTikTokMusicMeta(meta: TikTokMeta): boolean {
   return true;
 }
 
+const TIKTOK_UNMASK_RULES: Array<[RegExp, string]> = [
+  [/\bs\*+xy\b/gi, "sexy"],
+  [/\bf\*+ck(?:ing|ed)?\b/gi, "fuck"],
+  [/\bb\*+tch\b/gi, "bitch"],
+  [/\bsh\*+t\b/gi, "shit"],
+  [/\bp\*+ssy\b/gi, "pussy"],
+  [/\bn\*+gga\b/gi, "nigga"],
+  [/\bdr\*+gs\b/gi, "drugs"],
+  [/\bd\*+mn\b/gi, "damn"],
+  [/\bk\*+ll\b/gi, "kill"],
+];
+
+function unmaskTikTokWords(text: string): string {
+  let out = text;
+  for (const [re, rep] of TIKTOK_UNMASK_RULES) {
+    out = out.replace(re, rep);
+  }
+  return out;
+}
+
+const CAPTION_MUSIC_HINT_RE =
+  /#(?:songlyrics|lyrics_songs|lyrics|lyric|music|song|audio|musicvideo|editaudio|nowplaying|spedup|slowed)\b/i;
+
+export interface ParsedCaptionTrack {
+  artist: string;
+  title: string;
+  highConfidence: boolean;
+}
+
+/** Parse captions like `"laydownrot - s*xy scene girl #songlyrics ..."` into
+ *  `{ artist, title }` while ignoring non-song prose or empty hashtag-only captions. */
+export function extractTrackFromVideoCaption(caption: string, authorHandle?: string): ParsedCaptionTrack | null {
+  if (!caption) return null;
+  const highConfidence =
+    CAPTION_MUSIC_HINT_RE.test(caption) || /(?:lyric|lyrics|songs?|music|audio)/i.test(authorHandle ?? "");
+  const clean = caption
+    .replace(/https?:\/\/\S+/gi, " ")
+    .replace(/#[^\s#]+/g, " ")
+    .replace(/@[^\s@]+/g, " ")
+    .replace(/\s{2,}/g, " ")
+    .trim();
+  if (!clean || clean.length > 90 || /[?!]/.test(clean)) return null;
+  const m = /^(.{2,45}?)\s+[-–—]\s+(.{2,65})$/.exec(clean);
+  if (!m) return null;
+  const artist = unmaskTikTokWords(m[1]).trim();
+  const title = unmaskTikTokWords(m[2]).trim();
+  if (!artist || !title || artist.includes(" - ") || GENERIC_SOUND_RE.test(title)) return null;
+  return { artist, title, highConfidence };
+}
+
+async function verifyCaptionOnYouTube(candidate: ParsedCaptionTrack): Promise<boolean> {
+  try {
+    const hits = await youtubeSearch(`${candidate.artist} ${candidate.title}`, 6);
+    if (hits.length === 0) return false;
+    const normArtist = candidate.artist.toLowerCase();
+    const titleWords = candidate.title
+      .toLowerCase()
+      .split(/[^a-z0-9\u00c0-\u024f]+/)
+      .filter((w) => w.length >= 3 && !/^(?:sexy|sex|porn|nude|nsfw)$/.test(w));
+    return hits.some((h) => {
+      const text = `${h.title} ${h.uploader}`.toLowerCase();
+      if (!text.includes(normArtist)) return false;
+      if (titleWords.length === 0) return true;
+      const matched = titleWords.filter((w) => h.title.toLowerCase().includes(w)).length;
+      return matched >= Math.min(2, titleWords.length);
+    });
+  } catch {
+    return false;
+  }
+}
+
 export interface IdentifyTikTokDeps {
   fetchMeta?: (url: string) => Promise<TikTokMeta>;
   fetchAudio?: (url: string) => Promise<Buffer | null>;
   recognize?: typeof shazamRecognize;
+  verifyCaption?: (candidate: ParsedCaptionTrack) => Promise<boolean>;
 }
 
-/** Identify the song behind a TikTok URL. Always tries audio recognition
- *  (Shazam) when audio can be fetched, and falls back to non-generic TikTok
- *  music metadata when Shazam doesn't match. */
+/** Identify the song behind a TikTok URL. Trusts licensed TikTok sound metadata
+ *  and YouTube-verified `"Artist - Title"` captions before Shazam, and runs a
+ *  speed-sweep Shazam pass for pitched/slowed/sped-up edits. */
 export async function identifyTikTokAudio(rawUrl: string, deps: IdentifyTikTokDeps = {}): Promise<DetectedTikTokTrack> {
   const cleanUrl = rawUrl.trim();
   if (!isTikTokUrl(cleanUrl)) {
@@ -345,6 +426,24 @@ export async function identifyTikTokAudio(rawUrl: string, deps: IdentifyTikTokDe
       thumbnail: meta.cover,
       source: "tiktok-meta",
     };
+  }
+
+  // When an "original sound" comes from a lyric/song post like "Artist - Title",
+  // verify it against YouTube before running Shazam — underground/SoundCloud
+  // tracks or sample-heavy edits frequently cause Shazam to lock onto the
+  // underlying sample instead of the actual track shown on TikTok.
+  const captionTrack = meta.videoTitle ? extractTrackFromVideoCaption(meta.videoTitle, meta.videoAuthor) : null;
+  if (captionTrack && (deps.verifyCaption || !deps.recognize)) {
+    const confirmed = await (deps.verifyCaption ?? verifyCaptionOnYouTube)(captionTrack);
+    if (confirmed) {
+      return {
+        title: captionTrack.title,
+        artist: captionTrack.artist,
+        duration: meta.duration || undefined,
+        thumbnail: meta.cover,
+        source: "tiktok-meta",
+      };
+    }
   }
 
   if (meta.audioUrl) {
@@ -377,6 +476,16 @@ export async function identifyTikTokAudio(rawUrl: string, deps: IdentifyTikTokDe
       title: meta.musicTitle,
       artist: meta.original ? "" : meta.musicAuthor,
       album: meta.album || undefined,
+      duration: meta.duration || undefined,
+      thumbnail: meta.cover,
+      source: "tiktok-meta",
+    };
+  }
+
+  if (captionTrack?.highConfidence) {
+    return {
+      title: captionTrack.title,
+      artist: captionTrack.artist,
       duration: meta.duration || undefined,
       thumbnail: meta.cover,
       source: "tiktok-meta",

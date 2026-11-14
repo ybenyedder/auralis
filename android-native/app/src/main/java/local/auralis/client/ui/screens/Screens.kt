@@ -864,6 +864,7 @@ fun SearchScreen(vm: AppViewModel, ui: UiState) {
                             job = ui.downloadJobs[hit.videoId],
                             onPlay = { vm.playOnline(it) },
                             onDownload = { vm.downloadOnline(it) },
+                            onMore = { vm.openOnlineMenu(it) },
                         )
                     }
                 }
@@ -883,6 +884,7 @@ private fun OnlineRow(
     job: DownloadJobDto?,
     onPlay: (OnlineTrack) -> Unit,
     onDownload: (OnlineTrack) -> Unit,
+    onMore: (OnlineTrack) -> Unit,
 ) {
     val colors = LocalAuralis.current
     val busy = job?.busy == true
@@ -958,6 +960,21 @@ private fun OnlineRow(
                     modifier = Modifier.size(16.dp),
                 )
             }
+        }
+        Spacer(Modifier.width(4.dp))
+        Box(
+            Modifier
+                .size(36.dp)
+                .clip(CircleShape)
+                .clickable { onMore(hit) },
+            contentAlignment = Alignment.Center,
+        ) {
+            Icon(
+                Icons.Filled.MoreVert,
+                contentDescription = tr("player.trackOptions"),
+                tint = colors.textMuted,
+                modifier = Modifier.size(18.dp),
+            )
         }
     }
     Spacer(Modifier.height(8.dp))

@@ -2038,6 +2038,18 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
         }
     }
 
+    /** Register an online search hit in UI state and open its TrackMenu sheet so the
+     *  user can add it directly to a playlist, queue, or favorites without downloading. */
+    fun openOnlineMenu(hit: OnlineTrack) {
+        val provisional = hit.toTrack()
+        registerTracksInUi(listOf(provisional))
+        openTrackMenu(provisional)
+        viewModelScope.launch {
+            val saved = api.registerOnlineTrack(hit) ?: return@launch
+            registerTracksInUi(listOf(saved))
+        }
+    }
+
     /** Download an online hit onto the server, watch the job, then play the
      *  imported track. The button state comes from downloadJobs[videoId]. */
     fun downloadOnline(hit: OnlineTrack) {
