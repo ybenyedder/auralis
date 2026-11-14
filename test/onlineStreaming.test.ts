@@ -169,11 +169,15 @@ test("resolveOnlineTracksBatch resolves playlist entries to yt:// tracks with ze
 });
 
 test("identifyTikTokAudio prioritizes Shazam recognition, falls back to non-original metadata, and rejects SSRF / unknown original sounds", async () => {
-  const { identifyTikTokAudio, isTikTokUrl, TikTokError } = await import("../src/server/library/tiktok");
+  const { identifyTikTokAudio, isTikTokUrl, extractTikTokMusicId, TikTokError } = await import("../src/server/library/tiktok");
 
   assert.equal(isTikTokUrl("https://vm.tiktok.com/ZMeTest/"), true);
   assert.equal(isTikTokUrl("https://www.tiktok.com/@user/video/7106594312292453675"), true);
+  assert.equal(isTikTokUrl("https://www.tiktok.com/music/original-sound-7642449097114290977"), true);
   assert.equal(isTikTokUrl("https://evil.example.com/video/123"), false);
+  assert.equal(extractTikTokMusicId("https://www.tiktok.com/music/original-sound-7642449097114290977"), "7642449097114290977");
+  assert.equal(extractTikTokMusicId("https://www.tiktok.com/music/Song-Name-123456789012345?share_music_id=123456789012345"), "123456789012345");
+  assert.equal(extractTikTokMusicId("https://www.tiktok.com/@user/video/7106594312292453675"), null);
 
   await assert.rejects(
     () => identifyTikTokAudio("http://127.0.0.1/video/1"),
