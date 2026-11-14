@@ -4,6 +4,28 @@ All notable changes to Auralis are documented here. The format is based on
 [Keep a Changelog](https://keepachangelog.com/) and this project adheres to
 [Semantic Versioning](https://semver.org/).
 
+## [1.34.0] - 2026-11-14
+
+Mode streaming instantané façon Liner — lecture immédiate sans avoir à stocker
+toute la musique sur le disque du serveur/PC.
+
+### Ajouté — Streaming instantané (Web, Desktop & Android)
+- **`GET/HEAD /api/online/stream/[videoId]`** : proxy audio temps réel avec
+  support `Range` / seek et cache de session en mémoire (0 octet écrit sur
+  disque).
+- **`GET /api/online/art/[videoId]`** : proxy same-origin des pochettes YouTube.
+- **`POST /api/online/register` & `POST /api/online/resolve`** : enregistrement
+  léger des métadonnées (`migrations/015.sql`, table `online_tracks`) pour que
+  favoris, historique récent, playlists et reprise de session persistent même
+  sans fichier audio local.
+- **Paroles synchronisées en streaming** : `/api/lyrics/[trackhash]` et les
+  clients Web/Android résolvent les paroles des titres `yt:` via leurs
+  métadonnées sans exiger de piste locale dans `tracks`.
+- **Recherche unifiée** : la recherche en ligne est désormais toujours active
+  (sans seuil local `< 5`), le clic lance la lecture instantanément (y compris
+  sur la reconnaissance audio « Chercher en chantant » et sur Android), avec
+  téléchargement serveur en option secondaire.
+
 ## [1.33.0] - 2026-11-02
 
 Correction du bug « les titres téléchargés disparaissent après une mise à jour »
