@@ -351,7 +351,10 @@ export async function identifyTikTokAudio(rawUrl: string, deps: IdentifyTikTokDe
     const audioBuf = await (deps.fetchAudio ?? downloadAudioSnippet)(meta.audioUrl);
     if (audioBuf && audioBuf.length > 0) {
       try {
-        const hits = await (deps.recognize ?? shazamRecognize)(audioBuf);
+        const hits = await (deps.recognize ?? shazamRecognize)(audioBuf, {
+          speedSweep: true,
+          isDerivative: (m) => isDerivativeVariantText(`${m.title} ${m.artists.join(" ")}`),
+        });
         const top = hits[0];
         if (top?.title) {
           return {
@@ -401,6 +404,10 @@ const UNWANTED_VARIANT_PATTERNS: RegExp[] = [
   "cover",
   "live",
 ].map((w) => new RegExp(`\\b${w}\\b`, "i"));
+
+export function isDerivativeVariantText(text: string): boolean {
+  return UNWANTED_VARIANT_PATTERNS.some((re) => re.test(text));
+}
 
 export interface StreamSearchCandidate {
   title: string;

@@ -285,6 +285,14 @@ test("identifyTikTokAudio prioritizes Shazam recognition, falls back to non-orig
     { title: "Stay Alive", artist: "Jose Gonzalez" },
   );
   assert.equal(chosenAlive?.title, "Stay Alive");
+
+  // Speed/pitch sweep helpers & derivative detector
+  const { isDerivativeVariantText } = await import("../src/server/library/tiktok");
+  const { resamplePcmSpeed } = await import("../src/server/melody/shazam");
+  assert.equal(isDerivativeVariantText("Sanechka hardtekk (Rampage, Slowed)"), true);
+  assert.equal(isDerivativeVariantText("Stay Alive"), false);
+  const resampledUp = resamplePcmSpeed(new Float32Array([0, 2, 4, 6, 8, 10]), 2);
+  assert.deepEqual(Array.from(resampledUp), [0, 4, 8]);
 });
 
 test("instantRegisterOnlineTracksBatch registers lazy placeholders immediately and resolveLazyVideoId resolves once", async () => {

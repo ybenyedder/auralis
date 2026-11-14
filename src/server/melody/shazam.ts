@@ -14,6 +14,9 @@
 // Server-only module.
 
 import { randomUUID } from "crypto";
+import fs from "fs";
+import os from "os";
+import path from "path";
 import { createLogger } from "../logger";
 import { decodePcmBuffer, hasFfmpeg } from "./decode";
 
@@ -26,6 +29,17 @@ export interface ShazamMatch {
   /** Shazam confidence (0..1) — its `tagged`/match quality; 1 when unknown. */
   score: number;
   source: "shazam";
+}
+
+export interface ShazamRecognizeOptions {
+  /** When normal-speed recognition misses (or returns only a derivative edit),
+   *  sweep speed/pitch scaling factors on the decoded PCM to catch slowed/sped
+   *  TikTok edits. */
+  speedSweep?: boolean;
+  /** Predicate returning true for low-preference derivative versions (e.g.
+   *  hardtek, slowed, sped up, nightcore, remix) so the sweep keeps looking
+   *  for the clean original version before settling. */
+  isDerivative?: (match: ShazamMatch) => boolean;
 }
 
 /** A couple of well-known mobile user agents (rotated), like the real client. */
@@ -61,76 +75,60 @@ interface ShazamCoreModule {
   default?: ShazamCoreModule;
 }
 
-/** Shazam signatures for a PCM take — one per ~12 s window (its sweet spot).
- *  The WASM decoder is unreliable on compressed containers, so the server
- *  feeds it PCM it decoded itself (ffmpeg); raw-bytes mode is the last resort. */
-async function buildSignatures(audio: Buffer): Promise<RawSignature[]> {
-  const mod = (await import("shazamio-core")) as unknown as {
-    recognizeBytes?: (bytes: Uint8Array, offset?: number, seconds?: number) => RawSignature[];
-    default?: ShazamCoreModule;
-  };
-  const core = (mod.default ?? mod) as ShazamCoreModule;
-
-  if (core.DecodedSignature && (await hasFfmpeg())) {
-    const pcm = await decodePcmBuffer(writeTemp(audio), { maxSeconds: 30, sampleRate: 44100 });
-    if (pcm && pcm.length > 44100) {
-      const signatures: RawSignature[] = [];
-      const windowSamples = 12 * 44100;
-      for (let start = 0; start + 44100 < pcm.length && signatures.length < 3; start += windowSamples) {
-        const slice = pcm.subarray(start, Math.min(start + windowSamples, pcm.length));
-        try {
-          signatures.push(core.DecodedSignature.new(Float32Array.from(slice), 44100, 1));
-        } catch {
-          /* skip this window */
-        }
-      }
-      if (signatures.length) return signatures;
-    }
+/** Linear-interpolate a 44.1 kHz mono Float32 PCM buffer by `rate` (>1 speeds up
+ *  & pitches up to counter slowed clips; <1 slows down to counter sped-up clips). */
+export function resamplePcmSpeed(pcm: Float32Array, rate: number): Float32Array {
+  if (rate === 1 || pcm.length < 2) return pcm;
+  const outLen = Math.floor(pcm.length / rate);
+  if (outLen <= 1) return new Float32Array(0);
+  const out = new Float32Array(outLen);
+  for (let i = 0; i < outLen; i += 1) {
+    const pos = i * rate;
+    const idx = pos | 0;
+    const frac = pos - idx;
+    const a = pcm[idx];
+    const b = idx + 1 < pcm.length ? pcm[idx + 1] : a;
+    out[i] = a + (b - a) * frac;
   }
-  // Fallback: let the WASM try to decode the container itself (it handles
-  // WAV reliably, other formats poorly).
-  if (core.recognizeBytes) {
-    try {
-      return core.recognizeBytes(new Uint8Array(audio), 0, Number.MAX_SAFE_INTEGER).filter((s) => s.samplems > 1500);
-    } catch {
-      return [];
-    }
-  }
-  return [];
+  return out;
 }
 
-import fs from "fs";
-import os from "os";
-import path from "path";
+function buildSignaturesFromPcm(core: ShazamCoreModule, pcm: Float32Array, maxWindows = 3): RawSignature[] {
+  if (!core.DecodedSignature || pcm.length <= 44100) return [];
+  const signatures: RawSignature[] = [];
+  const windowSamples = 12 * 44100;
+  for (let start = 0; start + 44100 < pcm.length && signatures.length < maxWindows; start += windowSamples) {
+    const slice = pcm.subarray(start, Math.min(start + windowSamples, pcm.length));
+    try {
+      signatures.push(core.DecodedSignature.new(Float32Array.from(slice), 44100, 1));
+    } catch {
+      /* skip this window */
+    }
+  }
+  return signatures;
+}
 
-function writeTemp(audio: Buffer): string {
+/** Decode compressed audio once to 44.1 kHz mono PCM (up to 30 s) and remove
+ *  the temporary file right after decoding. */
+async function decodeAudioToPcm(audio: Buffer): Promise<Float32Array | null> {
+  if (!(await hasFfmpeg())) return null;
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), "auralis-shazam-"));
   const file = path.join(dir, "take.audio");
-  fs.writeFileSync(file, audio);
-  // decodePcmBuffer only reads the file; clean up right after is handled by
-  // the caller's temp-file discipline below (best effort).
-  setTimeout(() => {
+  try {
+    fs.writeFileSync(file, audio);
+    return await decodePcmBuffer(file, { maxSeconds: 30, sampleRate: 44100 });
+  } catch {
+    return null;
+  } finally {
     try {
       fs.rmSync(dir, { recursive: true, force: true });
     } catch {
       /* best effort */
     }
-  }, 60_000);
-  return file;
+  }
 }
 
-/** Recognise a recording with Shazam. Returns [] on a miss; throws nothing —
- *  network/API problems degrade to "no result" so the local matcher still runs. */
-export async function shazamRecognize(audio: Buffer): Promise<ShazamMatch[]> {
-  // Shazam wants a few seconds of audio; cap what we ship.
-  const sample = audio.subarray(0, 2_000_000);
-  let signatures: RawSignature[];
-  try {
-    signatures = await buildSignatures(sample);
-  } catch (err) {
-    log.warn("shazam signature failed", { error: err instanceof Error ? err.message.slice(0, 200) : String(err) });
-    return [];
-  }
+async function querySignatures(signatures: RawSignature[], maxTries = 3): Promise<ShazamMatch[]> {
   if (!signatures.length) return [];
 
   // Prefer full-length (~12 s) center/initial windows first, then fall back to
@@ -152,7 +150,7 @@ export async function shazamRecognize(audio: Buffer): Promise<ShazamMatch[]> {
     if (!order.includes(idx)) order.push(idx);
   }
 
-  for (const i of order.slice(0, 3)) {
+  for (const i of order.slice(0, maxTries)) {
     const signature = signatures[i];
     if (!signature?.uri) continue;
     try {
@@ -201,4 +199,72 @@ export async function shazamRecognize(audio: Buffer): Promise<ShazamMatch[]> {
     }
   }
   return [];
+}
+
+/** Pairs covering 0.69x..1.37x continuous speed/pitch offsets (given Shazam's ~±4% window). */
+const SPEED_SWEEP_BATCHES: readonly (readonly number[])[] = [
+  [1.07, 0.93],
+  [1.15, 0.85],
+  [1.23, 0.78],
+  [1.32, 0.72],
+];
+
+/** Recognise a recording with Shazam. Returns [] on a miss; throws nothing —
+ *  network/API problems degrade to "no result" so the local matcher still runs. */
+export async function shazamRecognize(audio: Buffer, options: ShazamRecognizeOptions = {}): Promise<ShazamMatch[]> {
+  // Shazam wants a few seconds of audio; cap what we ship.
+  const sample = audio.subarray(0, 2_000_000);
+  let mod: { default?: ShazamCoreModule; recognizeBytes?: ShazamCoreModule["recognizeBytes"] };
+  try {
+    mod = (await import("shazamio-core")) as unknown as typeof mod;
+  } catch (err) {
+    log.warn("shazam core load failed", { error: err instanceof Error ? err.message.slice(0, 200) : String(err) });
+    return [];
+  }
+  const core = (mod.default ?? mod) as ShazamCoreModule;
+
+  let pcm: Float32Array | null = null;
+  let signatures: RawSignature[] = [];
+  if (core.DecodedSignature) {
+    pcm = await decodeAudioToPcm(sample);
+    if (pcm && pcm.length > 44100) {
+      signatures = buildSignaturesFromPcm(core, pcm, 3);
+    }
+  }
+  if (!signatures.length && core.recognizeBytes) {
+    try {
+      signatures = core.recognizeBytes(new Uint8Array(sample), 0, Number.MAX_SAFE_INTEGER).filter((s) => s.samplems > 1500);
+    } catch {
+      signatures = [];
+    }
+  }
+
+  const normalHits = await querySignatures(signatures, 3);
+  const isDeriv = options.isDerivative;
+  if (!options.speedSweep || !pcm || pcm.length <= 44100 * 2) {
+    return normalHits;
+  }
+  if (normalHits.length > 0 && !(isDeriv?.(normalHits[0]))) {
+    return normalHits;
+  }
+
+  let bestDerivative: ShazamMatch | null = normalHits[0] ?? null;
+  for (const pair of SPEED_SWEEP_BATCHES) {
+    const batchResults = await Promise.all(
+      pair.map(async (rate) => {
+        const resampled = resamplePcmSpeed(pcm, rate);
+        if (resampled.length <= 44100 * 2) return [];
+        const sigs = buildSignaturesFromPcm(core, resampled, 2);
+        return querySignatures(sigs, 2);
+      }),
+    );
+    for (const hits of batchResults) {
+      const hit = hits[0];
+      if (!hit) continue;
+      if (!(isDeriv?.(hit))) return [hit];
+      if (!bestDerivative) bestDerivative = hit;
+    }
+  }
+
+  return bestDerivative ? [bestDerivative] : [];
 }
