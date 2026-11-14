@@ -1,13 +1,19 @@
 import { json, readJsonBody, checkCsrf } from "@/server/http";
 import { getRequestUser } from "@/server/auth";
 import { onlineSearch } from "@/server/library/downloader";
-import { resolveOnlineTracksBatch, type OnlineResolveBatchItem } from "@/server/library/online";
+import {
+  instantRegisterOnlineTracksBatch,
+  resolveOnlineTracksBatch,
+  warmLazyOnlineTracks,
+  type OnlineResolveBatchItem,
+} from "@/server/library/online";
 import { invalidateSnapshotCache } from "@/server/library/repository";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 const MAX_ITEMS_PER_BATCH = 50;
+const MAX_INSTANT_ITEMS = 500;
 
 export async function POST(request: Request) {
   const user = getRequestUser(request);
@@ -15,14 +21,16 @@ export async function POST(request: Request) {
   const csrf = checkCsrf(request);
   if (csrf) return csrf;
 
-  const parsed = await readJsonBody<{ items?: OnlineResolveBatchItem[] }>(request);
+  const parsed = await readJsonBody<{ items?: OnlineResolveBatchItem[]; instant?: boolean }>(request);
   if (!parsed.ok) return parsed.response;
 
   const raw = Array.isArray(parsed.body.items) ? parsed.body.items : [];
   if (raw.length === 0) {
     return json({ ok: false, error: "Liste vide" }, { status: 400 });
   }
-  const items = raw.slice(0, MAX_ITEMS_PER_BATCH).map((item) => ({
+  const instant = parsed.body.instant === true;
+  const cap = instant ? MAX_INSTANT_ITEMS : MAX_ITEMS_PER_BATCH;
+  const items = raw.slice(0, cap).map((item) => ({
     title: typeof item?.title === "string" ? item.title : "",
     artist: typeof item?.artist === "string" ? item.artist : undefined,
     album: typeof item?.album === "string" ? item.album : undefined,
@@ -31,14 +39,21 @@ export async function POST(request: Request) {
     thumbnail: typeof item?.thumbnail === "string" ? item.thumbnail : undefined,
   }));
 
-  const { entries, insertedAny } = await resolveOnlineTracksBatch(
-    items,
-    async (query) => {
-      const s = await onlineSearch(query, 3, { bypassDownloadGate: true });
-      return s.results[0] ?? null;
-    },
-    6,
-  );
+  const searchOne = async (query: string) => {
+    const s = await onlineSearch(query, 3, { bypassDownloadGate: true });
+    return s.results[0] ?? null;
+  };
+
+  if (instant) {
+    const { entries, insertedAny, lazyToWarm } = instantRegisterOnlineTracksBatch(items);
+    if (insertedAny) invalidateSnapshotCache();
+    if (lazyToWarm.length > 0) {
+      void warmLazyOnlineTracks(lazyToWarm, searchOne, 3);
+    }
+    return json({ ok: true, instant: true, resolved: entries });
+  }
+
+  const { entries, insertedAny } = await resolveOnlineTracksBatch(items, searchOne, 6);
   if (insertedAny) invalidateSnapshotCache();
 
   return json({ ok: true, resolved: entries });

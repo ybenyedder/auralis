@@ -177,9 +177,8 @@ export function LibraryView() {
       const pending = res.unmatched?.length ? res.unmatched : res.misses.map((m) => ({ title: m }));
       if (pending.length > 0) {
         useImportDownloads.getState().start(id, pending);
-      } else {
-        navigate("playlist", id);
       }
+      navigate("playlist", id);
     } catch {
       notify(t("library.invalidFile", "Fichier de playlist invalide"), { tone: "error" });
     }
@@ -221,9 +220,8 @@ export function LibraryView() {
       setLinkOpen(false);
       if (res.unmatched.length > 0) {
         useImportDownloads.getState().start(id, res.unmatched);
-      } else {
-        navigate("playlist", id);
       }
+      navigate("playlist", id);
     } catch {
       notify(t("library.linkImportFailed", "Impossible d'importer ce lien"), { tone: "error" });
     } finally {

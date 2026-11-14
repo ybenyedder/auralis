@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { checkAuth } from "@/server/http";
-import { isValidVideoId } from "@/server/library/online";
+import { onlineSearch } from "@/server/library/downloader";
+import { isLazyVideoId, isValidVideoId, resolveLazyVideoId } from "@/server/library/online";
 import { resolveYouTubeStream, invalidateYouTubeStream } from "@/server/library/youtube";
 import { createLogger } from "@/server/logger";
 
@@ -28,15 +29,27 @@ async function handleStream(request: NextRequest, context: RouteContext, headOnl
   const denied = checkAuth(request);
   if (denied) return denied;
 
-  const { videoId } = await context.params;
-  if (!isValidVideoId(videoId)) {
+  const { videoId: rawVideoId } = await context.params;
+  if (!isValidVideoId(rawVideoId)) {
     return NextResponse.json({ error: "Identifiant vidéo invalide" }, { status: 400 });
   }
 
   const range = request.headers.get("range");
   const method = headOnly ? "HEAD" : "GET";
+  let videoId = rawVideoId;
 
   try {
+    if (isLazyVideoId(rawVideoId)) {
+      const resolved = await resolveLazyVideoId(rawVideoId, async (q) => {
+        const s = await onlineSearch(q, 3, { bypassDownloadGate: true });
+        return s.results[0] ?? null;
+      });
+      if (!resolved) {
+        return NextResponse.json({ error: "Aucun flux audio trouvé pour ce titre" }, { status: 404 });
+      }
+      videoId = resolved;
+    }
+
     let stream = await resolveYouTubeStream(videoId);
     let upstream = await openUpstream(stream.url, range, method, request.signal);
 

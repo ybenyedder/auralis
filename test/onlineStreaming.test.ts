@@ -235,3 +235,43 @@ test("identifyTikTokAudio prioritizes Shazam recognition, falls back to non-orig
     (e: unknown) => e instanceof TikTokError && e.status === 404,
   );
 });
+
+test("instantRegisterOnlineTracksBatch registers lazy placeholders immediately and resolveLazyVideoId resolves once", async () => {
+  const {
+    instantRegisterOnlineTracksBatch,
+    isLazyVideoId,
+    resolveLazyVideoId,
+    getLazyResolvedVideoId,
+  } = await import("../src/server/library/online");
+
+  const reg = instantRegisterOnlineTracksBatch([
+    { title: "One More Time", artist: "Daft Punk" }, // already exists with real videoId
+    { title: "Starboy", artist: "The Weeknd" },
+    { title: "Starboy", artist: "The Weeknd" }, // duplicate in same batch
+  ]);
+
+  assert.equal(reg.insertedAny, true);
+  assert.equal(reg.entries[0]?.track?.trackhash, "yt:jNQXAC9IVRw");
+  const lazyTrack = reg.entries[1]?.track;
+  assert.ok(lazyTrack);
+  assert.equal(reg.entries[2]?.track?.trackhash, lazyTrack.trackhash);
+  assert.ok(isLazyVideoId(lazyTrack.videoId));
+  assert.equal(reg.lazyToWarm.length, 1);
+
+  let searches = 0;
+  const search = async () => {
+    searches += 1;
+    return { videoId: "34Na4j8AVgA", title: "Starboy", artist: "The Weeknd" };
+  };
+
+  const lazyId = lazyTrack.videoId ?? "";
+  assert.ok(lazyId);
+  const [r1, r2] = await Promise.all([resolveLazyVideoId(lazyId, search), resolveLazyVideoId(lazyId, search)]);
+  assert.equal(r1, "34Na4j8AVgA");
+  assert.equal(r2, "34Na4j8AVgA");
+  assert.equal(searches, 1, "concurrent lazy resolutions must deduplicate");
+  assert.equal(getLazyResolvedVideoId(lazyId), "34Na4j8AVgA");
+  const r3 = await resolveLazyVideoId(lazyId, search);
+  assert.equal(r3, "34Na4j8AVgA");
+  assert.equal(searches, 1, "cached lazy resolution must not re-search");
+});

@@ -429,6 +429,7 @@ fun SettingsScreen(vm: AppViewModel, ui: UiState) {
             Card(tr("settings.section.about")) {
                 Field(tr("settings.app"), tr("settings.appName"))
                 Field(tr("settings.version"), local.auralis.client.BuildConfig.VERSION_NAME)
+                ActionRow(tr("settings.checkUpdate")) { vm.checkForUpdateManual() }
             }
         }
     }

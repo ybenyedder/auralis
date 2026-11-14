@@ -976,19 +976,28 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
 
     // Ask GitHub once per launch whether a newer release exists. Best-effort and
     // silent on failure (offline, rate-limited): the app simply doesn't prompt.
-    private fun checkForUpdate() {
+    private fun checkForUpdate(manual: Boolean = false) {
         // Play flavor: never check for GitHub updates. That channel updates
         // through the store; the installer permission is stripped from its
         // manifest, and Play App Signing means a GitHub APK could not install
         // over a store-installed build anyway.
-        if (!local.auralis.client.BuildConfig.SELF_UPDATE) return
+        if (!local.auralis.client.BuildConfig.SELF_UPDATE) {
+            if (manual) notify(tr("settings.upToDate"))
+            return
+        }
         viewModelScope.launch {
             val info = local.auralis.client.update.UpdateManager.check(
                 local.auralis.client.BuildConfig.VERSION_NAME,
             )
-            if (info != null) _ui.update { it.copy(update = info) }
+            if (info != null) {
+                _ui.update { it.copy(update = info) }
+            } else if (manual) {
+                notify(tr("settings.upToDate"))
+            }
         }
     }
+
+    fun checkForUpdateManual() = checkForUpdate(manual = true)
 
     fun dismissUpdate() { _ui.update { it.copy(update = null, updateDownloading = false, updateProgress = 0f) } }
 
@@ -1251,10 +1260,10 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
         }
     }
 
-    /** Import a matched set of trackhashes as a NEW playlist. One upsert with the
-     *  full ordered set (N addToPlaylist calls would fire N server round-trips).
-     *  `missing` carries the entries with no library counterpart: they trigger
-     *  the "Télécharger les N titres manquants" offer once the playlist exists. */
+    /** Import a playlist: matches local tracks and registers all remaining entries
+     *  for Liner-style instant streaming (`yt:lzy_...` / `yt:<id>`) in ONE fast
+     *  server pass so every song lands in the playlist immediately with zero
+     *  audio downloads to disk and zero blocking queue sheet. */
     fun importPlaylist(
         name: String,
         hashes: List<String>,
@@ -1264,18 +1273,39 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
         val clean = name.trim().ifBlank { tr("library.importedName") }
         val unique = hashes.distinct()
         viewModelScope.launch {
-            val pl = JSONObject().put("name", clean).put("trackhashes", JSONArray(unique))
+            val filtered = ArrayList<ExternalTrackEntry>()
+            val seenKeys = HashSet<String>()
+            for (e in missing) {
+                val q = local.auralis.client.model.downloadQuery(e).lowercase()
+                if (q.isNotEmpty() && seenKeys.add(q)) {
+                    filtered.add(e)
+                    if (filtered.size >= 500) break
+                }
+            }
+
+            val instantResolved = if (filtered.isNotEmpty()) api.resolveOnlineBatch(filtered, instant = true) else emptyList()
+            val resolvedTracks = instantResolved?.filterNotNull().orEmpty()
+            if (resolvedTracks.isNotEmpty()) {
+                val existingHashes = _ui.value.tracks.mapTo(HashSet()) { it.trackhash }
+                val toAddUi = resolvedTracks.filter { existingHashes.add(it.trackhash) }
+                for (t in resolvedTracks) trackIndex = trackIndex + (t.trackhash to t)
+                accounting.setLibrary(trackIndex)
+                if (toAddUi.isNotEmpty()) {
+                    _ui.update { it.copy(tracks = toAddUi + it.tracks) }
+                }
+            }
+
+            val combined = (unique + resolvedTracks.map { it.trackhash }).distinct()
+            val pl = JSONObject().put("name", clean).put("trackhashes", JSONArray(combined))
             val res = api.putState(JSONObject().put("action", "playlist.upsert").put("playlist", pl))
             if (!api.apiLastOk) { notify(tr("toast.playlistImportFailed")); return@launch }
             val id = res.optString("id", "")
             refreshState()
-            notify(tr("toast.playlistImported", mapOf("name" to clean, "count" to unique.size)))
+            notify(tr("toast.playlistImported", mapOf("name" to clean, "count" to combined.size)))
             if (id.isNotBlank()) {
-                if (missing.isNotEmpty()) {
-                    // Unmatched entries start downloading IMMEDIATELY (no confirm
-                    // dialog): a "Téléchargement de N titres…" toast + the live
-                    // per-track sheet open on top of the fresh playlist.
-                    beginImportDownload(id, clean, missing)
+                if (instantResolved == null && filtered.isNotEmpty()) {
+                    // Fallback for older servers that lack instant lazy registration.
+                    beginImportDownload(id, clean, filtered)
                 }
                 onCreated(id)
             }
@@ -1325,7 +1355,6 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
                 return@launch
             }
             importPlaylist(res.optString("name", ""), m.hashes, m.unmatched) { id -> navigate(ViewId.PLAYLIST, id) }
-            if (m.matched < m.total) notify(tr("toast.matchedCount", mapOf("matched" to m.matched, "total" to m.total)))
             onDone(true)
         }
     }
@@ -1389,7 +1418,6 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
                 return@launch
             }
             importPlaylist(parsed.name, parsed.hashes, parsed.unmatched) { id -> navigate(ViewId.PLAYLIST, id) }
-            if (parsed.matched < parsed.total) notify(tr("toast.matchedCount", mapOf("matched" to parsed.matched, "total" to parsed.total)))
         }
     }
 
@@ -1490,7 +1518,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
                 }
 
                 val batchItems = batchIdx.map { entries[it] }
-                val resolved = api.resolveOnlineBatch(batchItems)
+                val resolved = api.resolveOnlineBatch(batchItems, instant = false)
                 if (!isActive) break
 
                 val newTracks = ArrayList<Track>()

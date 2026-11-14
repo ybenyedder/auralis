@@ -2,14 +2,26 @@
 // on disk. Persisted in SQLite `online_tracks` so likes, recents, playlists,
 // queue restore, and lyrics survive reloads while keeping local storage at 0 B.
 
+import crypto from "node:crypto";
 import { getDb } from "../db";
 import type { Artist, Track } from "@/lib/auralis/types";
 import { cleanTitle, splitArtistTitle } from "./youtube";
 
 export const ONLINE_VIDEO_ID_RE = /^[A-Za-z0-9_-]{6,20}$/;
+export const LAZY_VIDEO_ID_PREFIX = "lzy_";
 
 export function isValidVideoId(id: unknown): id is string {
   return typeof id === "string" && ONLINE_VIDEO_ID_RE.test(id);
+}
+
+export function isLazyVideoId(id: unknown): id is string {
+  return typeof id === "string" && id.startsWith(LAZY_VIDEO_ID_PREFIX) && ONLINE_VIDEO_ID_RE.test(id);
+}
+
+export function lazyVideoIdForTrack(title: string, artist?: string): string {
+  const key = normalizeLookupKey(title, artist);
+  const digest = crypto.createHash("sha256").update(key).digest("hex").slice(0, 12);
+  return `${LAZY_VIDEO_ID_PREFIX}${digest}`;
 }
 
 export function onlineTrackhash(videoId: string): string {
@@ -301,4 +313,179 @@ export async function resolveOnlineTracksBatch(
   );
 
   return { entries: results, insertedAny };
+}
+
+export function getLazyResolvedVideoId(lazyId: string): string | null {
+  if (!isLazyVideoId(lazyId)) return null;
+  const row = getDb()
+    .prepare("SELECT video_id FROM online_lazy_map WHERE lazy_id = ?")
+    .get(lazyId) as { video_id: string } | undefined;
+  return row && isValidVideoId(row.video_id) && !isLazyVideoId(row.video_id) ? row.video_id : null;
+}
+
+export function saveLazyResolvedVideoId(lazyId: string, videoId: string, thumbnail?: string | null): void {
+  if (!isLazyVideoId(lazyId) || !isValidVideoId(videoId) || isLazyVideoId(videoId)) return;
+  const db = getDb();
+  db.prepare(`
+    INSERT INTO online_lazy_map (lazy_id, video_id, resolved_at)
+    VALUES (?, ?, ?)
+    ON CONFLICT(lazy_id) DO UPDATE SET
+      video_id = excluded.video_id,
+      resolved_at = excluded.resolved_at
+  `).run(lazyId, videoId, Date.now());
+  if (thumbnail && /^https?:\/\//i.test(thumbnail)) {
+    db.prepare(`
+      UPDATE online_tracks
+      SET thumbnail = ?
+      WHERE trackhash = ? AND (thumbnail IS NULL OR thumbnail LIKE '/api/online/art/%')
+    `).run(thumbnail.slice(0, 500), onlineTrackhash(lazyId));
+  }
+}
+
+const inFlightLazyResolutions = new Map<string, Promise<string | null>>();
+
+/** Resolve a placeholder `lzy_...` id to a real YouTube videoId (cached in SQLite
+ *  `online_lazy_map` and deduplicated across concurrent callers). */
+export async function resolveLazyVideoId(
+  lazyId: string,
+  searcher: (query: string) => Promise<OnlineResolveHit | null>,
+): Promise<string | null> {
+  const cached = getLazyResolvedVideoId(lazyId);
+  if (cached) return cached;
+
+  const existingPromise = inFlightLazyResolutions.get(lazyId);
+  if (existingPromise) return existingPromise;
+
+  const task = (async () => {
+    const track = getOnlineTrack(onlineTrackhash(lazyId));
+    if (!track) return null;
+    const query = [track.artist !== "YouTube" ? track.artist : "", track.title].filter(Boolean).join(" ").trim();
+    if (!query) return null;
+    const hit = await searcher(query);
+    if (!hit || !isValidVideoId(hit.videoId) || isLazyVideoId(hit.videoId)) return null;
+    saveLazyResolvedVideoId(lazyId, hit.videoId, hit.thumbnail);
+    return hit.videoId;
+  })().finally(() => {
+    inFlightLazyResolutions.delete(lazyId);
+  });
+
+  inFlightLazyResolutions.set(lazyId, task);
+  return task;
+}
+
+/** Liner-style instant registration: inserts all playlist entries without blocking
+ *  on YouTube searches (`lzy_<hash>` placeholders for unresolved tracks), returning
+ *  immediately in one SQLite transaction. */
+export function instantRegisterOnlineTracksBatch(items: OnlineResolveBatchItem[]): {
+  entries: OnlineResolveBatchEntry[];
+  insertedAny: boolean;
+  lazyToWarm: string[];
+} {
+  const existing = listOnlineTracks();
+  const byVideoId = new Map<string, Track>();
+  const byKey = new Map<string, Track>();
+  for (const t of existing) {
+    if (t.videoId) byVideoId.set(t.videoId, t);
+    const k = normalizeLookupKey(t.title, t.artist);
+    // Prefer already-resolved non-lazy tracks when colliding on title+artist.
+    const cur = byKey.get(k);
+    if (k !== "::" && (!cur || (t.videoId && !isLazyVideoId(t.videoId) && (!cur.videoId || isLazyVideoId(cur.videoId))))) {
+      byKey.set(k, t);
+    }
+  }
+
+  const results: OnlineResolveBatchEntry[] = new Array(items.length);
+  const lazyToWarm = new Set<string>();
+  let insertedAny = false;
+
+  const runTx = getDb().transaction(() => {
+    for (let index = 0; index < items.length; index += 1) {
+      const item = items[index];
+      const title = item.title?.trim() ?? "";
+      const artist = item.artist?.trim() || undefined;
+      if (!title && !isValidVideoId(item.videoId)) {
+        results[index] = { index, track: null, error: "Titre manquant" };
+        continue;
+      }
+
+      if (isValidVideoId(item.videoId) && !isLazyVideoId(item.videoId)) {
+        const cached = byVideoId.get(item.videoId);
+        if (cached) {
+          results[index] = { index, track: cached };
+          continue;
+        }
+        const { track, inserted } = upsertOnlineTrack({
+          videoId: item.videoId,
+          title: title || item.videoId,
+          artist,
+          album: item.album?.trim() || undefined,
+          duration: item.duration,
+          thumbnail: item.thumbnail,
+        });
+        byVideoId.set(item.videoId, track);
+        if (inserted) insertedAny = true;
+        results[index] = { index, track };
+        continue;
+      }
+
+      const key = normalizeLookupKey(title, artist);
+      const matched = key !== "::" ? byKey.get(key) : undefined;
+      if (matched) {
+        if (matched.videoId && isLazyVideoId(matched.videoId) && !getLazyResolvedVideoId(matched.videoId)) {
+          lazyToWarm.add(matched.videoId);
+        }
+        results[index] = { index, track: matched };
+        continue;
+      }
+
+      const lazyId = lazyVideoIdForTrack(title, artist);
+      const cachedLazy = byVideoId.get(lazyId);
+      if (cachedLazy) {
+        if (!getLazyResolvedVideoId(lazyId)) lazyToWarm.add(lazyId);
+        results[index] = { index, track: cachedLazy };
+        continue;
+      }
+
+      const { track, inserted } = upsertOnlineTrack({
+        videoId: lazyId,
+        title,
+        artist,
+        album: item.album?.trim() || undefined,
+        duration: item.duration,
+        thumbnail: item.thumbnail,
+      });
+      byVideoId.set(lazyId, track);
+      if (key !== "::") byKey.set(key, track);
+      if (inserted) insertedAny = true;
+      lazyToWarm.add(lazyId);
+      results[index] = { index, track };
+    }
+  });
+
+  runTx();
+  return { entries: results, insertedAny, lazyToWarm: [...lazyToWarm] };
+}
+
+/** Fire-and-forget pre-warming for freshly imported lazy tracks so tracks play
+ *  even faster once the user taps past track 1. */
+export async function warmLazyOnlineTracks(
+  lazyIds: string[],
+  searcher: (query: string) => Promise<OnlineResolveHit | null>,
+  concurrency = 3,
+): Promise<void> {
+  if (lazyIds.length === 0) return;
+  let cursor = 0;
+  const workers = Math.min(Math.max(1, concurrency), lazyIds.length);
+  await Promise.all(
+    Array.from({ length: workers }, async () => {
+      while (cursor < lazyIds.length) {
+        const lazyId = lazyIds[cursor++];
+        try {
+          await resolveLazyVideoId(lazyId, searcher);
+        } catch {
+          /* best effort: stream route retries lazily on play */
+        }
+      }
+    }),
+  );
 }

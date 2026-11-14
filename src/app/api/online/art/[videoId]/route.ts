@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { isValidVideoId } from "@/server/library/online";
+import { getLazyResolvedVideoId, isLazyVideoId, isValidVideoId } from "@/server/library/online";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -9,9 +9,16 @@ interface RouteContext {
 }
 
 export async function GET(request: NextRequest, context: RouteContext) {
-  const { videoId } = await context.params;
-  if (!isValidVideoId(videoId)) {
+  const { videoId: rawVideoId } = await context.params;
+  if (!isValidVideoId(rawVideoId)) {
     return new NextResponse("Bad Request", { status: 400 });
+  }
+
+  let videoId = rawVideoId;
+  if (isLazyVideoId(rawVideoId)) {
+    const mapped = getLazyResolvedVideoId(rawVideoId);
+    if (!mapped) return new NextResponse("Not Found", { status: 404 });
+    videoId = mapped;
   }
 
   const candidates = [

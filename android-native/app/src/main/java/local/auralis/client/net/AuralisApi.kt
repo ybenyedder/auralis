@@ -46,7 +46,7 @@ class AuralisApi {
 
     private val client = OkHttpClient.Builder()
         .connectTimeout(15, TimeUnit.SECONDS)
-        .readTimeout(30, TimeUnit.SECONDS)
+        .readTimeout(90, TimeUnit.SECONDS)
         .build()
 
     fun configure(base: String, token: String?) {
@@ -250,7 +250,10 @@ class AuralisApi {
 
     /** Resolve a batch of playlist entries into lightweight `yt:` streaming
      *  tracks via POST /api/online/resolve-batch (zero audio files on disk). */
-    suspend fun resolveOnlineBatch(items: List<local.auralis.client.model.ExternalTrackEntry>): List<Track?>? {
+    suspend fun resolveOnlineBatch(
+        items: List<local.auralis.client.model.ExternalTrackEntry>,
+        instant: Boolean = true,
+    ): List<Track?>? {
         if (items.isEmpty()) return emptyList()
         val arr = JSONArray()
         for (item in items) {
@@ -262,7 +265,8 @@ class AuralisApi {
             if (!item.thumbnail.isNullOrBlank()) obj.put("thumbnail", item.thumbnail)
             arr.put(obj)
         }
-        val res = runCatching { post("/api/online/resolve-batch", JSONObject().put("items", arr)) }.getOrNull() ?: return null
+        val payload = JSONObject().put("items", arr).put("instant", instant)
+        val res = runCatching { post("/api/online/resolve-batch", payload) }.getOrNull() ?: return null
         if (!apiLastOk || !res.optBoolean("ok", false)) return null
         val rows = res.optJSONArray("resolved") ?: return null
         val out = MutableList<Track?>(items.size) { null }

@@ -14,7 +14,7 @@ import type { Track } from "@/lib/auralis/types";
 import { usePlayer } from "./player";
 import { useLibraryStore } from "./library";
 
-const CHUNK_SIZE = 25;
+const CHUNK_SIZE = 500;
 const MAX_ITEMS = 500;
 
 export interface ImportDownloadsState {
@@ -76,7 +76,7 @@ export const useImportDownloads = create<ImportDownloadsState>()((set, get) => {
               const res = await api.post<{
                 ok: boolean;
                 resolved?: { index: number; track: Track | null }[];
-              }>("/api/online/resolve-batch", { items: chunk });
+              }>("/api/online/resolve-batch", { items: chunk, instant: true });
               if (runId !== activeRunId) return;
 
               const tracks: Track[] = [];
