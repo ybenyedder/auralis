@@ -4,6 +4,17 @@ All notable changes to Auralis are documented here. The format is based on
 [Keep a Changelog](https://keepachangelog.com/) and this project adheres to
 [Semantic Versioning](https://semver.org/).
 
+## [1.34.2] - 2026-11-14
+
+### Ajouté — Détection de musique TikTok -> Playlist instantanée
+- **`POST /api/online/tiktok` (`tiktok.ts`)** : accepte n'importe quelle URL
+  TikTok (`tiktok.com`, `vm.tiktok.com`, `vt.tiktok.com`), extrait l'audio,
+  identifie la vraie musique via **Shazam** (avec repli métadonnées), résout
+  la piste en streaming instantané (`yt://`) et l'ajoute à ta playlist.
+- **Web, Desktop & Android (`DetailView`, `DetailScreens`, `ScreenOverlays`)** :
+  bouton **TikTok** directement dans chaque playlist + compatibilité TikTok
+  dans « Importer un lien ».
+
 ## [1.34.1] - 2026-11-14
 
 ### Corrigé — Import de playlists en streaming instantané (0 téléchargement disque)

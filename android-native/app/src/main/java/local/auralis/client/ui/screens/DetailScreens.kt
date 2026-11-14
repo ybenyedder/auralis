@@ -37,6 +37,7 @@ import androidx.compose.material3.TextButton
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Download
+import androidx.compose.material.icons.filled.Link
 import androidx.compose.material.icons.filled.PhotoCamera
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
@@ -266,6 +267,8 @@ fun PlaylistDetail(vm: AppViewModel, ui: UiState, playlistId: String) {
     val renaming = ui.playlistRenaming
     var newName by remember(ui.playlistRenaming) { mutableStateOf(pl?.name ?: "") }
     var inviteName by remember { mutableStateOf("") }
+    var tiktokUrl by remember { mutableStateOf("") }
+    var tiktokBusy by remember { mutableStateOf(false) }
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     // Badges mirroring the web PlaylistDetail eyebrow (collab > smart > shared > local).
@@ -377,6 +380,43 @@ fun PlaylistDetail(vm: AppViewModel, ui: UiState, playlistId: String) {
         )
     }
 
+    if (ui.playlistTikTokOpen) {
+        AlertDialog(
+            onDismissRequest = { if (!tiktokBusy) vm.closePlaylistTikTok() },
+            containerColor = colors.panel,
+            title = { Text(tr("detail.addTikTok"), color = colors.foreground) },
+            text = {
+                OutlinedTextField(
+                    value = tiktokUrl,
+                    onValueChange = { tiktokUrl = it },
+                    singleLine = true,
+                    placeholder = { Text(tr("detail.tiktokPrompt"), color = colors.textFaint) },
+                    modifier = Modifier.fillMaxWidth(),
+                )
+            },
+            confirmButton = {
+                TextButton(
+                    enabled = tiktokUrl.isNotBlank() && !tiktokBusy,
+                    onClick = {
+                        tiktokBusy = true
+                        vm.addTikTokToPlaylist(playlistId, tiktokUrl.trim()) { ok ->
+                            tiktokBusy = false
+                            if (ok) {
+                                tiktokUrl = ""
+                                vm.closePlaylistTikTok()
+                            }
+                        }
+                    },
+                ) { Text(if (tiktokBusy) tr("detail.tiktokDetecting") else tr("detail.tiktokDetectAdd"), color = colors.accent) }
+            },
+            dismissButton = {
+                TextButton(enabled = !tiktokBusy, onClick = { vm.closePlaylistTikTok() }) {
+                    Text(tr("common.cancel"), color = colors.textMuted)
+                }
+            },
+        )
+    }
+
     Box(Modifier.fillMaxSize()) {
     LazyColumn(contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 12.dp, bottom = 170.dp)) {
         // While THIS playlist's import batch runs, keep a small inline banner up
@@ -439,6 +479,9 @@ fun PlaylistDetail(vm: AppViewModel, ui: UiState, playlistId: String) {
                         }
                         HeroShuffleButton(enabled = tracks.isNotEmpty()) {
                             vm.playShuffled(tracks, queueSource, from = "playlist:$playlistId")
+                        }
+                        if (!isSmart) {
+                            IconAction(Icons.Filled.Link, tr("detail.addTikTok"), tint = colors.textMuted, iconSize = 22) { vm.openPlaylistTikTok() }
                         }
                         Spacer(Modifier.weight(1f))
                         IconAction(EllipsisCircleIcon, tr("common.moreOptions"), tint = colors.textMuted, iconSize = 24) { vm.openPlaylistMenu() }

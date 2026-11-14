@@ -603,9 +603,9 @@ export function LibraryView() {
                     onClick={() => setLinkOpen((v) => !v)}
                     aria-pressed={linkOpen}
                     className="ghost-button inline-flex min-h-[44px] items-center gap-2 rounded-full px-5 text-[13px] font-bold transition-colors duration-200 hover:bg-white/[0.04] lg:min-h-0 lg:py-2.5"
-                    title={t("library.linkPlaceholder", "Lien Spotify, Deezer, Apple Music ou YouTube…")}
+                    title={t("library.linkPlaceholder", "Lien Spotify, Deezer, Apple Music, YouTube ou TikTok…")}
                   >
-                    <Link2 className="size-4" /> {t("library.linkPlaceholder", "Lien Spotify, Deezer, Apple Music ou YouTube…")}
+                    <Link2 className="size-4" /> {t("library.linkPlaceholder", "Lien Spotify, Deezer, Apple Music, YouTube ou TikTok…")}
                   </button>
                   <input
                     ref={importRef}
@@ -627,7 +627,7 @@ export function LibraryView() {
                       onChange={(e) => setLinkUrl(e.target.value)}
                       type="url"
                       inputMode="url"
-                      placeholder={t("library.linkPlaceholder", "Lien Spotify, Deezer, Apple Music ou YouTube…")}
+                      placeholder={t("library.linkPlaceholder", "Lien Spotify, Deezer, Apple Music, YouTube ou TikTok…")}
                       className="min-h-[40px] w-full bg-transparent px-2 text-[15px] text-foreground outline-none lg:text-[14px]"
                     />
                     <button

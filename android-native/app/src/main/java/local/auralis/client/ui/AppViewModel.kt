@@ -217,6 +217,7 @@ data class UiState(
     val playlistRenaming: Boolean = false,
     val playlistExportOpen: Boolean = false,
     val playlistInviteOpen: Boolean = false,
+    val playlistTikTokOpen: Boolean = false,
 
     // Spotify-style multi-select → "AI playlist from my picks".
     val selectionMode: Boolean = false,
@@ -782,6 +783,9 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
     fun openPlaylistInvite() { _ui.update { it.copy(playlistInviteOpen = true) } }
     fun closePlaylistInvite() { _ui.update { it.copy(playlistInviteOpen = false) } }
 
+    fun openPlaylistTikTok() { _ui.update { it.copy(playlistTikTokOpen = true) } }
+    fun closePlaylistTikTok() { _ui.update { it.copy(playlistTikTokOpen = false) } }
+
     /** Navigation leaves the screen that owned the sheet, so the hoisted state
      *  resets exactly like the screen-local `remember` it replaced. */
     private fun clearTransientOverlays(s: UiState) = s.copy(
@@ -793,6 +797,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
         playlistRenaming = false,
         playlistExportOpen = false,
         playlistInviteOpen = false,
+        playlistTikTokOpen = false,
     )
 
     /** Create a playlist and immediately drop a track into it (used from the menu). */
@@ -1321,6 +1326,29 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
             }
             importPlaylist(res.optString("name", ""), m.hashes, m.unmatched) { id -> navigate(ViewId.PLAYLIST, id) }
             if (m.matched < m.total) notify(tr("toast.matchedCount", mapOf("matched" to m.matched, "total" to m.total)))
+            onDone(true)
+        }
+    }
+
+    /** Detect the song inside a TikTok URL and add it as an instant streaming
+     *  track into the given playlist. */
+    fun addTikTokToPlaylist(playlistId: String, url: String, onDone: (Boolean) -> Unit = {}) {
+        viewModelScope.launch {
+            val res = api.identifyTikTok(url)
+            val track = res.track
+            if (track == null) {
+                notify(res.error ?: tr("detail.tiktokFailed"))
+                onDone(false)
+                return@launch
+            }
+            trackIndex = trackIndex + (track.trackhash to track)
+            accounting.setLibrary(trackIndex)
+            if (_ui.value.tracks.none { it.trackhash == track.trackhash }) {
+                _ui.update { it.copy(tracks = listOf(track) + it.tracks) }
+            }
+            addDownloadedTracksToPlaylist(playlistId, listOf(track.trackhash))
+            val plName = _ui.value.playlists.find { it.id == playlistId }?.name ?: tr("mobile.playlist")
+            notify("${track.displayArtist} — ${track.title} • ${tr("toast.addedToPlaylist", mapOf("name" to plName))}")
             onDone(true)
         }
     }

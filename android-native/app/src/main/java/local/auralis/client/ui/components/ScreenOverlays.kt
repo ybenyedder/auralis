@@ -125,6 +125,11 @@ fun ScreenOverlays(ui: UiState, vm: AppViewModel) {
                     }
                 }
             }
+            if (!isSmart) {
+                MenuRow(Icons.Filled.Link, tr("detail.addTikTok")) {
+                    vm.openPlaylistTikTok(); vm.closePlaylistMenu()
+                }
+            }
             if (!isCollaborator) {
                 MenuDivider()
                 MenuRow(Icons.Filled.Delete, tr("detail.delete"), tone = colors.destructive) {

@@ -13,6 +13,7 @@ import {
   HardDrive,
   ImagePlus,
   Info,
+  Link2,
   ListMusic,
   Loader2,
   Lock,
@@ -369,6 +370,8 @@ export function PlaylistDetail({ id }: { id: string }) {
   const deletePlaylist = usePlayer((s) => s.deletePlaylist);
   const navigate = usePlayer((s) => s.navigate);
   const removeFromPlaylist = usePlayer((s) => s.removeFromPlaylist);
+  const addToPlaylist = usePlayer((s) => s.addToPlaylist);
+  const notify = usePlayer((s) => s.notify);
   const reorderInPlaylist = usePlayer((s) => s.reorderInPlaylist);
   const sharePlaylist = usePlayer((s) => s.sharePlaylist);
   const addPlaylistCollaborator = usePlayer((s) => s.addPlaylistCollaborator);
@@ -400,7 +403,45 @@ export function PlaylistDetail({ id }: { id: string }) {
   const [editing, setEditing] = useState(false);
   const [name, setName] = useState("");
   const [coverBusy, setCoverBusy] = useState(false);
+  const [tiktokOpen, setTiktokOpen] = useState(false);
+  const [tiktokUrl, setTiktokUrl] = useState("");
+  const [tiktokBusy, setTiktokBusy] = useState(false);
   const coverInputRef = useRef<HTMLInputElement>(null);
+
+  const onAddTikTok = async (e: React.FormEvent) => {
+    e.preventDefault();
+    const url = tiktokUrl.trim();
+    if (!url || tiktokBusy) return;
+    setTiktokBusy(true);
+    try {
+      const r = await fetch(api.url("/api/online/tiktok"), {
+        method: "POST",
+        headers: api.headers({ "Content-Type": "application/json" }),
+        body: JSON.stringify({ url }),
+        credentials: "include",
+      });
+      const data = (await r.json().catch(() => ({}))) as {
+        ok?: boolean;
+        error?: string;
+        track?: import("@/lib/auralis/types").Track;
+        detected?: { title: string; artist: string };
+      };
+      if (!r.ok || !data.track) {
+        notify(data.error || "Impossible d'identifier ce son TikTok", { tone: "error" });
+        return;
+      }
+      useLibraryStore.getState().upsertTrack(data.track);
+      addToPlaylist(id, data.track, { silent: true });
+      const label = [data.track.artist, data.track.title].filter(Boolean).join(" — ");
+      notify(`Ajouté : ${label}`, { tone: "success" });
+      setTiktokUrl("");
+      setTiktokOpen(false);
+    } catch {
+      notify("Impossible d'analyser ce lien TikTok", { tone: "error" });
+    } finally {
+      setTiktokBusy(false);
+    }
+  };
 
   if (!playlist) return <EmptyDetail label={t("detail.playlistNotFound")} loading={isCustom ? false : status !== "ready"} />;
 
@@ -608,6 +649,18 @@ export function PlaylistDetail({ id }: { id: string }) {
               >
                 <Download className="size-5" /> JSON
               </button>
+              {!isSmart && (
+                <button
+                  onClick={() => setTiktokOpen((o) => !o)}
+                  className={cn(
+                    "flex items-center gap-2 text-[13px] font-bold transition-colors",
+                    tiktokOpen ? "text-primary hover:text-foreground" : "text-muted-foreground hover:text-foreground",
+                  )}
+                  title="Identifier la musique d'une vidéo TikTok et l'ajouter"
+                >
+                  <Link2 className="size-5" /> TikTok
+                </button>
+              )}
               {!isCollaborator && (
                 <button
                   onClick={deleteCurrentPlaylist}
@@ -619,6 +672,30 @@ export function PlaylistDetail({ id }: { id: string }) {
             </>
           )}
         </div>
+        {isCustom && !isSmart && tiktokOpen && (
+          <form
+            onSubmit={onAddTikTok}
+            className="matte-panel mt-4 flex max-w-xl items-center gap-2 rounded-full p-1.5"
+          >
+            <Link2 className="ml-2.5 size-4 shrink-0 text-muted-foreground" />
+            <input
+              autoFocus
+              type="url"
+              inputMode="url"
+              value={tiktokUrl}
+              onChange={(e) => setTiktokUrl(e.target.value)}
+              placeholder="Colle un lien TikTok (https://vm.tiktok.com/…)…"
+              className="min-h-[38px] w-full bg-transparent px-1 text-[14px] text-foreground outline-none"
+            />
+            <button
+              type="submit"
+              disabled={!tiktokUrl.trim() || tiktokBusy}
+              className="signal-button inline-flex shrink-0 items-center gap-1.5 rounded-full px-4 py-2 text-[12.5px] font-bold disabled:opacity-40"
+            >
+              {tiktokBusy ? <><Loader2 className="size-3.5 animate-spin" /> Détection…</> : "Détecter & ajouter"}
+            </button>
+          </form>
+        )}
       </section>
 
       <div className="px-4 py-5 lg:px-6">

@@ -167,3 +167,71 @@ test("resolveOnlineTracksBatch resolves playlist entries to yt:// tracks with ze
   assert.equal(matched.unmatched.length, 1);
   assert.equal(matched.unmatched[0]?.videoId, "xxxxxxxxxxx");
 });
+
+test("identifyTikTokAudio prioritizes Shazam recognition, falls back to non-original metadata, and rejects SSRF / unknown original sounds", async () => {
+  const { identifyTikTokAudio, isTikTokUrl, TikTokError } = await import("../src/server/library/tiktok");
+
+  assert.equal(isTikTokUrl("https://vm.tiktok.com/ZMeTest/"), true);
+  assert.equal(isTikTokUrl("https://www.tiktok.com/@user/video/7106594312292453675"), true);
+  assert.equal(isTikTokUrl("https://evil.example.com/video/123"), false);
+
+  await assert.rejects(
+    () => identifyTikTokAudio("http://127.0.0.1/video/1"),
+    (e: unknown) => e instanceof TikTokError && e.status === 400,
+  );
+
+  // Shazam finds the real track even when TikTok label is "son original"
+  const shazamHit = await identifyTikTokAudio("https://vm.tiktok.com/ZMeShazam/", {
+    fetchMeta: async () => ({
+      audioUrl: "https://cdn.example.com/audio.mp3",
+      musicTitle: "son original - randomuser",
+      musicAuthor: "randomuser",
+      album: "",
+      original: true,
+      duration: 19,
+      cover: "https://cdn.example.com/cover.jpg",
+    }),
+    fetchAudio: async () => Buffer.from("fake-mp3"),
+    recognize: async () => [{ title: "Midnight City", artists: ["M83"], album: "Hurry Up, We're Dreaming", score: 1, source: "shazam" }],
+  });
+  assert.equal(shazamHit.source, "shazam");
+  assert.equal(shazamHit.title, "Midnight City");
+  assert.equal(shazamHit.artist, "M83");
+
+  // Falls back to music_info when Shazam misses and metadata isn't generic original sound
+  const metaFallback = await identifyTikTokAudio("https://www.tiktok.com/@a/video/123", {
+    fetchMeta: async () => ({
+      audioUrl: "https://cdn.example.com/audio.mp3",
+      musicTitle: "Blinding Lights",
+      musicAuthor: "The Weeknd",
+      album: "After Hours",
+      original: false,
+      duration: 30,
+      cover: null,
+    }),
+    fetchAudio: async () => Buffer.from("fake-mp3"),
+    recognize: async () => [],
+  });
+  assert.equal(metaFallback.source, "tiktok-meta");
+  assert.equal(metaFallback.title, "Blinding Lights");
+  assert.equal(metaFallback.artist, "The Weeknd");
+
+  // Generic "original sound" + Shazam miss -> clean 404
+  await assert.rejects(
+    () =>
+      identifyTikTokAudio("https://vm.tiktok.com/ZMeUnknown/", {
+        fetchMeta: async () => ({
+          audioUrl: "https://cdn.example.com/audio.mp3",
+          musicTitle: "original sound - user123",
+          musicAuthor: "user123",
+          album: "",
+          original: true,
+          duration: 12,
+          cover: null,
+        }),
+        fetchAudio: async () => Buffer.from("fake-mp3"),
+        recognize: async () => [],
+      }),
+    (e: unknown) => e instanceof TikTokError && e.status === 404,
+  );
+});

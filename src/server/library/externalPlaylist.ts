@@ -16,6 +16,7 @@
 //      https-only and rejects private / loopback / link-local hosts.
 
 import { createLogger } from "../logger";
+import { identifyTikTokAudio, isTikTokUrl, TikTokError } from "./tiktok";
 import dns from "node:dns/promises";
 
 const log = createLogger("playlist-import");
@@ -553,11 +554,35 @@ export async function importPlaylistFromUrl(rawInput: string): Promise<ExternalP
     throw new PlaylistImportError("Lien YouTube non reconnu (il faut une playlist, avec ?list=).", 400);
   }
 
+  // TikTok — extract audio + run Shazam / music metadata detection.
+  if (isTikTokUrl(raw)) {
+    try {
+      const hit = await identifyTikTokAudio(raw);
+      const displayName = [hit.artist, hit.title].filter(Boolean).join(" — ") || hit.title;
+      return {
+        name: `TikTok · ${displayName}`,
+        source: "TikTok",
+        tracks: [
+          {
+            title: hit.title,
+            artist: hit.artist,
+            ...(hit.album ? { album: hit.album } : {}),
+            ...(hit.duration ? { duration: hit.duration } : {}),
+            ...(hit.thumbnail ? { thumbnail: hit.thumbnail } : {}),
+          },
+        ],
+      };
+    } catch (err) {
+      if (err instanceof TikTokError) throw new PlaylistImportError(err.message, err.status);
+      throw new PlaylistImportError("Impossible d'identifier la musique de ce TikTok.", 502);
+    }
+  }
+
   // Fallback: a direct .m3u / .m3u8 / .json URL.
   if (/\.(m3u8?|json)$/i.test(path)) return fromDirectUrl(url);
 
   throw new PlaylistImportError(
-    "Service non reconnu. Collez un lien Spotify, Deezer, Apple Music ou YouTube.",
+    "Service non reconnu. Collez un lien Spotify, Deezer, Apple Music, YouTube ou TikTok.",
     415,
   );
 }

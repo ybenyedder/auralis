@@ -277,6 +277,19 @@ class AuralisApi {
         return out
     }
 
+    data class TikTokResult(val track: Track?, val error: String?)
+
+    /** Identify the song in a TikTok URL via POST /api/online/tiktok and
+     *  return the resolved `yt:` streaming track (0 audio bytes on disk). */
+    suspend fun identifyTikTok(url: String): TikTokResult {
+        val res = runCatching { post("/api/online/tiktok", JSONObject().put("url", url)) }.getOrNull()
+            ?: return TikTokResult(null, null)
+        val tObj = res.optJSONObject("track")
+        val err = res.optString("error").ifBlank { null }
+        if (!apiLastOk || tObj == null) return TikTokResult(null, err)
+        return TikTokResult(Track.from(tObj), null)
+    }
+
     /** Start (or join) a server-side download job for one online hit. */
     suspend fun startDownload(videoId: String?, title: String, query: String): DownloadJobDto? {
         val body = JSONObject().put("title", title).put("query", query)
