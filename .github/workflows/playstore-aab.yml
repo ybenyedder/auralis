@@ -14,10 +14,7 @@ name: Play Store AAB
 # only a fresh, higher-code bundle is needed).
 
 on:
-  workflow_dispatch: # Manual trigger from the Actions tab or the API
-  push:
-    tags:
-      - "v*" # Also produce the .aab on every tag release
+  workflow_dispatch: # Manual trigger from the Actions tab or the API (release.yml builds the AAB on tag push)
 
 permissions:
   contents: write

@@ -52,6 +52,18 @@ fun AppRoot(vm: AppViewModel) {
                     Phase.READY -> Shell(vm, ui)
                     Phase.ERROR -> ErrorScreen(ui.message, onRetry = { vm.loadAll() }, onChangeServer = { vm.changeServer() })
                 }
+
+                // Self-update prompt — shown regardless of whether the user is at
+                // onboarding/login, error, or the library shell.
+                ui.update?.let { info ->
+                    local.auralis.client.ui.components.UpdateDialog(
+                        info = info,
+                        downloading = ui.updateDownloading,
+                        progress = ui.updateProgress,
+                        onInstall = { vm.installUpdate() },
+                        onDismiss = { vm.dismissUpdate() },
+                    )
+                }
             }
         }
     }

@@ -107,6 +107,7 @@ fun SettingsScreen(vm: AppViewModel, ui: UiState) {
     if (showResetConfirm) {
         AlertDialog(
             onDismissRequest = { showResetConfirm = false },
+            shape = AMShapes.card,
             containerColor = colors.panel,
             title = { Text(tr("settings.confirmResetTitle"), color = colors.foreground) },
             text = { Text(tr("settings.confirmResetStats"), color = colors.textMuted) },
@@ -443,7 +444,7 @@ private fun PasswordDialog(vm: AppViewModel, onDismiss: () -> Unit) {
     var error by remember { mutableStateOf<String?>(null) }
     AlertDialog(
         onDismissRequest = onDismiss,
-        shape = RoundedCornerShape(22.dp),
+        shape = AMShapes.card,
         containerColor = colors.panel,
         title = { Text(tr("settings.changePassword"), color = colors.foreground) },
         text = {
@@ -469,7 +470,7 @@ private fun FolderDialog(vm: AppViewModel, initial: String, onDismiss: () -> Uni
     var path by remember { mutableStateOf(initial) }
     AlertDialog(
         onDismissRequest = onDismiss,
-        shape = RoundedCornerShape(22.dp),
+        shape = AMShapes.card,
         containerColor = colors.panel,
         title = { Text(tr("settings.musicDir"), color = colors.foreground) },
         text = { Field2(path, { path = it }, tr("settings.folderPathHint")) },
@@ -484,7 +485,7 @@ private fun ImportDialog(vm: AppViewModel, onDismiss: () -> Unit) {
     var text by remember { mutableStateOf("") }
     AlertDialog(
         onDismissRequest = onDismiss,
-        shape = RoundedCornerShape(22.dp),
+        shape = AMShapes.card,
         containerColor = colors.panel,
         title = { Text(tr("settings.import"), color = colors.foreground) },
         text = {
@@ -493,6 +494,7 @@ private fun ImportDialog(vm: AppViewModel, onDismiss: () -> Unit) {
                 Spacer(Modifier.height(8.dp))
                 OutlinedTextField(
                     value = text, onValueChange = { text = it },
+                    shape = AMShapes.tile,
                     modifier = Modifier.fillMaxWidth().heightIn(min = 120.dp),
                     colors = fieldColors(colors),
                 )
@@ -519,7 +521,7 @@ private fun UsersDialog(vm: AppViewModel, onDismiss: () -> Unit) {
 
     AlertDialog(
         onDismissRequest = onDismiss,
-        shape = RoundedCornerShape(22.dp),
+        shape = AMShapes.card,
         containerColor = colors.panel,
         title = { Text(tr("settings.accounts"), color = colors.foreground) },
         text = {
@@ -580,6 +582,7 @@ private fun Pwd(value: String, onChange: (String) -> Unit, label: String) {
     val colors = LocalAuralis.current
     OutlinedTextField(
         value = value, onValueChange = onChange, singleLine = true,
+        shape = AMShapes.tile,
         placeholder = { Text(label, color = colors.textFaint) },
         visualTransformation = PasswordVisualTransformation(),
         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
@@ -592,6 +595,7 @@ private fun Field2(value: String, onChange: (String) -> Unit, label: String) {
     val colors = LocalAuralis.current
     OutlinedTextField(
         value = value, onValueChange = onChange, singleLine = true,
+        shape = AMShapes.tile,
         placeholder = { Text(label, color = colors.textFaint) },
         modifier = Modifier.fillMaxWidth(), colors = fieldColors(colors),
     )

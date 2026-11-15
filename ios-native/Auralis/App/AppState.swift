@@ -88,10 +88,22 @@ final class AppState: ObservableObject {
     }
 
     func login(username: String, password: String) async {
+        await authenticate(username: username, fallbackError: "Connexion échouée") {
+            await api.login(probeBase: base, username: username, password: password)
+        }
+    }
+
+    func register(username: String, password: String) async {
+        await authenticate(username: username, fallbackError: "Inscription échouée") {
+            await api.register(probeBase: base, username: username, password: password)
+        }
+    }
+
+    private func authenticate(username: String, fallbackError: String, run: () async -> AuthResult) async {
         phase = .loading
-        let result = await api.login(probeBase: base, username: username, password: password)
+        let result = await run()
         guard result.ok, let token = result.token else {
-            errorMessage = result.error ?? "Connexion échouée"
+            errorMessage = result.error ?? fallbackError
             phase = .login
             return
         }

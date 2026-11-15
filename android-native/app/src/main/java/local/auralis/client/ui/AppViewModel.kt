@@ -30,7 +30,6 @@ import local.auralis.client.model.BlendMember
 import local.auralis.client.model.LyricsResult
 import local.auralis.client.model.ListeningStats
 import local.auralis.client.model.MonthlyRecap
-import local.auralis.client.model.DownloadJobDto
 import local.auralis.client.model.ExternalTrackEntry
 import local.auralis.client.model.ImportRow
 import local.auralis.client.model.ImportRowState
@@ -148,11 +147,10 @@ data class UiState(
     val searchQuery: String = "",
     val searchResult: SearchResult = SearchResult.EMPTY,
 
-    // Online (downloadable) search results + their download jobs, keyed by videoId.
+    // Online search results (instant streaming, zero download).
     val onlineResults: List<OnlineTrack> = emptyList(),
     val onlineEnabled: Boolean = false,
     val onlineLoading: Boolean = false,
-    val downloadJobs: Map<String, DownloadJobDto> = emptyMap(),
 
     // "Chercher en chantant" (hum-to-search): the recording sheet + the
     // POST /api/recognize verdict. `humError` holds a catalogue KEY (not a
@@ -164,9 +162,6 @@ data class UiState(
     /** Literal server-side failure text (e.g. "Enregistrement vide"), rendered
      *  under the catalogue-key error banner so failures never look silent. */
     val humErrorDetail: String? = null,
-    /** Download jobs for global-catalog matches ("Ajouter à la bibliothèque"),
-     *  keyed by the match's query. */
-    val humRemoteJobs: Map<String, DownloadJobDto> = emptyMap(),
 
     // "Bulle Shazam" (system-wide recognition bubble) — mirrored from the
     // playback/BubbleBus service bridge + the persisted Prefs toggle.
@@ -301,6 +296,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
 
     private var importResolveEntries: List<ExternalTrackEntry> = emptyList()
     private var importResolveJob: Job? = null
+    private var lastUpdateCheckMs: Long = 0L
 
     // index helpers
     private var trackIndex: Map<String, Track> = emptyMap()
@@ -357,6 +353,12 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
         }
         boot()
         checkForUpdate()
+        viewModelScope.launch {
+            while (isActive) {
+                delay(30 * 60_000L)
+                checkForUpdate()
+            }
+        }
     }
 
     // ---- boot / auth -------------------------------------------------------
@@ -538,6 +540,9 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
                 fetchRecapAndMaybeNotify()
                 refreshDiscoverMix()
                 restoreLastSession()
+                if (System.currentTimeMillis() - lastUpdateCheckMs > 10 * 60_000L) {
+                    checkForUpdate()
+                }
             } catch (e: AuralisApi.ApiException) {
                 if (e.code == 401) {
                     if (onAuthError != null) onAuthError() else _ui.update { it.copy(phase = Phase.LOGIN) }
@@ -1018,6 +1023,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
             if (manual) notify(tr("settings.upToDate"))
             return
         }
+        lastUpdateCheckMs = System.currentTimeMillis()
         viewModelScope.launch {
             val info = local.auralis.client.update.UpdateManager.check(
                 local.auralis.client.BuildConfig.VERSION_NAME,
@@ -2128,65 +2134,6 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
         }
     }
 
-    /** Download an online hit onto the server, watch the job, then play the
-     *  imported track. The button state comes from downloadJobs[videoId]. */
-    fun downloadOnline(hit: OnlineTrack) {
-        val existing = _ui.value.downloadJobs[hit.videoId]
-        if (existing != null && existing.busy) return
-        _ui.update {
-            it.copy(downloadJobs = it.downloadJobs + (hit.videoId to DownloadJobDto("", "queued", 0, null, null, hit.title)))
-        }
-        viewModelScope.launch {
-            val job = runCatching { api.startDownload(hit.videoId, hit.title, _ui.value.searchQuery.ifBlank { hit.title }) }.getOrNull()
-            if (job == null) {
-                _ui.update {
-                    it.copy(downloadJobs = it.downloadJobs + (hit.videoId to DownloadJobDto("", "error", 0, null, tr("toast.downloadStartFailed"), hit.title)))
-                }
-                notify(tr("toast.downloadFailed"))
-                return@launch
-            }
-            var current: DownloadJobDto = job
-            var misses = 0
-            while (isActive) {
-                _ui.update { it.copy(downloadJobs = it.downloadJobs + (hit.videoId to current)) }
-                if (current.status == "done" || current.status == "error") break
-                delay(1500)
-                val next: DownloadJobDto? = runCatching { api.downloadJob(job.id) }.getOrNull()
-                if (next == null) {
-                    // Transient poll failures are fine; give up after a long outage.
-                    if (++misses > 60) {
-                        current = current.copy(status = "error", error = tr("toast.serverUnreachable"))
-                        break
-                    }
-                    continue
-                }
-                misses = 0
-                current = next
-            }
-            _ui.update { it.copy(downloadJobs = it.downloadJobs + (hit.videoId to current)) }
-            if (current.status == "error") {
-                notify(current.error?.takeIf { it.isNotBlank() } ?: tr("toast.downloadFailed"))
-                return@launch
-            }
-            notify(tr("search.downloadDone"))
-            // Reload so the new file is indexed, then play it as soon as it
-            // materialises in the track index.
-            loadAll()
-            val hash = current.trackhash
-            if (hash != null) {
-                var tries = 0
-                while (tries++ < 30) {
-                    val track = trackIndex[hash]
-                    if (track != null) {
-                        playTrack(track, listOf(track))
-                        return@launch
-                    }
-                    delay(500)
-                }
-            }
-        }
-    }
-
     // ---- "Identifier la musique" (music recognition) ------------------------
     // The mic sheet records ~12 s (MediaRecorder, in HumSearch.kt) and posts the
     // raw bytes to POST /api/recognize; the verdict lands in UiState for the
@@ -2241,55 +2188,6 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
         val list = res.local.mapNotNull { trackIndex[it.trackhash] }
         playTrack(track, list.ifEmpty { listOf(track) }, list.indexOf(track))
         closeHumSheet()
-    }
-
-    /** "Ajouter à la bibliothèque" for a global-catalog match: start a query
-     *  download, follow the job, then reload the library (no autoplay — the
-     *  point is to OWN the track, not to interrupt what's playing). */
-    fun downloadHumMatch(match: RecognizeRemoteMatch) {
-        val key = match.query
-        if (key.isBlank()) return
-        val existing = _ui.value.humRemoteJobs[key]
-        if (existing != null && existing.busy) return
-        _ui.update {
-            it.copy(humRemoteJobs = it.humRemoteJobs + (key to DownloadJobDto("", "queued", 0, null, null, match.title)))
-        }
-        viewModelScope.launch {
-            val job = runCatching { api.startDownloadQuery(key, match.title) }.getOrNull()
-            if (job == null) {
-                _ui.update {
-                    it.copy(humRemoteJobs = it.humRemoteJobs +
-                        (key to DownloadJobDto("", "error", 0, null, tr("toast.downloadStartFailed"), match.title)))
-                }
-                notify(tr("toast.downloadFailed"))
-                return@launch
-            }
-            var current: DownloadJobDto = job
-            var misses = 0
-            while (isActive) {
-                _ui.update { it.copy(humRemoteJobs = it.humRemoteJobs + (key to current)) }
-                if (current.status == "done" || current.status == "error") break
-                delay(1500)
-                val next: DownloadJobDto? = runCatching { api.downloadJob(job.id) }.getOrNull()
-                if (next == null) {
-                    // Transient poll failures are fine; give up after a long outage.
-                    if (++misses > 60) {
-                        current = current.copy(status = "error", error = tr("toast.serverUnreachable"))
-                        break
-                    }
-                    continue
-                }
-                misses = 0
-                current = next
-            }
-            _ui.update { it.copy(humRemoteJobs = it.humRemoteJobs + (key to current)) }
-            if (current.status == "error") {
-                notify(current.error?.takeIf { it.isNotBlank() } ?: tr("toast.downloadFailed"))
-                return@launch
-            }
-            notify(tr("hum.addedToLibrary"))
-            loadAll()
-        }
     }
 
     // ---- "Bulle Shazam" (system-wide recognition bubble) -------------------

@@ -8,7 +8,14 @@
    ------------------------------------------------------------------------- */
 :root,
 :root[data-mode="dark"] {
-  --radius: 18px;
+  --radius: 20px;
+  --radius-xs: 8px;
+  --radius-sm: 12px;
+  --radius-md: 14px;
+  --radius-lg: 18px;
+  --radius-xl: 22px;
+  --radius-2xl: 28px;
+  --radius-3xl: 34px;
   /* SF Pro on Apple platforms (system), Inter everywhere else (next/font). */
   --font-sans: -apple-system, BlinkMacSystemFont, "SF Pro Display", "SF Pro Text",
     var(--font-inter, "Inter"), "Segoe UI", Roboto, Helvetica, Arial, sans-serif;

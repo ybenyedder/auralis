@@ -61,7 +61,7 @@ struct PlayerView: View {
     }
 
     private var cover: some View {
-        CoverArt(url: app.artURL(app.currentTrack?.image), colors: app.currentTrack.map(trackColors) ?? [.gray, .black], corner: 14,
+        CoverArt(url: app.artURL(app.currentTrack?.image), colors: app.currentTrack.map(trackColors) ?? [.gray, .black], corner: 24,
                  initial: app.currentTrack.map { String($0.title.prefix(1)) })
             .frame(width: 300, height: 300)
             .shadow(color: .black.opacity(0.5), radius: 30, y: 14)
@@ -111,7 +111,7 @@ struct PlayerView: View {
                     }
                 }
                 .padding(.horizontal, 12).padding(.vertical, 8)
-                .background(.white.opacity(0.14), in: RoundedRectangle(cornerRadius: 10, style: .continuous))
+                .background(.white.opacity(0.14), in: RoundedRectangle(cornerRadius: 16, style: .continuous))
                 .padding(.horizontal, 24)
             }
             if let track = app.currentTrack {

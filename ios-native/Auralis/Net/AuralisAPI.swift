@@ -76,8 +76,16 @@ actor AuralisAPI {
     }
 
     func login(probeBase: String, username: String, password: String) async -> AuthResult {
+        await postAuth(probeBase: probeBase, endpoint: "/api/auth/login", username: username, password: password, fallbackError: "Identifiant ou mot de passe incorrect")
+    }
+
+    func register(probeBase: String, username: String, password: String) async -> AuthResult {
+        await postAuth(probeBase: probeBase, endpoint: "/api/auth/register", username: username, password: password, fallbackError: "Inscription impossible")
+    }
+
+    private func postAuth(probeBase: String, endpoint: String, username: String, password: String, fallbackError: String) async -> AuthResult {
         let b = AuralisAPI.normalizeBase(probeBase)
-        guard let url = URL(string: "\(b)/api/auth/login") else {
+        guard let url = URL(string: "\(b)\(endpoint)") else {
             return AuthResult(ok: false, token: nil, username: nil, isAdmin: false, defaultPassword: false, error: "URL invalide")
         }
         var req = URLRequest(url: url)
@@ -93,7 +101,7 @@ actor AuralisAPI {
                                   isAdmin: json["isAdmin"].bool, defaultPassword: json["defaultPassword"].bool, error: nil)
             }
             return AuthResult(ok: false, token: nil, username: nil, isAdmin: false, defaultPassword: false,
-                              error: json["error"].string(or: "Identifiant ou mot de passe incorrect"))
+                              error: json["error"].string(or: fallbackError))
         } catch {
             return AuthResult(ok: false, token: nil, username: nil, isAdmin: false, defaultPassword: false, error: "Serveur injoignable")
         }

@@ -38,7 +38,6 @@ import local.auralis.client.R
 import local.auralis.client.data.Prefs
 import local.auralis.client.i18n.Messages
 import local.auralis.client.model.BubbleDragLogic
-import local.auralis.client.model.DownloadJobDto
 import local.auralis.client.model.RecognizeResult
 import local.auralis.client.net.AuralisApi
 import local.auralis.client.ui.components.BubbleRemoveTargetView
@@ -302,38 +301,22 @@ class ShazamBubbleService : Service() {
     }
 
     /**
-     * "Ajouter à la bibliothèque" for an identified global hit: start the query
-     * download (same contract as AppViewModel.downloadHumMatch), follow the job
-     * and post "Ajouté à ta bibliothèque : {title} — {artist}" when it lands.
+     * Resolve an identified global hit directly for instant streaming playback
+     * (zero server download) and post its playable notification.
      */
     private suspend fun autoAdd(api: AuralisApi, outcome: BubbleOutcome.RemoteFound) {
-        val job = runCatching { api.startDownloadQuery(outcome.query, outcome.title) }.getOrNull()
-        if (job == null) {
+        val item = local.auralis.client.model.ExternalTrackEntry(
+            title = outcome.title,
+            artist = outcome.artists.joinToString(", ").ifBlank { null },
+        )
+        val resolved = runCatching { api.resolveOnlineBatch(listOf(item), instant = false) }.getOrNull()?.firstOrNull()
+        if (resolved == null) {
             postPlain(Messages.t("bubble.notif.downloadFailed", params = outcome.messageParams()))
             return
         }
-        var current: DownloadJobDto = job
-        var misses = 0
-        while (true) {
-            if (current.status == "done") {
-                postPlain(Messages.t(outcome.messageKey, params = outcome.messageParams()))
-                return
-            }
-            if (current.status == "error") {
-                postPlain(Messages.t("bubble.notif.downloadFailed", params = outcome.messageParams()))
-                return
-            }
-            delay(1500)
-            val next: DownloadJobDto? = runCatching { api.downloadJob(job.id) }.getOrNull()
-            if (next != null) {
-                misses = 0
-                current = next
-            } else if (++misses > 60) {
-                // Transient poll failures are fine; give up after a long outage.
-                postPlain(Messages.t("bubble.notif.downloadFailed", params = outcome.messageParams()))
-                return
-            }
-        }
+        val localOutcome = BubbleOutcome.LocalFound(resolved.title, resolved.displayArtist, resolved.trackhash)
+        BubbleBus.lastOutcome.value = localOutcome
+        postResult(localOutcome)
     }
 
     // ---- notifications ------------------------------------------------------

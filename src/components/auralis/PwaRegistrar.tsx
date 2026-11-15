@@ -49,16 +49,29 @@ export function PwaRegistrar() {
     if (process.env.NODE_ENV !== "production") return;
     if (typeof navigator === "undefined" || !("serviceWorker" in navigator)) return;
     if (!window.isSecureContext && window.location.hostname !== "localhost") return;
+    let reg: ServiceWorkerRegistration | null = null;
     const register = () => {
-      navigator.serviceWorker.register("/sw.js").catch(() => {
-        /* registration is best-effort — the app works without it */
-      });
+      navigator.serviceWorker
+        .register("/sw.js")
+        .then((r) => { reg = r; })
+        .catch(() => {
+          /* registration is best-effort — the app works without it */
+        });
     };
+    const onVisible = () => {
+      if (document.visibilityState === "visible") {
+        reg?.update().catch(() => {});
+      }
+    };
+    document.addEventListener("visibilitychange", onVisible);
     if (document.readyState === "complete") register();
     else {
       window.addEventListener("load", register);
-      return () => window.removeEventListener("load", register);
     }
+    return () => {
+      window.removeEventListener("load", register);
+      document.removeEventListener("visibilitychange", onVisible);
+    };
   }, []);
 
   // Install prompt capture + one-time actionable invitation.

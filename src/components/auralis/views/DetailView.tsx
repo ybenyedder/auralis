@@ -1767,10 +1767,25 @@ function RecognitionCard() {
 function AccountSettings() {
   const t = useT();
   const notify = usePlayer((state) => state.notify);
+  const [username, setUsername] = useState<string | null>(null);
+  const [isAdmin, setIsAdmin] = useState(false);
   const [current, setCurrent] = useState("");
   const [next, setNext] = useState("");
   const [confirm, setConfirm] = useState("");
   const [busy, setBusy] = useState(false);
+
+  useEffect(() => {
+    let alive = true;
+    void api
+      .get<{ username?: string | null; isAdmin?: boolean }>("/api/auth/status")
+      .then((s) => {
+        if (!alive) return;
+        setUsername(s.username ?? null);
+        setIsAdmin(Boolean(s.isAdmin));
+      })
+      .catch(() => {});
+    return () => { alive = false; };
+  }, []);
 
   const changePassword = async () => {
     if (busy) return;
@@ -1809,7 +1824,7 @@ function AccountSettings() {
     window.location.reload();
   };
 
-  const inputClass = "h-12 w-full rounded-xl border border-transparent bg-[var(--panel-2)] px-4 text-[16px] text-foreground outline-none transition-all duration-200 focus:bg-[var(--panel-3)] focus:ring-2 focus:ring-white/10 lg:h-auto lg:py-2.5 lg:text-[14px]";
+  const inputClass = "h-12 w-full rounded-2xl border border-transparent bg-[var(--panel-2)] px-4 text-[16px] text-foreground outline-none transition-all duration-200 focus:bg-[var(--panel-3)] focus:ring-2 focus:ring-white/10 lg:h-auto lg:py-2.5 lg:text-[14px]";
 
   // Translated help text, split on the two tokens so they keep their <code> chips.
   const adminHelp = t("settings.adminPasswordHelp", undefined, {
@@ -1819,16 +1834,31 @@ function AccountSettings() {
 
   return (
     <div className="space-y-6">
+      {username && (
+        <div className="inline-flex items-center gap-2 rounded-full bg-[var(--panel-2)] px-3.5 py-1.5 text-[12.5px] font-semibold text-foreground ring-1 ring-white/[0.06]">
+          <span className="size-2 rounded-full bg-[var(--primary)]" />
+          <span>{username}</span>
+          {isAdmin && (
+            <span className="rounded-full bg-[var(--primary)]/15 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-[var(--primary)]">
+              admin
+            </span>
+          )}
+        </div>
+      )}
       <div>
-        <h3 className="mb-1 text-[14px] font-black text-foreground">{t("settings.adminPassword")}</h3>
-        <p className="mb-4 text-[12px] text-muted-foreground/70">
-          {adminHelp[0]}
-          <code className="rounded bg-[var(--panel-2)] px-1">INITIAL_ADMIN_PASSWORD.txt</code>
-          {adminHelp[1]}
-          <code className="rounded bg-[var(--panel-2)] px-1">AURALIS_ADMIN_PASSWORD</code>
-          {adminHelp[2]}
-        </p>
-        <div className="space-y-2.5 lg:max-w-sm">
+        <h3 className="mb-1 text-[14px] font-black text-foreground">
+          {isAdmin ? t("settings.adminPassword") : t("settings.changePassword")}
+        </h3>
+        {isAdmin && (
+          <p className="mb-4 text-[12px] text-muted-foreground/70">
+            {adminHelp[0]}
+            <code className="rounded bg-[var(--panel-2)] px-1">INITIAL_ADMIN_PASSWORD.txt</code>
+            {adminHelp[1]}
+            <code className="rounded bg-[var(--panel-2)] px-1">AURALIS_ADMIN_PASSWORD</code>
+            {adminHelp[2]}
+          </p>
+        )}
+        <div className="mt-3 space-y-2.5 lg:max-w-sm">
           <input type="password" autoComplete="current-password" value={current} onChange={(e) => setCurrent(e.target.value)} placeholder={t("settings.currentPassword")} className={inputClass} />
           <input type="password" autoComplete="new-password" value={next} onChange={(e) => setNext(e.target.value)} placeholder={t("settings.newPassword")} className={inputClass} />
           <input type="password" autoComplete="new-password" value={confirm} onChange={(e) => setConfirm(e.target.value)} placeholder={t("settings.confirmPassword")} className={inputClass} />

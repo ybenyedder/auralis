@@ -215,6 +215,7 @@ private fun PlaylistPicker(
     Row(Modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 8.dp), verticalAlignment = Alignment.CenterVertically) {
         OutlinedTextField(
             value = newName, onValueChange = onNameChange, singleLine = true,
+            shape = AMShapes.tile,
             placeholder = { Text(tr("ctx.newPlaylist"), color = colors.textFaint) },
             modifier = Modifier.weight(1f),
         )

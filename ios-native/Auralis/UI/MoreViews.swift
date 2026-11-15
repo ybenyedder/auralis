@@ -96,7 +96,7 @@ struct InsightsView: View {
                             }
                         }
                     }
-                    .padding(14).background(Theme.panel, in: RoundedRectangle(cornerRadius: 12))
+                    .padding(14).background(Theme.panel, in: RoundedRectangle(cornerRadius: 18, style: .continuous))
                 }
             }
             .padding(.horizontal, 16).padding(.top, 8).padding(.bottom, 120)
@@ -110,7 +110,7 @@ struct InsightsView: View {
             Text(l).font(.caption2).foregroundStyle(.secondary).multilineTextAlignment(.center)
         }
         .frame(maxWidth: .infinity).padding(.vertical, 16)
-        .background(Theme.panel, in: RoundedRectangle(cornerRadius: 12))
+        .background(Theme.panel, in: RoundedRectangle(cornerRadius: 18, style: .continuous))
     }
 }
 
@@ -141,16 +141,16 @@ struct AdminUsersView: View {
                             } label: { Image(systemName: "trash") }
                         }
                     }
-                    .padding(12).background(Theme.panel, in: RoundedRectangle(cornerRadius: 10))
+                    .padding(12).background(Theme.panel, in: RoundedRectangle(cornerRadius: 16, style: .continuous))
                 }
 
                 SectionTitle(text: "Nouveau compte")
                 VStack(spacing: 10) {
                     TextField("Identifiant", text: $newName)
                         .textInputAutocapitalization(.never).autocorrectionDisabled()
-                        .padding(12).background(Theme.panel, in: RoundedRectangle(cornerRadius: 10)).foregroundStyle(.primary)
+                        .padding(12).background(Theme.panel, in: RoundedRectangle(cornerRadius: 16, style: .continuous)).foregroundStyle(.primary)
                     SecureField("Mot de passe", text: $newPass)
-                        .padding(12).background(Theme.panel, in: RoundedRectangle(cornerRadius: 10)).foregroundStyle(.primary)
+                        .padding(12).background(Theme.panel, in: RoundedRectangle(cornerRadius: 16, style: .continuous)).foregroundStyle(.primary)
                     Toggle("Administrateur", isOn: $newAdmin).tint(app.accentColor).foregroundStyle(.primary)
                     Button {
                         busy = true

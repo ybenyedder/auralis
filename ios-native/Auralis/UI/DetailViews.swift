@@ -71,9 +71,9 @@ struct PlaylistDetailView: View {
 @ViewBuilder
 private func heroArt(url: URL?, colors: [Color], title: String, subtitle: String, circle: Bool) -> some View {
     VStack(spacing: 12) {
-        CoverArt(url: url, colors: colors, corner: circle ? 120 : 10, initial: String(title.prefix(1)))
+        CoverArt(url: url, colors: colors, corner: circle ? 120 : 22, initial: String(title.prefix(1)))
             .frame(width: 200, height: 200)
-            .clipShape(RoundedRectangle(cornerRadius: circle ? 100 : 10, style: .continuous))
+            .clipShape(RoundedRectangle(cornerRadius: circle ? 100 : 22, style: .continuous))
             .shadow(color: .black.opacity(0.4), radius: 16, y: 8)
         VStack(spacing: 4) {
             Text(title).font(.title2.weight(.heavy)).foregroundStyle(.primary).multilineTextAlignment(.center)

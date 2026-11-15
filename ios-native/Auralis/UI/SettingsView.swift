@@ -36,7 +36,7 @@ struct SettingsView: View {
                         NavigationLink(value: MoreRoute.admin) {
                                 Label("Gérer les utilisateurs", systemImage: "person.2.fill")
                                     .frame(maxWidth: .infinity, alignment: .leading).padding(.vertical, 12).padding(.horizontal, 4)
-                                    .background(Theme.panel2, in: RoundedRectangle(cornerRadius: 12))
+                                    .background(Theme.panel2, in: RoundedRectangle(cornerRadius: 16, style: .continuous))
                                     .foregroundStyle(.primary)
                             }.buttonStyle(.plain)
                     }
@@ -45,14 +45,14 @@ struct SettingsView: View {
                     } label: {
                         Label("Rafraîchir la bibliothèque", systemImage: "arrow.clockwise")
                             .frame(maxWidth: .infinity).padding(.vertical, 12)
-                            .background(Theme.panel2, in: RoundedRectangle(cornerRadius: 12))
+                            .background(Theme.panel2, in: RoundedRectangle(cornerRadius: 16, style: .continuous))
                             .foregroundStyle(.primary)
                     }.buttonStyle(.plain)
 
                     Button(role: .destructive) { app.logout() } label: {
                         Label("Se déconnecter", systemImage: "rectangle.portrait.and.arrow.right")
                             .frame(maxWidth: .infinity).padding(.vertical, 12)
-                            .background(Theme.panel2, in: RoundedRectangle(cornerRadius: 12))
+                            .background(Theme.panel2, in: RoundedRectangle(cornerRadius: 16, style: .continuous))
                             .foregroundStyle(.red)
                     }.buttonStyle(.plain)
                 }
@@ -77,6 +77,6 @@ struct SettingsView: View {
             Text(label).font(.caption2).foregroundStyle(.secondary)
         }
         .frame(maxWidth: .infinity).padding(.vertical, 14)
-        .background(Theme.panel, in: RoundedRectangle(cornerRadius: 12))
+        .background(Theme.panel, in: RoundedRectangle(cornerRadius: 18, style: .continuous))
     }
 }

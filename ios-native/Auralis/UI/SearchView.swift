@@ -65,7 +65,7 @@ struct SearchView: View {
                         Text(genre).font(.headline.weight(.black)).foregroundStyle(.white).padding(12)
                     }
                     .frame(height: 96)
-                    .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+                    .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
                 }.buttonStyle(.plain)
             }
         }
@@ -82,7 +82,7 @@ struct SearchView: View {
 
     private func albumRow(_ album: Album) -> some View {
         HStack(spacing: 12) {
-            CoverArt(url: app.artURL(album.image), colors: palette(for: album.albumhash), corner: 4)
+            CoverArt(url: app.artURL(album.image), colors: palette(for: album.albumhash), corner: 10)
                 .frame(width: 48, height: 48)
             VStack(alignment: .leading, spacing: 2) {
                 Text(album.title).font(.subheadline.weight(.semibold)).foregroundStyle(.primary).lineLimit(1)

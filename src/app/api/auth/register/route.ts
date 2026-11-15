@@ -8,21 +8,17 @@ import {
 import { json, readJsonBody } from "@/server/http";
 import { clientKey, rateLimitWindow } from "@/server/rateLimit";
 
+export const runtime = "nodejs";
+export const dynamic = "force-dynamic";
+
 interface RegisterBody {
   username?: unknown;
   password?: unknown;
 }
 
-const USERNAME_RE = /^[a-zA-Z0-9._-]{2,32}$/;
+const USERNAME_RE = /^[a-zA-Z0-9._@-]{2,32}$/;
 
 export async function POST(request: Request) {
-  if (rateLimitWindow(clientKey(request, "register"), 10, 15 * 60 * 1000)) {
-    return json(
-      { error: "Trop de tentatives. Réessayez plus tard." },
-      { status: 429, headers: { "Retry-After": "900" } },
-    );
-  }
-
   const parsed = await readJsonBody<RegisterBody>(request);
   if (!parsed.ok) return parsed.response;
   const body = parsed.body;
@@ -37,7 +33,7 @@ export async function POST(request: Request) {
     return json(
       {
         error:
-          "Identifiant invalide (2 à 32 caractères : lettres, chiffres, ., _ ou -).",
+          "Identifiant invalide (2 à 32 caractères : lettres, chiffres, ., _, @ ou -).",
       },
       { status: 400 },
     );
@@ -46,6 +42,13 @@ export async function POST(request: Request) {
   const pwError = validatePassword(password);
   if (pwError) {
     return json({ error: pwError }, { status: 400 });
+  }
+
+  if (rateLimitWindow(clientKey(request, "register"), 30, 15 * 60 * 1000)) {
+    return json(
+      { error: "Trop de tentatives. Réessayez plus tard." },
+      { status: 429, headers: { "Retry-After": "900" } },
+    );
   }
 
   const created = await createUser(rawUsername, password, false);

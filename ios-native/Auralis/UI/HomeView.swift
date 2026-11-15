@@ -52,14 +52,14 @@ struct HomeView: View {
             ForEach(tracks) { track in
                 Button { app.play(track, in: app.recentTracks) } label: {
                     HStack(spacing: 8) {
-                        CoverArt(url: app.artURL(track.image), colors: trackColors(track), corner: 4)
+                        CoverArt(url: app.artURL(track.image), colors: trackColors(track), corner: 12)
                             .frame(width: 48, height: 48)
                         Text(track.title).font(.footnote.weight(.semibold)).foregroundStyle(.primary)
                             .lineLimit(2).multilineTextAlignment(.leading)
                         Spacer(minLength: 0)
                     }
-                    .background(Theme.panel2, in: RoundedRectangle(cornerRadius: 6))
-                    .clipShape(RoundedRectangle(cornerRadius: 6))
+                    .background(Theme.panel2, in: RoundedRectangle(cornerRadius: 16, style: .continuous))
+                    .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
                 }.buttonStyle(.plain)
             }
         }
@@ -73,7 +73,7 @@ struct HomeView: View {
                     ForEach(tracks) { track in
                         Button { app.play(track, in: tracks) } label: {
                             VStack(alignment: .leading, spacing: 6) {
-                                CoverArt(url: app.artURL(track.image), colors: trackColors(track), corner: 8)
+                                CoverArt(url: app.artURL(track.image), colors: trackColors(track), corner: 16)
                                     .frame(width: 140, height: 140)
                                 Text(track.title).font(.footnote.weight(.semibold)).foregroundStyle(.primary).lineLimit(1)
                                 Text(track.displayArtist).font(.caption2).foregroundStyle(.secondary).lineLimit(1)
@@ -93,7 +93,7 @@ struct HomeView: View {
                     ForEach(albums) { album in
                         NavigationLink(value: album) {
                             VStack(alignment: .leading, spacing: 6) {
-                                CoverArt(url: app.artURL(album.image), colors: albumColors(album), corner: 8)
+                                CoverArt(url: app.artURL(album.image), colors: albumColors(album), corner: 16)
                                     .frame(width: 140, height: 140)
                                 Text(album.title).font(.footnote.weight(.semibold)).foregroundStyle(.primary).lineLimit(1)
                                 Text(album.artistName).font(.caption2).foregroundStyle(.secondary).lineLimit(1)

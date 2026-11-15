@@ -12,7 +12,7 @@
    cache-first.
    ========================================================================== */
 
-const CACHE = "auralis-shell-v1";
+const CACHE = "auralis-shell-v2";
 const SHELL_ASSETS = [
   "/",
   "/logo.svg",

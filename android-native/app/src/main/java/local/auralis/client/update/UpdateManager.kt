@@ -40,6 +40,7 @@ object UpdateManager {
     private const val OWNER = "ybenyedder"
     private const val REPO = "auralis"
     private const val LATEST_URL = "https://api.github.com/repos/$OWNER/$REPO/releases/latest"
+    private const val RELEASES_LIST_URL = "https://api.github.com/repos/$OWNER/$REPO/releases?per_page=5"
 
     private const val UPDATE_DIR = "updates"
 
@@ -48,38 +49,62 @@ object UpdateManager {
         .readTimeout(60, TimeUnit.SECONDS)
         .build()
 
+    private fun parseRelease(json: JSONObject, currentVersion: String): UpdateInfo? {
+        if (json.optBoolean("draft") || json.optBoolean("prerelease")) return null
+        val tag = json.optString("tag_name").trim().removePrefix("v")
+        if (tag.isEmpty() || compareVersions(tag, currentVersion) <= 0) return null
+
+        val assets = json.optJSONArray("assets") ?: return null
+        var apkUrl: String? = null
+        var size = 0L
+        for (i in 0 until assets.length()) {
+            val a = assets.getJSONObject(i)
+            if (a.optString("name").endsWith(".apk", ignoreCase = true)) {
+                apkUrl = a.optString("browser_download_url")
+                size = a.optLong("size")
+                break
+            }
+        }
+        val url = apkUrl ?: return null
+        return UpdateInfo(version = tag, notes = json.optString("body").trim(), apkUrl = url, sizeBytes = size)
+    }
+
     /** Returns the published update when it is strictly newer than [currentVersion], else null. */
     suspend fun check(currentVersion: String): UpdateInfo? = withContext(Dispatchers.IO) {
         runCatching {
-            val req = Request.Builder()
+            val latestReq = Request.Builder()
                 .url(LATEST_URL)
                 .header("Accept", "application/vnd.github+json")
-                // GitHub rejects API calls without a User-Agent.
+                .header("Cache-Control", "no-cache")
                 .header("User-Agent", "Auralis-Android")
                 .build()
-            client.newCall(req).execute().use { resp ->
-                if (!resp.isSuccessful) return@withContext null
-                val body = resp.body?.string() ?: return@withContext null
-                val json = JSONObject(body)
-                if (json.optBoolean("draft") || json.optBoolean("prerelease")) return@withContext null
-
-                val tag = json.optString("tag_name").trim().removePrefix("v")
-                if (tag.isEmpty() || compareVersions(tag, currentVersion) <= 0) return@withContext null
-
-                // Pick the first .apk asset.
-                val assets = json.optJSONArray("assets") ?: return@withContext null
-                var apkUrl: String? = null
-                var size = 0L
-                for (i in 0 until assets.length()) {
-                    val a = assets.getJSONObject(i)
-                    if (a.optString("name").endsWith(".apk", ignoreCase = true)) {
-                        apkUrl = a.optString("browser_download_url")
-                        size = a.optLong("size")
-                        break
+            client.newCall(latestReq).execute().use { resp ->
+                if (resp.isSuccessful) {
+                    val body = resp.body?.string()
+                    if (!body.isNullOrEmpty()) {
+                        val parsed = parseRelease(JSONObject(body), currentVersion)
+                        if (parsed != null) return@withContext parsed
                     }
                 }
-                val url = apkUrl ?: return@withContext null
-                UpdateInfo(version = tag, notes = json.optString("body").trim(), apkUrl = url, sizeBytes = size)
+            }
+
+            // Fallback to recent releases list in case a desktop-only or parallel release
+            // hasn't promoted `releases/latest` yet.
+            val listReq = Request.Builder()
+                .url(RELEASES_LIST_URL)
+                .header("Accept", "application/vnd.github+json")
+                .header("Cache-Control", "no-cache")
+                .header("User-Agent", "Auralis-Android")
+                .build()
+            client.newCall(listReq).execute().use { resp ->
+                if (!resp.isSuccessful) return@withContext null
+                val body = resp.body?.string() ?: return@withContext null
+                val arr = org.json.JSONArray(body)
+                for (i in 0 until arr.length()) {
+                    val parsed = parseRelease(arr.getJSONObject(i), currentVersion)
+                    if (parsed != null) return@withContext parsed
+                }
+                null
             }
         }.getOrNull()
     }

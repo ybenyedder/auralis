@@ -20,7 +20,12 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Visibility
+import androidx.compose.material.icons.filled.VisibilityOff
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Text
@@ -36,6 +41,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
+import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import local.auralis.client.i18n.tr
@@ -63,13 +69,25 @@ private fun SplashMark() {
 private fun field(value: String, onChange: (String) -> Unit, label: String, keyboard: KeyboardOptions,
                   password: Boolean = false, onImeDone: () -> Unit = {}) {
     val colors = LocalAuralis.current
+    var showPassword by remember { mutableStateOf(false) }
     OutlinedTextField(
         value = value,
         onValueChange = onChange,
         label = { Text(label, color = colors.textMuted, style = Type.Caption) },
         singleLine = true,
-        shape = RoundedCornerShape(Radius.sm),
-        visualTransformation = if (password) PasswordVisualTransformation() else androidx.compose.ui.text.input.VisualTransformation.None,
+        shape = AMShapes.tile,
+        visualTransformation = if (password && !showPassword) PasswordVisualTransformation() else VisualTransformation.None,
+        trailingIcon = if (password) {
+            {
+                IconButton(onClick = { showPassword = !showPassword }) {
+                    Icon(
+                        imageVector = if (showPassword) Icons.Filled.VisibilityOff else Icons.Filled.Visibility,
+                        contentDescription = null,
+                        tint = colors.textMuted,
+                    )
+                }
+            }
+        } else null,
         keyboardOptions = keyboard,
         keyboardActions = KeyboardActions(onDone = { onImeDone() }, onGo = { onImeDone() }),
         modifier = Modifier.fillMaxWidth(),

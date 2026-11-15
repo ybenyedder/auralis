@@ -362,6 +362,7 @@ fun PlaylistDetail(vm: AppViewModel, ui: UiState, playlistId: String) {
             text = {
                 OutlinedTextField(
                     value = inviteName, onValueChange = { inviteName = it }, singleLine = true,
+                    shape = AMShapes.tile,
                     placeholder = { Text(tr("common.username"), color = colors.textFaint) },
                     modifier = Modifier.fillMaxWidth(),
                 )
@@ -393,6 +394,7 @@ fun PlaylistDetail(vm: AppViewModel, ui: UiState, playlistId: String) {
                     value = tiktokUrl,
                     onValueChange = { tiktokUrl = it },
                     singleLine = true,
+                    shape = AMShapes.tile,
                     placeholder = { Text(tr("detail.tiktokPrompt"), color = colors.textFaint) },
                     modifier = Modifier.fillMaxWidth(),
                 )
@@ -458,6 +460,7 @@ fun PlaylistDetail(vm: AppViewModel, ui: UiState, playlistId: String) {
                 Spacer(Modifier.height(14.dp))
                 if (renaming) {
                     OutlinedTextField(value = newName, onValueChange = { newName = it }, singleLine = true,
+                        shape = AMShapes.tile,
                         modifier = Modifier.fillMaxWidth())
                     Spacer(Modifier.height(8.dp))
                     Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {

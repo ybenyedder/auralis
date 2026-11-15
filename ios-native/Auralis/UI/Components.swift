@@ -4,7 +4,7 @@ import SwiftUI
 struct CoverArt: View {
     let url: URL?
     let colors: [Color]
-    var corner: CGFloat = 6
+    var corner: CGFloat = 12
     var initial: String? = nil
 
     var body: some View {
@@ -35,7 +35,7 @@ struct TrackRowView: View {
     var body: some View {
         Button { app.play(track, in: list) } label: {
             HStack(spacing: 12) {
-                CoverArt(url: app.artURL(track.image), colors: trackColors(track), corner: 4)
+                CoverArt(url: app.artURL(track.image), colors: trackColors(track), corner: 10)
                     .frame(width: 48, height: 48)
                 VStack(alignment: .leading, spacing: 2) {
                     Text(track.title).font(.subheadline.weight(.semibold))
@@ -82,7 +82,7 @@ struct MiniPlayer: View {
         if let track = app.currentTrack {
             Button { app.showPlayer = true } label: {
                 HStack(spacing: 10) {
-                    CoverArt(url: app.artURL(track.image), colors: trackColors(track), corner: 4)
+                    CoverArt(url: app.artURL(track.image), colors: trackColors(track), corner: 10)
                         .frame(width: 40, height: 40)
                     VStack(alignment: .leading, spacing: 1) {
                         Text(track.title).font(.footnote.weight(.semibold)).foregroundStyle(.primary).lineLimit(1)
@@ -99,8 +99,8 @@ struct MiniPlayer: View {
                 }
                 .padding(.horizontal, 10)
                 .padding(.vertical, 8)
-                .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
-                .overlay(RoundedRectangle(cornerRadius: 14, style: .continuous).stroke(Color.primary.opacity(0.08), lineWidth: 0.5))
+                .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 22, style: .continuous))
+                .overlay(RoundedRectangle(cornerRadius: 22, style: .continuous).stroke(Color.primary.opacity(0.08), lineWidth: 0.5))
                 .shadow(color: .black.opacity(0.28), radius: 12, y: 6)
                 .padding(.horizontal, 8)
             }

@@ -150,6 +150,7 @@ fun ScreenOverlays(ui: UiState, vm: AppViewModel) {
             text = {
                 OutlinedTextField(
                     value = createName, onValueChange = { createName = it }, singleLine = true,
+                    shape = AMShapes.tile,
                     placeholder = { Text(tr("library.newPlaylistName"), color = colors.textFaint) },
                     colors = OutlinedTextFieldDefaults.colors(
                         focusedBorderColor = colors.accent, unfocusedBorderColor = colors.lineStrong,
@@ -183,6 +184,7 @@ fun ScreenOverlays(ui: UiState, vm: AppViewModel) {
             text = {
                 OutlinedTextField(
                     value = linkUrl, onValueChange = { linkUrl = it }, singleLine = true,
+                    shape = AMShapes.tile,
                     placeholder = { Text(tr("library.linkPlaceholder"), color = colors.textFaint) },
                     colors = OutlinedTextFieldDefaults.colors(
                         focusedBorderColor = colors.accent, unfocusedBorderColor = colors.lineStrong,

@@ -191,7 +191,7 @@ function normalizeUsername(name: string): string {
 export async function createUser(username: string, password: string, isAdmin = false): Promise<{ ok: boolean; error?: string; id?: number }> {
   ensureAuth();
   const uname = normalizeUsername(username);
-  if (!/^[a-z0-9._-]{2,32}$/.test(uname)) return { ok: false, error: "Identifiant invalide (2–32 caractères : lettres, chiffres, . _ -)" };
+  if (!/^[a-z0-9._@-]{2,32}$/.test(uname)) return { ok: false, error: "Identifiant invalide (2–32 caractères : lettres, chiffres, . _ @ -)" };
   const pwErr = validatePassword(password);
   if (pwErr) return { ok: false, error: pwErr };
   if (getUserByName(uname)) return { ok: false, error: "Cet identifiant existe déjà" };

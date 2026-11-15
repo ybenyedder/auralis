@@ -86,7 +86,7 @@ struct LibraryView: View {
             ForEach(albums) { album in
                 NavigationLink(value: album) {
                     VStack(alignment: .leading, spacing: 6) {
-                        CoverArt(url: app.artURL(album.image), colors: palette(for: album.albumhash), corner: 8)
+                        CoverArt(url: app.artURL(album.image), colors: palette(for: album.albumhash), corner: 16)
                             .aspectRatio(1, contentMode: .fit)
                         Text(album.title).font(.footnote.weight(.semibold)).foregroundStyle(.primary).lineLimit(1)
                         Text(album.artistName).font(.caption2).foregroundStyle(.secondary).lineLimit(1)
@@ -116,7 +116,7 @@ struct LibraryView: View {
             ForEach(playlists) { pl in
                 NavigationLink(value: pl) {
                     HStack(spacing: 12) {
-                        CoverArt(url: app.artURL(pl.imageHash.map { "/api/art/\($0)" }), colors: palette(for: pl.id), corner: 6)
+                        CoverArt(url: app.artURL(pl.imageHash.map { "/api/art/\($0)" }), colors: palette(for: pl.id), corner: 12)
                             .frame(width: 52, height: 52)
                         VStack(alignment: .leading, spacing: 2) {
                             Text(pl.name).font(.subheadline.weight(.semibold)).foregroundStyle(.primary).lineLimit(1)
