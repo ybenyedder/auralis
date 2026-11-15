@@ -23,12 +23,12 @@
 
   --background: #000000;
   --foreground: #ffffff;
-  --ink: #ffffff; /* text on the red accent */
-  --paper: rgba(25, 25, 25, 0.75);
+  --ink: #09090b; /* dark ink on pearl-white Liner accent */
+  --paper: rgba(14, 14, 16, 0.82);
 
-  --surface-1: rgba(28, 28, 30, 0.75); /* iOS secondarySystemBackground (dark) */
-  --surface-2: rgba(44, 44, 46, 0.85); /* iOS tertiarySystemBackground (dark) */
-  --surface-3: rgba(58, 58, 60, 0.95); /* hover / quaternary */
+  --surface-1: rgba(255, 255, 255, 0.05); /* Liner glass surface */
+  --surface-2: rgba(255, 255, 255, 0.09); /* Liner elevated glass */
+  --surface-3: rgba(255, 255, 255, 0.14); /* hover / quaternary */
   /* Back-compat aliases so existing `var(--panel*)` usage keeps resolving
      during the component refresh (Workstream B retires them one by one). */
   --panel: var(--surface-1);
@@ -37,18 +37,18 @@
 
   --line: rgba(255, 255, 255, 0.08);
   --line-strong: rgba(255, 255, 255, 0.16);
-  --text-muted: #98989f; /* iOS secondaryLabel (dark) */
-  --text-faint: #636366; /* iOS tertiaryLabel (dark) */
+  --text-muted: #a1a1aa; /* zinc-400 */
+  --text-faint: #71717a; /* zinc-500 */
 
-  --primary: #fa233b; /* Apple Music red */
-  --primary-hover: #fc3158;
-  --primary-foreground: #ffffff;
-  --primary-soft: #fc3158;
-  --primary-deep: #d61f33;
+  --primary: #f4f4f5; /* Liner neutral pearl */
+  --primary-hover: #ffffff;
+  --primary-foreground: #09090b;
+  --primary-soft: #d4d4d8;
+  --primary-deep: #a1a1aa;
 
   --card: var(--surface-1);
   --card-foreground: var(--foreground);
-  --popover: #1c1c1e;
+  --popover: #141416;
   --popover-foreground: var(--foreground);
   --secondary: var(--surface-2);
   --secondary-foreground: var(--foreground);
@@ -59,13 +59,13 @@
   --destructive: #ff453a; /* iOS systemRed (dark) */
   --border: var(--line);
   --input: var(--line);
-  --ring: rgba(250, 35, 59, 0.5);
-  --focus-ring: #fa233b;
+  --ring: rgba(255, 255, 255, 0.35);
+  --focus-ring: #f4f4f5;
 
-  --sidebar: rgba(0, 0, 0, 0.75);
+  --sidebar: rgba(0, 0, 0, 0.78);
   --sidebar-foreground: var(--foreground);
   --sidebar-primary: var(--primary);
-  --sidebar-primary-foreground: #ffffff;
+  --sidebar-primary-foreground: #09090b;
   --sidebar-accent: rgba(255, 255, 255, 0.1);
   --sidebar-accent-foreground: var(--foreground);
   --sidebar-border: var(--line);
@@ -83,33 +83,33 @@
   --ink: #ffffff;
   --paper: rgba(255, 255, 255, 0.85);
 
-  --surface-1: rgba(242, 242, 247, 0.75); /* iOS secondarySystemBackground (light) */
-  --surface-2: rgba(229, 229, 234, 0.85); /* iOS tertiarySystemBackground (light) */
-  --surface-3: rgba(209, 209, 214, 0.95); /* hover */
+  --surface-1: rgba(0, 0, 0, 0.04); /* Liner light glass */
+  --surface-2: rgba(0, 0, 0, 0.07);
+  --surface-3: rgba(0, 0, 0, 0.11);
   --panel: var(--surface-1);
   --panel-2: var(--surface-2);
   --panel-3: var(--surface-3);
 
   --line: rgba(0, 0, 0, 0.08);
   --line-strong: rgba(0, 0, 0, 0.16);
-  --text-muted: rgba(60, 60, 67, 0.6); /* iOS secondaryLabel (light) */
-  --text-faint: rgba(60, 60, 67, 0.3); /* iOS tertiaryLabel (light) */
+  --text-muted: rgba(24, 24, 27, 0.62);
+  --text-faint: rgba(24, 24, 27, 0.36);
 
-  --primary: #fa233b;
-  --primary-hover: #d61f33;
+  --primary: #18181b; /* Liner obsidian */
+  --primary-hover: #27272a;
   --primary-foreground: #ffffff;
-  --primary-soft: #fc3158;
-  --primary-deep: #d61f33;
+  --primary-soft: #3f3f46;
+  --primary-deep: #09090b;
 
   --card: var(--surface-1);
-  --popover: #f2f2f7;
+  --popover: #f4f4f5;
   --secondary: var(--surface-2);
   --muted: var(--surface-2);
   --accent: rgba(0, 0, 0, 0.05);
   --destructive: #ff3b30; /* iOS systemRed (light) */
   --border: var(--line);
-  --ring: rgba(250, 35, 59, 0.4);
-  --focus-ring: #fa233b;
+  --ring: rgba(24, 24, 27, 0.3);
+  --focus-ring: #18181b;
 
   --sidebar: rgba(247, 247, 249, 0.75);
   --sidebar-primary: var(--primary);

@@ -163,7 +163,7 @@ struct AdminUsersView: View {
                     } label: {
                         Text(busy ? "Création…" : "Créer le compte")
                             .font(.subheadline.weight(.bold)).frame(maxWidth: .infinity).padding(.vertical, 12)
-                            .background(app.accentColor, in: Capsule()).foregroundStyle(.white)
+                            .background(app.accentColor, in: Capsule()).foregroundStyle(app.accentInk)
                     }
                     .disabled(newName.isEmpty || newPass.isEmpty || busy)
                 }

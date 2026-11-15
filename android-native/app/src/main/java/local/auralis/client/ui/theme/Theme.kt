@@ -25,10 +25,10 @@ import local.auralis.client.R
 // artwork — never the UI — sets the mood. One red accent (#FF4D4D) is the only
 // saturated UI colour, echoed from the artwork's warm tones.
 
-/** Liner red accent (identical in both modes). */
-private val LinerRed = Color(0xFFFF4D4D)
-/** Softer red steps for hovers/glows. */
-private val LinerRedSoft = Color(0xFFFF8A8A)
+/** Liner neutral pearl accent in dark mode (content provides the colour). */
+private val LinerPearl = Color(0xFFF4F4F5)
+private val LinerPearlSoft = Color(0xFFD4D4D8)
+private val LinerPearlDeep = Color(0xFFA1A1AA)
 
 /**
  * Palette consumed by call sites via [LocalAuralis]. The field set is preserved
@@ -52,7 +52,7 @@ data class AuralisColors(
     val accentSoft: Color,
     val accentDeep: Color,
     val brass: Color,
-    val verdigris: Color = LinerRed,
+    val verdigris: Color = LinerPearl,
     val destructive: Color = Color(0xFFFF453A),
 )
 
@@ -72,7 +72,7 @@ private fun darkColors() = AuralisColors(
     foreground = Color(0xFFFFFFFF),        // --text-primary
     background = Color(0xFF000000),        // --bg-canvas (deep black stage)
     paper = Color(0xFF0A0A0A),             // --bg-surface alias
-    ink = Color(0xFFFFFFFF),               // text on the red accent
+    ink = Color(0xFF09090B),               // dark ink on pearl-white Liner accent
     panel = Color(0xFF0A0A0A),             // --bg-surface (cards, near-black)
     panel2 = Color(0xFF141414),            // --bg-elevated
     panel3 = Color(0xFF1A1A1A),            // --bg-panel (active/pressed)
@@ -80,11 +80,11 @@ private fun darkColors() = AuralisColors(
     lineStrong = Color(0x33FFFFFF),        // rgba(255,255,255,0.2) emphasis
     textMuted = Color(0xB3FFFFFF),         // rgba(255,255,255,0.7)
     textFaint = Color(0x73FFFFFF),         // rgba(255,255,255,0.45)
-    accent = LinerRed,                     // --accent-primary
-    accentSoft = LinerRedSoft,             // --accent-soft
-    accentDeep = Color(0xFFE03535),
+    accent = LinerPearl,                   // --accent-primary (Liner neutral)
+    accentSoft = LinerPearlSoft,           // --accent-soft
+    accentDeep = LinerPearlDeep,
     brass = Color(0xB3FFFFFF),             // eyebrow text → muted
-    verdigris = LinerRed,
+    verdigris = LinerPearl,
     destructive = Color(0xFFFF453A),
 )
 
@@ -100,11 +100,11 @@ private fun lightColors() = AuralisColors(
     lineStrong = Color(0x24000000),        // rgba(0,0,0,0.14)
     textMuted = Color(0xA6000000),         // rgba(0,0,0,0.65)
     textFaint = Color(0x73000000),         // rgba(0,0,0,0.45)
-    accent = Color(0xFFFF3B3B),            // --accent-primary (light)
-    accentSoft = Color(0xFFFF5C5C),
-    accentDeep = Color(0xFFE02B2B),
+    accent = Color(0xFF18181B),            // --accent-primary (Liner light obsidian)
+    accentSoft = Color(0xFF3F3F46),
+    accentDeep = Color(0xFF09090B),
     brass = Color(0xA6000000),
-    verdigris = Color(0xFFFF3B3B),
+    verdigris = Color(0xFF18181B),
     destructive = Color(0xFFFF3B30),
 )
 

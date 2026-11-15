@@ -585,7 +585,7 @@ private fun LazyItemScope.QuickTile(tile: QuickTileItem, modifier: Modifier = Mo
                 Modifier
                     .size(48.dp)
                     .clip(AMShapes.thumb)
-                    .background(Brush.linearGradient(listOf(Color(0xFFFA233B), Color(0xFFFC5C7A), Color(0xFFFFAEBE)))),
+                    .background(Brush.linearGradient(listOf(Color(0xFF3F3F46), Color(0xFF27272A), Color(0xFF18181B)))),
                 contentAlignment = Alignment.Center,
             ) {
                 Icon(Icons.Filled.Favorite, null, tint = Color.White, modifier = Modifier.size(20.dp))

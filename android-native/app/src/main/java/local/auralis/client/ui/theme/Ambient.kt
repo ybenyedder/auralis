@@ -92,11 +92,10 @@ private fun brighten(c: Color, amount: Float): Color = Color(
 )
 
 /** Global holder for the ambient colours, driven by the now-playing cover. */
-val LocalAmbient = staticCompositionLocalOf { AmbientColors(Color(0xFF12121A), Color(0xFF0A0A0A), LinerRedPrivate) }
+val LocalAmbient = staticCompositionLocalOf { AmbientColors(Color(0xFF12121A), Color(0xFF0A0A0A), LinerNeutralPrivate) }
 
-// The accent used before any cover loads — a muted red that matches the accent
-// token, referenced here to avoid a circular dependency on Theme.kt's privates.
-private val LinerRedPrivate = Color(0xFFFF4D4D)
+// Neutral Liner accent before cover art loads — cover art drives the real colour.
+private val LinerNeutralPrivate = Color(0xFFE4E4E7)
 
 /**
  * The ambient stage: a soft two-tone radial wash over the deep-black canvas.

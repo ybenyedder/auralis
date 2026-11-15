@@ -15,7 +15,7 @@ private struct DetailScaffold<Header: View>: View {
                     Button { app.playAll(tracks) } label: {
                         Label("Lire", systemImage: "play.fill")
                             .font(.subheadline.weight(.bold)).padding(.horizontal, 20).padding(.vertical, 10)
-                            .background(app.accentColor, in: Capsule()).foregroundStyle(.white)
+                            .background(app.accentColor, in: Capsule()).foregroundStyle(app.accentInk)
                     }.buttonStyle(.plain)
                     Button { app.playAll(tracks, shuffled: true) } label: {
                         Image(systemName: "shuffle").font(.headline).foregroundStyle(.primary)

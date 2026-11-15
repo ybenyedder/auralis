@@ -5,9 +5,19 @@ import SwiftUI
 // catalogue and dark-only Spotify skin have been retired for parity with the
 // redesigned web client (see docs/design-system.md).
 enum Theme {
-    /// Apple Music red accent (#FA233B) — used for the play FAB, active rows,
-    /// sliders, hearts, etc. Same value in dark and light.
-    static let accent = Color(red: 0xFA/255, green: 0x23/255, blue: 0x3B/255)
+    /// Liner neutral monochrome accent (#F4F4F5 dark, #18181B light) — keeps
+    /// chrome quiet so album artwork sets the colour.
+    static let accent = Color(UIColor {
+        $0.userInterfaceStyle == .dark
+            ? UIColor(red: 0xF4/255, green: 0xF4/255, blue: 0xF5/255, alpha: 1)
+            : UIColor(red: 0x18/255, green: 0x18/255, blue: 0x1B/255, alpha: 1)
+    })
+    /// Contrasting foreground ink on `Theme.accent`.
+    static let accentInk = Color(UIColor {
+        $0.userInterfaceStyle == .dark
+            ? UIColor(red: 0x09/255, green: 0x09/255, blue: 0x0B/255, alpha: 1)
+            : .white
+    })
 
     /// App stage. Opaque system background so dark + light both resolve.
     static let background = Color(.systemBackground)

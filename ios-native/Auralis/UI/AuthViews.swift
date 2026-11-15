@@ -33,7 +33,7 @@ struct ConnectView: View {
                 } label: {
                     Text(busy ? "Connexion…" : "Continuer")
                         .font(.headline).frame(maxWidth: .infinity).padding(.vertical, 14)
-                        .background(app.accentColor, in: Capsule()).foregroundStyle(.white)
+                        .background(app.accentColor, in: Capsule()).foregroundStyle(app.accentInk)
                 }
                 .disabled(url.trimmingCharacters(in: .whitespaces).isEmpty || busy)
             }
@@ -91,7 +91,7 @@ struct LoginView: View {
                                 .frame(maxWidth: .infinity)
                                 .padding(.vertical, 10)
                                 .background(mode == m ? app.accentColor : Color.clear, in: Capsule())
-                                .foregroundStyle(mode == m ? .white : .secondary)
+                                .foregroundStyle(mode == m ? app.accentInk : .secondary)
                         }
                         .buttonStyle(.plain)
                     }
@@ -112,7 +112,7 @@ struct LoginView: View {
                                         .font(.subheadline.weight(.semibold))
                                         .padding(.horizontal, 14).padding(.vertical, 8)
                                         .background(username == name ? app.accentColor : Theme.panel2, in: Capsule())
-                                        .foregroundStyle(username == name ? .white : .primary)
+                                        .foregroundStyle(username == name ? app.accentInk : .primary)
                                 }.buttonStyle(.plain)
                             }
                         }.padding(.horizontal, 2)
@@ -171,7 +171,7 @@ struct LoginView: View {
                     } label: {
                         Text(busy ? (mode == .login ? "Connexion…" : "Création…") : mode.rawValue)
                             .font(.headline).frame(maxWidth: .infinity).padding(.vertical, 14)
-                            .background(app.accentColor, in: Capsule()).foregroundStyle(.white)
+                            .background(app.accentColor, in: Capsule()).foregroundStyle(app.accentInk)
                     }
                     .disabled(username.trimmingCharacters(in: .whitespaces).isEmpty || password.isEmpty || busy)
 

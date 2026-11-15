@@ -25,7 +25,7 @@ export default function GlobalError({
       <head>
         <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
         <style>{`
-          :root { --primary: #FA233B; --bg: #000; --fg: #fff; --muted: #98989F; }
+          :root { --primary: #F4F4F5; --bg: #000; --fg: #fff; --muted: #A1A1AA; }
           * { box-sizing: border-box; }
           body {
             margin: 0; min-height: 100dvh; display: grid; place-items: center;
@@ -37,14 +37,14 @@ export default function GlobalError({
           .glyph { width: 64px; height: 64px; display: grid; place-items: center; border-radius: 14px; background: #1c1c1e; }
           h1 { margin: 0; font-size: 20px; font-weight: 700; letter-spacing: -0.01em; }
           p { margin: 0; color: var(--muted); font-size: 14px; line-height: 1.5; }
-          button { margin-top: 4px; border: none; cursor: pointer; background: var(--primary); color: #fff; font: inherit; font-weight: 600; font-size: 14px; padding: 10px 20px; border-radius: 9999px; transition: transform .12s ease; }
+          button { margin-top: 4px; border: none; cursor: pointer; background: var(--primary); color: #09090B; font: inherit; font-weight: 600; font-size: 14px; padding: 10px 20px; border-radius: 9999px; transition: transform .12s ease; }
           button:active { transform: scale(.95); }
         `}</style>
       </head>
       <body>
         <div className="card">
           <div className="glyph" aria-hidden>
-            <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#FA233B" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#F4F4F5" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
               <path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z" />
               <line x1="12" y1="9" x2="12" y2="13" />
               <line x1="12" y1="17" x2="12.01" y2="17" />

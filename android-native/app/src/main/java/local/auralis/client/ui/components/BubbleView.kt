@@ -55,10 +55,10 @@ class BubbleView(context: Context) : View(context) {
      *  the remove-target drop and the snap-back. Never fired on a tap. */
     var onDragEnd: (() -> Unit)? = null
 
-    // Apple-Music-red accent (mirrors ui/theme/Theme.kt — the View lives outside
+    // Liner neutral pearl accent (mirrors ui/theme/Theme.kt — the View lives outside
     // the Compose tree so it carries its own palette constants).
-    private val accentColor = Color.parseColor("#FA233B")
-    private val inkColor = Color.WHITE
+    private val accentColor = Color.parseColor("#F4F4F5")
+    private val inkColor = Color.parseColor("#09090B")
     private val darkColor = Color.parseColor("#E61C1C1E")
 
     private val density = context.resources.displayMetrics.density
@@ -299,7 +299,7 @@ class BubbleView(context: Context) : View(context) {
  */
 class BubbleRemoveTargetView(context: Context, private val label: String) : View(context) {
 
-    private val accentColor = Color.parseColor("#FA233B")
+    private val accentColor = Color.parseColor("#FF453A")
     private val inkColor = Color.WHITE
 
     private val density = context.resources.displayMetrics.density

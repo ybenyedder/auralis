@@ -120,6 +120,7 @@ struct SectionTitle: View {
 
 extension AppState {
     var accentColor: Color { Theme.accent }
+    var accentInk: Color { Theme.accentInk }
 }
 
 func formatTime(_ seconds: Double) -> String {
