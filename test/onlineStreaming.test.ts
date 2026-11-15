@@ -326,6 +326,36 @@ test("identifyTikTokAudio prioritizes Shazam recognition, falls back to non-orig
   assert.equal(captionVerified.artist, "laydownrot");
   assert.equal(captionVerified.title, "sexy scene girl");
   assert.equal(captionVerified.source, "tiktok-meta");
+
+  // youtube.ts collectSearchHits parses both Video and modern LockupView nodes
+  const { collectSearchHits } = await import("../src/server/library/youtube");
+  const parsedHits = collectSearchHits(
+    [
+      {
+        video_id: "uX2mopyE5Z0",
+        title: { text: "I Wan'na Be Like You (The Monkey Song)" },
+        author: { name: "Louis Prima - Topic" },
+        duration: { seconds: 280 },
+        thumbnails: [{ url: "https://i.ytimg.com/vi/uX2mopyE5Z0/hq720.jpg" }],
+      },
+      {
+        content_id: "aRRDJTVA-VA",
+        metadata: {
+          title: { text: "sexy scene girl (slowed)" },
+          metadata: { metadata_rows: [{ metadata_parts: [{ text: { text: "laydownrot" } }] }] },
+        },
+        duration: { seconds: 103 },
+        content_image: { image: [{ url: "https://i.ytimg.com/vi/aRRDJTVA-VA/hq720.jpg" }] },
+      },
+    ],
+    5,
+  );
+  assert.equal(parsedHits.length, 2);
+  assert.equal(parsedHits[1]?.videoId, "aRRDJTVA-VA");
+  assert.equal(parsedHits[1]?.title, "sexy scene girl (slowed)");
+  assert.equal(parsedHits[1]?.uploader, "laydownrot");
+  assert.equal(parsedHits[1]?.duration, 103);
+  assert.equal(parsedHits[1]?.thumbnail, "https://i.ytimg.com/vi/aRRDJTVA-VA/hq720.jpg");
 });
 
 test("instantRegisterOnlineTracksBatch registers lazy placeholders immediately and resolveLazyVideoId resolves once", async () => {

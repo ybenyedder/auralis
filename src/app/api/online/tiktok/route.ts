@@ -30,7 +30,17 @@ export async function POST(request: Request) {
   try {
     const detected = await identifyTikTokAudio(url);
     const query = [detected.artist, detected.title].filter(Boolean).join(" ").trim();
-    const search = await onlineSearch(query, 6, { bypassDownloadGate: true });
+    let search = await onlineSearch(query, 6, { bypassDownloadGate: true });
+    if (search.results.length === 0 && detected.title && detected.artist) {
+      const primaryArtist = detected.artist.split(/,|&|\bfeat\.?\b|\bft\.?\b/i)[0]?.trim() ?? "";
+      const fallbackQuery = [primaryArtist, detected.title].filter(Boolean).join(" ").trim();
+      if (fallbackQuery && fallbackQuery !== query) {
+        search = await onlineSearch(fallbackQuery, 6, { bypassDownloadGate: true });
+      }
+      if (search.results.length === 0) {
+        search = await onlineSearch(detected.title, 6, { bypassDownloadGate: true });
+      }
+    }
     const hit = pickBestTikTokStreamHit(search.results, detected);
     if (!hit) {
       return json(

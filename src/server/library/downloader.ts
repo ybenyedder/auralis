@@ -138,11 +138,19 @@ export async function onlineSearch(
     return { enabled: true, results: [], error: "Recherche en ligne indisponible" };
   }
   const results: OnlineResult[] = [];
+  const unknownDurationFallback: OnlineResult[] = [];
   for (const hit of hits) {
     if (!hit.videoId || !hit.title) continue;
-    if (hit.duration <= 0 || hit.duration > MAX_DURATION_S) continue;
+    if (hit.duration > MAX_DURATION_S) continue;
+    if (hit.duration <= 0) {
+      unknownDurationFallback.push(toOnlineResult(hit));
+      continue;
+    }
     results.push(toOnlineResult(hit));
     if (results.length >= limit) break;
+  }
+  if (results.length === 0 && unknownDurationFallback.length > 0) {
+    results.push(...unknownDurationFallback.slice(0, limit));
   }
   searchCache.set(trimmed.toLowerCase(), { at: Date.now(), results });
   // Bound the cache so a long-lived server doesn't grow it forever.

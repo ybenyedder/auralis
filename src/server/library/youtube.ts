@@ -63,34 +63,62 @@ export interface YouTubeHit {
   url: string;
 }
 
-/** youtubei.js' search results are a union of node shapes (Video, CompactVideo,
- *  LockupView…) — only some of them carry the fields we need. Duck-type it. */
-interface SearchVideoLike {
+/** youtubei.js' search results are a union of node shapes (`Video`, `CompactVideo`,
+ *  `LockupView`…) — YouTube periodically rolls out `LockupView` in place of
+ *  `Video`, where the id/title/author/thumbnail sit on `content_id`,
+ *  `metadata`, and `content_image` rather than top-level `video_id`/`title`. */
+export interface SearchVideoLike {
   video_id?: string;
+  content_id?: string;
   title?: { text?: string };
   author?: { name?: string };
   duration?: { seconds?: number };
   best_thumbnail?: { url?: string };
   thumbnails?: Array<{ url?: string }>;
+  metadata?: {
+    title?: { text?: string };
+    metadata?: {
+      metadata_rows?: Array<{
+        metadata_parts?: Array<{ text?: { text?: string } | null }>;
+      }>;
+    };
+  };
+  content_image?: {
+    image?: Array<{ url?: string }>;
+    primary_thumbnail?: { image?: Array<{ url?: string }> };
+  };
 }
 
 const AGE_GATE_WORDS_RE = /\b(?:sexy|sex|porn|nude|nudity|nsfw|explicit|uncensored)\b/gi;
 const MASKED_WORD_RE = /\S*\*\S*/g;
 
-function collectSearchHits(videos: unknown, limit: number): YouTubeHit[] {
+export function collectSearchHits(videos: unknown, limit: number): YouTubeHit[] {
   const hits: YouTubeHit[] = [];
   for (const video of (Array.isArray(videos) ? videos : []) as SearchVideoLike[]) {
-    const videoId = video.video_id;
+    const contentType = (video as { content_type?: string }).content_type;
+    if (contentType && !["VIDEO", "MOVIE", "SHORT", "STATION"].includes(contentType)) continue;
+    const videoId = video.video_id ?? video.content_id;
     // Some YouTube result nodes mash metadata into the title text (view
     // counts, line breaks) — flatten it to a single clean line.
-    const title = (video.title?.text ?? "").replace(/\s+/g, " ").trim().slice(0, 200);
+    const rawTitle = video.title?.text ?? video.metadata?.title?.text ?? "";
+    const title = rawTitle.replace(/\s+/g, " ").trim().slice(0, 200);
     if (!videoId || !title) continue;
+    const uploader =
+      video.author?.name ??
+      video.metadata?.metadata?.metadata_rows?.[0]?.metadata_parts?.[0]?.text?.text?.trim() ??
+      "YouTube";
+    const thumbnail =
+      video.best_thumbnail?.url ??
+      video.thumbnails?.[0]?.url ??
+      video.content_image?.image?.[0]?.url ??
+      video.content_image?.primary_thumbnail?.image?.[0]?.url ??
+      null;
     hits.push({
       videoId,
       title,
-      uploader: video.author?.name ?? "YouTube",
+      uploader: uploader || "YouTube",
       duration: Math.round(video.duration?.seconds ?? 0),
-      thumbnail: video.best_thumbnail?.url ?? video.thumbnails?.[0]?.url ?? null,
+      thumbnail,
       url: `https://www.youtube.com/watch?v=${videoId}`,
     });
     if (hits.length >= limit) break;
@@ -102,8 +130,12 @@ function collectSearchHits(videos: unknown, limit: number): YouTubeHit[] {
  *  error to their own user-facing wording. */
 export async function youtubeSearch(query: string, limit: number): Promise<YouTubeHit[]> {
   const yt = await getSession();
+  const extract = (res: { videos?: unknown; results?: unknown }) => {
+    const fromVideos = collectSearchHits(res.videos, limit);
+    return fromVideos.length > 0 ? fromVideos : collectSearchHits(res.results, limit);
+  };
   const search = await yt.search(query, { type: "video" });
-  const hits = collectSearchHits(search.videos, limit);
+  const hits = extract(search);
   if (hits.length > 0) return hits;
 
   // Anonymous InnerTube Web returns `BackgroundPromo: Confirm your age` with 0
@@ -116,7 +148,7 @@ export async function youtubeSearch(query: string, limit: number): Promise<YouTu
     .trim();
   if (sanitized.length >= 2 && sanitized.toLowerCase() !== query.trim().toLowerCase()) {
     const retry = await yt.search(sanitized, { type: "video" });
-    return collectSearchHits(retry.videos, limit);
+    return extract(retry);
   }
   return hits;
 }
