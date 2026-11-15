@@ -298,7 +298,7 @@ fun FullscreenPlayer(
                                         },
                                     ) { _, amt -> coverDx += amt }
                                 },
-                            cornerRadius = 12, sizeDp = 0,
+                            cornerRadius = 22, sizeDp = 0,
                         )
                     }
                 }
@@ -745,7 +745,7 @@ private fun QueuePane(playback: PlaybackSnapshot, ui: UiState, vm: AppViewModel)
                     Modifier.fillMaxWidth().clickable { vm.jumpTo(realIndex) }.padding(vertical = 8.dp),
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
-                    CoverArt(t.image, t.albumhash ?: t.title, Modifier.size(40.dp), cornerRadius = 8, sizeDp = 40)
+                    CoverArt(t.image, t.albumhash ?: t.title, Modifier.size(40.dp), cornerRadius = 12, sizeDp = 40)
                     Spacer(Modifier.width(12.dp))
                     Column(Modifier.weight(1f)) {
                         Text(t.title, color = if (isCurrent) colors.accent else colors.foreground, style = AMType.Subhead, fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis)

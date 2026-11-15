@@ -50,11 +50,11 @@ object Spacing {
  * `pill` fully-rounded buttons/chips.
  */
 object Radius {
-    val xs: Dp = 6.dp
-    val sm: Dp = 10.dp
-    val md: Dp = 14.dp
-    val lg: Dp = 20.dp
-    val xl: Dp = 28.dp
+    val xs: Dp = 12.dp
+    val sm: Dp = 16.dp
+    val md: Dp = 22.dp
+    val lg: Dp = 28.dp
+    val xl: Dp = 36.dp
     val pill: Dp = 999.dp
 }
 

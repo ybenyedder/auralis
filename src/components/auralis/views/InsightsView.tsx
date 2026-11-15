@@ -191,7 +191,7 @@ function WeeklyRecap({ streak, weekPlays, todayPlays, playsByDay, weekListeningS
             const isToday = i === arr.length - 1;
             return (
               <div key={d.day} className="flex flex-1 items-end" title={t("insights.playsAttribute", "{count} écoutes", { count: d.count })}>
-                <div className={cn("w-full rounded-xs", isToday ? "bg-primary" : "bg-primary/35")} style={{ height: `${h}%` }} />
+                <div className={cn("w-full rounded-t-md rounded-b-sm", isToday ? "bg-primary" : "bg-primary/35")} style={{ height: `${h}%` }} />
               </div>
             );
           })}
@@ -214,7 +214,7 @@ function BarList({ rows }: { rows: { id: string; label: string; value: number }[
   const t = useT();
   const max = Math.max(1, ...rows.map((row) => row.value));
   if (rows.length === 0) {
-    return <div className="rounded-md border border-dashed border-[var(--line)] p-6 text-center text-[12px] text-muted-foreground">{t("insights.noData", "Aucune donnée disponible.")}</div>;
+    return <div className="rounded-2xl border border-dashed border-[var(--line)] p-6 text-center text-[12px] text-muted-foreground">{t("insights.noData", "Aucune donnée disponible.")}</div>;
   }
 
   return (
@@ -228,8 +228,8 @@ function BarList({ rows }: { rows: { id: string; label: string; value: number }[
               <span className="min-w-0 flex-1 truncate font-semibold text-foreground/90 lg:text-foreground">{row.label}</span>
               <span className="shrink-0 tabular-nums font-semibold text-foreground">{row.value}</span>
             </div>
-            <div className="mt-1.5 h-2 overflow-hidden rounded-xs bg-[var(--panel-2)] lg:mt-1 lg:h-1.5">
-              <div className="h-full rounded-xs bg-primary" style={{ width: `${percent}%` }} />
+            <div className="mt-1.5 h-2 overflow-hidden rounded-full bg-[var(--panel-2)] lg:mt-1 lg:h-1.5">
+              <div className="h-full rounded-full bg-primary" style={{ width: `${percent}%` }} />
             </div>
           </div>
         );

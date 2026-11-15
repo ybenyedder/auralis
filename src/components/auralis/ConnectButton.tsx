@@ -173,7 +173,7 @@ function RemoteControls({ deviceId, onClose }: { deviceId: string; onClose: () =
           <MonitorSpeaker className="size-3.5 shrink-0" />
           <span className="truncate">{t("connect.listeningOn", undefined, { device: device?.name ?? t("connect.aDevice") })}</span>
         </span>
-        <button onClick={() => control(null)} className="shrink-0 rounded-md px-2 py-0.5 text-[11px] font-semibold text-[var(--text-muted)] transition-colors hover:bg-white/10 hover:text-white">
+        <button onClick={() => control(null)} className="shrink-0 rounded-full px-2.5 py-0.5 text-[11px] font-semibold text-[var(--text-muted)] transition-colors hover:bg-white/10 hover:text-white">
           {t("connect.stop")}
         </button>
       </div>
@@ -183,7 +183,7 @@ function RemoteControls({ deviceId, onClose }: { deviceId: string; onClose: () =
           fluid
           size={56}
           imgSize={64}
-          rounded={8}
+          rounded={12}
           title={np?.title}
           image={np?.image}
           className="size-14 shrink-0"
@@ -320,7 +320,7 @@ function RemoteLyricsPreview({
       <button
         onClick={onOpenFull}
         disabled={lines.length === 0}
-        className="mt-2 flex w-full items-center justify-center gap-1.5 rounded-md bg-white/10 py-1.5 text-[11px] font-bold text-white transition-colors hover:bg-white/20 disabled:opacity-40"
+        className="mt-2 flex w-full items-center justify-center gap-1.5 rounded-xl bg-white/10 py-1.5 text-[11px] font-bold text-white transition-colors hover:bg-white/20 disabled:opacity-40"
       >
         <Mic2 className="size-3.5" /> {t("player.lyrics")}
       </button>

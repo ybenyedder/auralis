@@ -33,7 +33,7 @@ export function ToastHost() {
       aria-live={tone === "error" ? "assertive" : "polite"}
       className="pointer-events-none fixed bottom-[calc(var(--tabbar-h)+var(--miniplayer-h)+var(--safe-bottom)+12px)] left-1/2 z-[80] -translate-x-1/2 lg:bottom-[92px]"
     >
-      <div className="toast-in matte-panel pointer-events-auto flex items-center gap-3 rounded-lg px-4 py-2.5">
+      <div className="toast-in matte-panel pointer-events-auto flex items-center gap-3 rounded-2xl px-4 py-2.5">
         <span className={cn("grid size-5 shrink-0 place-items-center", iconClass)}>
           <Icon className="size-3.5" />
         </span>
@@ -51,7 +51,7 @@ export function ToastHost() {
         <button
           onClick={dismissToast}
           aria-label={t("toast.close", "Fermer")}
-          className="grid size-5 shrink-0 place-items-center rounded-sm text-muted-foreground transition-colors hover:bg-[var(--panel-3)] hover:text-foreground"
+          className="grid size-5 shrink-0 place-items-center rounded-full text-muted-foreground transition-colors hover:bg-[var(--panel-3)] hover:text-foreground"
         >
           <X className="size-3" />
         </button>

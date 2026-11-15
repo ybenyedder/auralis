@@ -549,11 +549,17 @@ private fun Dock(activeView: ViewId, onTab: (ViewId) -> Unit) {
         Tab(ViewId.EXPLORE, tr("search.title"), Icons.Filled.Search),
         Tab(ViewId.LIBRARY, tr("nav.library"), Icons.Filled.LibraryMusic),
     )
-    // Frosted translucent bar — content scrolled underneath blurs through.
-    Column(Modifier.fillMaxWidth().amFrosted(null, colors.panel)) {
-        Box(Modifier.fillMaxWidth().height(1.dp).background(colors.line))
+    // Floating frosted Liner pill dock — content scrolled underneath blurs through.
+    Column(
+        Modifier
+            .fillMaxWidth()
+            .navigationBarsPadding()
+            .padding(horizontal = 14.dp, vertical = 8.dp)
+            .clip(AMShapes.hero)
+            .amFrosted(AMShapes.hero, colors.panel),
+    ) {
         Row(
-            Modifier.fillMaxWidth().navigationBarsPadding().padding(vertical = Spacing.sm),
+            Modifier.fillMaxWidth().padding(vertical = Spacing.sm),
             horizontalArrangement = Arrangement.SpaceEvenly,
         ) {
             tabs.forEachIndexed { i, t ->

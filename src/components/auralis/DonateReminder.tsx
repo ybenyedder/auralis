@@ -90,9 +90,9 @@ export function DonateModal() {
   return (
     <div className="fixed inset-0 z-[80] flex items-center justify-center" role="dialog" aria-modal="true" aria-label={t("donate.title")}>
       <div className="backdrop-in absolute inset-0 bg-black/70" onClick={() => setOpen(false)} />
-      <div ref={dialogRef} className="scale-in matte-panel relative w-full max-w-[400px] overflow-hidden rounded-sm">
+      <div ref={dialogRef} className="scale-in matte-panel relative w-full max-w-[400px] overflow-hidden rounded-3xl">
         <div className="flex items-start justify-between gap-3 px-5 pt-5">
-          <span className="grid size-9 shrink-0 place-items-center rounded-sm bg-primary/15 text-primary-soft">
+          <span className="grid size-9 shrink-0 place-items-center rounded-xl bg-primary/15 text-primary-soft">
             <Heart className="size-5" />
           </span>
           <button

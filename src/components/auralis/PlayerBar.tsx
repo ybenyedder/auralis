@@ -83,12 +83,12 @@ export function PlayerBar() {
       <div className="flex min-w-0 items-center justify-start gap-4" style={{ width: "30%" }}>
         {currentTrack ? (
           <>
-            <button onClick={toggleFullscreenPlayer} aria-label={t("player.enlarge", "Agrandir")} className="shrink-0 group relative overflow-hidden rounded-md focus-auralis active:scale-95 transition-all">
+            <button onClick={toggleFullscreenPlayer} aria-label={t("player.enlarge", "Agrandir")} className="shrink-0 group relative overflow-hidden rounded-xl focus-auralis active:scale-95 transition-all">
               <Artwork
                 title={currentTrack.title}
                 trackhash={currentTrack.trackhash}
                 size={56}
-                rounded={8}
+                rounded={12}
                 colors={currentTrack.color}
                 image={currentTrack.image}
               />
@@ -457,12 +457,12 @@ function SleepPopover({ active, minutes, remaining, afterTrackActive, onPick, on
   return (
     <div
       ref={ref}
-      className="absolute bottom-10 right-0 z-40 w-[208px] overflow-hidden rounded-lg bg-[var(--popover)] p-2 shadow-[0_8px_24px_rgba(0,0,0,0.5)]"
+      className="absolute bottom-10 right-0 z-40 w-[208px] overflow-hidden rounded-2xl bg-[var(--popover)] p-2 shadow-[0_8px_24px_rgba(0,0,0,0.5)]"
     >
       <div className="flex items-center justify-between px-1.5 py-1 mb-1">
         <p className="text-[11px] font-semibold text-[var(--text-muted)]">{t("player.sleep", "Minuteur de veille")}</p>
         {active && remaining && (
-          <span className="rounded-sm bg-black/30 px-2 py-0.5 text-[10px] font-bold tabular-nums text-[var(--primary)]">
+          <span className="rounded-full bg-black/30 px-2 py-0.5 text-[10px] font-bold tabular-nums text-[var(--primary)]">
             {remaining}
           </span>
         )}
@@ -473,7 +473,7 @@ function SleepPopover({ active, minutes, remaining, afterTrackActive, onPick, on
             key={m}
             onClick={() => onPick(m)}
             className={cn(
-              "rounded-md py-1.5 text-[12px] font-semibold transition-colors",
+              "rounded-xl py-1.5 text-[12px] font-semibold transition-colors",
               active && !afterTrackActive && minutes === m ? "bg-[var(--primary)] text-white" : "bg-[var(--surface-3)] text-foreground hover:bg-[var(--accent)]"
             )}
           >
@@ -484,7 +484,7 @@ function SleepPopover({ active, minutes, remaining, afterTrackActive, onPick, on
       <button
         onClick={onAfterTrack}
         className={cn(
-          "mt-1 w-full rounded-md py-1.5 text-[11.5px] font-semibold transition-colors",
+          "mt-1 w-full rounded-xl py-1.5 text-[11.5px] font-semibold transition-colors",
           afterTrackActive ? "bg-[var(--primary)] text-white" : "bg-[var(--surface-3)] text-foreground hover:bg-[var(--accent)]"
         )}
       >
@@ -493,7 +493,7 @@ function SleepPopover({ active, minutes, remaining, afterTrackActive, onPick, on
       {active && (
         <button
           onClick={onCancel}
-          className="mt-1.5 flex w-full items-center justify-center gap-1.5 rounded-md bg-[var(--surface-3)] py-1.5 text-[11.5px] text-[var(--text-muted)] transition-colors hover:bg-[var(--accent)] hover:text-foreground"
+          className="mt-1.5 flex w-full items-center justify-center gap-1.5 rounded-xl bg-[var(--surface-3)] py-1.5 text-[11.5px] text-[var(--text-muted)] transition-colors hover:bg-[var(--accent)] hover:text-foreground"
         >
           <X className="size-3" /> {t("common.cancel", "Annuler")}
         </button>

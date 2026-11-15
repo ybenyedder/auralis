@@ -30,6 +30,7 @@ import local.auralis.client.model.SmartConfig
 import local.auralis.client.ui.AppViewModel
 import local.auralis.client.ui.UiState
 import local.auralis.client.ui.ViewId
+import local.auralis.client.ui.theme.AMShapes
 import local.auralis.client.ui.theme.LocalAuralis
 import local.auralis.client.ui.theme.Spacing
 import local.auralis.client.ui.theme.Type
@@ -143,6 +144,7 @@ fun ScreenOverlays(ui: UiState, vm: AppViewModel) {
     if (ui.createPlaylistOpen) {
         AlertDialog(
             onDismissRequest = { vm.closeCreatePlaylist() },
+            shape = AMShapes.card,
             containerColor = colors.panel,
             title = { Text(tr("ctx.newPlaylist"), color = colors.foreground) },
             text = {
@@ -175,6 +177,7 @@ fun ScreenOverlays(ui: UiState, vm: AppViewModel) {
     if (ui.importLinkOpen) {
         AlertDialog(
             onDismissRequest = { if (!linkBusy) vm.closeImportLink() },
+            shape = AMShapes.card,
             containerColor = colors.panel,
             title = { Text(tr("library.importLink"), color = colors.foreground) },
             text = {

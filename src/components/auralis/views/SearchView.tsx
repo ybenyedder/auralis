@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState, useDeferredValue } from "react";
-import { Search, X, Play, Pause, Loader2, Clock, Trash2, Download, Check, AlertCircle, Heart } from "lucide-react";
+import { Search, X, Play, Pause, Loader2, Clock, Trash2, AlertCircle, Heart, MoreHorizontal } from "lucide-react";
 import { usePlayer } from "@/store/player";
 import { shuffleArray } from "@/store/slices/helpers";
 import { useLibraryStore, artistPlayTotals } from "@/store/library";
@@ -22,8 +22,6 @@ import {
   HumRecorderPanel,
   HumResultsView,
   useHumRecognition,
-  type DownloadJobView,
-  type DownloadJobStatus,
   type HumLocalMatch,
   type HumRemoteMatch,
 } from "../HumSearch";
@@ -213,77 +211,12 @@ export function SearchView() {
     };
   }, [deferredQuery]);
 
-  // Active/recent download jobs keyed by videoId — drives each row's button state.
-  const [jobs, setJobs] = useState<Record<string, DownloadJobView>>({});
-  const pollTimers = useRef<Set<ReturnType<typeof setTimeout>>>(new Set());
-
-  useEffect(
-    () => () => {
-      for (const timer of pollTimers.current) clearTimeout(timer);
-      pollTimers.current.clear();
-    },
-    [],
-  );
-
-  const patchJob = (videoId: string, patch: Partial<DownloadJobView>) =>
-    setJobs((prev) => {
-      const cur = prev[videoId] ?? { id: "", status: "queued" as DownloadJobStatus, progress: 0, trackhash: null, error: null };
-      return { ...prev, [videoId]: { ...cur, ...patch } };
-    });
-
-  // A finished download hands back a trackhash; the scan SSE reloads the library,
-  // and once the track materialises it starts playing on its own.
-  const [autoPlayHash, setAutoPlayHash] = useState<string | null>(null);
-  useEffect(() => {
-    if (!autoPlayHash) return;
-    const track = trackIndex.get(autoPlayHash);
-    if (!track) return;
-    setAutoPlayHash(null);
-    playList([track], 0);
-  }, [autoPlayHash, trackIndex, playList]);
-
-  const pollJob = (videoId: string, jobId: string, attempt = 0, playOnDone = true) => {
-    const timer = setTimeout(() => {
-      pollTimers.current.delete(timer);
-      void api
-        .get<{ job: DownloadJobView }>(`/api/download?job=${encodeURIComponent(jobId)}`)
-        .then((res) => {
-          const job = res.job;
-          if (!job) return;
-          patchJob(videoId, job);
-          if (job.status === "done") {
-            if (job.trackhash) {
-              if (playOnDone) {
-                // Track already indexed (fast scan)? Play now; otherwise wait for
-                // the SSE-driven library reload to surface it (autoPlayHash effect).
-                const track = useLibraryStore.getState().trackIndex.get(job.trackhash);
-                if (track) playList([track], 0);
-                else setAutoPlayHash(job.trackhash);
-                notify(t("search.downloadDone", "Ajouté à la bibliothèque — lecture"), { tone: "success" });
-              } else {
-                // "Ajouter à la bibliothèque" (hum results) — import without
-                // hijacking playback.
-                notify(t("search.humResults.added", "Ajouté à la bibliothèque"), { tone: "success" });
-              }
-            }
-          } else if (job.status === "error") {
-            notify(job.error || t("search.downloadFailed", "Échec du téléchargement"), { tone: "error" });
-          } else if (attempt < 600) {
-            pollJob(videoId, jobId, attempt + 1, playOnDone);
-          }
-        })
-        .catch(() => {
-          if (attempt < 600) pollJob(videoId, jobId, attempt + 1, playOnDone);
-        });
-    }, 1200);
-    pollTimers.current.add(timer);
-  };
-
   const currentTrack = usePlayer((s) => s.currentTrack);
   const isPlaying = usePlayer((s) => s.isPlaying);
   const togglePlay = usePlayer((s) => s.togglePlay);
   const toggleFavorite = usePlayer((s) => s.toggleFavorite);
   const favorites = usePlayer((s) => s.favorites);
+  const openContextMenu = usePlayer((s) => s.openContextMenu);
 
   const playOnline = (result: OnlineResult) => {
     const allHits = online?.results ?? [result];
@@ -320,27 +253,7 @@ export function SearchView() {
     }
   };
 
-  const startDownload = (result: OnlineResult) => {
-    patchJob(result.videoId, { status: "queued", progress: 0, error: null });
-    void api
-      .post<{ ok: boolean; job?: { id: string }; error?: string }>("/api/download", {
-        query: searchQuery || result.title,
-        videoId: result.videoId,
-        title: result.title,
-      })
-      .then((res) => {
-        if (!res?.ok || !res.job) throw new Error(res?.error || "no job");
-        pollJob(result.videoId, res.job.id);
-      })
-      .catch((err: unknown) => {
-        patchJob(result.videoId, { status: "error", error: err instanceof Error ? err.message : "error" });
-        notify(t("search.downloadFailed", "Échec du téléchargement"), { tone: "error" });
-      });
-  };
-
   // ---- "Chercher en chantant" (hum/sing recognition) ------------------------
-  // The hook owns the mic capture + /api/recognize round-trip; the results view
-  // reuses the very same download-job polling as the online rows above.
   const hum = useHumRecognition();
 
   const playHumMatch = (match: HumLocalMatch) => {
@@ -350,23 +263,6 @@ export function SearchView() {
     } else {
       notify(t("search.humResults.playFailed", "Titre introuvable dans la bibliothèque"), { tone: "error" });
     }
-  };
-
-  const startHumDownload = (match: HumRemoteMatch, jobKey: string) => {
-    patchJob(jobKey, { status: "queued", progress: 0, error: null });
-    void api
-      .post<{ ok: boolean; job?: { id: string }; error?: string }>("/api/download", {
-        query: [match.artists.join(" "), match.title].filter(Boolean).join(" "),
-        title: match.title,
-      })
-      .then((res) => {
-        if (!res?.ok || !res.job) throw new Error(res?.error || "no job");
-        pollJob(jobKey, res.job.id, 0, false);
-      })
-      .catch((err: unknown) => {
-        patchJob(jobKey, { status: "error", error: err instanceof Error ? err.message : "error" });
-        notify(t("search.downloadFailed", "Échec du téléchargement"), { tone: "error" });
-      });
   };
 
   // "Meilleur résultat": prefer an exact/prefix artist hit, then exact album, then
@@ -395,14 +291,17 @@ export function SearchView() {
   const onlineSection = onlineVisible ? (
     <OnlineSection
       results={online?.results ?? []}
-      jobs={jobs}
       loading={onlineLoading}
       currentTrackhash={currentTrack?.trackhash ?? null}
       isPlaying={isPlaying}
       favorites={favorites}
       onPlay={playOnline}
       onToggleFavorite={toggleFavoriteOnline}
-      onStart={startDownload}
+      onMore={(result, e) => {
+        const rect = e.currentTarget.getBoundingClientRect();
+        openContextMenu(rect.left, rect.bottom + 4, onlineHitToTrack(result));
+        void registerOnlineTrack(result);
+      }}
       t={t}
     />
   ) : null;
@@ -484,10 +383,8 @@ export function SearchView() {
               </div>
               <HumResultsView
                 result={hum.result}
-                jobs={jobs}
                 onPlayLocal={playHumMatch}
                 onPlayRemote={playHumRemote}
-                onStartRemote={startHumDownload}
                 t={t}
               />
             </div>
@@ -688,25 +585,23 @@ export function SearchView() {
  *  without downloading files onto the PC, with optional server-save button. */
 function OnlineSection({
   results,
-  jobs,
   loading,
   currentTrackhash,
   isPlaying,
   favorites,
   onPlay,
   onToggleFavorite,
-  onStart,
+  onMore,
   t,
 }: {
   results: OnlineResult[];
-  jobs: Record<string, DownloadJobView>;
   loading: boolean;
   currentTrackhash: string | null;
   isPlaying: boolean;
   favorites: Set<string>;
   onPlay: (result: OnlineResult) => void;
   onToggleFavorite: (result: OnlineResult) => void;
-  onStart: (result: OnlineResult) => void;
+  onMore: (result: OnlineResult, e: React.MouseEvent<HTMLButtonElement>) => void;
   t: (key: string, fallback?: string, params?: Record<string, string | number>) => string;
 }) {
   return (
@@ -728,13 +623,12 @@ function OnlineSection({
           <OnlineRow
             key={result.videoId}
             result={result}
-            job={jobs[result.videoId]}
             active={currentTrackhash === `yt:${result.videoId}`}
             playing={isPlaying && currentTrackhash === `yt:${result.videoId}`}
             liked={favorites.has(`yt:${result.videoId}`)}
             onPlay={onPlay}
             onToggleFavorite={onToggleFavorite}
-            onStart={onStart}
+            onMore={onMore}
             t={t}
           />
         ))}
@@ -745,40 +639,23 @@ function OnlineSection({
 
 function OnlineRow({
   result,
-  job,
   active,
   playing,
   liked,
   onPlay,
   onToggleFavorite,
-  onStart,
+  onMore,
   t,
 }: {
   result: OnlineResult;
-  job?: DownloadJobView;
   active: boolean;
   playing: boolean;
   liked: boolean;
   onPlay: (result: OnlineResult) => void;
   onToggleFavorite: (result: OnlineResult) => void;
-  onStart: (result: OnlineResult) => void;
+  onMore: (result: OnlineResult, e: React.MouseEvent<HTMLButtonElement>) => void;
   t: (key: string, fallback?: string, params?: Record<string, string | number>) => string;
 }) {
-  const status = job?.status;
-  const busy = status === "queued" || status === "resolving" || status === "downloading" || status === "scanning";
-  const label =
-    status === "queued" || status === "resolving"
-      ? t("search.downloadQueued", "En file")
-      : status === "downloading"
-        ? t("search.downloadRunning", "{progress} %", { progress: job?.progress ?? 0 })
-        : status === "scanning"
-          ? t("search.downloadScanning", "Ajout…")
-          : status === "done"
-            ? t("search.downloaded", "Enregistré")
-            : status === "error"
-              ? t("search.downloadFailed", "Réessayer")
-              : t("search.download", "Télécharger");
-
   const displayArtist = (result.artist || result.uploader || "YouTube").replace(/\s*-\s*Topic$/i, "").trim();
 
   return (
@@ -793,11 +670,11 @@ function OnlineRow({
         }
       }}
       className={cn(
-        "group matte-panel flex cursor-pointer items-center gap-3 rounded-lg p-2 pr-3 transition-colors hover:bg-[var(--surface-2)] focus-auralis",
+        "group matte-panel flex cursor-pointer items-center gap-3 rounded-2xl p-2 pr-3 transition-colors hover:bg-[var(--surface-2)] focus-auralis",
         active && "bg-[var(--surface-2)]",
       )}
     >
-      <div className="relative h-14 w-14 shrink-0 overflow-hidden rounded-md bg-[var(--surface-2)]">
+      <div className="relative h-14 w-14 shrink-0 overflow-hidden rounded-xl bg-[var(--surface-2)]">
         {/* Same-origin thumbnail proxy — instant, cached, CSP-clean */}
         {/* eslint-disable-next-line @next/next/no-img-element */}
         <img
@@ -823,14 +700,6 @@ function OnlineRow({
         <p className="truncate text-[12px] font-semibold text-muted-foreground">
           {displayArtist} · {formatDuration(result.duration)}
         </p>
-        {status === "downloading" && (
-          <div className="mt-1.5 h-1 overflow-hidden rounded-full bg-[var(--surface-2)]">
-            <div
-              className="h-full rounded-full bg-[var(--accent,var(--foreground))]"
-              style={{ width: `${Math.max(3, job?.progress ?? 0)}%` }}
-            />
-          </div>
-        )}
       </div>
       <button
         type="button"
@@ -850,27 +719,12 @@ function OnlineRow({
         type="button"
         onClick={(e) => {
           e.stopPropagation();
-          if (!busy && status !== "done") onStart(result);
+          onMore(result, e);
         }}
-        disabled={busy || status === "done"}
-        title={label}
-        aria-label={`${label} — ${result.title}`}
-        className={cn(
-          "tap-press flex h-10 shrink-0 items-center gap-1.5 rounded-full px-3 text-[12px] font-bold transition-colors lg:h-9",
-          status === "done"
-            ? "bg-[var(--surface-2)] text-muted-foreground"
-            : status === "error"
-              ? "bg-red-500/15 text-red-400 hover:bg-red-500/25"
-              : busy
-                ? "bg-[var(--surface-2)] text-muted-foreground"
-                : "bg-[var(--surface-2)] text-muted-foreground hover:text-foreground",
-        )}
+        aria-label={t("track.options", "Options du titre")}
+        className="tap-press grid h-10 w-10 shrink-0 place-items-center rounded-full text-muted-foreground transition-colors hover:bg-white/10 hover:text-foreground lg:h-9 lg:w-9"
       >
-        {busy && <Loader2 className="size-4 animate-spin" />}
-        {status === "done" && <Check className="size-4" />}
-        {status === "error" && <AlertCircle className="size-4" />}
-        {!busy && status !== "done" && status !== "error" && <Download className="size-4" />}
-        {(busy || status === "done" || status === "error") && <span>{label}</span>}
+        <MoreHorizontal className="size-4" />
       </button>
     </div>
   );

@@ -427,10 +427,43 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     fun login(username: String, password: String) {
+        val clean = username.trim()
+        if (clean.isBlank()) {
+            _ui.update { it.copy(connecting = false, message = tr("auth.usernameInvalid")) }
+            return
+        }
         viewModelScope.launch {
             _ui.update { it.copy(connecting = true, message = null) }
             val base = _ui.value.serverBase
-            val res = api.login(base, username.ifBlank { "admin" }, password)
+            val res = api.login(base, clean, password)
+            if (res.ok && res.token != null) {
+                api.configure(base, res.token)
+                accounting.onServerConfigured(base, res.token)
+                prefs.setServer(base, res.token, res.username)
+                _ui.update {
+                    it.copy(connecting = false, username = res.username, isAdmin = res.isAdmin, message = null)
+                }
+                loadAll()
+            } else {
+                _ui.update { it.copy(connecting = false, message = res.error ?: tr("auth.denied")) }
+            }
+        }
+    }
+
+    fun register(username: String, password: String) {
+        val clean = username.trim()
+        if (clean.length < 2) {
+            _ui.update { it.copy(connecting = false, message = tr("auth.usernameInvalid")) }
+            return
+        }
+        if (password.length < 6) {
+            _ui.update { it.copy(connecting = false, message = tr("auth.passwordTooShort")) }
+            return
+        }
+        viewModelScope.launch {
+            _ui.update { it.copy(connecting = true, message = null) }
+            val base = _ui.value.serverBase
+            val res = api.register(base, clean, password)
             if (res.ok && res.token != null) {
                 api.configure(base, res.token)
                 accounting.onServerConfigured(base, res.token)
@@ -2047,6 +2080,51 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
         viewModelScope.launch {
             val saved = api.registerOnlineTrack(hit) ?: return@launch
             registerTracksInUi(listOf(saved))
+        }
+    }
+
+    /** Toggle favorite immediately for an online hit using instant yt: streaming
+     *  identity so nothing is written to disk. */
+    fun toggleOnlineFavorite(hit: OnlineTrack) {
+        val provisional = hit.toTrack()
+        registerTracksInUi(listOf(provisional))
+        toggleFavorite(provisional.trackhash)
+        viewModelScope.launch {
+            val saved = api.registerOnlineTrack(hit) ?: return@launch
+            registerTracksInUi(listOf(saved))
+        }
+    }
+
+    /** Resolve an identified remote recognition hit into an instant yt: stream
+     *  and start playback immediately without saving an audio file to disk. */
+    fun playHumRemoteMatch(match: RecognizeRemoteMatch) {
+        viewModelScope.launch {
+            val entry = ExternalTrackEntry(
+                title = match.title,
+                artist = match.artists.joinToString(", ").ifBlank { null },
+            )
+            val resolved = api.resolveOnlineBatch(listOf(entry), instant = true)?.firstOrNull()
+            val track = resolved ?: run {
+                val (_, hits) = api.searchOnline(match.query)
+                val first = hits.firstOrNull()
+                if (first != null) {
+                    val provisional = first.toTrack()
+                    registerTracksInUi(listOf(provisional))
+                    launch {
+                        api.registerOnlineTrack(first)?.let { registerTracksInUi(listOf(it)) }
+                    }
+                    provisional
+                } else {
+                    null
+                }
+            }
+            if (track == null) {
+                notify(tr("search.onlineEmpty"))
+                return@launch
+            }
+            registerTracksInUi(listOf(track))
+            playTrack(track, listOf(track), 0)
+            closeHumSheet()
         }
     }
 

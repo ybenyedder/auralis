@@ -573,7 +573,7 @@ function PlaylistSubmenu({
         <button
           role="menuitem"
           onClick={() => setSubmenu(null)}
-          className="tap-press mb-1 flex min-h-[48px] w-full items-center gap-3 rounded-md px-3 text-left text-[15px] font-semibold text-foreground active:bg-[var(--panel-2)]"
+          className="tap-press mb-1 flex min-h-[48px] w-full items-center gap-3 rounded-xl px-3 text-left text-[15px] font-semibold text-foreground active:bg-[var(--panel-2)]"
         >
           <ChevronRight className="size-5 rotate-180 text-muted-foreground/70" />
           {labelOverride ?? t("ctx.addToPlaylist", "Ajouter à une playlist")}
@@ -582,7 +582,7 @@ function PlaylistSubmenu({
         <button
           role="menuitem"
           onClick={() => run(onCreate)}
-          className="tap-press flex min-h-[48px] w-full items-center gap-3 rounded-md px-3 text-left text-[15px] font-semibold text-primary-soft active:bg-[var(--panel-2)]"
+          className="tap-press flex min-h-[48px] w-full items-center gap-3 rounded-xl px-3 text-left text-[15px] font-semibold text-primary-soft active:bg-[var(--panel-2)]"
         >
           <Plus className="size-5" /> {t("ctx.newPlaylist", "Nouvelle playlist")}
         </button>
@@ -594,10 +594,10 @@ function PlaylistSubmenu({
               key={pl.id}
               role="menuitem"
               onClick={() => run(() => onAdd(String(pl.id)))}
-              className="tap-press flex min-h-[48px] w-full items-center gap-3 rounded-md px-3 text-left text-[15px] font-medium text-foreground/90 active:bg-[var(--panel-2)]"
+              className="tap-press flex min-h-[48px] w-full items-center gap-3 rounded-xl px-3 text-left text-[15px] font-medium text-foreground/90 active:bg-[var(--panel-2)]"
             >
               <span
-                className="size-5 shrink-0 rounded-sm"
+                className="size-5 shrink-0 rounded-md"
                 style={{ background: pl.color?.[0] }}
               />
               <span className="truncate">{pl.name}</span>
@@ -620,7 +620,7 @@ function PlaylistSubmenu({
         active={open}
       />
       {open && (
-        <div className="scale-in matte-panel mb-1 ml-2 max-h-[min(360px,60vh)] overflow-y-auto scroll-auralis rounded-md">
+        <div className="scale-in matte-panel mb-1 ml-2 max-h-[min(360px,60vh)] overflow-y-auto scroll-auralis rounded-2xl">
           <button
             role="menuitem"
             onClick={() => run(onCreate)}
@@ -639,7 +639,7 @@ function PlaylistSubmenu({
                 className="flex w-full items-center gap-2.5 px-2.5 py-2 text-left text-[12px] font-medium text-foreground/90 hover:bg-[var(--panel-2)]"
               >
                 <span
-                  className="size-4 shrink-0 rounded-sm"
+                  className="size-4 shrink-0 rounded-md"
                   style={{ background: pl.color?.[0] }}
                 />
                 <span className="truncate">{pl.name}</span>

@@ -402,11 +402,11 @@ function QuickTile({
       tabIndex={0}
       onClick={onOpen}
       onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); onOpen(); } }}
-      className="group relative flex h-[60px] cursor-pointer items-center gap-2.5 overflow-hidden rounded-lg matte-panel-2 card-lift focus-auralis transition-all duration-300 sm:h-[64px] sm:gap-3"
+      className="group relative flex h-[64px] cursor-pointer items-center gap-3 overflow-hidden rounded-2xl p-1.5 matte-panel-2 card-lift focus-auralis transition-all duration-300 sm:h-[68px]"
     >
       {liked ? (
         <span
-          className="grid h-full w-[60px] shrink-0 place-items-center bg-[var(--primary)] sm:w-[64px]"
+          className="grid h-full aspect-square shrink-0 place-items-center rounded-xl bg-[var(--primary)]"
         >
           <Heart className="size-6 fill-[var(--primary-foreground)] text-[var(--primary-foreground)]" />
         </span>
@@ -415,9 +415,9 @@ function QuickTile({
           title={title}
           image={image}
           colors={colors}
-          size={64}
-          rounded={0}
-          className="h-full w-[60px] sm:w-[64px]"
+          size={60}
+          rounded={12}
+          className="h-full aspect-square shrink-0"
         />
       )}
       <span className="flex min-w-0 flex-1 flex-col pr-2">

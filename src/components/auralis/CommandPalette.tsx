@@ -201,7 +201,7 @@ export function CommandPalette() {
             aria-autocomplete="list"
             aria-activedescendant={filtered.length > 0 ? `cmd-opt-${active}` : undefined}
           />
-          <kbd className="shrink-0 rounded-md border border-[var(--line)] bg-[var(--panel-2)] px-2 py-0.5 text-[9px] font-bold tracking-wide text-muted-foreground">ESC</kbd>
+          <kbd className="shrink-0 rounded-full border border-[var(--line)] bg-[var(--panel-2)] px-2.5 py-0.5 text-[9px] font-bold tracking-wide text-muted-foreground">ESC</kbd>
         </div>
 
         {/* Results */}
@@ -233,7 +233,7 @@ export function CommandPalette() {
                         setCommandOpen(false);
                       }}
                       className={cn(
-                        "group flex w-full items-center gap-3 rounded-md px-2.5 py-2 text-left transition-all duration-200",
+                        "group flex w-full items-center gap-3 rounded-xl px-2.5 py-2 text-left transition-all duration-200",
                         isActive ? "bg-[var(--surface-2)]" : "hover:bg-[var(--surface-2)]",
                       )}
                     >
@@ -264,8 +264,8 @@ export function CommandPalette() {
             <Command className="size-3" /> {t("cmd.brand", "Commande Auralis")}
           </span>
           <span className="flex items-center gap-2">
-            <kbd className="rounded-sm border border-[var(--line)] bg-[var(--panel-2)] px-1 py-0.5 font-bold">↑↓</kbd>
-            <kbd className="rounded-sm border border-[var(--line)] bg-[var(--panel-2)] px-1 py-0.5 font-bold">↵</kbd>
+            <kbd className="rounded-md border border-[var(--line)] bg-[var(--panel-2)] px-1.5 py-0.5 font-bold">↑↓</kbd>
+            <kbd className="rounded-md border border-[var(--line)] bg-[var(--panel-2)] px-1.5 py-0.5 font-bold">↵</kbd>
           </span>
         </div>
       </div>

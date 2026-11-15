@@ -12,6 +12,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.platform.LocalContext
 import local.auralis.client.i18n.Messages
 import local.auralis.client.i18n.tr
+import local.auralis.client.ui.theme.AMShapes
 import local.auralis.client.ui.theme.LocalAuralis
 
 private const val DONATE_URL = "https://paypal.me/AdamMezerai"
@@ -24,6 +25,7 @@ fun DonateDialog(onDismiss: () -> Unit) {
     val colors = LocalAuralis.current
     AlertDialog(
         onDismissRequest = onDismiss,
+        shape = AMShapes.card,
         containerColor = colors.panel,
         titleContentColor = colors.foreground,
         textContentColor = colors.textMuted,

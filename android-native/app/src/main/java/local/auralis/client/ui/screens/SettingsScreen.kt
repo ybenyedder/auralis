@@ -443,6 +443,7 @@ private fun PasswordDialog(vm: AppViewModel, onDismiss: () -> Unit) {
     var error by remember { mutableStateOf<String?>(null) }
     AlertDialog(
         onDismissRequest = onDismiss,
+        shape = RoundedCornerShape(22.dp),
         containerColor = colors.panel,
         title = { Text(tr("settings.changePassword"), color = colors.foreground) },
         text = {
@@ -468,6 +469,7 @@ private fun FolderDialog(vm: AppViewModel, initial: String, onDismiss: () -> Uni
     var path by remember { mutableStateOf(initial) }
     AlertDialog(
         onDismissRequest = onDismiss,
+        shape = RoundedCornerShape(22.dp),
         containerColor = colors.panel,
         title = { Text(tr("settings.musicDir"), color = colors.foreground) },
         text = { Field2(path, { path = it }, tr("settings.folderPathHint")) },
@@ -482,6 +484,7 @@ private fun ImportDialog(vm: AppViewModel, onDismiss: () -> Unit) {
     var text by remember { mutableStateOf("") }
     AlertDialog(
         onDismissRequest = onDismiss,
+        shape = RoundedCornerShape(22.dp),
         containerColor = colors.panel,
         title = { Text(tr("settings.import"), color = colors.foreground) },
         text = {
@@ -516,6 +519,7 @@ private fun UsersDialog(vm: AppViewModel, onDismiss: () -> Unit) {
 
     AlertDialog(
         onDismissRequest = onDismiss,
+        shape = RoundedCornerShape(22.dp),
         containerColor = colors.panel,
         title = { Text(tr("settings.accounts"), color = colors.foreground) },
         text = {
@@ -547,7 +551,7 @@ private fun UsersDialog(vm: AppViewModel, onDismiss: () -> Unit) {
                 Pwd(newPass, { newPass = it }, tr("settings.password"))
                 Row(Modifier.padding(top = 6.dp), verticalAlignment = Alignment.CenterVertically) {
                     Box(
-                        Modifier.size(20.dp).clip(RoundedCornerShape(5.dp)).background(if (newAdmin) colors.accent else colors.panel2).clickable { newAdmin = !newAdmin },
+                        Modifier.size(20.dp).clip(RoundedCornerShape(7.dp)).background(if (newAdmin) colors.accent else colors.panel2).clickable { newAdmin = !newAdmin },
                         contentAlignment = Alignment.Center,
                     ) { if (newAdmin) Text("✓", color = colors.ink, style = Type.Label) }
                     Spacer(Modifier.width(8.dp))

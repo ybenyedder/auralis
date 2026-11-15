@@ -38,12 +38,8 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
-import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.ui.graphics.Brush
 import local.auralis.client.i18n.tr
 import local.auralis.client.ui.components.AuralisGlyph
-import local.auralis.client.ui.components.paletteFor
 import local.auralis.client.ui.theme.AMShapes
 import local.auralis.client.ui.theme.AMType
 import local.auralis.client.ui.theme.LocalAuralis
@@ -152,108 +148,176 @@ fun ConnectScreen(connecting: Boolean, message: String?, initial: String, onConn
     }
 }
 
-/** Netflix-style "Qui écoute ?" flow: pick a profile, then enter its password.
- * Mirrors web's AuthGate LoginScreen (src/components/auralis/AuthGate.tsx). */
+/** Liner-style authentication card supporting standard sign-in and account
+ *  creation (mirrors web's AuthGate LoginScreen). */
 @Composable
 fun LoginScreen(
     server: String,
     connecting: Boolean,
     message: String?,
     onLogin: (String, String) -> Unit,
+    onRegister: (String, String) -> Unit,
     onChangeServer: () -> Unit,
-    loadAccounts: suspend () -> List<String> = { listOf("admin") },
 ) {
     val colors = LocalAuralis.current
-    var accounts by remember { mutableStateOf<List<String>?>(null) }
-    var selected by remember { mutableStateOf<String?>(null) }
+    var mode by remember(server) { mutableStateOf("login") }
+    var username by remember { mutableStateOf("") }
     var password by remember { mutableStateOf("") }
-    LaunchedEffect(server) { accounts = runCatching { loadAccounts() }.getOrDefault(listOf("admin")) }
+    var confirmPassword by remember { mutableStateOf("") }
+    var localError by remember { mutableStateOf<String?>(null) }
+
+    val errUsernameInvalid = tr("auth.usernameInvalid")
+    val errPasswordTooShort = tr("auth.passwordTooShort")
+    val errPasswordMismatch = tr("auth.passwordMismatch")
+
+    val submit = {
+        val clean = username.trim()
+        when {
+            clean.length < 2 -> localError = errUsernameInvalid
+            mode == "register" && password.length < 6 -> localError = errPasswordTooShort
+            mode == "register" && password != confirmPassword -> localError = errPasswordMismatch
+            mode == "register" -> {
+                localError = null
+                onRegister(clean, password)
+            }
+            else -> {
+                localError = null
+                onLogin(clean, password)
+            }
+        }
+    }
 
     Box(Modifier.fillMaxSize().background(colors.background).systemBarsPadding().imePadding()) {
-        Row(Modifier.fillMaxWidth().padding(Spacing.lg), verticalAlignment = Alignment.CenterVertically) {
-            local.auralis.client.ui.components.BrandMark(28)
-            Spacer(Modifier.width(Spacing.sm))
-            Text("Auralis", style = AMType.Headline, color = colors.foreground)
-        }
         Column(
-            Modifier.fillMaxSize().padding(horizontal = Spacing.xl),
+            Modifier.fillMaxSize().padding(Spacing.xl),
             verticalArrangement = Arrangement.Center,
             horizontalAlignment = Alignment.CenterHorizontally,
         ) {
-            if (selected == null) {
-                Text(tr("auth.whoIsListening"), style = AMType.Title1, color = colors.foreground, textAlign = TextAlign.Center)
-                Spacer(Modifier.height(Spacing.xl))
-                val profiles = accounts
-                if (profiles == null) {
-                    Box(Modifier.size(96.dp).clip(AMShapes.card).background(colors.panel2))
-                } else {
-                    Column(verticalArrangement = Arrangement.spacedBy(Spacing.xl)) {
-                        profiles.chunked(3).forEach { row ->
-                            Row(horizontalArrangement = Arrangement.spacedBy(Spacing.xl)) {
-                                row.forEach { name -> ProfileTile(name) { selected = name; password = "" } }
-                            }
+            Column(
+                Modifier.fillMaxWidth().tonalCard(AMShapes.hero, colors.panel).padding(Spacing.xl),
+                horizontalAlignment = Alignment.CenterHorizontally,
+            ) {
+                SplashMark()
+                Spacer(Modifier.height(Spacing.md))
+                Text(tr("auth.welcomeTitle"), style = AMType.Title2, color = colors.foreground)
+                Spacer(Modifier.height(Spacing.xs))
+                Text(
+                    if (mode == "register") tr("auth.registerSubtitle") else tr("auth.welcomeSubtitle"),
+                    style = Type.Label,
+                    color = colors.textMuted,
+                    textAlign = TextAlign.Center,
+                )
+                Spacer(Modifier.height(Spacing.lg))
+
+                // Liner segmented pill switcher
+                Row(
+                    Modifier
+                        .fillMaxWidth()
+                        .clip(AMShapes.pill)
+                        .background(colors.panel2)
+                        .padding(4.dp),
+                    horizontalArrangement = Arrangement.spacedBy(4.dp),
+                ) {
+                    listOf("login" to tr("auth.signIn"), "register" to tr("auth.signUp")).forEach { (id, label) ->
+                        val active = mode == id
+                        Box(
+                            Modifier
+                                .weight(1f)
+                                .clip(AMShapes.pill)
+                                .background(if (active) colors.accent else androidx.compose.ui.graphics.Color.Transparent)
+                                .clickable {
+                                    mode = id
+                                    localError = null
+                                    confirmPassword = ""
+                                }
+                                .padding(vertical = 10.dp),
+                            contentAlignment = Alignment.Center,
+                        ) {
+                            Text(
+                                label,
+                                color = if (active) colors.ink else colors.textMuted,
+                                style = Type.Caption,
+                                fontWeight = FontWeight.Bold,
+                                maxLines = 1,
+                            )
                         }
                     }
                 }
-            } else {
-                ProfileAvatar(selected!!, 88)
-                Spacer(Modifier.height(Spacing.md))
-                Text(selected!!, style = AMType.Title2, color = colors.foreground)
-                Spacer(Modifier.height(Spacing.xs))
-                Text(tr("auth.enterPassword"), style = Type.Label, color = colors.textMuted)
-                Spacer(Modifier.height(Spacing.xl))
+
+                Spacer(Modifier.height(Spacing.lg))
                 field(
-                    value = password, onChange = { password = it }, label = tr("settings.password"), password = true,
-                    keyboard = KeyboardOptions(keyboardType = KeyboardType.Password, imeAction = ImeAction.Go),
-                    onImeDone = { onLogin(selected!!, password) },
+                    value = username,
+                    onChange = { username = it; localError = null },
+                    label = tr("auth.username"),
+                    keyboard = KeyboardOptions(keyboardType = KeyboardType.Text, imeAction = ImeAction.Next),
                 )
-                Spacer(Modifier.height(Spacing.lg))
-                PrimaryButton(tr("auth.signIn"), connecting) { onLogin(selected!!, password) }
-                if (message != null) {
-                    Spacer(Modifier.height(Spacing.md))
-                    Text(message, color = colors.destructive, style = Type.Caption, textAlign = TextAlign.Center)
+                Spacer(Modifier.height(Spacing.sm))
+                field(
+                    value = password,
+                    onChange = { password = it; localError = null },
+                    label = tr("auth.enterPassword"),
+                    password = true,
+                    keyboard = KeyboardOptions(
+                        keyboardType = KeyboardType.Password,
+                        imeAction = if (mode == "register") ImeAction.Next else ImeAction.Go,
+                    ),
+                    onImeDone = { if (mode == "login") submit() },
+                )
+                if (mode == "register") {
+                    Spacer(Modifier.height(Spacing.sm))
+                    field(
+                        value = confirmPassword,
+                        onChange = { confirmPassword = it; localError = null },
+                        label = tr("auth.confirmPassword"),
+                        password = true,
+                        keyboard = KeyboardOptions(keyboardType = KeyboardType.Password, imeAction = ImeAction.Go),
+                        onImeDone = submit,
+                    )
                 }
+
+                val displayError = localError ?: message
+                if (!displayError.isNullOrBlank()) {
+                    Spacer(Modifier.height(Spacing.md))
+                    Text(displayError, color = colors.destructive, style = Type.Caption, textAlign = TextAlign.Center)
+                }
+
                 Spacer(Modifier.height(Spacing.lg))
+                PrimaryButton(
+                    label = if (mode == "register") tr("auth.signUp") else tr("auth.signIn"),
+                    loading = connecting,
+                    onClick = submit,
+                )
+
+                Spacer(Modifier.height(Spacing.md))
                 Text(
-                    "← " + tr("auth.switchProfile"),
-                    style = Type.Label, color = colors.textMuted, fontWeight = FontWeight.SemiBold,
-                    letterSpacing = 0.6.sp,
-                    modifier = Modifier.clip(AMShapes.pill).clickable { selected = null; password = "" }
-                        .padding(horizontal = Spacing.sm, vertical = Spacing.xs),
+                    if (mode == "login") "${tr("auth.noAccountYet")} ${tr("auth.signUp")}"
+                    else "${tr("auth.alreadyHaveAccount")} ${tr("auth.signIn")}",
+                    style = Type.Caption,
+                    color = colors.accent,
+                    fontWeight = FontWeight.SemiBold,
+                    textAlign = TextAlign.Center,
+                    modifier = Modifier
+                        .clip(AMShapes.pill)
+                        .clickable {
+                            mode = if (mode == "login") "register" else "login"
+                            localError = null
+                            confirmPassword = ""
+                        }
+                        .padding(horizontal = Spacing.md, vertical = Spacing.xs),
                 )
             }
-            Spacer(Modifier.height(Spacing.xl))
+
+            Spacer(Modifier.height(Spacing.lg))
             Text(
                 tr("connect.changeServer"),
-                style = Type.Label, color = colors.textFaint, fontWeight = FontWeight.SemiBold,
-                modifier = Modifier.clip(AMShapes.pill).clickable { onChangeServer() }
+                style = Type.Label,
+                color = colors.textFaint,
+                fontWeight = FontWeight.SemiBold,
+                modifier = Modifier
+                    .clip(AMShapes.pill)
+                    .clickable { onChangeServer() }
                     .padding(horizontal = Spacing.sm, vertical = Spacing.xs),
             )
         }
-    }
-}
-
-@Composable
-private fun ProfileTile(name: String, onClick: () -> Unit) {
-    val colors = LocalAuralis.current
-    Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.clickable { onClick() }) {
-        ProfileAvatar(name, 96)
-        Spacer(Modifier.height(Spacing.sm))
-        Text(name, style = Type.Body, color = colors.textMuted)
-    }
-}
-
-@Composable
-private fun ProfileAvatar(name: String, size: Int) {
-    val (c0, c1, _) = paletteFor(name)
-    Box(
-        Modifier.size(size.dp).clip(AMShapes.card).background(Brush.linearGradient(listOf(c0, c1))),
-        contentAlignment = Alignment.Center,
-    ) {
-        Text(
-            (name.ifBlank { "?" }).take(1).uppercase(),
-            color = androidx.compose.ui.graphics.Color.White.copy(alpha = 0.95f),
-            fontSize = (size * 0.42f).sp, fontWeight = FontWeight.Bold,
-        )
     }
 }

@@ -17,6 +17,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import local.auralis.client.i18n.Messages
 import local.auralis.client.i18n.tr
+import local.auralis.client.ui.theme.AMShapes
 import local.auralis.client.ui.theme.LocalAuralis
 import local.auralis.client.ui.theme.Type
 import local.auralis.client.update.UpdateInfo
@@ -39,6 +40,7 @@ fun UpdateDialog(
     AlertDialog(
         // Don't let an outside tap cancel an in-flight download.
         onDismissRequest = { if (!downloading) onDismiss() },
+        shape = AMShapes.card,
         containerColor = colors.panel,
         titleContentColor = colors.foreground,
         textContentColor = colors.textMuted,

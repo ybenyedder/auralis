@@ -29,8 +29,8 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Close
-import androidx.compose.material.icons.filled.Download
 import androidx.compose.material.icons.filled.Mic
+import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Stop
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
@@ -59,7 +59,6 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import local.auralis.client.i18n.tr
-import local.auralis.client.model.DownloadJobDto
 import local.auralis.client.model.RecognizeLocalMatch
 import local.auralis.client.model.RecognizeRemoteMatch
 import local.auralis.client.model.RecognizeResult
@@ -330,7 +329,7 @@ private fun BubbleLastRow(outcome: BubbleOutcome, onClick: () -> Unit) {
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Box(
-            Modifier.size(46.dp).clip(RoundedCornerShape(8.dp)).background(colors.panel2),
+            Modifier.size(46.dp).clip(AMShapes.thumb).background(colors.panel2),
             contentAlignment = Alignment.Center,
         ) {
             Icon(
@@ -362,7 +361,7 @@ private fun SheetColumn(modifier: Modifier = Modifier, content: @Composable Colu
         modifier
             .fillMaxWidth()
             .padding(top = 60.dp)
-            .clip(RoundedCornerShape(topStart = 8.dp, topEnd = 8.dp))
+            .clip(AMShapes.sheet)
             .background(colors.panel)
             .navigationBarsPadding()
             .heightIn(max = 560.dp)
@@ -388,7 +387,7 @@ private fun HumResults(
         Text(tr("hum.remoteTitle"), color = colors.foreground, style = Type.Label, fontWeight = FontWeight.Bold)
         Spacer(Modifier.height(6.dp))
         remote.forEach { m ->
-            HumRemoteRow(m, ui.humRemoteJobs[m.query]) { vm.downloadHumMatch(m) }
+            HumRemoteRow(m) { vm.playHumRemoteMatch(m) }
         }
         Spacer(Modifier.height(12.dp))
     }
@@ -424,7 +423,7 @@ private fun HumLocalRow(match: RecognizeLocalMatch, onClick: () -> Unit) {
             .padding(horizontal = 6.dp, vertical = 6.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        CoverArt(match.image, match.trackhash, Modifier.size(46.dp), cornerRadius = 8, sizeDp = 46)
+        CoverArt(match.image, match.trackhash, Modifier.size(46.dp), cornerRadius = 12, sizeDp = 46)
         Spacer(Modifier.width(12.dp))
         Column(Modifier.weight(1f)) {
             Text(match.title, color = colors.foreground, style = Type.Body, fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis)
@@ -438,24 +437,20 @@ private fun HumLocalRow(match: RecognizeLocalMatch, onClick: () -> Unit) {
     }
 }
 
-/** One global-catalog match with its "Ajouter à la bibliothèque" download button
- *  (label follows the server-side download job, like SearchScreen's OnlineRow). */
+/** One global-catalog match — tap to resolve and stream immediately (no disk download). */
 @Composable
-private fun HumRemoteRow(match: RecognizeRemoteMatch, job: DownloadJobDto?, onDownload: () -> Unit) {
+private fun HumRemoteRow(match: RecognizeRemoteMatch, onPlay: () -> Unit) {
     val colors = LocalAuralis.current
-    val busy = job?.busy == true
-    val done = job?.status == "done"
-    val failed = job?.status == "error"
-    val label = when {
-        done -> tr("hum.addedToLibrary")
-        failed -> tr("search.downloadRetry")
-        job?.status == "downloading" -> tr("search.downloadRunning", params = mapOf("progress" to job.progress.coerceIn(0, 100)))
-        job?.status == "scanning" -> tr("search.downloadScanning")
-        busy -> tr("search.downloadQueued")
-        else -> tr("hum.addToLibrary")
-    }
+    var busy by remember(match.query) { mutableStateOf(false) }
     Row(
-        Modifier.fillMaxWidth().clip(AMShapes.tile).padding(horizontal = 6.dp, vertical = 6.dp),
+        Modifier
+            .fillMaxWidth()
+            .clip(AMShapes.tile)
+            .clickable(enabled = !busy) {
+                busy = true
+                onPlay()
+            }
+            .padding(horizontal = 6.dp, vertical = 6.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Column(Modifier.weight(1f)) {
@@ -474,36 +469,25 @@ private fun HumRemoteRow(match: RecognizeRemoteMatch, job: DownloadJobDto?, onDo
         Row(
             Modifier
                 .clip(CircleShape)
-                .background(
-                    when {
-                        done -> colors.panel3
-                        failed -> Color(0x26FF5252)
-                        else -> colors.accent
-                    },
-                )
-                .clickable(enabled = !busy && !done) { onDownload() }
+                .background(colors.accent)
                 .padding(horizontal = 12.dp, vertical = 7.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
             if (busy) {
                 CircularProgressIndicator(
-                    color = colors.foreground, strokeWidth = 2.dp,
+                    color = colors.ink, strokeWidth = 2.dp,
                     modifier = Modifier.size(14.dp),
                 )
             } else {
                 Icon(
-                    when {
-                        done -> Icons.Filled.Check
-                        failed -> Icons.Filled.Close
-                        else -> Icons.Filled.Download
-                    },
-                    contentDescription = label,
-                    tint = if (failed) Color(0xFFFF6B6B) else colors.foreground,
-                    modifier = Modifier.size(15.dp),
+                    Icons.Filled.PlayArrow,
+                    contentDescription = tr("common.play"),
+                    tint = colors.ink,
+                    modifier = Modifier.size(16.dp),
                 )
             }
-            Spacer(Modifier.width(6.dp))
-            Text(label, color = if (failed) Color(0xFFFF6B6B) else colors.foreground, style = AMType.Caption2, fontWeight = FontWeight.Bold)
+            Spacer(Modifier.width(4.dp))
+            Text(tr("common.play"), color = colors.ink, style = AMType.Caption2, fontWeight = FontWeight.Bold)
         }
     }
 }

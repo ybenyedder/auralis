@@ -720,10 +720,23 @@ const fr: Dict = {
 
   // --- Auth gate --------------------------------------------------------------
   "auth.whoIsListening": "Qui écoute ?",
-  "auth.enterPassword": "Saisis ton mot de passe",
-  "auth.wrongPassword": "Mot de passe incorrect",
+  "auth.welcomeTitle": "Auralis",
+  "auth.welcomeSubtitle": "Connecte-toi à ta bibliothèque musicale",
+  "auth.registerSubtitle": "Crée ton compte personnel en quelques secondes",
+  "auth.username": "Identifiant",
+  "auth.usernamePlaceholder": "Ton pseudo",
+  "auth.enterPassword": "Mot de passe",
+  "auth.confirmPassword": "Confirmer le mot de passe",
+  "auth.wrongPassword": "Identifiant ou mot de passe incorrect",
   "auth.signIn": "Se connecter",
   "auth.signingIn": "Connexion…",
+  "auth.signUp": "Créer un compte",
+  "auth.signingUp": "Création…",
+  "auth.passwordMismatch": "Les mots de passe ne correspondent pas.",
+  "auth.passwordTooShort": "6 caractères minimum.",
+  "auth.usernameInvalid": "Identifiant invalide (2 à 32 caractères).",
+  "auth.noAccountYet": "Pas encore de compte ?",
+  "auth.alreadyHaveAccount": "Déjà un compte ?",
   "auth.switchProfile": "Changer de profil",
 
   // --- Keyboard help ----------------------------------------------------------
@@ -1483,10 +1496,23 @@ const en: Dict = {
 
   // --- Auth gate --------------------------------------------------------------
   "auth.whoIsListening": "Who's listening?",
-  "auth.enterPassword": "Enter your password",
-  "auth.wrongPassword": "Incorrect password",
+  "auth.welcomeTitle": "Auralis",
+  "auth.welcomeSubtitle": "Sign in to your music library",
+  "auth.registerSubtitle": "Create your personal account in seconds",
+  "auth.username": "Username",
+  "auth.usernamePlaceholder": "Your username",
+  "auth.enterPassword": "Password",
+  "auth.confirmPassword": "Confirm password",
+  "auth.wrongPassword": "Incorrect username or password",
   "auth.signIn": "Sign in",
   "auth.signingIn": "Signing in…",
+  "auth.signUp": "Create account",
+  "auth.signingUp": "Creating account…",
+  "auth.passwordMismatch": "Passwords do not match.",
+  "auth.passwordTooShort": "At least 6 characters.",
+  "auth.usernameInvalid": "Invalid username (2 to 32 characters).",
+  "auth.noAccountYet": "Don't have an account yet?",
+  "auth.alreadyHaveAccount": "Already have an account?",
   "auth.switchProfile": "Switch profile",
 
   // --- Keyboard help ----------------------------------------------------------

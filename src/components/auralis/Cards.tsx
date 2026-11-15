@@ -55,14 +55,14 @@ export const AlbumCard = memo(function AlbumCard({ album, onOpen }: AlbumCardPro
         }
       }}
       onContextMenu={(e) => onContext(e, album)}
-      className="group matte-panel card-lift relative flex cursor-pointer flex-col gap-2.5 rounded-xl p-3 text-left focus-auralis"
+      className="group matte-panel card-lift relative flex cursor-pointer flex-col gap-2.5 rounded-2xl p-3 text-left focus-auralis"
     >
       <div className="relative">
         <Artwork
           title={album.title}
           albumhash={album.albumhash}
           size={156}
-          rounded={8}
+          rounded={14}
           colors={colors}
           image={album.image}
           fluid
@@ -75,7 +75,7 @@ export const AlbumCard = memo(function AlbumCard({ album, onOpen }: AlbumCardPro
         {isPlaying && (
           <span
             aria-hidden
-            className="absolute inset-0 grid place-items-center rounded-lg bg-black/45 backdrop-blur-[2px]"
+            className="absolute inset-0 grid place-items-center rounded-xl bg-black/45 backdrop-blur-[2px]"
           >
             <EqualizerBars active className="h-5" />
           </span>
@@ -127,7 +127,7 @@ export const ArtistCard = memo(function ArtistCard({ artist }: { artist: Artist 
         }
       }}
       onContextMenu={(e) => onContext(e, artist)}
-      className="group matte-panel card-lift relative flex cursor-pointer flex-col gap-2.5 rounded-xl p-3 text-left focus-auralis"
+      className="group matte-panel card-lift relative flex cursor-pointer flex-col gap-2.5 rounded-2xl p-3 text-left focus-auralis"
     >
       <div className="relative">
         {artist.image ? (
@@ -195,7 +195,7 @@ export const PlaylistTile = memo(function PlaylistTile({ playlist }: { playlist:
           navigate("playlist", String(playlist.id));
         }
       }}
-      className="group matte-panel card-lift relative flex cursor-pointer flex-col gap-2.5 rounded-xl p-3 text-left focus-auralis"
+      className="group matte-panel card-lift relative flex cursor-pointer flex-col gap-2.5 rounded-2xl p-3 text-left focus-auralis"
     >
       <div className="relative">
         {coverImage ? (
@@ -203,7 +203,7 @@ export const PlaylistTile = memo(function PlaylistTile({ playlist }: { playlist:
             name={playlist.name}
             image={coverImage}
             size={156}
-            rounded={8}
+            rounded={14}
             colors={colors}
             showInitials={false}
             fluid
@@ -211,7 +211,7 @@ export const PlaylistTile = memo(function PlaylistTile({ playlist }: { playlist:
           />
         ) : (
           <div
-            className="cover-fallback relative flex aspect-square w-full items-center justify-center overflow-hidden rounded-lg border-none"
+            className="cover-fallback relative flex aspect-square w-full items-center justify-center overflow-hidden rounded-xl border-none"
             style={{ background: colors[0] }}
           >
             <span className="absolute inset-0 bg-black/20" aria-hidden />

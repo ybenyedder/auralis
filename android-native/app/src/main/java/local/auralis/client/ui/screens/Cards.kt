@@ -159,10 +159,10 @@ fun LazyItemScope.PlaylistTile(
             val resolveUrl = LocalApiUrl.current
             NetworkImage(
                 resolveUrl("/api/art/$imageHash"), Modifier.size(52.dp),
-                fallback = { PlaylistMosaic(tracks, seed, Modifier.size(52.dp), cornerRadius = 8, sizeDp = 52) },
+                fallback = { PlaylistMosaic(tracks, seed, Modifier.size(52.dp), cornerRadius = 12, sizeDp = 52) },
             )
         } else {
-            PlaylistMosaic(tracks, seed, Modifier.size(52.dp), cornerRadius = 8, sizeDp = 52)
+            PlaylistMosaic(tracks, seed, Modifier.size(52.dp), cornerRadius = 12, sizeDp = 52)
         }
         androidx.compose.foundation.layout.Spacer(Modifier.width(Spacing.md))
         Column(Modifier.weight(1f)) {

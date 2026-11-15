@@ -560,7 +560,7 @@ export function PlaylistDetail({ id }: { id: string }) {
                     setEditing(false);
                   }
                 }}
-                className="mt-1 w-full rounded-md border border-[var(--line-strong)] bg-black/20 px-3 py-2 text-center text-[22px] font-black leading-tight tracking-tight text-foreground outline-none lg:text-left lg:text-[clamp(30px,4.5vw,56px)] lg:leading-none"
+                className="mt-1 w-full rounded-2xl border border-[var(--line-strong)] bg-black/20 px-3 py-2 text-center text-[22px] font-black leading-tight tracking-tight text-foreground outline-none lg:text-left lg:text-[clamp(30px,4.5vw,56px)] lg:leading-none"
               />
             ) : (
               <h1 className="mt-1 text-[clamp(24px,7vw,32px)] font-black leading-tight tracking-tight text-foreground lg:text-[clamp(30px,4.5vw,56px)] lg:leading-none">
@@ -2000,7 +2000,7 @@ function AccountManager() {
           <div key={u.id} className="flex items-center gap-2 rounded-xl border border-transparent bg-[var(--panel-2)] px-4 py-2.5">
             <span className="min-w-0 flex-1 truncate text-[13.5px] font-bold text-foreground">
               {u.username}
-              {u.isAdmin && <span className="ml-2 rounded-sm bg-primary/15 px-1.5 py-0.5 text-[9.5px] font-semibold uppercase tracking-[0.04em] text-primary">Admin</span>}
+              {u.isAdmin && <span className="ml-2 rounded-full bg-primary/15 px-2 py-0.5 text-[9.5px] font-semibold uppercase tracking-[0.04em] text-primary">Admin</span>}
               {u.id === me && <span className="ml-2 text-[11px] font-medium text-muted-foreground/60">{t("settings.you")}</span>}
             </span>
             <button onClick={() => resetPassword(u)} className="ghost-button shrink-0 rounded-full px-3 py-1.5 text-[11.5px] font-bold transition-colors duration-200 hover:bg-white/10" aria-label={t("settings.resetPasswordAria")}>

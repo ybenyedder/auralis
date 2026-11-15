@@ -152,3 +152,56 @@ test("playlist.cover still rejects a body genuinely over the JSON cap", async ()
   const res = await statePut(req);
   assert.equal(res.status, 413);
 });
+
+test("POST /api/auth/register creates a new user, sets cookie, rejects duplicates and short passwords", async () => {
+  const { POST: registerPost } = await import("@/app/api/auth/register/route");
+  const url = "http://127.0.0.1:3000/api/auth/register";
+
+  const badUserRes = await registerPost(
+    new Request(url, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ username: "x", password: "password123" }),
+    }),
+  );
+  assert.equal(badUserRes.status, 400);
+
+  const shortPwRes = await registerPost(
+    new Request(url, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ username: "liner_user", password: "123" }),
+    }),
+  );
+  assert.equal(shortPwRes.status, 400);
+
+  const okRes = await registerPost(
+    new Request(url, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ username: "Liner_User", password: "password123" }),
+    }),
+  );
+  assert.equal(okRes.status, 201);
+  const okBody = (await okRes.json()) as {
+    ok: boolean;
+    username: string;
+    isAdmin: boolean;
+    token: string;
+  };
+  assert.equal(okBody.ok, true);
+  assert.equal(okBody.username, "liner_user");
+  assert.equal(okBody.isAdmin, false);
+  assert.ok(okBody.token && okBody.token.length > 10);
+  const setCookie = okRes.headers.get("set-cookie") ?? "";
+  assert.ok(setCookie.includes("auralis_session="));
+
+  const dupRes = await registerPost(
+    new Request(url, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ username: "liner_user", password: "password123" }),
+    }),
+  );
+  assert.equal(dupRes.status, 409);
+});

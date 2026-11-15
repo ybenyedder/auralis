@@ -9,7 +9,7 @@
 // importing server modules (client-safe).
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { Mic, Square, Loader2, Check, AlertCircle, Music2, Play } from "lucide-react";
+import { Mic, Square, Loader2, Music2, Play } from "lucide-react";
 import { api } from "@/lib/auralis/api";
 import { paletteForName } from "@/lib/auralis/brand";
 import { cn } from "@/lib/utils";
@@ -193,7 +193,7 @@ export function useHumRecognition(maxSeconds = MAX_RECORD_SECONDS) {
  *  the visible stop button (the capture also auto-stops at the length cap). */
 export function HumRecorderPanel({ elapsed, onStop, t }: { elapsed: number; onStop: () => void; t: TFn }) {
   return (
-    <div className="matte-panel flex items-center gap-3 rounded-lg p-3">
+    <div className="matte-panel flex items-center gap-3 rounded-2xl p-3">
       <span className="relative flex size-3 shrink-0" aria-hidden>
         <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-red-500/60" />
         <span className="relative inline-flex size-3 rounded-full bg-red-500" />
@@ -218,23 +218,18 @@ export function HumRecorderPanel({ elapsed, onStop, t }: { elapsed: number; onSt
 
 /**
  * Recognition results: "Ta bibliothèque" (local melody matches — click plays)
- * and "Identifié (catalogue mondial)" (ACRCloud matches — download button with
- * the same job-progress UX as the online search rows). Empty/hint states cover
- * the empty melody index, a missing ffmpeg and a no-match answer.
+ * and "Identifié (catalogue mondial)" (remote matches — instant streaming on
+ * click, zero files written to disk).
  */
 export function HumResultsView({
   result,
-  jobs,
   onPlayLocal,
   onPlayRemote,
-  onStartRemote,
   t,
 }: {
   result: HumRecognizeResult;
-  jobs: Record<string, DownloadJobView>;
   onPlayLocal: (match: HumLocalMatch) => void;
   onPlayRemote?: (match: HumRemoteMatch) => void;
-  onStartRemote: (match: HumRemoteMatch, jobKey: string) => void;
   t: TFn;
 }) {
   const remote = result.remote ?? [];
@@ -245,7 +240,7 @@ export function HumResultsView({
     <div className="space-y-8">
       {/* Nothing to match against yet — point at the Settings indexing pass. */}
       {result.indexSize === 0 && (
-        <p className="matte-panel rounded-lg px-3 py-2.5 text-[12px] font-semibold text-amber">
+        <p className="matte-panel rounded-2xl px-3.5 py-2.5 text-[12px] font-semibold text-amber">
           {t(
             "search.humResults.indexEmpty",
             "Aucune mélodie indexée — lance « Indexer la bibliothèque » dans Réglages › Reconnaissance audio",
@@ -266,14 +261,14 @@ export function HumResultsView({
               <button
                 key={match.trackhash}
                 onClick={() => onPlayLocal(match)}
-                className="matte-panel flex w-full items-center gap-3 rounded-lg p-2 pr-3 text-left transition-colors hover:bg-[var(--surface-2)]"
+                className="matte-panel flex w-full items-center gap-3 rounded-2xl p-2 pr-3 text-left transition-colors hover:bg-[var(--surface-2)]"
               >
                 <Artwork
                   title={match.title}
                   colors={paletteForName(match.trackhash)}
                   image={match.image ?? undefined}
                   size={56}
-                  rounded={6}
+                  rounded={12}
                 />
                 <div className="min-w-0 flex-1">
                   <p className="truncate text-[14px] font-bold text-foreground">{match.title}</p>
@@ -298,19 +293,16 @@ export function HumResultsView({
             eyebrow={`${remote.length}`}
           />
           <p className="mb-3 text-[12px] font-medium text-muted-foreground">
-            {t("search.humResults.remoteHint", "Pas dans ta bibliothèque — écoute en streaming instantané ou télécharge sur le serveur")}
+            {t("search.humResults.remoteHint", "Pas dans ta bibliothèque — lecture instantanée en streaming")}
           </p>
           <div className="flex flex-col gap-2">
             {remote.map((match) => {
-              const jobKey = `hum:${match.artists.join("+")}|${match.title}`;
+              const rowKey = `hum:${match.artists.join("+")}|${match.title}`;
               return (
                 <HumRemoteRow
-                  key={jobKey}
+                  key={rowKey}
                   match={match}
-                  jobKey={jobKey}
-                  job={jobs[jobKey]}
                   onPlay={onPlayRemote}
-                  onStart={onStartRemote}
                   t={t}
                 />
               );
@@ -321,7 +313,7 @@ export function HumResultsView({
 
       {nothingMatched && result.indexSize > 0 && (
         <div className="flex flex-col items-center justify-center gap-3 py-8 text-center">
-          <div className="grid h-16 w-16 place-items-center rounded-lg border border-dashed border-[var(--line-strong)]">
+          <div className="grid h-16 w-16 place-items-center rounded-2xl border border-dashed border-[var(--line-strong)]">
             <Music2 className="size-7 text-muted-foreground/60" />
           </div>
           <p className="text-[14px] font-bold text-muted-foreground">
@@ -333,42 +325,41 @@ export function HumResultsView({
   );
 }
 
-/** One global-catalogue match — same download-job progress UX as the online
- *  search rows (queued → % → scanning → ajouté). */
+/** One global-catalogue match — click plays immediately via instant streaming. */
 function HumRemoteRow({
   match,
-  jobKey,
-  job,
   onPlay,
-  onStart,
   t,
 }: {
   match: HumRemoteMatch;
-  jobKey: string;
-  job?: DownloadJobView;
   onPlay?: (match: HumRemoteMatch) => void;
-  onStart: (match: HumRemoteMatch, jobKey: string) => void;
   t: TFn;
 }) {
   const [resolvingPlay, setResolvingPlay] = useState(false);
-  const status = job?.status;
-  const busy = status === "queued" || status === "resolving" || status === "downloading" || status === "scanning";
-  const label =
-    status === "queued" || status === "resolving"
-      ? t("search.downloadQueued", "En file")
-      : status === "downloading"
-        ? t("search.downloadRunning", "{progress} %", { progress: job?.progress ?? 0 })
-        : status === "scanning"
-          ? t("search.downloadScanning", "Ajout à la bibliothèque…")
-          : status === "done"
-            ? t("search.downloaded", "Ajouté")
-            : status === "error"
-              ? t("search.downloadFailed", "Échec — réessayer")
-              : t("search.humResults.add", "Ajouter à la bibliothèque");
+
+  const handlePlay = () => {
+    if (!onPlay || resolvingPlay) return;
+    setResolvingPlay(true);
+    Promise.resolve(onPlay(match)).finally(() => setResolvingPlay(false));
+  };
 
   return (
-    <div className="matte-panel flex items-center gap-3 rounded-lg p-2 pr-3">
-      <div className="grid h-14 w-14 shrink-0 place-items-center rounded-md bg-[var(--surface-2)]">
+    <div
+      role={onPlay ? "button" : undefined}
+      tabIndex={onPlay ? 0 : undefined}
+      onClick={handlePlay}
+      onKeyDown={(e) => {
+        if (onPlay && (e.key === "Enter" || e.key === " ")) {
+          e.preventDefault();
+          handlePlay();
+        }
+      }}
+      className={cn(
+        "matte-panel flex items-center gap-3 rounded-2xl p-2 pr-3 transition-colors",
+        onPlay && "cursor-pointer hover:bg-[var(--surface-2)] focus-auralis",
+      )}
+    >
+      <div className="grid h-14 w-14 shrink-0 place-items-center rounded-xl bg-[var(--surface-2)]">
         <Music2 className="size-5 text-muted-foreground" />
       </div>
       <div className="min-w-0 flex-1">
@@ -377,21 +368,13 @@ function HumRemoteRow({
           {match.artists.join(", ") || t("common.artistLabel", "Artiste")}
           {` · ${t("search.humResults.score", "{percent} %", { percent: Math.round(match.score * 100) })}`}
         </p>
-        {status === "downloading" && (
-          <div className="mt-1.5 h-1 overflow-hidden rounded-full bg-[var(--surface-2)]">
-            <div
-              className="h-full rounded-full bg-[var(--accent,var(--foreground))]"
-              style={{ width: `${Math.max(3, job?.progress ?? 0)}%` }}
-            />
-          </div>
-        )}
       </div>
       {onPlay && (
         <button
-          onClick={() => {
-            if (resolvingPlay) return;
-            setResolvingPlay(true);
-            Promise.resolve(onPlay(match)).finally(() => setResolvingPlay(false));
+          type="button"
+          onClick={(e) => {
+            e.stopPropagation();
+            handlePlay();
           }}
           disabled={resolvingPlay}
           aria-label={`${t("common.play", "Lire")} — ${match.title}`}
@@ -401,31 +384,6 @@ function HumRemoteRow({
           <span>{t("common.play", "Lire")}</span>
         </button>
       )}
-      <button
-        onClick={() => !busy && status !== "done" && onStart(match, jobKey)}
-        disabled={busy || status === "done"}
-        aria-label={`${label} — ${match.title}`}
-        className={cn(
-          "tap-press flex h-11 shrink-0 items-center gap-2 rounded-full px-4 text-[12px] font-bold transition-colors lg:h-9",
-          status === "done"
-            ? "bg-[var(--surface-2)] text-muted-foreground"
-            : status === "error"
-              ? "bg-red-500/15 text-red-400 hover:bg-red-500/25"
-              : busy
-                ? "bg-[var(--surface-2)] text-muted-foreground"
-                : "bg-[var(--surface-2)] text-foreground hover:bg-[var(--panel-3)]",
-        )}
-      >
-        {busy && <Loader2 className="size-4 animate-spin" />}
-        {status === "done" && <Check className="size-4" />}
-        {status === "error" && <AlertCircle className="size-4" />}
-        <span className="hidden sm:inline">{label}</span>
-        <span className="sm:hidden">
-          {status === "done"
-            ? t("search.downloaded", "Ajouté")
-            : t("search.humResults.addShort", "Ajouter")}
-        </span>
-      </button>
     </div>
   );
 }

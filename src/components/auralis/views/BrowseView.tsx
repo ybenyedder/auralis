@@ -74,14 +74,14 @@ export function BrowseView() {
                   type="button"
                   onClick={() => playList(shuffleArray(gt), 0)}
                   aria-label={t("common.play", "Lire") + ` — ${genre}`}
-                  className="tap-press group relative aspect-[1.1] overflow-hidden rounded-lg p-4 text-left"
+                  className="tap-press group relative aspect-[1.1] overflow-hidden rounded-2xl p-4 text-left"
                   style={{ background: c0 }}
                 >
                   <span className="pointer-events-none absolute inset-0 bg-black/20" aria-hidden />
                   <span className="pointer-events-none relative block max-w-[80%] text-[18px] font-black leading-tight text-white">{genre}</span>
                   {/* Tilted thumbnail in the bottom-right corner — Spotify's category-card motif. */}
                   <span
-                    className="pointer-events-none absolute -bottom-2 -right-3 h-[72px] w-[72px] rotate-[25deg] rounded-xs border border-black/20"
+                    className="pointer-events-none absolute -bottom-2 -right-3 h-[72px] w-[72px] rotate-[25deg] rounded-xl border border-black/20"
                     style={{ background: c1 }}
                   />
                 </button>

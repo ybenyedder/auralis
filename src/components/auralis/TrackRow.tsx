@@ -117,7 +117,7 @@ export const TrackRow = memo(function TrackRow({
       role="button"
       tabIndex={0}
       className={cn(
-        "lazy-row group relative grid cursor-pointer items-center gap-3 rounded-md px-2 transition-all focus-auralis active:scale-[0.99]",
+        "lazy-row group relative grid cursor-pointer items-center gap-3 rounded-xl px-2 transition-all focus-auralis active:scale-[0.99]",
         compact ? "grid-cols-[20px_1fr_auto] py-1.5" : "grid-cols-[24px_minmax(0,1fr)_auto] py-2.5 lg:py-2",
         showAlbum && !compact && "md:grid-cols-[24px_minmax(0,1.6fr)_minmax(0,1fr)_auto]",
         selected ? "bg-primary/15 hover:bg-primary/20" : "hover:bg-[var(--surface-2)]",
@@ -175,7 +175,7 @@ export const TrackRow = memo(function TrackRow({
             title={track.title}
             trackhash={track.trackhash}
             size={compact ? 32 : 36}
-            rounded={4}
+            rounded={10}
             colors={track.color}
             image={track.image}
             className="shrink-0"

@@ -103,11 +103,22 @@ class AuralisApi {
     }
 
     suspend fun login(probeBase: String, username: String, password: String): AuthResult =
+        authPost(probeBase, "/api/auth/login", username, password)
+
+    suspend fun register(probeBase: String, username: String, password: String): AuthResult =
+        authPost(probeBase, "/api/auth/register", username, password)
+
+    private suspend fun authPost(
+        probeBase: String,
+        endpoint: String,
+        username: String,
+        password: String,
+    ): AuthResult =
         withContext(Dispatchers.IO) {
             val b = normalizeBase(probeBase)
             val body = JSONObject().put("username", username).put("password", password)
             val req = Request.Builder()
-                .url("$b/api/auth/login")
+                .url("$b$endpoint")
                 .post(body.toString().toRequestBody(JSON))
                 .build()
             runCatching {
@@ -116,15 +127,21 @@ class AuralisApi {
                     if (resp.isSuccessful && json.optBoolean("ok", false)) {
                         AuthResult(
                             ok = true,
-                            token = json.optString("token", null),
+                            token = json.optString("token").ifBlank { null },
                             username = json.optString("username", username),
                             isAdmin = json.optBoolean("isAdmin", false),
                             defaultPassword = json.optBoolean("defaultPassword", false),
                             error = null,
                         )
                     } else {
-                        AuthResult(false, null, null, false, false,
-                            json.optString("error", Messages.t("auth.wrongCredentials")))
+                        AuthResult(
+                            ok = false,
+                            token = null,
+                            username = null,
+                            isAdmin = false,
+                            defaultPassword = false,
+                            error = json.optString("error").ifBlank { Messages.t("auth.wrongCredentials") },
+                        )
                     }
                 }
             }.getOrElse { AuthResult(false, null, null, false, false, Messages.t("toast.serverUnreachable")) }

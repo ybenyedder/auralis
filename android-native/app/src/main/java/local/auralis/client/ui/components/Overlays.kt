@@ -153,7 +153,7 @@ fun VisualizerOverlay(title: String?, isPlaying: Boolean, vm: local.auralis.clie
                 val frac = (0.06f + 0.94f * amp.coerceIn(0f, 1f))
                 Box(
                     Modifier.weight(1f).fillMaxHeight(frac)
-                        .clip(RoundedCornerShape(3.dp))
+                        .clip(RoundedCornerShape(99.dp))
                         .background(Brush.verticalGradient(listOf(colors.accent, colors.accentDeep))),
                 )
             }

@@ -34,9 +34,9 @@ import androidx.compose.material.icons.filled.ArrowDownward
 import androidx.compose.material.icons.filled.ArrowUpward
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Close
-import androidx.compose.material.icons.filled.Download
 import androidx.compose.material.icons.filled.Explore
 import androidx.compose.material.icons.filled.Favorite
+import androidx.compose.material.icons.filled.FavoriteBorder
 import androidx.compose.material.icons.filled.Link
 import androidx.compose.material.icons.filled.Mic
 import androidx.compose.material.icons.filled.MoreVert
@@ -47,7 +47,6 @@ import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.PushPin
 import androidx.compose.material.icons.filled.QueueMusic
 import androidx.compose.material.icons.filled.Search
-import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
@@ -79,7 +78,6 @@ import local.auralis.client.i18n.Messages
 import local.auralis.client.i18n.tr
 import local.auralis.client.model.Album
 import local.auralis.client.model.Artist
-import local.auralis.client.model.DownloadJobDto
 import local.auralis.client.model.MoodMix
 import local.auralis.client.model.MoodRecs
 import local.auralis.client.model.Moods
@@ -575,21 +573,25 @@ private fun LazyItemScope.QuickTile(tile: QuickTileItem, modifier: Modifier = Mo
     Row(
         modifier
             .animateItem(placementSpec = Motion.placement)
-            .height(56.dp)
+            .height(60.dp)
             .clip(AMShapes.tile)
             .background(colors.panel2)
-            .clickable { tile.onOpen() },
+            .clickable { tile.onOpen() }
+            .padding(6.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         if (tile.liked) {
             Box(
-                Modifier.size(56.dp).background(Brush.linearGradient(listOf(Color(0xFFFA233B), Color(0xFFFC5C7A), Color(0xFFFFAEBE)))),
+                Modifier
+                    .size(48.dp)
+                    .clip(AMShapes.thumb)
+                    .background(Brush.linearGradient(listOf(Color(0xFFFA233B), Color(0xFFFC5C7A), Color(0xFFFFAEBE)))),
                 contentAlignment = Alignment.Center,
             ) {
-                Icon(Icons.Filled.Favorite, null, tint = Color.White, modifier = Modifier.size(22.dp))
+                Icon(Icons.Filled.Favorite, null, tint = Color.White, modifier = Modifier.size(20.dp))
             }
         } else {
-            local.auralis.client.ui.components.CoverArt(tile.image, tile.seed, Modifier.size(56.dp), cornerRadius = 0, sizeDp = 56)
+            local.auralis.client.ui.components.CoverArt(tile.image, tile.seed, Modifier.size(48.dp), cornerRadius = 12, sizeDp = 48)
         }
         Spacer(Modifier.width(Spacing.md))
         Column(Modifier.weight(1f)) {
@@ -752,7 +754,7 @@ fun SearchScreen(vm: AppViewModel, ui: UiState) {
             placeholder = { Text(tr("search.placeholderMobile"), color = colors.textFaint) },
             leadingIcon = { Icon(Icons.Filled.Search, null, tint = colors.textMuted) },
             singleLine = true,
-            shape = AMShapes.tile,
+            shape = AMShapes.pill,
             modifier = Modifier.fillMaxWidth(),
             colors = OutlinedTextFieldDefaults.colors(
                 focusedBorderColor = Color.Transparent,
@@ -859,11 +861,14 @@ fun SearchScreen(vm: AppViewModel, ui: UiState) {
                         item { local.auralis.client.ui.components.SkeletonRows(3) }
                     }
                     items(ui.onlineResults, key = { "online-${it.videoId}" }) { hit ->
+                        val hash = hit.toTrack().trackhash
                         OnlineRow(
                             hit = hit,
-                            job = ui.downloadJobs[hit.videoId],
+                            isCurrent = hash == current,
+                            isPlaying = playing,
+                            isFavorite = ui.favorites.contains(hash),
                             onPlay = { vm.playOnline(it) },
-                            onDownload = { vm.downloadOnline(it) },
+                            onToggleFavorite = { vm.toggleOnlineFavorite(it) },
                             onMore = { vm.openOnlineMenu(it) },
                         )
                     }
@@ -876,95 +881,88 @@ fun SearchScreen(vm: AppViewModel, ui: UiState) {
     }
 }
 
-/** One instant-streaming YouTube hit: tap row to stream immediately, or tap
- *  the compact download icon on the right to save it on the server. */
+/** One instant-streaming hit: tap row to stream immediately, tap heart to
+ *  favorite, or overflow menu (⋯) to add to a playlist / queue. Zero downloads. */
 @Composable
 private fun OnlineRow(
     hit: OnlineTrack,
-    job: DownloadJobDto?,
+    isCurrent: Boolean,
+    isPlaying: Boolean,
+    isFavorite: Boolean,
     onPlay: (OnlineTrack) -> Unit,
-    onDownload: (OnlineTrack) -> Unit,
+    onToggleFavorite: (OnlineTrack) -> Unit,
     onMore: (OnlineTrack) -> Unit,
 ) {
     val colors = LocalAuralis.current
-    val busy = job?.busy == true
-    val done = job?.status == "done"
-    val failed = job?.status == "error"
-    val label = when {
-        done -> tr("search.downloaded")
-        failed -> tr("search.downloadRetry")
-        job?.status == "downloading" -> tr("search.downloadRunning", params = mapOf("progress" to job.progress.coerceIn(0, 100)))
-        job?.status == "scanning" -> tr("search.downloadScanning")
-        busy -> tr("search.downloadQueued")
-        else -> tr("search.download")
-    }
     Row(
         Modifier
             .fillMaxWidth()
             .clip(AMShapes.card)
-            .background(colors.panel2)
+            .background(if (isCurrent) colors.panel3 else colors.panel2)
             .clickable { onPlay(hit) }
             .padding(horizontal = 10.dp, vertical = 8.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        NetworkImage(
-            url = hit.thumbnail,
-            modifier = Modifier.size(52.dp).clip(AMShapes.thumb),
-            fallback = { Box(Modifier.size(52.dp).clip(AMShapes.thumb).background(colors.panel3)) },
-        )
-        Spacer(Modifier.width(10.dp))
+        Box(Modifier.size(52.dp)) {
+            NetworkImage(
+                url = hit.thumbnail,
+                modifier = Modifier.size(52.dp).clip(AMShapes.thumb),
+                fallback = { Box(Modifier.size(52.dp).clip(AMShapes.thumb).background(colors.panel3)) },
+            )
+            if (isCurrent) {
+                Box(
+                    Modifier
+                        .fillMaxSize()
+                        .clip(AMShapes.thumb)
+                        .background(Color.Black.copy(alpha = 0.48f)),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Icon(
+                        if (isPlaying) Icons.Filled.Pause else Icons.Filled.PlayArrow,
+                        contentDescription = null,
+                        tint = Color.White,
+                        modifier = Modifier.size(20.dp),
+                    )
+                }
+            }
+        }
+        Spacer(Modifier.width(12.dp))
         Column(Modifier.weight(1f)) {
-            Text(hit.title, color = colors.foreground, style = Type.Body, fontWeight = FontWeight.Bold, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            Text(
+                hit.title,
+                color = if (isCurrent) colors.accent else colors.foreground,
+                style = Type.Body,
+                fontWeight = FontWeight.Bold,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
             Text(
                 "${hit.displayArtist} · ${formatLongDuration(hit.duration)}",
-                color = colors.textMuted, style = Type.Caption, fontWeight = FontWeight.Medium,
-                maxLines = 1, overflow = TextOverflow.Ellipsis,
+                color = colors.textMuted,
+                style = Type.Caption,
+                fontWeight = FontWeight.Medium,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
             )
-        }
-        Spacer(Modifier.width(8.dp))
-        Row(
-            Modifier
-                .clip(CircleShape)
-                .background(
-                    when {
-                        done -> colors.panel3
-                        failed -> Color(0x26FF5252)
-                        else -> colors.panel3
-                    },
-                )
-                .clickable(enabled = !busy && !done) { onDownload(hit) }
-                .padding(horizontal = 12.dp, vertical = 8.dp),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            if (busy) {
-                CircularProgressIndicator(
-                    color = colors.foreground, strokeWidth = 2.dp,
-                    modifier = Modifier.size(14.dp),
-                )
-                Spacer(Modifier.width(6.dp))
-                Text(label, color = colors.foreground, style = Type.Caption, fontWeight = FontWeight.Bold)
-            } else if (done || failed) {
-                Icon(
-                    if (done) Icons.Filled.Check else Icons.Filled.Close,
-                    contentDescription = label,
-                    tint = if (failed) Color(0xFFFF6B6B) else colors.foreground,
-                    modifier = Modifier.size(16.dp),
-                )
-                Spacer(Modifier.width(6.dp))
-                Text(label, color = if (failed) Color(0xFFFF6B6B) else colors.foreground, style = Type.Caption, fontWeight = FontWeight.Bold)
-            } else {
-                Icon(
-                    Icons.Filled.Download,
-                    contentDescription = label,
-                    tint = colors.textMuted,
-                    modifier = Modifier.size(16.dp),
-                )
-            }
         }
         Spacer(Modifier.width(4.dp))
         Box(
             Modifier
-                .size(36.dp)
+                .size(38.dp)
+                .clip(CircleShape)
+                .clickable { onToggleFavorite(hit) },
+            contentAlignment = Alignment.Center,
+        ) {
+            Icon(
+                if (isFavorite) Icons.Filled.Favorite else Icons.Filled.FavoriteBorder,
+                contentDescription = tr("common.favoriteAria"),
+                tint = if (isFavorite) colors.accent else colors.textMuted,
+                modifier = Modifier.size(20.dp),
+            )
+        }
+        Box(
+            Modifier
+                .size(38.dp)
                 .clip(CircleShape)
                 .clickable { onMore(hit) },
             contentAlignment = Alignment.Center,
@@ -973,7 +971,7 @@ private fun OnlineRow(
                 Icons.Filled.MoreVert,
                 contentDescription = tr("player.trackOptions"),
                 tint = colors.textMuted,
-                modifier = Modifier.size(18.dp),
+                modifier = Modifier.size(20.dp),
             )
         }
     }
@@ -1266,7 +1264,7 @@ private fun AlbumRow(album: local.auralis.client.model.Album, onLongPress: (() -
             .padding(vertical = 7.dp, horizontal = 8.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        local.auralis.client.ui.components.CoverArt(album.image, album.albumhash, Modifier.size(46.dp), cornerRadius = 8, sizeDp = 46)
+        local.auralis.client.ui.components.CoverArt(album.image, album.albumhash, Modifier.size(46.dp), cornerRadius = 12, sizeDp = 46)
         Spacer(Modifier.width(12.dp))
         Column(Modifier.weight(1f)) {
             Text(album.title, color = colors.foreground, style = Type.Body, fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis)
@@ -1540,7 +1538,7 @@ fun InsightsScreen(vm: AppViewModel, ui: UiState) {
                         Box(
                             Modifier.fillMaxWidth(0.7f)
                                 .height((8 + (d.count.toFloat() / maxC) * 100).dp)
-                                .clip(RoundedCornerShape(6.dp))
+                                .clip(RoundedCornerShape(topStart = 10.dp, topEnd = 10.dp, bottomStart = 4.dp, bottomEnd = 4.dp))
                                 .background(colors.accent),
                         )
                         Spacer(Modifier.height(4.dp))
@@ -1596,10 +1594,10 @@ private fun BarPanel(title: String, eyebrow: String, rows: List<Pair<String, Int
                         Text("$value", color = colors.textMuted, style = Type.Caption, fontWeight = FontWeight.SemiBold)
                     }
                     Spacer(Modifier.height(3.dp))
-                    Box(Modifier.fillMaxWidth().height(5.dp).clip(RoundedCornerShape(3.dp)).background(colors.panel2)) {
+                    Box(Modifier.fillMaxWidth().height(6.dp).clip(CircleShape).background(colors.panel2)) {
                         Box(
                             Modifier.fillMaxWidth((value.toFloat() / max).coerceIn(0.04f, 1f))
-                                .height(5.dp).clip(RoundedCornerShape(3.dp)).background(colors.accent),
+                                .height(6.dp).clip(CircleShape).background(colors.accent),
                         )
                     }
                 }
@@ -1695,10 +1693,10 @@ private fun MoodRecapSection(vm: AppViewModel, ui: UiState) {
                         Text("${(ms.share * 100).toInt()}%", color = colors.textMuted, style = Type.Caption)
                     }
                     Spacer(Modifier.height(4.dp))
-                    Box(Modifier.fillMaxWidth().height(8.dp).clip(RoundedCornerShape(4.dp)).background(colors.panel2)) {
+                    Box(Modifier.fillMaxWidth().height(8.dp).clip(CircleShape).background(colors.panel2)) {
                         Box(
                             Modifier.fillMaxWidth(ms.share.toFloat().coerceIn(0.03f, 1f)).height(8.dp)
-                                .clip(RoundedCornerShape(4.dp))
+                                .clip(CircleShape)
                                 .background(Brush.linearGradient(listOf(hexColor(mi?.c0 ?: "#888888"), hexColor(mi?.c1 ?: "#555555")))),
                         )
                     }
@@ -1717,7 +1715,7 @@ private fun MoodRecapSection(vm: AppViewModel, ui: UiState) {
                         Modifier.fillMaxWidth().clickable { vm.playList(topTracks.map { it.first }, i) }.padding(vertical = 6.dp),
                         verticalAlignment = Alignment.CenterVertically,
                     ) {
-                        local.auralis.client.ui.components.CoverArt(t.image, t.albumhash ?: t.title, Modifier.size(36.dp), cornerRadius = 8, sizeDp = 36)
+                        local.auralis.client.ui.components.CoverArt(t.image, t.albumhash ?: t.title, Modifier.size(36.dp), cornerRadius = 10, sizeDp = 36)
                         Spacer(Modifier.width(10.dp))
                         Column(Modifier.weight(1f)) {
                             Text(t.title, color = colors.foreground, style = Type.Label, maxLines = 1, overflow = TextOverflow.Ellipsis)

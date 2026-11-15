@@ -132,7 +132,7 @@ export function Sidebar() {
           title={t("nav.settings", "Réglages")}
           aria-current={isActive("settings") ? "page" : undefined}
           className={cn(
-            "group flex w-full items-center gap-3.5 rounded-md px-3 py-2 text-left transition-colors duration-150",
+            "group flex w-full items-center gap-3.5 rounded-xl px-3 py-2 text-left transition-colors duration-150",
             isActive("settings")
               ? "text-[var(--primary)]"
               : "text-[var(--text-muted)] hover:text-foreground hover:bg-[var(--sidebar-accent)]",

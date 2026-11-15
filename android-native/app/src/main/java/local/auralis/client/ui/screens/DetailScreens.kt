@@ -117,7 +117,7 @@ fun AlbumDetail(vm: AppViewModel, ui: UiState, albumhash: String) {
                 // Shadow under the cover gives the hero real depth (the flat pasted
                 // rectangle read as "cheap" next to the web's layered cards).
                 Box(Modifier.shadow(18.dp, AMShapes.card, clip = false)) {
-                    CoverArt(album?.image, albumhash, Modifier.size(180.dp), cornerRadius = 12)
+                    CoverArt(album?.image, albumhash, Modifier.size(180.dp), cornerRadius = 20)
                 }
                 Spacer(Modifier.height(14.dp))
                 Eyebrow(tr("mobile.album"))
@@ -338,6 +338,7 @@ fun PlaylistDetail(vm: AppViewModel, ui: UiState, playlistId: String) {
     if (ui.playlistExportOpen) {
         AlertDialog(
             onDismissRequest = { vm.closePlaylistExport() },
+            shape = AMShapes.card,
             containerColor = colors.panel,
             title = { Text(tr("detail.exportPlaylist"), color = colors.foreground) },
             text = {
@@ -355,6 +356,7 @@ fun PlaylistDetail(vm: AppViewModel, ui: UiState, playlistId: String) {
     if (ui.playlistInviteOpen) {
         AlertDialog(
             onDismissRequest = { vm.closePlaylistInvite() },
+            shape = AMShapes.card,
             containerColor = colors.panel,
             title = { Text(tr("detail.inviteTitle"), color = colors.foreground) },
             text = {
@@ -383,6 +385,7 @@ fun PlaylistDetail(vm: AppViewModel, ui: UiState, playlistId: String) {
     if (ui.playlistTikTokOpen) {
         AlertDialog(
             onDismissRequest = { if (!tiktokBusy) vm.closePlaylistTikTok() },
+            shape = AMShapes.card,
             containerColor = colors.panel,
             title = { Text(tr("detail.addTikTok"), color = colors.foreground) },
             text = {
@@ -432,9 +435,9 @@ fun PlaylistDetail(vm: AppViewModel, ui: UiState, playlistId: String) {
                         // Custom cover when set, else the Spotify-style album mosaic
                         // (never the seeded gradient wash).
                         if (pl?.imageHash != null) {
-                            CoverArt(pl?.imageHash?.let { "/api/art/$it" }, playlistId, Modifier.size(180.dp), cornerRadius = 12)
+                            CoverArt(pl?.imageHash?.let { "/api/art/$it" }, playlistId, Modifier.size(180.dp), cornerRadius = 20)
                         } else {
-                            local.auralis.client.ui.components.PlaylistMosaic(tracks, playlistId, Modifier.size(180.dp), cornerRadius = 12, sizeDp = 180)
+                            local.auralis.client.ui.components.PlaylistMosaic(tracks, playlistId, Modifier.size(180.dp), cornerRadius = 20, sizeDp = 180)
                         }
                     }
                     if (!isCollaborator) {

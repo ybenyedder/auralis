@@ -239,7 +239,7 @@ fun PlaylistMosaic(
     tracks: List<Track>,
     seed: String?,
     modifier: Modifier = Modifier,
-    cornerRadius: Int = 10,
+    cornerRadius: Int = 14,
     sizeDp: Int = 0,
 ) {
     val covers = tracks.take(4).map { it.image }
@@ -437,7 +437,7 @@ fun CoverArt(
     image: String?,
     seed: String?,
     modifier: Modifier = Modifier,
-    cornerRadius: Int = 12,
+    cornerRadius: Int = 16,
     sizeDp: Int = 180,
 ) {
     val (bg, c1, c2) = paletteFor(seed)

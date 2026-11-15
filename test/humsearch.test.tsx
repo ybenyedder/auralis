@@ -47,9 +47,7 @@ describe("HumResultsView", () => {
     render(
       <HumResultsView
         result={{ ...baseResult, local: [localMatch] }}
-        jobs={{}}
         onPlayLocal={onPlayLocal}
-        onStartRemote={vi.fn()}
         t={t}
       />,
     );
@@ -61,32 +59,29 @@ describe("HumResultsView", () => {
     expect(onPlayLocal).toHaveBeenCalledWith(localMatch);
   });
 
-  it("renders remote matches with an add button when global recognition is enabled", () => {
-    const onStartRemote = vi.fn();
+  it("renders remote matches with an instant play button when global recognition is enabled", () => {
+    const onPlayRemote = vi.fn();
     render(
       <HumResultsView
         result={{ ...baseResult, remoteEnabled: true, remote: [remoteMatch] }}
-        jobs={{}}
         onPlayLocal={vi.fn()}
-        onStartRemote={onStartRemote}
+        onPlayRemote={onPlayRemote}
         t={t}
       />,
     );
     expect(screen.getByText("Identifié (catalogue mondial)")).toBeInTheDocument();
     expect(screen.getByText("Get Lucky")).toBeInTheDocument();
     expect(screen.getByText(/Daft Punk, Pharrell Williams/)).toBeInTheDocument();
-    const add = screen.getByRole("button", { name: /Ajouter à la bibliothèque — Get Lucky/ });
-    fireEvent.click(add);
-    expect(onStartRemote).toHaveBeenCalledWith(remoteMatch, "hum:Daft Punk+Pharrell Williams|Get Lucky");
+    const playBtn = screen.getByRole("button", { name: /Lire — Get Lucky/ });
+    fireEvent.click(playBtn);
+    expect(onPlayRemote).toHaveBeenCalledWith(remoteMatch);
   });
 
   it("hides the remote section when global recognition is disabled", () => {
     render(
       <HumResultsView
         result={{ ...baseResult, remoteEnabled: false, remote: [remoteMatch] }}
-        jobs={{}}
         onPlayLocal={vi.fn()}
-        onStartRemote={vi.fn()}
         t={t}
       />,
     );
@@ -97,9 +92,7 @@ describe("HumResultsView", () => {
     render(
       <HumResultsView
         result={{ ...baseResult, indexSize: 0 }}
-        jobs={{}}
         onPlayLocal={vi.fn()}
-        onStartRemote={vi.fn()}
         t={t}
       />,
     );
@@ -110,9 +103,7 @@ describe("HumResultsView", () => {
     render(
       <HumResultsView
         result={baseResult}
-        jobs={{}}
         onPlayLocal={vi.fn()}
-        onStartRemote={vi.fn()}
         t={t}
       />,
     );

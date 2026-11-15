@@ -71,7 +71,7 @@ function MiniPlayer() {
 
   return (
     <div
-      className="relative flex flex-col overflow-hidden rounded-md matte-panel-2 shadow-[0_4px_16px_rgba(0,0,0,0.2)] ring-1 ring-white/[0.03]"
+      className="relative flex flex-col overflow-hidden rounded-2xl matte-panel-2 shadow-[0_8px_24px_rgba(0,0,0,0.28)] ring-1 ring-white/[0.05]"
     >
       {/* Ambient backdrop wash: a blown-up, blurred copy of the cover art
           tinting the bar so the mini-player picks up the now-playing color
@@ -99,7 +99,7 @@ function MiniPlayer() {
               title={currentTrack.title}
               trackhash={currentTrack.trackhash}
               size={40}
-              rounded={4}
+              rounded={10}
               colors={currentTrack.color}
               image={currentTrack.image}
             />
@@ -109,7 +109,7 @@ function MiniPlayer() {
             {isPlaying && (
               <span
                 aria-hidden
-                className="absolute inset-0 grid place-items-center rounded-[4px] bg-black/55"
+                className="absolute inset-0 grid place-items-center rounded-[10px] bg-black/55"
               >
                 <EqualizerBars active className="h-3.5" />
               </span>
