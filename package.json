@@ -1,6 +1,6 @@
 {
   "name": "auralis",
-  "version": "1.35.2",
+  "version": "1.35.3",
   "private": true,
   "engines": {
     "node": ">=20.0.0"

@@ -124,7 +124,7 @@ private fun PrimaryButton(label: String, loading: Boolean, onClick: () -> Unit) 
 @Composable
 fun ConnectScreen(connecting: Boolean, message: String?, initial: String, onConnect: (String) -> Unit) {
     val colors = LocalAuralis.current
-    var url by remember { mutableStateOf(initial) }
+    var url by remember(initial) { mutableStateOf(initial.ifBlank { "https://auralis.webtvmedia.net" }) }
     Box(Modifier.fillMaxSize().background(colors.background).systemBarsPadding().imePadding()) {
         Column(
             Modifier.fillMaxSize().padding(Spacing.xl),

@@ -7,9 +7,13 @@ import Security
 // per-user state stay authoritative on the server.
 enum Prefs {
     private static let d = UserDefaults.standard
+    static let defaultServerBase = "https://auralis.webtvmedia.net"
 
     static var serverBase: String {
-        get { d.string(forKey: "auralis.base") ?? "" }
+        get {
+            let v = d.string(forKey: "auralis.base") ?? ""
+            return v.isEmpty ? defaultServerBase : v
+        }
         set { d.set(newValue, forKey: "auralis.base") }
     }
     static var username: String {

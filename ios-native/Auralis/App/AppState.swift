@@ -60,7 +60,9 @@ final class AppState: ObservableObject {
     func bootstrap() async {
         let savedBase = Prefs.serverBase
         let savedToken = Prefs.token
+        base = savedBase
         guard !savedBase.isEmpty, let token = savedToken, !token.isEmpty else {
+            await api.configure(base: savedBase, token: nil)
             phase = savedBase.isEmpty ? .connect : .login
             return
         }

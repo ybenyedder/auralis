@@ -15,6 +15,7 @@ const { initAutoUpdater } = require("./updater");
 
 const isDev = !app.isPackaged || process.env.AURALIS_DESKTOP_DEV === "1";
 const DEV_URL = process.env.AURALIS_DEV_URL || "http://localhost:4237";
+const DEFAULT_REMOTE_URL = process.env.AURALIS_REMOTE_URL || "https://auralis.webtvmedia.net";
 
 let serverProcess = null;
 let mainWindow = null;
@@ -46,6 +47,7 @@ function setupConfigPath() {
 function readSetup() {
   try {
     const cfg = JSON.parse(fs.readFileSync(setupConfigPath(), "utf8"));
+    if (cfg && cfg.mode === "pending") return "pending";
     return normalizeSetup(cfg);
   } catch {
     return null;
@@ -212,7 +214,7 @@ ipcMain.handle("desktop:reconfigure", async () => {
     message: "Réinitialiser la configuration et relancer l'assistant de configuration ?",
   });
   if (choice.response !== 0) return { ok: false };
-  try { fs.unlinkSync(setupConfigPath()); } catch { /* already absent */ }
+  writeSetup({ mode: "pending" });
   // app.exit(0) fires neither before-quit nor will-quit, so the will-quit
   // serverProcess.kill() below would be skipped — leaving the embedded Next
   // server alive on its port with the SQLite DB open, and the relaunched instance
@@ -529,11 +531,16 @@ if (!singleInstance) {
     session.defaultSession.setPermissionCheckHandler(() => false);
 
     try {
-      // First launch (or after a reconfigure) asks the user for the source; the
-      // saved choice is reused silently on every later launch. Dev always runs
-      // against the local dev server.
+      // First launch defaults straight to the hosted Auralis server so users can
+      // sign in or create an account immediately without typing a URL; they can
+      // still switch to another remote or local server from Settings.
       let cfg = isDev ? { mode: "local", musicDir: null } : readSetup();
-      if (!cfg) cfg = await runSetup();
+      if (cfg === "pending") {
+        cfg = await runSetup();
+      } else if (!cfg) {
+        cfg = { mode: "remote", url: DEFAULT_REMOTE_URL };
+        writeSetup(cfg);
+      }
       currentUrl = await boot(cfg);
       createWindow(currentUrl);
       registerMediaKeys();

@@ -38,6 +38,8 @@
 ---
 
 > [!NOTE]
+> **Hosted instance:** [https://auralis.webtvmedia.net](https://auralis.webtvmedia.net) — open the Web app or install the Desktop / Android / iOS client and create an account directly (native apps connect to `https://auralis.webtvmedia.net` automatically on first launch, with an option in Settings to switch to your own self-hosted server).
+>
 > Auralis runs as a single self-hosted Next.js 16 + SQLite server that powers the web PWA, Electron desktop app, and native Android/iOS clients with zero paid external dependencies.
 
 ---

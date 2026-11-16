@@ -250,6 +250,8 @@ data class UiState(
     val trackByHash: Map<String, Track> = emptyMap(),
 )
 
+private const val DEFAULT_SERVER_URL = "https://auralis.webtvmedia.net"
+
 class AppViewModel(app: Application) : AndroidViewModel(app) {
 
     private val prefs = Prefs(app)
@@ -395,7 +397,11 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
             AudioFx.setEq(p.eqEnabled, p.eqBands)
             applyNormalization()
             if (p.serverBase.isBlank()) {
-                _ui.update { it.copy(phase = Phase.CONNECT) }
+                val defaultBase = DEFAULT_SERVER_URL
+                prefs.setServer(defaultBase, null, null)
+                api.configure(defaultBase, null)
+                accounting.onServerConfigured(defaultBase, null)
+                _ui.update { it.copy(phase = Phase.LOGIN, serverBase = defaultBase) }
                 return@launch
             }
             if (!p.token.isNullOrBlank()) {

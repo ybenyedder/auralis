@@ -16,7 +16,7 @@ struct ConnectView: View {
                 Text("Connectez-vous à votre serveur").font(.subheadline).foregroundStyle(.secondary)
             }
             VStack(spacing: 14) {
-                TextField("http://192.168.1.10:4123", text: $url)
+                TextField("https://auralis.webtvmedia.net", text: $url)
                     .textInputAutocapitalization(.never)
                     .autocorrectionDisabled()
                     .keyboardType(.URL)
